@@ -1,0 +1,516 @@
+{
+  "root": {
+    "name": "RootPane",
+    "type": "pan1",
+    "flags": 1,
+    "origin": 4,
+    "alpha": 255,
+    "translation": [
+      0,
+      0,
+      0
+    ],
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": [
+      1,
+      1
+    ],
+    "size": [
+      608,
+      456
+    ],
+    "children": [
+      {
+        "name": "One",
+        "type": "wnd1",
+        "flags": 1,
+        "origin": 0,
+        "alpha": 255,
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1
+        ],
+        "size": [
+          50,
+          30
+        ],
+        "material": 0,
+        "inflation": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "frames": [
+          {
+            "material": 1,
+            "flip": 0
+          }
+        ],
+        "children": []
+      },
+      {
+        "name": "Four",
+        "type": "wnd1",
+        "flags": 1,
+        "origin": 0,
+        "alpha": 255,
+        "translation": [
+          0,
+          100,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1
+        ],
+        "size": [
+          50,
+          30
+        ],
+        "material": 0,
+        "inflation": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "frames": [
+          {
+            "material": 1,
+            "flip": 0
+          },
+          {
+            "material": 2,
+            "flip": 1
+          },
+          {
+            "material": 3,
+            "flip": 2
+          },
+          {
+            "material": 4,
+            "flip": 3
+          }
+        ],
+        "children": []
+      },
+      {
+        "name": "Eight",
+        "type": "wnd1",
+        "flags": 1,
+        "origin": 0,
+        "alpha": 255,
+        "translation": [
+          0,
+          200,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1
+        ],
+        "size": [
+          50,
+          30
+        ],
+        "material": 0,
+        "inflation": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "frames": [
+          {
+            "material": 1,
+            "flip": 0
+          },
+          {
+            "material": 2,
+            "flip": 1
+          },
+          {
+            "material": 3,
+            "flip": 2
+          },
+          {
+            "material": 4,
+            "flip": 3
+          },
+          {
+            "material": 5,
+            "flip": 4
+          },
+          {
+            "material": 6,
+            "flip": 5
+          },
+          {
+            "material": 7,
+            "flip": 0
+          },
+          {
+            "material": 8,
+            "flip": 1
+          }
+        ],
+        "children": []
+      }
+    ]
+  },
+  "materials": [
+    {
+      "name": "content",
+      "colors": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          255,
+          255,
+          255,
+          255
+        ],
+        [
+          255,
+          255,
+          255,
+          255
+        ]
+      ],
+      "textureMaps": [
+        {
+          "texture": 0,
+          "wrapS": 0,
+          "wrapT": 0
+        }
+      ]
+    },
+    {
+      "name": "f0",
+      "colors": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          255,
+          255,
+          255,
+          255
+        ],
+        [
+          255,
+          255,
+          255,
+          255
+        ]
+      ],
+      "textureMaps": [
+        {
+          "texture": 1,
+          "wrapS": 0,
+          "wrapT": 0
+        }
+      ]
+    },
+    {
+      "name": "f1",
+      "colors": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          255,
+          255,
+          255,
+          255
+        ],
+        [
+          255,
+          255,
+          255,
+          255
+        ]
+      ],
+      "textureMaps": [
+        {
+          "texture": 2,
+          "wrapS": 0,
+          "wrapT": 0
+        }
+      ]
+    },
+    {
+      "name": "f2",
+      "colors": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          255,
+          255,
+          255,
+          255
+        ],
+        [
+          255,
+          255,
+          255,
+          255
+        ]
+      ],
+      "textureMaps": [
+        {
+          "texture": 3,
+          "wrapS": 0,
+          "wrapT": 0
+        }
+      ]
+    },
+    {
+      "name": "f3",
+      "colors": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          255,
+          255,
+          255,
+          255
+        ],
+        [
+          255,
+          255,
+          255,
+          255
+        ]
+      ],
+      "textureMaps": [
+        {
+          "texture": 4,
+          "wrapS": 0,
+          "wrapT": 0
+        }
+      ]
+    },
+    {
+      "name": "f4",
+      "colors": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          255,
+          255,
+          255,
+          255
+        ],
+        [
+          255,
+          255,
+          255,
+          255
+        ]
+      ],
+      "textureMaps": [
+        {
+          "texture": 5,
+          "wrapS": 0,
+          "wrapT": 0
+        }
+      ]
+    },
+    {
+      "name": "f5",
+      "colors": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          255,
+          255,
+          255,
+          255
+        ],
+        [
+          255,
+          255,
+          255,
+          255
+        ]
+      ],
+      "textureMaps": [
+        {
+          "texture": 6,
+          "wrapS": 0,
+          "wrapT": 0
+        }
+      ]
+    },
+    {
+      "name": "f6",
+      "colors": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          255,
+          255,
+          255,
+          255
+        ],
+        [
+          255,
+          255,
+          255,
+          255
+        ]
+      ],
+      "textureMaps": [
+        {
+          "texture": 7,
+          "wrapS": 0,
+          "wrapT": 0
+        }
+      ]
+    },
+    {
+      "name": "f7",
+      "colors": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          255,
+          255,
+          255,
+          255
+        ],
+        [
+          255,
+          255,
+          255,
+          255
+        ]
+      ],
+      "textureMaps": [
+        {
+          "texture": 8,
+          "wrapS": 0,
+          "wrapT": 0
+        }
+      ]
+    }
+  ],
+  "textures": [
+    {
+      "name": "content",
+      "url": "textures/content.png",
+      "width": 4,
+      "height": 5
+    },
+    {
+      "name": "f0",
+      "url": "textures/f0.png",
+      "width": 4,
+      "height": 5
+    },
+    {
+      "name": "f1",
+      "url": "textures/f1.png",
+      "width": 4,
+      "height": 5
+    },
+    {
+      "name": "f2",
+      "url": "textures/f2.png",
+      "width": 4,
+      "height": 5
+    },
+    {
+      "name": "f3",
+      "url": "textures/f3.png",
+      "width": 6,
+      "height": 7
+    },
+    {
+      "name": "f4",
+      "url": "textures/f4.png",
+      "width": 4,
+      "height": 5
+    },
+    {
+      "name": "f5",
+      "url": "textures/f5.png",
+      "width": 4,
+      "height": 5
+    },
+    {
+      "name": "f6",
+      "url": "textures/f6.png",
+      "width": 4,
+      "height": 5
+    },
+    {
+      "name": "f7",
+      "url": "textures/f7.png",
+      "width": 4,
+      "height": 5
+    }
+  ],
+  "groups": {},
+  "animations": {}
+}

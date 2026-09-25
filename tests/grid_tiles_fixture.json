@@ -1,0 +1,168 @@
+{
+  "root": {
+    "name": "RootPane",
+    "type": "pan1",
+    "flags": 1,
+    "origin": 4,
+    "alpha": 255,
+    "translation": [0, 0, 0],
+    "rotation": [0, 0, 0],
+    "scale": [1, 1],
+    "size": [608, 456],
+    "children": [
+      {
+        "name": "N_Ch_a",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [-1024, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [64, 600],
+        "children": [
+          {
+            "name": "N_Ch_a04",
+            "type": "pan1",
+            "flags": 1,
+            "origin": 4,
+            "alpha": 255,
+            "translation": [192, 175, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1],
+            "size": [128, 96],
+            "children": []
+          }
+        ]
+      },
+      {
+        "name": "N_Ch_b",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [-512, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [64, 600],
+        "children": [
+          {
+            "name": "N_Ch_b03",
+            "type": "pan1",
+            "flags": 1,
+            "origin": 4,
+            "alpha": 255,
+            "translation": [64, 175, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1],
+            "size": [128, 96],
+            "children": []
+          },
+          {
+            "name": "N_Ch_b04",
+            "type": "pan1",
+            "flags": 1,
+            "origin": 4,
+            "alpha": 255,
+            "translation": [192, 175, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1],
+            "size": [128, 96],
+            "children": []
+          }
+        ]
+      },
+      {
+        "name": "N_Ch_c",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [64, 600],
+        "children": [
+          {
+            "name": "N_Ch_c01",
+            "type": "pan1",
+            "flags": 1,
+            "origin": 4,
+            "alpha": 255,
+            "translation": [-192, 175, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1],
+            "size": [128, 96],
+            "children": []
+          }
+        ]
+      },
+      {
+        "name": "N_Ch_d",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [512, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [64, 600],
+        "children": [
+          {
+            "name": "N_Ch_d01",
+            "type": "pan1",
+            "flags": 1,
+            "origin": 4,
+            "alpha": 255,
+            "translation": [-192, 175, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1],
+            "size": [128, 96],
+            "children": []
+          },
+          {
+            "name": "N_Ch_d02",
+            "type": "pan1",
+            "flags": 1,
+            "origin": 4,
+            "alpha": 255,
+            "translation": [-64, 175, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1],
+            "size": [128, 96],
+            "children": []
+          }
+        ]
+      },
+      {
+        "name": "N_Ch_e",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [1024, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [64, 600],
+        "children": [
+          {
+            "name": "N_Ch_e01",
+            "type": "pan1",
+            "flags": 1,
+            "origin": 4,
+            "alpha": 255,
+            "translation": [-192, 175, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1],
+            "size": [128, 96],
+            "children": []
+          }
+        ]
+      }
+    ]
+  },
+  "materials": [],
+  "textures": [],
+  "groups": {},
+  "animations": {}
+}

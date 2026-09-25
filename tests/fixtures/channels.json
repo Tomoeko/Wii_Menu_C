@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "escaped": "\u00e9 \ud83c\udf1f",
+  "channels": [
+    {
+      "id": "example-photo",
+      "title": "Photo Channel"
+    },
+    {
+      "id": "example-news",
+      "title": "News Channel"
+    }
+  ],
+  "defaultOrder": [
+    "example-photo",
+    "example-news"
+  ],
+  "savedLayout": {
+    "slots": [
+      {
+        "page": 1,
+        "index": 2,
+        "id": "example-news"
+      }
+    ]
+  }
+}

@@ -1,0 +1,700 @@
+{
+  "root": {
+    "name": "root",
+    "type": "pan1",
+    "flags": 1,
+    "origin": 4,
+    "alpha": 255,
+    "translation": [0, 0, 0],
+    "rotation": [0, 0, 0],
+    "scale": [1, 1],
+    "size": [608, 456],
+    "children": [
+      {
+        "name": "selected",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "unrelated",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "N_SuperParent",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "P_title_E_00",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "P_title_S_00",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "font_e",
+        "type": "pan1",
+        "flags": 4,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "font_s",
+        "type": "pan1",
+        "flags": 4,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "code",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "all",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "weather",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "textB0",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "textT0",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "textT1",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "send_id",
+        "type": "txt1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10],
+        "text": "placeholder",
+        "fontSize": [20, 20],
+        "charSpace": 1
+      },
+      {
+        "name": "N_base_00",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "P_logoE_00",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "P_logoSp_00",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "P_BG_00",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "P_BG_01",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "T_titleE_00",
+        "type": "txt1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10],
+        "text": "Title",
+        "fontSize": [20, 20],
+        "charSpace": 1
+      },
+      {
+        "name": "T_titleSp_00",
+        "type": "txt1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10],
+        "text": "Título",
+        "fontSize": [20, 20],
+        "charSpace": 1
+      },
+      {
+        "name": "T_telopE_00",
+        "type": "txt1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10],
+        "text": "News",
+        "fontSize": [20, 20],
+        "charSpace": 1
+      },
+      {
+        "name": "T_telopSp_00",
+        "type": "txt1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10],
+        "text": "Noticias",
+        "fontSize": [20, 20],
+        "charSpace": 1
+      },
+      {
+        "name": "N_messageE_00",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "N_messageSp_00",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "T_messageE_00",
+        "type": "txt1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [120, 40],
+        "text": "one\ntwo\nthree\nfour\nfive",
+        "fontSize": [20, 20],
+        "charSpace": 1
+      },
+      {
+        "name": "T_messageE_01",
+        "type": "txt1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10],
+        "text": "repeat",
+        "fontSize": [20, 20],
+        "charSpace": 1
+      },
+      {
+        "name": "T_messageSp_00",
+        "type": "txt1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10],
+        "text": "Aviso",
+        "fontSize": [20, 20],
+        "charSpace": 1
+      },
+      {
+        "name": "N_title_00",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "N_logoU_00",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "N_logoU_01",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "N_logoD_00",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "N_logoD_01",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "W_messWindow_00",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [100, 20]
+      },
+      {
+        "name": "fade",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "txt_3",
+        "type": "txt1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10],
+        "text": "old",
+        "fontSize": [20, 20],
+        "charSpace": 1
+      },
+      {
+        "name": "bg170_96",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "color",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "wii",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "txt_green",
+        "type": "txt1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10],
+        "text": "",
+        "fontSize": [20, 20],
+        "charSpace": 1
+      },
+      {
+        "name": "txt_purple",
+        "type": "txt1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10],
+        "text": "",
+        "fontSize": [20, 20],
+        "charSpace": 1
+      },
+      {
+        "name": "txt_yellow",
+        "type": "txt1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10],
+        "text": "",
+        "fontSize": [20, 20],
+        "charSpace": 1
+      },
+      {
+        "name": "txt_orange",
+        "type": "txt1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10],
+        "text": "",
+        "fontSize": [20, 20],
+        "charSpace": 1
+      },
+      {
+        "name": "LanguageJapanese",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "LanguageEnglish",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "LanguageSpanish",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "LanguageShared",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      },
+      {
+        "name": "LanguageUnassigned",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [10, 10]
+      }
+    ]
+  },
+  "materials": [],
+  "textures": [],
+  "groups": {
+    "Rso0": [
+      "selected"
+    ],
+    "JPN": [
+      "LanguageJapanese",
+      "LanguageShared"
+    ],
+    "ENG": [
+      "LanguageEnglish",
+      "LanguageShared"
+    ],
+    "SPA": [
+      "LanguageSpanish",
+      "LanguageShared"
+    ]
+  },
+  "animations": {
+    "icon_Start": {
+      "frames": 10,
+      "loop": false,
+      "textures": [],
+      "targets": []
+    },
+    "banner_Start": {
+      "frames": 60,
+      "loop": true,
+      "textures": [],
+      "targets": []
+    },
+    "banner_Loop": {
+      "frames": 140,
+      "loop": true,
+      "textures": [],
+      "targets": []
+    },
+    "icon_Rso0": {
+      "frames": 760,
+      "loop": true,
+      "textures": [],
+      "targets": [
+        {
+          "name": "selected",
+          "type": 0,
+          "tracks": [
+            {
+              "kind": "RLPA",
+              "id": 0,
+              "target": 0,
+              "curveType": 1,
+              "keys": [
+                {
+                  "frame": 0,
+                  "value": 99
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "unrelated",
+          "type": 0,
+          "tracks": [
+            {
+              "kind": "RLPA",
+              "id": 0,
+              "target": 0,
+              "curveType": 1,
+              "keys": [
+                {
+                  "frame": 0,
+                  "value": 99
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "icon_Rso1": {
+      "frames": 800,
+      "loop": true,
+      "textures": [],
+      "targets": []
+    },
+    "icon_Rso2": {
+      "frames": 151,
+      "loop": false,
+      "textures": [],
+      "targets": []
+    },
+    "icon_Rso3": {
+      "frames": 1025,
+      "loop": false,
+      "textures": [],
+      "targets": []
+    },
+    "banner_Rso0": {
+      "frames": 1240,
+      "loop": true,
+      "textures": [],
+      "targets": []
+    },
+    "banner_Rso1": {
+      "frames": 100,
+      "loop": false,
+      "textures": [],
+      "targets": []
+    },
+    "banner_Rso2": {
+      "frames": 151,
+      "loop": false,
+      "textures": [],
+      "targets": []
+    }
+  }
+}

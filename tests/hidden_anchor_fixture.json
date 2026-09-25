@@ -1,0 +1,33 @@
+{
+  "root": {
+    "name": "RootPane", "type": "pan1", "flags": 1,
+    "origin": 4, "alpha": 255,
+    "translation": [10, 20, 0], "rotation": [0, 0, 0],
+    "scale": [2, 3], "size": [608, 456],
+    "children": [
+      {
+        "name": "N_Clock0", "type": "pan1", "flags": 1,
+        "origin": 4, "alpha": 255,
+        "translation": [-5, 4, 0], "rotation": [0, 0, 0],
+        "scale": [1, 1], "size": [1, 1],
+        "children": []
+      },
+      {
+        "name": "Hidden", "type": "pan1", "flags": 0,
+        "origin": 4, "alpha": 255,
+        "translation": [100, 0, 0], "rotation": [0, 0, 0],
+        "scale": [1, 1], "size": [1, 1],
+        "children": [
+          {
+            "name": "N_Clock2", "type": "pan1", "flags": 0,
+            "origin": 4, "alpha": 255,
+            "translation": [7, -4, 0], "rotation": [0, 0, 0],
+            "scale": [4, 5], "size": [1, 1],
+            "children": []
+          }
+        ]
+      }
+    ]
+  },
+  "materials": [], "textures": [], "groups": {}, "animations": {}
+}

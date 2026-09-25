@@ -1,0 +1,110 @@
+{
+  "root": {
+    "name": "RootPane",
+    "type": "pan1",
+    "flags": 3,
+    "origin": 4,
+    "alpha": 128,
+    "translation": [0, 0, 0],
+    "rotation": [0, 0, 0],
+    "scale": [1, 1],
+    "size": [608, 456],
+    "children": [
+      {
+        "name": "Label",
+        "type": "txt1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 200,
+        "translation": [10, 20, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [120, 40],
+        "material": 0,
+        "font": 1,
+        "textPosition": 8,
+        "text": "A\u00e9\ud83d\ude00\nB",
+        "textColors": [
+          [12, 34, 56, 78],
+          [90, 100, 110, 120]
+        ],
+        "fontSize": [24, 28],
+        "charSpace": 1.5,
+        "lineSpace": 2.5,
+        "noWrap": true,
+        "children": []
+      }
+    ]
+  },
+  "fonts": [
+    "First.brfnt",
+    "Second.brfnt"
+  ],
+  "materials": [
+    {
+      "name": "TextMat",
+      "colors": [
+        [0, 0, 0, 0],
+        [128, 64, 32, 255],
+        [255, 255, 255, 255]
+      ]
+    }
+  ],
+  "textures": [],
+  "groups": {},
+  "animations": {
+    "TintAndHide": {
+      "frames": 10,
+      "loop": false,
+      "textures": [],
+      "targets": [
+        {
+          "name": "Label",
+          "type": 0,
+          "tracks": [
+            {
+              "kind": "RLVC",
+              "id": 0,
+              "target": 0,
+              "curveType": 2,
+              "keys": [
+                {"frame": 0, "value": 12, "slope": 0},
+                {"frame": 10, "value": 112, "slope": 0}
+              ]
+            },
+            {
+              "kind": "RLVC",
+              "id": 0,
+              "target": 16,
+              "curveType": 2,
+              "keys": [
+                {"frame": 0, "value": 200, "slope": 0},
+                {"frame": 10, "value": 100, "slope": 0}
+              ]
+            },
+            {
+              "kind": "RLPA",
+              "id": 0,
+              "target": 8,
+              "curveType": 2,
+              "keys": [
+                {"frame": 0, "value": 120, "slope": 0},
+                {"frame": 10, "value": 140, "slope": 0}
+              ]
+            },
+            {
+              "kind": "RLVI",
+              "id": 0,
+              "target": 0,
+              "curveType": 1,
+              "keys": [
+                {"frame": 0, "value": 1},
+                {"frame": 10, "value": 0}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

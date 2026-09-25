@@ -1,0 +1,99 @@
+{
+  "root": {
+    "name": "RootPane",
+    "type": "pan1",
+    "flags": 1,
+    "origin": 4,
+    "alpha": 255,
+    "translation": [0, 0, 0],
+    "rotation": [0, 0, 0],
+    "scale": [1, 1],
+    "size": [608, 456],
+    "children": [
+      {
+        "name": "Source",
+        "type": "pic1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "material": 0,
+        "translation": [10, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [20, 20],
+        "children": []
+      },
+      {
+        "name": "Destination",
+        "type": "pic1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "material": 1,
+        "translation": [40, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [20, 20],
+        "children": []
+      }
+    ]
+  },
+  "materials": [
+    {
+      "name": "SourceMaterial",
+      "colors": [
+        [255, 255, 255, 255],
+        [255, 255, 255, 255],
+        [255, 255, 255, 255]
+      ]
+    },
+    {
+      "name": "DestinationMaterial",
+      "colors": [
+        [255, 255, 255, 255],
+        [255, 255, 255, 255],
+        [255, 255, 255, 255]
+      ]
+    }
+  ],
+  "animations": {
+    "MoveAndTint": {
+      "frames": 10,
+      "loop": false,
+      "targets": [
+        {
+          "name": "Source",
+          "type": 0,
+          "tracks": [
+            {
+              "kind": "RLPA",
+              "id": 0,
+              "target": 0,
+              "curveType": 1,
+              "keys": [
+                {"frame": 0, "value": 10},
+                {"frame": 10, "value": 25}
+              ]
+            }
+          ]
+        },
+        {
+          "name": "SourceMaterial",
+          "type": 1,
+          "tracks": [
+            {
+              "kind": "RLMC",
+              "id": 0,
+              "target": 4,
+              "curveType": 1,
+              "keys": [
+                {"frame": 0, "value": 255},
+                {"frame": 10, "value": 64}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

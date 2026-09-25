@@ -1,0 +1,150 @@
+{
+  "root": {
+    "name": "RootPane",
+    "type": "pan1",
+    "flags": 3,
+    "origin": 4,
+    "alpha": 128,
+    "translation": [0, 0, 0],
+    "rotation": [0, 0, 0],
+    "scale": [1, 1],
+    "size": [608, 456],
+    "children": [
+      {
+        "name": "Picture",
+        "type": "pic1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [10, 20, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [100, 50],
+        "material": 0,
+        "vertexColors": [
+          [255, 255, 255, 255],
+          [255, 255, 255, 255],
+          [255, 255, 255, 255],
+          [255, 255, 255, 255]
+        ],
+        "texCoords": [
+          [[0, 0], [1, 0], [0, 1], [1, 1]]
+        ],
+        "children": []
+      }
+    ]
+  },
+  "materials": [
+    {
+      "name": "PictureMat",
+      "colors": [
+        [0, 0, 0, 0],
+        [255, 255, 255, 255],
+        [255, 255, 255, 255]
+      ],
+      "konstColors": [
+        [255, 255, 255, 255],
+        [255, 255, 255, 255],
+        [255, 255, 255, 255],
+        [255, 255, 255, 255]
+      ],
+      "textureMaps": [
+        {"texture": 0, "wrapS": 0, "wrapT": 0}
+      ],
+      "textureSRTs": [
+        {"translate": [0, 0], "rotation": 0, "scale": [1, 1]}
+      ],
+      "texCoordGens": [
+        {"type": 1, "source": 4, "matrix": 30}
+      ],
+      "tevStages": []
+    }
+  ],
+  "textures": [
+    {"name": "base.tpl", "url": "textures/base.png", "width": 16, "height": 16}
+  ],
+  "resourceTextures": {
+    "other.tpl": {
+      "name": "other.tpl",
+      "url": "textures/other.png",
+      "width": 16,
+      "height": 16
+    }
+  },
+  "groups": {
+    "Root": ["RootPane"],
+    "Picture": ["Picture"]
+  },
+  "animations": {
+    "MoveAndSwap": {
+      "frames": 10,
+      "loop": false,
+      "textures": ["other.tpl"],
+      "targets": [
+        {
+          "name": "Picture",
+          "type": 0,
+          "tracks": [
+            {
+              "kind": "RLPA",
+              "id": 0,
+              "target": 0,
+              "curveType": 2,
+              "keys": [
+                {"frame": 0, "value": 10, "slope": 0},
+                {"frame": 10, "value": 30, "slope": 0}
+              ]
+            }
+          ]
+        },
+        {
+          "name": "PictureMat",
+          "type": 1,
+          "tracks": [
+            {
+              "kind": "RLTP",
+              "id": 0,
+              "target": 0,
+              "curveType": 1,
+              "keys": [
+                {"frame": 0, "value": 0}
+              ]
+            },
+            {
+              "kind": "RLMC",
+              "id": 0,
+              "target": 4,
+              "curveType": 1,
+              "keys": [
+                {"frame": 0, "value": 128}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "Hide": {
+      "frames": 10,
+      "loop": false,
+      "textures": [],
+      "targets": [
+        {
+          "name": "Picture",
+          "type": 0,
+          "tracks": [
+            {
+              "kind": "RLVI",
+              "id": 0,
+              "target": 0,
+              "curveType": 1,
+              "keys": [
+                {"frame": 0, "value": 1},
+                {"frame": 5, "value": 0}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

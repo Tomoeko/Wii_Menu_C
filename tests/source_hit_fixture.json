@@ -1,0 +1,56 @@
+{
+  "root": {
+    "name": "RootPane",
+    "type": "pan1",
+    "flags": 1,
+    "origin": 4,
+    "alpha": 255,
+    "translation": [0, 0, 0],
+    "rotation": [0, 0, 0],
+    "scale": [1, 1],
+    "size": [608, 456],
+    "children": [
+      {
+        "name": "RotatedParent",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [100, 0, 0],
+        "rotation": [0, 0, 90],
+        "scale": [1, 1],
+        "size": [100, 100],
+        "children": [
+          {
+            "name": "N_Ch_c01",
+            "type": "pan1",
+            "flags": 1,
+            "origin": 4,
+            "alpha": 255,
+            "translation": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1],
+            "size": [100, 80],
+            "children": []
+          }
+        ]
+      },
+      {
+        "name": "N_Ch_c02",
+        "type": "pan1",
+        "flags": 0,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [-200, 100, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1],
+        "size": [100, 80],
+        "children": []
+      }
+    ]
+  },
+  "materials": [],
+  "textures": [],
+  "groups": {},
+  "animations": {}
+}
