@@ -1129,7 +1129,8 @@ int main(int argc, char **argv) {
                         else if (next.control == WM_BOARD_CONTROL_MEMO_TRASH)
                             cue = "WIPL_SE_BT_PUSH";
                         else if (next.control == WM_BOARD_CONTROL_CALENDAR_DAY)
-                            cue = "dateSelect";
+                            /* Calendar queues its date-select cue itself. */
+                            cue = NULL;
                         else if (next.control == WM_BOARD_CONTROL_BACK)
                             cue = "confirm";
                         else if (next.control == WM_BOARD_CONTROL_PREVIOUS ||

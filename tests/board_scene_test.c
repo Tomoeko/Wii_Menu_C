@@ -2466,10 +2466,13 @@ static void test_memo_creation_order(int argc, char **argv) {
     count = wm_board_scene_memo_presentation(board, cards);
     assert(count == 1 && cards[0].memo_index == 0 &&
            cards[0].paste_frame == 0.0f);
-    wm_board_scene_advance(board, 11.0f);
+    wm_board_scene_advance(board, 5.0f);
     count = wm_board_scene_memo_presentation(board, cards);
-    assert(count == 2);
-    assert(cards[0].memo_index == 0 && cards[1].memo_index == 1);
+    assert(count == 2 && cards[0].memo_index == 0 &&
+           cards[1].memo_index == 1);
+    assert(cards[0].paste_frame == 5.0f && cards[1].paste_frame == 0.0f);
+    assert(cards[0].next_page_frame == -1.0f &&
+           cards[1].next_page_frame == -1.0f);
     wm_board_scene_destroy(board);
 }
 
@@ -2502,6 +2505,11 @@ static void select_board_calendar_date(WmBoardScene *board, WmBoardDate target) 
     size_t cell = (size_t)first.tm_wday + (size_t)target.day - 1;
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_CALENDAR_DAY, cell}));
+    WmBoardSoundEvent event;
+    assert(wm_board_scene_take_sound_event(board, &event) &&
+           strcmp(event.cue, "dateSelect") == 0 &&
+           event.memo_index == SIZE_MAX);
+    assert(!wm_board_scene_take_sound_event(board, &event));
 }
 
 static void test_calendar_date_transition(int argc, char **argv) {
@@ -2535,8 +2543,6 @@ static void test_calendar_date_transition(int argc, char **argv) {
             } else {
                 assert(wm_board_scene_phase(board) == WM_BOARD_DATE_SCROLL);
                 assert(board_dates_equal(wm_board_scene_date(board), current));
-                assert(wm_board_scene_take_sound_event(board, &event));
-                assert(strcmp(event.cue, "page") == 0);
                 assert(wm_board_scene_take_sound_event(board, &event));
                 assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
                        event.memo_index == 1);
@@ -2598,23 +2604,16 @@ static void test_return_arrival_transition(int argc, char **argv) {
             size_t count = parked
                 ? wm_board_scene_parked_memo_presentation(board, today, cards)
                 : wm_board_scene_memo_presentation(board, cards);
-            size_t arrived = frame < 99 ? frame / 11 + 1 : 10;
-            assert(count == arrived + (parked ? 0 : 1));
-            for (size_t index = 0; index < arrived; index++) {
+            assert(count == (parked ? 10 : 11));
+            for (size_t index = 0; index < 10; index++) {
                 const WmBoardMemoPresentation *incoming = find_presented_memo(
                     cards, count, index);
-                float age = (float)frame - (float)index * 11.0f;
-                assert(incoming && incoming->paste_frame == fminf(age, 10.0f) &&
-                       incoming->pin_frame == age);
+                assert(incoming && incoming->paste_frame == 10.0f &&
+                       incoming->next_page_frame == -1.0f);
                 if (frame >= 20) {
                     assert(fabsf(incoming->x -
                                  memos[index].x * 832.0f / 608.0f) < 0.01f);
                 }
-            }
-            if (frame % 11 == 0 && frame < 110) {
-                assert(wm_board_scene_take_sound_event(board, &event));
-                assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
-                       event.memo_index == frame / 11);
             }
             assert(!wm_board_scene_take_sound_event(board, &event));
             if (frame == 40) {
@@ -2630,7 +2629,7 @@ static void test_return_arrival_transition(int argc, char **argv) {
         }
         assert(wm_board_scene_open(board, today));
         wm_board_scene_advance(board, 40.0f);
-        settle_initial_memos(board);
+        assert(!wm_board_scene_take_sound_event(board, &event));
         assert(wm_board_scene_back(board));
         assert(!wm_board_scene_take_sound_event(board, &event));
         wm_board_scene_destroy(board);
@@ -2648,6 +2647,7 @@ static void test_parked_arrival_batch_clock(int argc, char **argv) {
             .id = ids[index], .text = "Memo", .date = index < 10 ? today : other
         };
     }
+    float pin_frames[10] = {0};
     for (unsigned batched = 0; batched < 2; batched++) {
         WmBoardScene *board = load_board(argc, argv);
         assert(board && wm_board_scene_set_memos(board, memos, 11));
@@ -2670,11 +2670,6 @@ static void test_parked_arrival_batch_clock(int argc, char **argv) {
         }
         assert(wm_board_scene_take_sound_event(board, &event) &&
                strcmp(event.cue, "page") == 0);
-        for (size_t index = 0; index < 10; index++) {
-            assert(wm_board_scene_take_sound_event(board, &event) &&
-                   strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
-                   event.memo_index == index);
-        }
         assert(!wm_board_scene_take_sound_event(board, &event));
         WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
         size_t count = wm_board_scene_parked_memo_presentation(board, today, cards);
@@ -2682,14 +2677,144 @@ static void test_parked_arrival_batch_clock(int argc, char **argv) {
         for (size_t index = 0; index < count; index++) {
             assert(cards[index].memo_index == index &&
                    cards[index].paste_frame == 10.0f &&
-                   cards[index].pin_frame == 110.0f - (float)index * 11.0f);
+                   cards[index].next_page_frame == -1.0f);
+            if (batched) assert(cards[index].pin_frame == pin_frames[index]);
+            else pin_frames[index] = cards[index].pin_frame;
         }
+        wm_board_scene_destroy(board);
+    }
+}
+
+static void test_today_memos_remain_present_on_home_entry(int argc, char **argv) {
+    const WmBoardDate today = {2026, 9, 25};
+    WmBoardMemo memos[10] = {0};
+    char ids[10][16];
+    for (size_t index = 0; index < 10; index++) {
+        snprintf(ids[index], sizeof(ids[index]), "entry-%zu", index);
+        memos[index] = (WmBoardMemo){
+            .id = ids[index], .text = "Existing Memo", .date = today,
+            .has_position = true, .x = -180.0f + (float)index * 30.0f,
+            .y = 53.0f
+        };
+    }
+    for (unsigned batched = 0; batched < 2; batched++) {
+        WmBoardScene *board = load_board(argc, argv);
+        assert(board && wm_board_scene_set_memos(board, memos, 10));
+        WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
+        assert(wm_board_scene_parked_memo_presentation(board, today, cards) == 10);
+        assert(wm_board_scene_open(board, today));
+        unsigned steps = batched ? 1 : 40;
+        for (unsigned step = 0; step <= steps; step++) {
+            unsigned frame = batched ? step * 40 : step;
+            size_t count = wm_board_scene_memo_presentation(board, cards);
+            assert(count == 10);
+            for (size_t index = 0; index < count; index++) {
+                assert(cards[index].memo_index == index &&
+                       cards[index].paste_frame == 10.0f &&
+                       cards[index].next_page_frame == -1.0f);
+                assert(fabsf(cards[index].x -
+                             memos[index].x * 832.0f / 608.0f) < 0.01f);
+                assert(cards[index].y == memos[index].y);
+                assert(cards[index].pin_frame == (float)frame);
+            }
+            WmBoardSoundEvent event;
+            assert(!wm_board_scene_take_sound_event(board, &event));
+            if (step < steps)
+                wm_board_scene_advance(board, batched ? 40.0f : 1.0f);
+        }
+        assert(wm_board_scene_phase(board) == WM_BOARD_READY);
+        wm_board_scene_destroy(board);
+    }
+}
+
+static void test_today_arrivals_stop_on_home_exit(int argc, char **argv) {
+    const WmBoardDate today = {2026, 9, 25};
+    const WmBoardDate tomorrow = {2026, 9, 26};
+    WmBoardMemo memos[20] = {0};
+    char ids[20][16];
+    for (size_t index = 0; index < 20; index++) {
+        snprintf(ids[index], sizeof(ids[index]), "exit-%zu", index);
+        memos[index] = (WmBoardMemo){
+            .id = ids[index], .text = "Existing Memo", .date = today,
+            .has_position = true, .x = (float)index * 5.0f, .y = 53.0f
+        };
+    }
+    for (unsigned route = 0; route < 4; route++) {
+        WmBoardScene *board = load_board(argc, argv);
+        assert(board && wm_board_scene_set_memos(board, memos, 20));
+        assert(wm_board_scene_open(board, today));
+        wm_board_scene_advance(board, 40.0f);
+        WmBoardSoundEvent event;
+        if (route == 0) {
+            assert(wm_board_scene_activate(board,
+                (WmBoardHit){WM_BOARD_CONTROL_NEXT, SIZE_MAX}));
+            wm_board_scene_advance(board, 20.0f);
+            assert(wm_board_scene_take_sound_event(board, &event) &&
+                   strcmp(event.cue, "page") == 0);
+            assert(!wm_board_scene_take_sound_event(board, &event));
+            assert(wm_board_scene_activate(board,
+                (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+            assert(wm_board_scene_take_sound_event(board, &event) &&
+                   strcmp(event.cue, "page") == 0);
+        } else if (route == 1) {
+            select_board_calendar_date(board, tomorrow);
+            wm_board_scene_advance(board, 100.0f);
+            assert(!wm_board_scene_take_sound_event(board, &event));
+            select_board_calendar_date(board, today);
+            wm_board_scene_advance(board, 80.0f);
+        } else {
+            assert(wm_board_scene_activate(board,
+                (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+            wm_board_scene_advance(board, 15.0f);
+            assert(wm_board_scene_take_sound_event(board, &event) &&
+                   strcmp(event.cue, "WIPL_SE_MSG_HOUSE") == 0);
+        }
+        size_t first_index = route >= 2 ? 10 : 0;
+        unsigned arrival_frames = route == 3 ? 0 : 20;
+        for (unsigned frame = 0; frame <= arrival_frames; frame++) {
+            WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
+            size_t count = wm_board_scene_memo_presentation(board, cards);
+            assert(count == frame / 5 + 1);
+            for (size_t position = 0; position < count; position++) {
+                float age = (float)frame - (float)position * 5.0f;
+                assert(cards[position].memo_index == first_index + position &&
+                       cards[position].paste_frame == fminf(10.0f, age));
+            }
+            if (frame % 5 == 0) {
+                assert(wm_board_scene_take_sound_event(board, &event) &&
+                       strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
+                       event.memo_index == first_index + frame / 5);
+            }
+            assert(!wm_board_scene_take_sound_event(board, &event));
+            if (frame < arrival_frames) wm_board_scene_advance(board, 1.0f);
+        }
+        assert(wm_board_scene_phase(board) == WM_BOARD_READY);
+        assert(wm_board_scene_back(board));
+        for (unsigned frame = 0; frame <= 40; frame++) {
+            WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
+            bool parked = frame == 40;
+            size_t count = parked
+                ? wm_board_scene_parked_memo_presentation(board, today, cards)
+                : wm_board_scene_memo_presentation(board, cards);
+            assert(count == 10);
+            for (size_t position = 0; position < count; position++) {
+                size_t expected = parked ? position : first_index + position;
+                assert(cards[position].memo_index == expected &&
+                       cards[position].paste_frame == 10.0f &&
+                       cards[position].next_page_frame == -1.0f);
+            }
+            assert(!wm_board_scene_take_sound_event(board, &event));
+            if (frame < 40) wm_board_scene_advance(board, 1.0f);
+        }
+        wm_board_scene_advance_parked(board, 60.0f);
+        assert(!wm_board_scene_take_sound_event(board, &event));
         wm_board_scene_destroy(board);
     }
 }
 
 static void test_initial_ordered_arrivals(int argc, char **argv) {
     const WmBoardDate day = {2026, 9, 25};
+    const WmBoardDate today = {2026, 9, 26};
     const WmBoardMemo memos[] = {
         {.id = "newest", .text = "First", .date = day, .created_at_ms = 3},
         {.id = "oldest", .text = "Last", .date = day, .created_at_ms = 1},
@@ -2699,29 +2824,34 @@ static void test_initial_ordered_arrivals(int argc, char **argv) {
     for (unsigned batched = 0; batched < 2; batched++) {
         WmBoardScene *board = load_board(argc, argv);
         assert(board && wm_board_scene_set_memos(board, memos, 3));
-        assert(wm_board_scene_open(board, day));
+        assert(wm_board_scene_open(board, today));
         WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
         assert(wm_board_scene_memo_presentation(board, cards) == 0);
-        wm_board_scene_advance(board, 39.0f);
-        assert(wm_board_scene_memo_presentation(board, cards) == 0);
+        wm_board_scene_advance(board, 40.0f);
         WmBoardSoundEvent event;
         assert(!wm_board_scene_take_sound_event(board, &event));
-        if (batched) wm_board_scene_advance(board, 23.0f);
-        else for (unsigned frame = 0; frame < 23; frame++)
+        assert(wm_board_scene_activate(board,
+            (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+        assert(wm_board_scene_take_sound_event(board, &event) &&
+               strcmp(event.cue, "page") == 0);
+        if (batched) wm_board_scene_advance(board, 10.0f);
+        else for (unsigned frame = 0; frame < 10; frame++)
             wm_board_scene_advance(board, 1.0f);
         size_t count = wm_board_scene_memo_presentation(board, cards);
         assert(count == 3);
         for (size_t index = 0; index < count; index++) {
-            float age = (float)(2 - index) * 11.0f;
+            float age = (float)(2 - index) * 5.0f;
             assert(cards[index].memo_index == order[index] &&
                    cards[index].paste_frame == fminf(10.0f, age) &&
                    cards[index].pin_frame == age);
             assert(wm_board_scene_take_sound_event(board, &event) &&
+                   strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
                    event.memo_index == order[index]);
         }
         assert(!wm_board_scene_take_sound_event(board, &event));
         wm_board_scene_advance(board, 11.0f);
         count = wm_board_scene_memo_presentation(board, cards);
+        assert(count == 3);
         for (size_t index = 0; index < count; index++)
             assert(cards[index].paste_frame == 10.0f);
         wm_board_scene_destroy(board);
@@ -2789,17 +2919,15 @@ static void test_memo_date_continuity(int argc, char **argv) {
                      memos[destination].x * 832.0f / 608.0f) < 0.01f);
         assert(!wm_board_scene_take_sound_event(board, &event));
 
-        /* Returning to ChannelSelect uses the same incoming PasteLetter. */
+        /* Today's cards return at their existing, settled size. */
         assert(wm_board_scene_back(board));
         count = wm_board_scene_memo_presentation(board, cards);
         entering = find_presented_memo(cards, count, 1);
         assert(count == 2 && entering && entering->entering &&
-               entering->paste_frame == 0.0f);
+               entering->paste_frame == 10.0f &&
+               entering->next_page_frame == -1.0f);
         assert(wm_board_scene_take_sound_event(board, &event));
         assert(strcmp(event.cue, "page") == 0);
-        assert(wm_board_scene_take_sound_event(board, &event));
-        assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
-               event.memo_index == 1);
         assert(!wm_board_scene_take_sound_event(board, &event));
         wm_board_scene_advance(board, 40.0f);
         assert(wm_board_scene_phase(board) == WM_BOARD_CLOSED);
@@ -2869,7 +2997,7 @@ static void test_memo_page_continuity(int argc, char **argv) {
         for (size_t index = 0; index < count; index++) {
             assert(cards[index].memo_index == index &&
                    cards[index].paste_frame ==
-                       fminf(10.0f, (float)(position - index) * 11.0f));
+                       fminf(10.0f, (float)(position - index) * 5.0f));
         }
         assert(wm_board_scene_take_sound_event(board, &event));
         assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
@@ -2878,7 +3006,7 @@ static void test_memo_page_continuity(int argc, char **argv) {
         assert(!wm_board_scene_take_sound_event(board, &event));
         assert(!wm_board_scene_pointer_down(board,
             (WmBoardHit){WM_BOARD_CONTROL_MEMO, position}, 320, 228));
-        if (position < 9) wm_board_scene_advance(board, 11.0f);
+        if (position < 9) wm_board_scene_advance(board, 5.0f);
     }
     wm_board_scene_advance(board, 11.0f);
     count = wm_board_scene_memo_presentation(board, cards);
@@ -2908,15 +3036,15 @@ static void test_page_arrival_batch_clock(int argc, char **argv) {
         settle_initial_memos(board);
         assert(wm_board_scene_activate(board,
             (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
-        if (batched) wm_board_scene_advance(board, 103.0f);
-        else for (unsigned frame = 0; frame < 103; frame++)
+        if (batched) wm_board_scene_advance(board, 55.0f);
+        else for (unsigned frame = 0; frame < 55; frame++)
             wm_board_scene_advance(board, 1.0f);
         WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
         size_t count = wm_board_scene_memo_presentation(board, cards);
         assert(count == 9);
         for (size_t position = 0; position < count; position++) {
             assert(cards[position].memo_index == 10 + position);
-            float age = (float)(8 - position) * 11.0f;
+            float age = (float)(8 - position) * 5.0f;
             assert(cards[position].paste_frame == fminf(10.0f, age));
             assert(cards[position].pin_frame == age);
         }
@@ -2967,8 +3095,8 @@ static void test_rapid_arrival_cue_chronology(int argc, char **argv) {
         assert(wm_board_scene_take_sound_event(board, &event) &&
                event.memo_index == 20);
         assert(!wm_board_scene_take_sound_event(board, &event));
-        if (batched) wm_board_scene_advance(board, 55.0f);
-        else for (unsigned frame = 0; frame < 55; frame++)
+        if (batched) wm_board_scene_advance(board, 25.0f);
+        else for (unsigned frame = 0; frame < 25; frame++)
             wm_board_scene_advance(board, 1.0f);
         for (size_t index = 21; index <= 25; index++) {
             assert(wm_board_scene_take_sound_event(board, &event) &&
@@ -2981,8 +3109,8 @@ static void test_rapid_arrival_cue_chronology(int argc, char **argv) {
         assert(count == 6);
         for (size_t index = 0; index < count; index++) {
             assert(cards[index].memo_index == 20 + index &&
-                   cards[index].paste_frame == fminf(10.0f, (float)(5 - index) * 11.0f) &&
-                   cards[index].pin_frame == (float)(5 - index) * 11.0f);
+                   cards[index].paste_frame == fminf(10.0f, (float)(5 - index) * 5.0f) &&
+                   cards[index].pin_frame == (float)(5 - index) * 5.0f);
         }
         wm_board_scene_destroy(board);
     }
@@ -3262,7 +3390,9 @@ static void test_memo_pin_animation_choice(int argc, char **argv) {
     assert(wm_board_scene_open(board, day));
     WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
     size_t count = wm_board_scene_memo_presentation(board, cards);
-    assert(count == 0 && clock.calls == 0);
+    assert(count == 5 && clock.calls == 4);
+    for (size_t index = 0; index < count; index++)
+        assert(cards[index].paste_frame == 10.0f);
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
     count = wm_board_scene_memo_presentation(board, cards);
@@ -3411,6 +3541,8 @@ int main(int argc, char **argv) {
     test_memo_creation_order(argc, argv);
     test_calendar_date_transition(argc, argv);
     test_parked_arrival_batch_clock(argc, argv);
+    test_today_memos_remain_present_on_home_entry(argc, argv);
+    test_today_arrivals_stop_on_home_exit(argc, argv);
     test_initial_ordered_arrivals(argc, argv);
     test_return_arrival_transition(argc, argv);
     test_memo_date_continuity(argc, argv);

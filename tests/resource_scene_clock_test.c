@@ -72,6 +72,7 @@ static bool restrict_date_font;
 static uint32_t memo_sheet_texture;
 static unsigned first_memo_sequence;
 static unsigned memo_sheet_draws;
+static bool capture_date_before_memos;
 
 static void capture_memo_sheet(uint32_t texture) {
     if (!capture_date_glyphs || texture != memo_sheet_texture) return;
@@ -108,6 +109,7 @@ void wm_platform_draw_vertices(WmPlatform *platform,
     (void)platform;
     (void)texture;
     draw_sequence++;
+    if (capture_date_before_memos && first_memo_sequence > 0) return;
     if (!capture_date_glyphs || vertices[0].x < 200.0f ||
         vertices[0].x > 440.0f || vertices[0].y < 380.0f ||
         vertices[0].y > 420.0f) return;
@@ -346,6 +348,7 @@ static void begin_date_capture(void) {
     board_mask_sequence = 0;
     first_memo_sequence = 0;
     memo_sheet_draws = 0;
+    capture_date_before_memos = false;
     date_glyphs = (DateGlyphBounds){
         .left = INFINITY,
         .top = INFINITY,
@@ -377,7 +380,13 @@ static void assert_compose_date_background(WmBoardScene *board,
                                            const DateGlyphBounds *grid_date,
                                            bool mask_visible) {
     begin_date_capture();
+    /* Calendar's foreground month label can share the date's font and region.
+     * Capture the Board date before its card draw, then check the footer does
+     * not add a second copy. Calendar coverage always includes a memo. */
+    capture_date_before_memos =
+        wm_board_scene_child(board) == WM_BOARD_CHILD_CALENDAR;
     wm_board_scene_draw_body(board);
+    capture_date_before_memos = false;
     unsigned body_date_count = date_glyphs.count;
     wm_board_scene_draw_footer(board);
     capture_date_glyphs = false;
@@ -386,6 +395,51 @@ static void assert_compose_date_background(WmBoardScene *board,
     if (mask_visible) {
         assert(board_mask_sequence > 0);
         assert(last_date_sequence < board_mask_sequence);
+    }
+}
+
+static void test_calendar_date_background(WmBoardScene *board,
+                                          const DateGlyphBounds *grid_date,
+                                          size_t today_cell) {
+    for (unsigned select_day = 0; select_day < 2; select_day++) {
+        assert(wm_board_scene_activate(board,
+            (WmBoardHit){WM_BOARD_CONTROL_CALENDAR, SIZE_MAX}));
+        for (unsigned frame = 0; frame < 50; frame++) {
+            assert_compose_date_background(board, grid_date, frame >= 20);
+            assert(first_memo_sequence > last_date_sequence);
+            wm_board_scene_advance(board, 1.0f);
+        }
+        const WmBoardControl month_arrows[] = {
+            WM_BOARD_CONTROL_CALENDAR_PREVIOUS,
+            WM_BOARD_CONTROL_CALENDAR_NEXT
+        };
+        for (size_t arrow = 0; arrow < 2; arrow++) {
+            assert(wm_board_scene_activate(board,
+                (WmBoardHit){month_arrows[arrow], SIZE_MAX}));
+            for (unsigned frame = 0; frame < 30; frame++) {
+                assert_compose_date_background(board, grid_date, true);
+                assert(first_memo_sequence > last_date_sequence);
+                wm_board_scene_advance(board, 1.0f);
+            }
+        }
+        assert(wm_board_scene_activate(board, (WmBoardHit){
+            select_day ? WM_BOARD_CONTROL_CALENDAR_DAY :
+                         WM_BOARD_CONTROL_CALENDAR_BACK,
+            select_day ? today_cell : SIZE_MAX
+        }));
+        unsigned exit_frames = select_day ? 80 : 50;
+        for (unsigned frame = 0; frame < exit_frames; frame++) {
+            assert_compose_date_background(board, grid_date, true);
+            assert(first_memo_sequence > last_date_sequence);
+            wm_board_scene_advance(board, 1.0f);
+        }
+        assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
+        for (unsigned frame = 0; frame < 20; frame++) {
+            assert_compose_date_background(board, grid_date, true);
+            assert(first_memo_sequence > last_date_sequence);
+            wm_board_scene_advance(board, 1.0f);
+        }
+        assert_board_date_matches(board, grid_date);
     }
 }
 
@@ -653,6 +707,10 @@ int main(int argc, char **argv) {
     assert(memo_sheet_draws == settled_sheet_draws);
     assert(wm_board_scene_pointer_up(board, 320, 410));
     assert_board_date_matches(board, &grid_date);
+    unsigned first_weekday = (unsigned)(
+        (local_date.tm_wday - (local_date.tm_mday - 1) % 7 + 7) % 7);
+    size_t today_cell = first_weekday + (size_t)today.day - 1;
+    test_calendar_date_background(board, &grid_date, today_cell);
     wm_board_scene_destroy(board);
 
     const WmBoardControl choices[] = {

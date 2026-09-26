@@ -186,6 +186,8 @@ WmBoardContactStoreStatus wm_board_scene_load_contacts(
     char *error, size_t error_capacity);
 bool wm_board_scene_set_memos(WmBoardScene *board,
                                const WmBoardMemo *memos, size_t count);
+/* Open today's Board with existing cards already present. Delivery animation
+ * belongs to a newly posted memo, not an entry/return to the current date. */
 bool wm_board_scene_open(WmBoardScene *board, WmBoardDate date);
 /* Immediate HOME restart handoff. Keeps loaded memos and source layouts. */
 void wm_board_scene_reset(WmBoardScene *board);
@@ -195,8 +197,8 @@ void wm_board_scene_set_grid_page(WmBoardScene *board, int page);
 bool wm_board_scene_sd_visible(const WmBoardScene *board);
 bool wm_board_scene_back(WmBoardScene *board);
 void wm_board_scene_advance(WmBoardScene *board, float frames);
-/* Continue ordered card arrivals after an exit hands the parked layer to the
- * Home Menu. The caller drains sound events and pauses this under HOME. */
+/* Advance retained card and pin clocks in the parked Home layer. Existing
+ * current-day records do not replay arrival on return to Home. */
 void wm_board_scene_advance_parked(WmBoardScene *board, float frames);
 WmBoardPhase wm_board_scene_phase(const WmBoardScene *board);
 WmBoardChild wm_board_scene_child(const WmBoardScene *board);
@@ -269,8 +271,8 @@ bool wm_board_scene_reader_arrow_target_visible(const WmBoardScene *board,
  * the first 20 updates. During exit, use frames 100–120 for all 40 updates.
  * The caller draws body, optional grid overlay, then footer, in that order. */
 bool wm_board_scene_grid_overlay(const WmBoardScene *board, float *grid_frame);
-/* Date and return slides include incoming PasteLetter beside outgoing cards.
- * A Memo page begins its incoming PasteLetter after the outgoing page clears. */
+/* Board date and Memo-page changes replay ordered incoming PasteLetter.
+ * Existing today's cards stay settled only during Home entry and return. */
 size_t wm_board_scene_memo_presentation(
     WmBoardScene *board,
     WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS]);

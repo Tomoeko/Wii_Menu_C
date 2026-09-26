@@ -25,9 +25,10 @@ enum {
     BOARD_MAX_TEXT_BYTES = 16 * 1024 * 1024,
     BOARD_CLIP_CAPACITY = 20,
     BOARD_SOUND_CAPACITY = 32,
-    /* Requested local presentation: finish one authored PasteLetter before
-     * starting the next record. Native asynchronous I/O has no fixed cadence. */
-    BOARD_PASTE_DURATION = 5
+    BOARD_PASTE_DURATION = 11,
+    /* Local arrival spacing is independent of the authored animation length.
+     * Native asynchronous I/O has no fixed cadence. */
+    BOARD_MEMO_ARRIVAL_INTERVAL = 5
 };
 
 typedef struct BoardMemo {
@@ -571,7 +572,9 @@ bool wm_board_scene_open(WmBoardScene *board, WmBoardDate date) {
     board->mask_age = 0.0f;
     update_visible(board);
     for (size_t position = 0; position < board->visible_count; position++) {
-        board->memos[board->visible[position]].paste_age = -1.0f;
+        /* Today's existing cards are already present behind the Home Menu.
+         * Opening the Board retains their settled pose throughout entry. */
+        board->memos[board->visible[position]].paste_age = BOARD_PASTE_DURATION;
     }
     return true;
 }
@@ -816,10 +819,17 @@ static void start_date_arrivals(WmBoardScene *board, WmBoardDate date,
         size_t index = board->memo_order[position].index;
         if (!same_date(board->memos[index].date, date)) continue;
         if (skipped++ < page * BOARD_MEMOS_PER_PAGE) continue;
+        if (board->phase == WM_BOARD_EXIT) {
+            /* Home already owns today's cards. Preserve them during the
+             * return slide; ordinary Board page changes replay arrivals. */
+            board->memos[index].paste_age = BOARD_PASTE_DURATION;
+            arriving++;
+            continue;
+        }
         board->memos[index].pin_sampled = false;
         board->card_arrivals[board->card_arrival_count++] = (BoardCardArrival){
             .memo_index = index,
-            .age = elapsed - (float)arriving * BOARD_PASTE_DURATION
+            .age = elapsed - (float)arriving * BOARD_MEMO_ARRIVAL_INTERVAL
         };
         arriving++;
     }
@@ -837,7 +847,8 @@ static void cancel_unstarted_arrivals(WmBoardScene *board) {
 }
 
 static bool begin_date_transition(WmBoardScene *board, WmBoardDate target,
-                                   WmBoardPhase phase, float elapsed) {
+                                   WmBoardPhase phase, bool play_page_cue,
+                                   float elapsed) {
     if (!wm_board_date_valid(target)) return false;
     int64_t selected_day = civil_day(board->date);
     int64_t target_day = civil_day(target);
@@ -849,13 +860,24 @@ static bool begin_date_transition(WmBoardScene *board, WmBoardDate target,
     board->return_direction = phase == WM_BOARD_EXIT ? direction : 0;
     board->phase = phase;
     board->phase_frame = 0.0f;
-    if (direction != 0) {
+    if (direction != 0 && play_page_cue) {
         queue_sound_event(board, "page", 0.0f, SIZE_MAX);
+    }
+    if (phase == WM_BOARD_EXIT) {
+        /* Home always parks today's first page, already present. This also
+         * cancels delayed appearances when leaving shortly after a flip. */
+        if (direction == 0) {
+            /* An older overflow page is still visible during the return.
+             * Its cards also retain a settled pose until the grid covers it. */
+            for (size_t position = 0; position < board->visible_count;
+                 position++) {
+                board->memos[board->visible[position]].paste_age =
+                    BOARD_PASTE_DURATION;
+            }
+        }
+        start_date_arrivals(board, target, 0, direction != 0, elapsed);
+    } else if (direction != 0) {
         start_date_arrivals(board, target, 0, true, elapsed);
-    } else if (phase == WM_BOARD_EXIT && board->page != 0) {
-        /* Home parks the newest page. Do not deliver unseen records from an
-         * older page beneath that different set of visible cards. */
-        cancel_unstarted_arrivals(board);
     }
     return true;
 }
@@ -1119,13 +1141,15 @@ static void pose_background(WmBoardScene *board) {
         else date_text(board->next_date, 0, after);
     }
     wm_layout_set_pose_text(board->background, "T_Day_a", before);
-    /* The composer keeps the date with the cards underneath its shade and
-     * controls, including Memo, Letter and Address Book child transitions.
+    /* Calendar and composer keep the date with the cards underneath their
+     * shade and controls, including Memo, Letter and Address Book children.
      * A held card also owns the foreground over that date. Normal Board
      * entry/idle/exit retains the date above its own footer. */
     bool composing = wm_board_compose_phase(board->compose) !=
                      WM_COMPOSE_CLOSED;
-    bool retain_date = !composing && !board->dragging &&
+    bool calendar_open = wm_board_calendar_phase(board->calendar) !=
+                         WM_CALENDAR_CLOSED;
+    bool retain_date = !composing && !calendar_open && !board->dragging &&
         board->mask_direction >= 0 &&
         (board->phase == WM_BOARD_ENTER ||
          board->phase == WM_BOARD_READY ||
@@ -1987,7 +2011,7 @@ bool wm_board_scene_back(WmBoardScene *board) {
     if (board->phase != WM_BOARD_READY) return false;
     wm_board_scene_hover(board,
                          (WmBoardHit){WM_BOARD_CONTROL_NONE, SIZE_MAX});
-    if (!begin_date_transition(board, board->today, WM_BOARD_EXIT, 0.0f))
+    if (!begin_date_transition(board, board->today, WM_BOARD_EXIT, true, 0.0f))
         return false;
     memset(board->button_focus, 0, sizeof(board->button_focus));
     return true;
@@ -2182,8 +2206,10 @@ static float advance_calendar_child(WmBoardScene *board, float frames) {
             board->calendar, &selected_date);
         if (outcome == WM_CALENDAR_OUTCOME_NONE) continue;
         if (outcome == WM_CALENDAR_OUTCOME_SELECTED) {
+            /* Date selection already played its own source cue at the click.
+             * Use the same slide without also playing the arrow's cue. */
             begin_date_transition(board, selected_date, WM_BOARD_DATE_SCROLL,
-                                  remaining);
+                                  false, remaining);
         }
         board->mask_direction = -1;
         board->mask_age = remaining;
@@ -2308,8 +2334,6 @@ void wm_board_scene_advance(WmBoardScene *board, float frames) {
         switch (board->phase) {
             case WM_BOARD_ENTER:
                 board->phase = WM_BOARD_READY;
-                start_date_arrivals(board, board->date, board->page, false,
-                                    remaining);
                 break;
             case WM_BOARD_EXIT:
                 board->date = board->next_date;
@@ -2819,8 +2843,12 @@ bool wm_board_scene_activate(WmBoardScene *board, WmBoardHit hit) {
             default:
                 break;
         }
-        return wm_board_calendar_activate(board->calendar,
-                 (WmBoardCalendarHit){control, (unsigned)hit.memo_index});
+        bool activated = wm_board_calendar_activate(board->calendar,
+            (WmBoardCalendarHit){control, (unsigned)hit.memo_index});
+        if (activated && control == WM_CALENDAR_CONTROL_DAY) {
+            queue_sound_event(board, "dateSelect", 0.0f, SIZE_MAX);
+        }
+        return activated;
     }
     if (hit.control == WM_BOARD_CONTROL_MEMO_BACK &&
         board->phase == WM_BOARD_MEMO_READ) return wm_board_scene_back(board);
@@ -2885,7 +2913,7 @@ bool wm_board_scene_activate(WmBoardScene *board, WmBoardHit hit) {
             if (!wm_board_date_shift(board->date,
                                      previous ? -1 : 1, &next)) return false;
             return begin_date_transition(board, next, WM_BOARD_DATE_SCROLL,
-                                         0.0f);
+                                         true, 0.0f);
         }
         case WM_BOARD_CONTROL_MEMO:
             if (hit.memo_index >= board->memo_count ||
