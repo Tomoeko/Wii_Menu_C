@@ -1,7 +1,7 @@
-#include "wii_menu/image.h"
-#include "wii_menu/resource_layout.h"
-#include "wii_menu/resource_tpl.h"
-#include "wii_menu/resource_u8.h"
+#include "wii_menu/render/image.h"
+#include "wii_menu/resources/resource_layout.h"
+#include "wii_menu/resources/resource_tpl.h"
+#include "wii_menu/resources/resource_u8.h"
 
 #include <errno.h>
 #include <stdbool.h>

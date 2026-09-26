@@ -1,7 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include "wii_menu/keyboard_dictionary.h"
-#include "wii_menu/resource_u8.h"
+#include "wii_menu/board/keyboard_dictionary.h"
+#include "wii_menu/resources/resource_u8.h"
 
 #include <dirent.h>
 #include <errno.h>

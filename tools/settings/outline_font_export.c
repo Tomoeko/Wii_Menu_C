@@ -1,7 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include "wii_menu/outline_font.h"
-#include "wii_menu/resource_u8.h"
+#include "wii_menu/fonts/outline_font.h"
+#include "wii_menu/resources/resource_u8.h"
 
 #include <errno.h>
 #include <fcntl.h>

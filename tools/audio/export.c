@@ -1,9 +1,9 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include "wii_menu/audio_wave.h"
-#include "wii_menu/audio_sequence.h"
-#include "wii_menu/resource_rsar.h"
-#include "wii_menu/resource_u8.h"
+#include "wii_menu/audio/audio_wave.h"
+#include "wii_menu/audio/audio_sequence.h"
+#include "wii_menu/resources/resource_rsar.h"
+#include "wii_menu/resources/resource_u8.h"
 
 #include <errno.h>
 #include <stdio.h>

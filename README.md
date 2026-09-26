@@ -18,6 +18,21 @@ ctest --test-dir build --output-on-failure
 # and OpenGL ES 2.0 development headers.
 ```
 
+Use `-DWM_BUILD_APP=OFF` to build the portable core, preparation tools, and
+tests without a windowing or graphics SDK. Executables keep their existing
+names and locations under the build directory.
+
+## Source layout
+
+Runtime implementations live in `src/`, grouped by responsibility, with
+matching public headers under `include/wii_menu/`. The app entry point and
+platform adapters have their own folders. Tests follow the same module groups,
+and synthetic input fixtures live in `tests/fixtures/`.
+
+See [source organization](docs/architecture.md) for module boundaries and
+the build structure. Preparation utilities are grouped by input or export
+format under `tools/`.
+
 ## Prepare and run
 
 Keep your WAD and optional BootMii NAND dump in ignored `.local/` storage.

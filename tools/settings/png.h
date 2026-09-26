@@ -1,7 +1,7 @@
 #ifndef WM_SETTINGS_PNG_H
 #define WM_SETTINGS_PNG_H
 
-#include "wii_menu/image.h"
+#include "wii_menu/render/image.h"
 
 #include <stdbool.h>
 #include <stddef.h>
