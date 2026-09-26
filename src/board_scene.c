@@ -27,7 +27,7 @@ enum {
     BOARD_SOUND_CAPACITY = 32,
     /* Requested local presentation: finish one authored PasteLetter before
      * starting the next record. Native asynchronous I/O has no fixed cadence. */
-    BOARD_PASTE_DURATION = 11
+    BOARD_PASTE_DURATION = 5
 };
 
 typedef struct BoardMemo {
