@@ -120,6 +120,9 @@ bool wm_board_address_turn(WmBoardAddress *address, bool forward);
 bool wm_board_address_register(WmBoardAddress *address);
 bool wm_board_address_select_kind(WmBoardAddress *address, bool wii);
 bool wm_board_address_select_entry(WmBoardAddress *address, unsigned row);
+/* Numbered book pages expose all five row/icon hit regions, including empty
+ * rows. Compose owns the local WiiConnect24-disabled action for these hits. */
+void wm_board_address_hover_entry(WmBoardAddress *address, int row);
 void wm_board_address_hover_kind(WmBoardAddress *address, int choice);
 bool wm_board_address_back(WmBoardAddress *address);
 void wm_board_address_advance(WmBoardAddress *address, float frames);

@@ -274,6 +274,28 @@ WmBoardCalendarPhase wm_board_calendar_phase(const WmBoardCalendar *calendar) {
     return calendar ? calendar->phase : WM_CALENDAR_CLOSED;
 }
 
+static float phase_duration(WmBoardCalendarPhase phase) {
+    switch (phase) {
+        case WM_CALENDAR_ENTER:
+            return 40.0f;
+        case WM_CALENDAR_EXIT:
+            return 50.0f;
+        case WM_CALENDAR_SELECT:
+        case WM_CALENDAR_SCROLL_PREVIOUS:
+        case WM_CALENDAR_SCROLL_NEXT:
+            return 30.0f;
+        case WM_CALENDAR_CLOSED:
+        case WM_CALENDAR_IDLE:
+            return 0.0f;
+    }
+    return 0.0f;
+}
+
+float wm_board_calendar_frames_to_boundary(const WmBoardCalendar *calendar) {
+    if (!calendar) return 0.0f;
+    return fmaxf(0.0f, phase_duration(calendar->phase) - calendar->phase_frame);
+}
+
 WmBoardDate wm_board_calendar_month(const WmBoardCalendar *calendar) {
     return calendar ? calendar->month : (WmBoardDate){0, 0, 0};
 }
@@ -383,8 +405,7 @@ void wm_board_calendar_advance(WmBoardCalendar *calendar, float frames) {
     float remaining = frames;
     while (remaining > 0.0f && calendar->phase != WM_CALENDAR_IDLE &&
            calendar->phase != WM_CALENDAR_CLOSED) {
-        float duration = calendar->phase == WM_CALENDAR_ENTER ? 40.0f :
-                         calendar->phase == WM_CALENDAR_EXIT ? 50.0f : 30.0f;
+        float duration = phase_duration(calendar->phase);
         float amount = fminf(remaining, duration - calendar->phase_frame);
         calendar->phase_frame += amount;
         remaining -= amount;

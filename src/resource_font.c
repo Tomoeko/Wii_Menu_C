@@ -730,6 +730,43 @@ bool wm_font_text_layout_caret(const WmFontTextLayout *layout,
     return true;
 }
 
+bool wm_font_text_layout_hit_caret(const WmFontTextLayout *layout,
+                                   float x, float y, size_t *byte_index) {
+    if (!layout || !layout->line_count || !byte_index ||
+        !isfinite(x) || !isfinite(y)) return false;
+    const WmFontPane *pane = &layout->pane;
+    float scale = pane->font_size[0] / layout->font->metrics.width;
+    float line_height = layout->font->metrics.line_feed *
+        pane->font_size[1] / layout->font->metrics.height + pane->line_space;
+    const FontLine *line = &layout->lines[0];
+    float nearest_y = fabsf(y - (line->y - line_height * 0.5f));
+    for (size_t index = 1; index < layout->line_count; index++) {
+        const FontLine *candidate = &layout->lines[index];
+        float distance = fabsf(y - (candidate->y - line_height * 0.5f));
+        if (distance < nearest_y) {
+            nearest_y = distance;
+            line = candidate;
+        }
+    }
+    size_t position = line->first_byte;
+    size_t end = position + line->byte_count;
+    size_t nearest = position;
+    float caret_x = line->x;
+    float nearest_x = fabsf(x - caret_x);
+    while (position < end) {
+        uint32_t codepoint = next_codepoint(layout->text, end, &position);
+        const WmFontGlyph *glyph = wm_font_glyph(layout->font, codepoint);
+        caret_x += (glyph ? glyph->advance * scale : 0.0f) + pane->char_space;
+        float distance = fabsf(x - caret_x);
+        if (distance < nearest_x) {
+            nearest_x = distance;
+            nearest = position;
+        }
+    }
+    *byte_index = nearest;
+    return true;
+}
+
 void wm_font_emit_pane(const WmFontTextLayout *layout,
                         const float parent_matrix[12], float alpha,
                         WmFontSheetProvider sheet_provider,

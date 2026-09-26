@@ -2,6 +2,7 @@
 #define _DARWIN_C_SOURCE 1
 
 #include "crypto.h"
+#include "retail_keys.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -62,6 +63,7 @@ typedef struct WmOptions {
     const char *wad_path;
     const char *key_path;
     unsigned expected_key_index;
+    bool key_index_explicit;
     bool verify_only;
 } WmOptions;
 
@@ -384,6 +386,24 @@ static bool decrypt_and_verify(WmWad *wad, const uint8_t common_key[16],
     return true;
 }
 
+static bool resolve_common_key(const WmWad *wad, const WmOptions *options,
+                                uint8_t key[16], unsigned *expected_index)
+{
+    *expected_index = options->key_index_explicit
+        ? options->expected_key_index : wad->key_index;
+    if (wad->key_index != *expected_index) {
+        fprintf(stderr, "Ticket requires common-key index %u.\n", wad->key_index);
+        return false;
+    }
+    if (options->key_path) return read_common_key(options->key_path, key);
+    if (wm_wad_retail_common_key(*expected_index, key)) return true;
+    fprintf(stderr,
+        "No built-in retail common key for index %u; supply "
+        "--common-key-file and --common-key-index for this input.\n",
+        *expected_index);
+    return false;
+}
+
 static bool path_format(char path[WM_PATH_SIZE], const char *directory,
                         const char *filename)
 {
@@ -603,15 +623,16 @@ static bool extract_contents(const WmWad *wad)
 
 static void usage(FILE *output)
 {
-    fputs("Usage: wad_extract --wad FILE --common-key-file FILE "
+    fputs("Usage: wad_extract --wad FILE [--common-key-file FILE] "
           "[--common-key-index N] [--verify-only]\n"
+          "Retail ticket indices 0 and 1 select their built-in common key.\n"
           "Extracted title contents stay under .local/wad/ in the current project.\n",
           output);
 }
 
 static bool parse_options(int argument_count, char **arguments, WmOptions *options)
 {
-    *options = (WmOptions){ .expected_key_index = 0 };
+    *options = (WmOptions){0};
     for (int index = 1; index < argument_count; ++index) {
         if (strcmp(arguments[index], "--wad") == 0 && index + 1 < argument_count) {
             options->wad_path = arguments[++index];
@@ -628,6 +649,7 @@ static bool parse_options(int argument_count, char **arguments, WmOptions *optio
                 return false;
             }
             options->expected_key_index = (unsigned)value;
+            options->key_index_explicit = true;
         } else if (strcmp(arguments[index], "--verify-only") == 0) {
             options->verify_only = true;
         } else if (strcmp(arguments[index], "--help") == 0) {
@@ -638,7 +660,7 @@ static bool parse_options(int argument_count, char **arguments, WmOptions *optio
             return false;
         }
     }
-    if (!options->wad_path || !options->key_path) {
+    if (!options->wad_path) {
         usage(stderr);
         return false;
     }
@@ -654,10 +676,12 @@ int main(int argument_count, char **arguments)
 
     WmWad wad = { 0 };
     uint8_t common_key[16] = { 0 };
-    bool successful = read_common_key(options.key_path, common_key) &&
-                      read_file(options.wad_path, &wad.bytes, &wad.size) &&
+    unsigned expected_index = 0;
+    bool successful = read_file(options.wad_path, &wad.bytes, &wad.size) &&
                       parse_wad(&wad) &&
-                      decrypt_and_verify(&wad, common_key, options.expected_key_index);
+                      resolve_common_key(&wad, &options, common_key,
+                                          &expected_index) &&
+                      decrypt_and_verify(&wad, common_key, expected_index);
     wipe(common_key, sizeof(common_key));
     if (successful && options.verify_only) {
         printf("Validated %u WAD contents against TMD SHA-1.\n", wad.content_count);

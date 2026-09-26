@@ -206,11 +206,20 @@ static void test_leaf_handoffs(WmOptionsScene *scene) {
     wm_options_scene_advance(scene, 21.0f);
     assert(wm_options_scene_hit(scene, 320, 228) ==
            WM_OPTIONS_CONTROL_SETTINGS_ITEM_3);
+    assert(!wm_options_scene_hover_cue(scene, WM_OPTIONS_CONTROL_NONE));
+    assert(strcmp(wm_options_scene_hover_cue(
+        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+        "WIPL_SE_BOARD_FOCUS") == 0);
+    assert(strcmp(wm_options_scene_hover_cue(
+        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3), "buttonHover") == 0);
     assert(wm_options_scene_activate(
         scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
     wm_options_scene_advance(scene, 40.0f);
     assert(wm_options_scene_hit(scene, 320, 228) ==
            WM_OPTIONS_CONTROL_SETTINGS_ITEM_3);
+    assert(strcmp(wm_options_scene_hover_cue(
+        scene, WM_OPTIONS_CONTROL_SETTINGS_PREVIOUS),
+        "WIPL_SE_BOARD_FOCUS") == 0);
     assert(wm_options_scene_activate(
         scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2));
     assert(wm_options_scene_take_action(scene) ==
@@ -584,6 +593,14 @@ static void test_screen_position_click_cues(WmOptionsScene *scene) {
         scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3));
     assert(wm_options_scene_activate(
         scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
+    assert(strcmp(wm_options_scene_hover_cue(
+        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
+        "WIPL_SE_BOARD_FOCUS") == 0);
+    assert(strcmp(wm_options_scene_hover_cue(
+        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2),
+        "WIPL_SE_BOARD_FOCUS") == 0);
+    assert(strcmp(wm_options_scene_hover_cue(
+        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT), "buttonHover") == 0);
     assert(strcmp(wm_options_scene_click_cue(
         scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
         "WIPL_SE_CHOICE_CHG") == 0);
@@ -652,6 +669,15 @@ static void test_message_board_internet_route(WmOptionsScene *scene) {
     WmOptionsSnapshot entry = wm_options_scene_snapshot(scene);
     assert(entry.page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS);
     assert(entry.locked);
+    wm_options_scene_advance(scene, 21.0f);
+    assert(!wm_options_scene_snapshot(scene).locked);
+    assert(wm_options_scene_back(scene));
+    wm_options_scene_advance(scene, 1.0f);
+    assert(wm_options_scene_take_action(scene) == WM_OPTIONS_ACTION_EXITED);
+    assert(wm_options_scene_snapshot(scene).page ==
+           WM_OPTIONS_PAGE_SYSTEM_SETTINGS);
+    assert(wm_options_scene_open_connect24(scene));
+    assert(wm_options_scene_snapshot(scene).locked);
     wm_options_scene_advance(scene, 21.0f);
     assert(!wm_options_scene_snapshot(scene).locked);
     assert(wm_options_scene_back(scene));

@@ -6,6 +6,7 @@
 #include "wii_menu/board_scene.h"
 #include "wii_menu/board_store.h"
 #include "wii_menu/home_overlay.h"
+#include "wii_menu/hover_audio.h"
 #include "wii_menu/menu_restart.h"
 #include "wii_menu/menu.h"
 #include "wii_menu/options_scene.h"
@@ -209,11 +210,8 @@ static bool without_masks(void *context, const WmLayoutPaneView *pane) {
 }
 
 static void play_hover_cue(WmAudio *audio, WmHit hit) {
-    if (hit.type == WM_HIT_NONE || hit.type == WM_HIT_NOTICE_DISMISS) return;
-    if (hit.type == WM_HIT_SETTINGS || hit.type == WM_HIT_BOARD ||
-        hit.type == WM_HIT_SD || hit.type == WM_HIT_PAGE_PREVIOUS ||
-        hit.type == WM_HIT_PAGE_NEXT) return;
-    wm_audio_play(audio, hit.type == WM_HIT_CHANNEL ? "hover" : "buttonHover");
+    const char *cue = wm_hover_audio_menu_cue(hit.type);
+    if (cue) wm_audio_play(audio, cue);
 }
 
 static const char *storage_click_cue(WmStorageControl control,
@@ -241,13 +239,6 @@ static const char *storage_click_cue(WmStorageControl control,
     return NULL;
 }
 
-static bool board_scroll_arrow(WmBoardControl control) {
-    return control == WM_BOARD_CONTROL_MEMO_SCROLL_UP ||
-           control == WM_BOARD_CONTROL_MEMO_SCROLL_DOWN ||
-           control == WM_BOARD_CONTROL_COMPOSE_SCROLL_UP ||
-           control == WM_BOARD_CONTROL_COMPOSE_SCROLL_DOWN;
-}
-
 static bool compose_scroll_arrow(WmBoardControl control) {
     return control == WM_BOARD_CONTROL_COMPOSE_SCROLL_UP ||
            control == WM_BOARD_CONTROL_COMPOSE_SCROLL_DOWN;
@@ -258,62 +249,35 @@ static bool compose_keyboard_control(WmBoardControl control) {
            control <= WM_BOARD_CONTROL_COMPOSE_KEY_LAST;
 }
 
-static bool compose_symbol_arrow(WmBoardControl control) {
-    return control == WM_BOARD_CONTROL_COMPOSE_KEY_FIRST +
-                      WM_KEYBOARD_SYMBOL_PREV - 1 ||
-           control == WM_BOARD_CONTROL_COMPOSE_KEY_FIRST +
-                      WM_KEYBOARD_SYMBOL_NEXT - 1;
-}
-
-static bool play_board_compose_cues(WmAudio *audio, WmBoardScene *board) {
+static bool play_board_compose_cues_with_non_scroll(
+    WmAudio *audio, WmBoardScene *board, bool *non_scroll_played) {
     const char *cue;
     bool played = false;
+    if (non_scroll_played) *non_scroll_played = false;
     while ((cue = wm_board_scene_take_compose_key_cue(board)) != NULL) {
         wm_audio_play(audio, cue);
         played = true;
+        if (non_scroll_played && strcmp(cue, "WIPL_SE_LINE_SCROLL") != 0)
+            *non_scroll_played = true;
     }
     return played;
 }
 
-static void play_board_hover_cue(WmAudio *audio,
-                                 const WmBoardScene *board,
-                                 WmBoardControl control) {
-    if (control == WM_BOARD_CONTROL_MEMO) {
-        wm_audio_play(audio, "WIPL_SE_BOARD_FOCUS");
-    } else if (compose_keyboard_control(control)) {
-        wm_audio_play(audio, compose_symbol_arrow(control)
-                                 ? "WIPL_SE_BT_TARGETTING" :
-                                   "WIPL_SE_CHAR_FOCUS");
-    } else if (board_scroll_arrow(control)) {
-        wm_audio_play(audio,
-                      compose_scroll_arrow(control) &&
-                      wm_board_scene_compose_editor_active(board)
-                          ? "WIPL_SE_CHAR_FOCUS" : "WIPL_SE_BT_TARGETTING");
-    } else if (control == WM_BOARD_CONTROL_COMPOSE_ADDRESS_PREVIOUS ||
-               control == WM_BOARD_CONTROL_COMPOSE_ADDRESS_NEXT ||
-               control == WM_BOARD_CONTROL_COMPOSE_ADDRESS ||
-               control == WM_BOARD_CONTROL_COMPOSE_ADDRESS_WII ||
-               control == WM_BOARD_CONTROL_COMPOSE_ADDRESS_OTHERS ||
-               control == WM_BOARD_CONTROL_COMPOSE_ADDRESS_EDIT ||
-               control == WM_BOARD_CONTROL_COMPOSE_ADDRESS_DIALOG_OK ||
-               control == WM_BOARD_CONTROL_COMPOSE_ADDRESS_CHANGE_NICKNAME ||
-               control == WM_BOARD_CONTROL_COMPOSE_ADDRESS_ERASE ||
-               control == WM_BOARD_CONTROL_COMPOSE_ADDRESS_DIALOG_YES ||
-               control == WM_BOARD_CONTROL_COMPOSE_ADDRESS_DIALOG_NO ||
-               control == WM_BOARD_CONTROL_COMPOSE_MII ||
-               control == WM_BOARD_CONTROL_COMPOSE_POST ||
-               control == WM_BOARD_CONTROL_COMPOSE_BACK) {
-        wm_audio_play(audio, "WIPL_SE_BT_TARGETTING");
-    } else if (control != WM_BOARD_CONTROL_NONE &&
-               control != WM_BOARD_CONTROL_COMPOSE_ADDRESS_MII &&
-               control != WM_BOARD_CONTROL_COMPOSE_ADDRESS_INFO &&
-               control != WM_BOARD_CONTROL_BACK &&
-               control != WM_BOARD_CONTROL_CALENDAR &&
-               control != WM_BOARD_CONTROL_CREATE &&
-               control != WM_BOARD_CONTROL_PREVIOUS &&
-               control != WM_BOARD_CONTROL_NEXT) {
-        wm_audio_play(audio, "buttonHover");
+static bool play_board_compose_cues(WmAudio *audio, WmBoardScene *board) {
+    return play_board_compose_cues_with_non_scroll(audio, board, NULL);
+}
+
+static void play_board_sound_events(WmAudio *audio, WmBoardScene *board) {
+    WmBoardSoundEvent event;
+    while (wm_board_scene_take_sound_event(board, &event)) {
+        wm_audio_play_panned(audio, event.cue, event.pan);
     }
+}
+
+static void play_board_hover_cue(WmAudio *audio,
+                                 WmBoardControl control) {
+    const char *cue = wm_hover_audio_board_cue(control);
+    if (cue) wm_audio_play(audio, cue);
 }
 
 static void activate_hit(WmMenu *menu, WmAudio *audio,
@@ -692,7 +656,7 @@ int main(int argc, char **argv) {
     WmStorageScene *active_storage = NULL;
     WmStorageHit storage_pressed = {WM_STORAGE_CONTROL_NONE, -1};
     WmAppSceneFade fade = {0};
-    bool settings_from_board = false;
+    WmBoardAction board_settings_request = WM_BOARD_ACTION_NONE;
     WmMenuRestartClock restart = {0};
     unsigned sd_page = 0;
     bool sd_help_seen = false;
@@ -743,7 +707,11 @@ int main(int argc, char **argv) {
             wm_scene_fader_advance(&fade.clock, elapsed * 60.0f)) {
             if (wm_menu_switch_screen_at_black(&menu, fade.destination)) {
                 if (fade.destination == WM_SCREEN_SETTINGS) {
-                    if (settings_from_board)
+                    if (board_settings_request ==
+                            WM_BOARD_ACTION_OPEN_CONNECT24_SETTINGS)
+                        wm_options_scene_open_connect24(options_scene);
+                    else if (board_settings_request ==
+                                 WM_BOARD_ACTION_OPEN_SETTINGS)
                         wm_options_scene_open_internet(options_scene);
                     else
                         wm_options_scene_open(options_scene);
@@ -940,7 +908,8 @@ int main(int argc, char **argv) {
                     if (wm_storage_scene_hover(active_storage, next) &&
                         next.control != WM_STORAGE_CONTROL_NONE &&
                         !selected_tab) {
-                        wm_audio_play(audio, "WIPL_SE_BT_TARGETTING");
+                        wm_audio_play(audio,
+                            wm_hover_audio_storage_cue(next.control));
                     }
                     continue;
                 }
@@ -964,8 +933,7 @@ int main(int argc, char **argv) {
                                                           event.x, event.y);
                     if (next.control != board_hovered.control ||
                         next.memo_index != board_hovered.memo_index) {
-                        play_board_hover_cue(audio, board_scene,
-                                             next.control);
+                        play_board_hover_cue(audio, next.control);
                     }
                     board_hovered = next;
                     wm_board_scene_hover(board_scene, next);
@@ -976,7 +944,8 @@ int main(int argc, char **argv) {
                     WmOptionsControl next = wm_options_scene_hit(options_scene,
                                                                    event.x, event.y);
                     if (next != options_hovered && next != WM_OPTIONS_CONTROL_NONE)
-                        wm_audio_play(audio, "buttonHover");
+                        wm_audio_play(audio,
+                            wm_options_scene_hover_cue(options_scene, next));
                     options_hovered = next;
                     wm_options_scene_hover(options_scene, next);
                     continue;
@@ -1010,6 +979,15 @@ int main(int argc, char **argv) {
                     !menu.home_open && !menu.notice[0]) {
                     WmBoardHit board_hit = wm_board_scene_hit(
                         board_scene, event.x, event.y);
+                    WmBoardPhase press_phase = wm_board_scene_phase(board_scene);
+                    if (press_phase == WM_BOARD_DATE_SCROLL ||
+                        press_phase == WM_BOARD_MEMO_PAGE) {
+                        /* Hover remains live during a turn, but a press begun
+                         * while locked must not activate after it settles. */
+                        board_pressed =
+                            (WmBoardHit){WM_BOARD_CONTROL_NONE, SIZE_MAX};
+                        continue;
+                    }
                     if (event.button == WM_POINTER_RIGHT) {
                         wm_board_scene_hover(board_scene, board_hit);
                         if (wm_board_scene_activate_secondary(board_scene,
@@ -1130,14 +1108,6 @@ int main(int argc, char **argv) {
                     }
                     WmBoardHit next = wm_board_scene_hit(board_scene,
                                                           event.x, event.y);
-                    size_t memo_page = wm_board_scene_memo_page(board_scene);
-                    size_t memo_page_count =
-                        wm_board_scene_memo_page_count(board_scene);
-                    bool turning_memo_page =
-                        (next.control == WM_BOARD_CONTROL_PREVIOUS &&
-                         memo_page + 1 < memo_page_count) ||
-                        (next.control == WM_BOARD_CONTROL_NEXT &&
-                         memo_page > 0);
                     bool confirmed_board_click =
                         event.button == WM_POINTER_LEFT &&
                         board_pressed.control != WM_BOARD_CONTROL_NONE &&
@@ -1164,8 +1134,7 @@ int main(int argc, char **argv) {
                             cue = "confirm";
                         else if (next.control == WM_BOARD_CONTROL_PREVIOUS ||
                                  next.control == WM_BOARD_CONTROL_NEXT)
-                            cue = turning_memo_page ? "WIPL_SE_MSG_HOUSE"
-                                                    : "page";
+                            cue = NULL;
                         else if (compose_scroll_arrow(next.control))
                             cue = "WIPL_SE_LINE_SCROLL";
                         else if (next.control ==
@@ -1204,6 +1173,7 @@ int main(int argc, char **argv) {
                             cue = NULL;
                         if (!play_board_compose_cues(audio, board_scene) && cue)
                             wm_audio_play(audio, cue);
+                        play_board_sound_events(audio, board_scene);
                     }
                     board_pressed = (WmBoardHit){WM_BOARD_CONTROL_NONE, 0};
                     continue;
@@ -1388,9 +1358,10 @@ int main(int argc, char **argv) {
                     if (event.key >= 32 && event.key <= 126) {
                         char character[2] = {(char)event.key, '\0'};
                         if (wm_board_scene_insert_text(board_scene, character)) {
-                            bool queued = play_board_compose_cues(
-                                audio, board_scene);
-                            if (!editor_active || !queued)
+                            bool non_scroll_played;
+                            play_board_compose_cues_with_non_scroll(
+                                audio, board_scene, &non_scroll_played);
+                            if (!editor_active || !non_scroll_played)
                                 wm_audio_play(audio, event.key == ' '
                                     ? "WIPL_SE_CHAR_DECIDE" :
                                       "WIPL_SE_CHAR_INPUT");
@@ -1433,6 +1404,7 @@ int main(int argc, char **argv) {
             menu.screen == WM_SCREEN_BOARD && board_scene) {
             wm_board_scene_advance(board_scene, elapsed * 60.0f);
             play_board_compose_cues(audio, board_scene);
+            play_board_sound_events(audio, board_scene);
             const char *reader_cue;
             while ((reader_cue =
                     wm_board_scene_take_reader_cue(board_scene)) != NULL)
@@ -1442,13 +1414,34 @@ int main(int argc, char **argv) {
                 WmBoardHit initial = pointer_inside
                     ? wm_board_scene_hit(board_scene, pointer_x, pointer_y)
                     : (WmBoardHit){WM_BOARD_CONTROL_NONE, SIZE_MAX};
+                play_board_hover_cue(audio, initial.control);
                 board_hovered = initial;
                 wm_board_scene_hover(board_scene, initial);
                 board_entry_hover_pending = false;
             }
             WmBoardPhase board_phase = wm_board_scene_phase(board_scene);
+            /* The common arrows keep one hover owner throughout a page
+             * turn. Reconcile their source bounds without requiring a new
+             * pointer event when the page settles or an arrow disappears. */
+            if (pointer_inside && !menu.notice[0] &&
+                !wm_board_scene_dragging(board_scene) &&
+                wm_board_scene_child(board_scene) == WM_BOARD_CHILD_NONE &&
+                (board_phase == WM_BOARD_READY ||
+                 board_phase == WM_BOARD_DATE_SCROLL ||
+                 board_phase == WM_BOARD_MEMO_PAGE)) {
+                WmBoardHit next = wm_board_scene_hit(board_scene,
+                                                      pointer_x, pointer_y);
+                if (next.control != board_hovered.control ||
+                    next.memo_index != board_hovered.memo_index) {
+                    play_board_hover_cue(audio, next.control);
+                    board_hovered = next;
+                    wm_board_scene_hover(board_scene, next);
+                }
+            }
             if (board_phase != WM_BOARD_READY &&
-                board_phase != WM_BOARD_MEMO_READ)
+                board_phase != WM_BOARD_MEMO_READ &&
+                board_phase != WM_BOARD_DATE_SCROLL &&
+                board_phase != WM_BOARD_MEMO_PAGE)
                 board_hovered = (WmBoardHit){WM_BOARD_CONTROL_NONE, 0};
             float departing_grid_frame = 0.0f;
             if (!wm_board_scene_grid_overlay(board_scene,
@@ -1463,9 +1456,10 @@ int main(int argc, char **argv) {
                     : (WmHit){WM_HIT_NONE, -1};
                 wm_audio_stop_loop(audio, "WIPL_SE_BOARD_DRAG");
                 wm_audio_stop_loop(audio, "WIPL_SE_MESSAGE_SCROLL");
-            } else if (action == WM_BOARD_ACTION_OPEN_SETTINGS &&
+            } else if ((action == WM_BOARD_ACTION_OPEN_SETTINGS ||
+                        action == WM_BOARD_ACTION_OPEN_CONNECT24_SETTINGS) &&
                        wm_scene_fader_start(&fade.clock)) {
-                settings_from_board = true;
+                board_settings_request = action;
                 fade.destination = WM_SCREEN_SETTINGS;
             } else if ((action == WM_BOARD_ACTION_MEMO_POSTED ||
                         action == WM_BOARD_ACTION_ERASE_MEMO ||
@@ -1502,6 +1496,15 @@ int main(int argc, char **argv) {
             } else {
                 wm_audio_stop_loop(audio, "WIPL_SE_MESSAGE_SCROLL");
             }
+        } else if (!layout && !health_frame &&
+                   !wm_home_overlay_active(home) &&
+                   !wm_menu_restart_active(&restart) &&
+                   menu.screen == WM_SCREEN_GRID && board_scene) {
+            /* A return to today's date can leave ordered arrivals underway
+             * behind ChannelSelect. Continue their shared clock and cues
+             * once per update, including after the Board has closed. */
+            wm_board_scene_advance_parked(board_scene, elapsed * 60.0f);
+            play_board_sound_events(audio, board_scene);
         }
         if (!layout && resource_scene && board_scene) {
             if (menu.screen == WM_SCREEN_GRID &&
@@ -1520,9 +1523,9 @@ int main(int argc, char **argv) {
             WmOptionsAction action = wm_options_scene_take_action(options_scene);
             if (action == WM_OPTIONS_ACTION_EXITED &&
                 wm_scene_fader_start(&fade.clock)) {
-                fade.destination = settings_from_board
+                fade.destination = board_settings_request != WM_BOARD_ACTION_NONE
                     ? WM_SCREEN_BOARD : WM_SCREEN_GRID;
-                settings_from_board = false;
+                board_settings_request = WM_BOARD_ACTION_NONE;
             }
             else if (action == WM_OPTIONS_ACTION_CHANNEL_STORAGE ||
                      action == WM_OPTIONS_ACTION_WII_STORAGE ||
@@ -1543,7 +1546,8 @@ int main(int argc, char **argv) {
                     options_scene, pointer_x, pointer_y);
                 if (next != options_hovered) {
                     if (next != WM_OPTIONS_CONTROL_NONE)
-                        wm_audio_play(audio, "buttonHover");
+                        wm_audio_play(audio,
+                            wm_options_scene_hover_cue(options_scene, next));
                     options_hovered = next;
                     wm_options_scene_hover(options_scene, next);
                 }
@@ -1582,13 +1586,14 @@ int main(int argc, char **argv) {
                         sd_help_seen = wm_sd_scene_help_seen(sd_scene);
                         break;
                     case WM_SD_EVENT_HOVER_SOUND:
-                        wm_audio_play(audio, "buttonHover");
+                        wm_audio_play(audio,
+                            wm_hover_audio_sd_cue(sd_event.control));
                         break;
                     case WM_SD_EVENT_CONFIRM_SOUND:
                         wm_audio_play(audio, "confirm");
                         break;
                     case WM_SD_EVENT_CANCEL_SOUND:
-                        wm_audio_play(audio, "back");
+                        wm_audio_play(audio, "WIPL_SE_CANCEL");
                         break;
                     case WM_SD_EVENT_PAGE_SOUND:
                         wm_audio_play(audio, "page");

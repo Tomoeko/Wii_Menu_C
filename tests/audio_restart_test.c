@@ -186,6 +186,27 @@ int main(void) {
     assert(wm_audio_play(audio, "click"));
     assert(fabsf(render_first_sample() - 4000.0f / 32768.0f) < 0.00001f);
 
+    /* Sequential memo arrivals may overlap the same effect. Panning a new
+     * voice must not move a prior arrival to the new card's position. */
+    wm_audio_reset_all(audio);
+    assert(!wm_audio_play_panned(audio, "click", NAN));
+    assert(wm_audio_play_panned(audio, "click", -1.0f));
+    float panned_samples[2] = {0};
+    device->render(device->context, panned_samples, 1);
+    const float click_sample = 4000.0f / 32768.0f;
+    assert(fabsf(panned_samples[0] - click_sample) < 0.00001f);
+    assert(panned_samples[1] == 0.0f);
+    assert(wm_audio_play_panned(audio, "click", 1.0f));
+    device->render(device->context, panned_samples, 1);
+    assert(fabsf(panned_samples[0] - click_sample) < 0.00001f);
+    assert(fabsf(panned_samples[1] - click_sample) < 0.00001f);
+
+    wm_audio_reset_all(audio);
+    assert(wm_audio_play_panned(audio, "click", 2.0f));
+    device->render(device->context, panned_samples, 1);
+    assert(panned_samples[0] == 0.0f);
+    assert(fabsf(panned_samples[1] - click_sample) < 0.00001f);
+
     wm_audio_destroy(audio);
     assert(unlink(click_path) == 0);
     assert(rmdir(audio_directory) == 0);

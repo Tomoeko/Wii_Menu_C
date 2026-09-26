@@ -1103,7 +1103,8 @@ static bool update_channels(const char *base_assets,
 
 static int usage(const char *program, int result) {
     fprintf(stderr,
-            "Usage: %s --wad FILE --common-key-file FILE --output DIRECTORY "
+            "Usage: %s --wad FILE --output DIRECTORY "
+            "[--common-key-file FILE] [--common-key-index N] "
             "[--nand FILE] [--nand-keys FILE] [--language ENG]\n"
             "       %s --update-from DIRECTORY --nand FILE --output DIRECTORY "
             "[--nand-keys FILE] [--nand-policy keep|replace] "
@@ -1116,12 +1117,15 @@ static int usage(const char *program, int result) {
             "       %s --recover --plan --update-from DIRECTORY\n",
             program, program, program, program, program);
     fputs("Output must be a new directory. Updates preserve the source "
-          "directory and its saved placement. Inputs stay local.\n", stderr);
+          "directory and its saved placement. Inputs stay local.\n"
+          "WAD retail ticket indices 0 and 1 select a built-in common key.\n",
+          stderr);
     return result;
 }
 
 int main(int argc, char **argv) {
     const char *wad = NULL, *common_key = NULL, *nand = NULL;
+    const char *common_key_index = NULL;
     const char *nand_keys = NULL, *output_request = NULL;
     const char *update_from = NULL, *language = NULL;
     const char *expected_plan = NULL;
@@ -1150,6 +1154,13 @@ int main(int argc, char **argv) {
         } else if (strcmp(option, "--common-key-file") == 0) {
             if (common_key) return usage(argv[0], 2);
             common_key = value;
+        } else if (strcmp(option, "--common-key-index") == 0) {
+            if (common_key_index) return usage(argv[0], 2);
+            char *end = NULL;
+            unsigned long parsed = strtoul(value, &end, 10);
+            if (end == value || *end != '\0' || parsed > 255)
+                return usage(argv[0], 2);
+            common_key_index = value;
         } else if (strcmp(option, "--nand") == 0) {
             if (nand) return usage(argv[0], 2);
             nand = value;
@@ -1182,7 +1193,8 @@ int main(int argc, char **argv) {
         else return usage(argv[0], 2);
     }
     bool invalid_recovery = recover &&
-        (wad || common_key || nand || nand_keys || expected_plan || language ||
+        (wad || common_key || common_key_index || nand || nand_keys ||
+         expected_plan || language ||
          replace_ids.count || keep_ids.count || policy_set ||
          (plan ? (!update_from || output_request) :
                  (!output_request || update_from)));
@@ -1190,8 +1202,8 @@ int main(int argc, char **argv) {
         ((plan ? output_request != NULL : output_request == NULL) ||
          (plan && (!update_from || expected_plan)) ||
          (expected_plan && !update_from) || (nand_keys && !nand) ||
-         (update_from ? (!nand || wad || common_key) :
-                        (!wad || !common_key || replace_ids.count ||
+         (update_from ? (!nand || wad || common_key || common_key_index) :
+                        (!wad || replace_ids.count ||
                          keep_ids.count || policy_set)));
     if (invalid_recovery || invalid_preparation) {
         return usage(argv[0], 2);
@@ -1346,8 +1358,17 @@ int main(int argc, char **argv) {
     else if (okay && plan) okay = mkdir(incoming_assets, 0700) == 0;
     else if (okay) okay = mkdir(assets, 0700) == 0;
     if (okay && !base_path) {
-        char *wad_arguments[] = {"wm-wad-extract", "--wad", wad_path,
-                                 "--common-key-file", common_key_path, NULL};
+        char *wad_arguments[8] = {"wm-wad-extract", "--wad", wad_path};
+        size_t argument_count = 3;
+        if (common_key_path) {
+            wad_arguments[argument_count++] = "--common-key-file";
+            wad_arguments[argument_count++] = common_key_path;
+        }
+        if (common_key_index) {
+            wad_arguments[argument_count++] = "--common-key-index";
+            wad_arguments[argument_count++] = (char *)common_key_index;
+        }
+        wad_arguments[argument_count] = NULL;
         okay = run_tool(self, "wm-wad-extract", temporary, wad_arguments, false);
     }
     if (okay && !base_path) {

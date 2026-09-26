@@ -53,6 +53,10 @@ struct WmPreviewScene {
     float last_draw_seconds;
     float module_lead_frames;
     int prepared_slot;
+    bool shop_clock_started;
+    int shop_clock_slot;
+    float shop_clock_origin_seconds;
+    float shop_clock_last_seconds;
 };
 
 typedef struct ArrowVisibility {
@@ -320,8 +324,12 @@ void wm_preview_scene_move_channel(WmPreviewScene *scene, int from, int to)
 
 void wm_preview_scene_set_module_lead(WmPreviewScene *scene, float frames)
 {
-    if (scene && isfinite(frames) && frames >= 0.0f)
+    if (scene && isfinite(frames) && frames >= 0.0f) {
         scene->module_lead_frames = frames;
+        /* The caller assigns this at each settled preview entry, even when
+         * no zoom frame was rendered or the same channel was reopened. */
+        scene->shop_clock_started = false;
+    }
 }
 
 static int focus_button(WmHitType hit)
@@ -571,6 +579,30 @@ bool wm_preview_scene_pose_arrows(WmLayout *layout, float frame,
     return pose_arrows(layout, NULL, frame, loop_frame, exiting);
 }
 
+static float shop_banner_frame(WmPreviewScene *scene,
+                               const WmMenu *menu,
+                               WmPreviewPresentation presentation,
+                               float seconds)
+{
+    /* Texture/audio preparation can delay the first presentation. Keep the
+     * authored Start pose at zero until it has actually been drawn. Zoom and
+     * the incoming channel window also retain that pose independently. */
+    if (menu->transition == WM_TRANSITION_SELECT ||
+        presentation.phase == WM_PREVIEW_PHASE_CHANGE_OUT) {
+        scene->shop_clock_started = false;
+        return 0.0f;
+    }
+    if (!scene->shop_clock_started ||
+        scene->shop_clock_slot != presentation.slot ||
+        seconds < scene->shop_clock_last_seconds) {
+        scene->shop_clock_started = true;
+        scene->shop_clock_slot = presentation.slot;
+        scene->shop_clock_origin_seconds = seconds;
+    }
+    scene->shop_clock_last_seconds = seconds;
+    return fmaxf(0.0f, seconds - scene->shop_clock_origin_seconds) * 60.0f;
+}
+
 static void update_background_date(WmPreviewScene *scene) {
     time_t now = time(NULL);
     struct tm date;
@@ -625,6 +657,14 @@ static bool draw_preview_layers(WmPreviewScene *scene, const WmMenu *menu,
     bool initial_zoom = menu->transition == WM_TRANSITION_SELECT;
     float banner_frame = updates;
     float module_frame = updates + scene->module_lead_frames;
+    bool shop = strcmp(menu->slots[presentation.slot].id,
+                        "0001000248414241") == 0;
+    if (shop)
+        banner_frame = shop_banner_frame(scene, menu, presentation,
+                                          fmaxf(0.0f,
+                                                preview_elapsed_seconds));
+    else
+        scene->shop_clock_started = false;
     if (initial_zoom) {
         banner_frame = 0.0f;
         module_frame = 0.0f;

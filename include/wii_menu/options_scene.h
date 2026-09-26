@@ -81,6 +81,8 @@ void wm_options_scene_destroy(WmOptionsScene *scene);
 bool wm_options_scene_open(WmOptionsScene *scene);
 /* Enter the Internet Settings page directly from the Message Board prompt. */
 bool wm_options_scene_open_internet(WmOptionsScene *scene);
+/* Enter WiiConnect24 directly from the Address Book's disabled-service prompt. */
+bool wm_options_scene_open_connect24(WmOptionsScene *scene);
 /* Close the retained Options hierarchy and Settings child on menu restart. */
 void wm_options_scene_reset(WmOptionsScene *scene);
 void wm_options_scene_advance(WmOptionsScene *scene, float frames);
@@ -91,6 +93,10 @@ bool wm_options_scene_update_question(const WmOptionsScene *scene);
 /* Return the source cue for a successful click, sampled before activation
  * changes the current Settings page. */
 const char *wm_options_scene_click_cue(const WmOptionsScene *scene,
+                                        WmOptionsControl control);
+/* Directional controls use the requested Memo hover cue. Other buttons
+ * retain their targeting cue, including Settings confirmation buttons. */
+const char *wm_options_scene_hover_cue(const WmOptionsScene *scene,
                                         WmOptionsControl control);
 WmOptionsAction wm_options_scene_take_action(WmOptionsScene *scene);
 /* A category event identifies the selected source index item (1–12). The

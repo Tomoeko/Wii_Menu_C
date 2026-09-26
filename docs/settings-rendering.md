@@ -1,11 +1,16 @@
 # Wii Settings presentation in C
 
 The C scene draws the source 608×456 Settings document. In the 16:9 menu,
-it fits that document between two 112×456 side panels in the original
-832×456 composition; the complete surface is then fitted into the fixed
-640×456 framebuffer. In 4:3 mode the document remains at x=16 without the
-side panels. Settings input uses the inverse of the draw projection. Local asset
-preparation reads the source USA 4.3 WAD's `html/US2/iplsetting.ash` and
+it fits that document in the center of the original 832×456 composition,
+then fits the complete surface into the fixed 640×456 framebuffer. In 4:3
+mode the document remains at x=16. The original `BG_16x9.tpl` side artwork
+now fills the entire framebuffer beneath the document controls in both aspect
+ratios, and stays fixed during page scrolls. Its rows have no horizontal
+variation, so extending them adds no horizontal image distortion. This follows
+the requested continuous Settings backdrop; the HTML reference still draws
+its 112-pixel panels only at the widescreen edges and separately rasterizes
+the center document. Settings input uses the inverse of the draw projection.
+Local asset preparation reads the source USA 4.3 WAD's `html/US2/iplsetting.ash` and
 `html/BG_16x9.tpl`. `wm-settings-export` decodes selected GIFs and PNGs and the
 side-panel TPL with first-party C decoders, then writes RGBA resources into the
 ignored local asset directory. Nothing from the WAD is part of the repository.
@@ -13,8 +18,10 @@ The sampled `00000097.app` SHA-256 was
 `64bc053c764d5be5107b03675ee487a8f83258e9f5518b5df10a135d23ded237`.
 
 The eight-pixel source background tile is expanded into one 608×456 texture
-at preparation time. This preserves its exact horizontal repeat while keeping
-the steady Settings draw to one background submission. The title tab, page
+at preparation time and remains an older-preparation fallback. The normal
+Settings backdrop uses one full-frame submission of the source side artwork.
+The sampled USA 4.3 side artwork exactly matches the center tile after RGB565
+quantization for all 456 rows. The title tab, page
 arrows and their focus art, page markers, index row background and focus PNG,
 and footer background and focus PNG also use decoded source images. Category
 choice rows use the original normal, focus, and selected-side artwork. The
@@ -27,8 +34,8 @@ shared artwork. Hovered index rows, Back, and page arrows switch to their
 source rollover images on the first hovered frame, with no hover fade.
 Category/detail document swaps use the source twenty-update integer alpha
 progression. The index page scroll uses the original 41-frame WAD curve and
-moves the complete widescreen composition, including both side panels, across
-the framebuffer. After a page turn, the stationary pointer is tested against
+moves foreground controls across the framebuffer above the fixed backdrop.
+After a page turn, the stationary pointer is tested against
 the newly displayed controls so an arrow beneath it acquires focus immediately.
 The title, shared rows, and footer baselines follow the source HTML positions
 to within about two pixels in the 608×456 document comparison; font raster
@@ -95,8 +102,10 @@ pointing to an ignored original resource archive, it also checks export,
 symlink rejection, and that an existing font file is not overwritten.
 Setting `WM_OUTLINE_TEST_FONT` to a locally exported collection path also
 rasterizes the source face's Latin range without shipping its bytes.
-`wii-menu-settings-scene` tests 4:3 and 16:9 input geometry, side-panel quad
-and clip placement, category/detail opacity, and the source page-change curve.
+`wii-menu-settings-scene` tests 4:3 and 16:9 input geometry, full-frame backdrop
+coverage and foreground ordering, category/detail opacity, the stationary
+background during the source page-change curve, and directional-control
+classification for hover audio.
 Its Sensitivity render assertion checks the selected rank and the source
 button/gauge placement in 16:9 projection, with no footer artwork on the
 meter page.

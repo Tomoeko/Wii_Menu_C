@@ -414,15 +414,26 @@ bool wm_options_scene_open(WmOptionsScene *scene) {
     return true;
 }
 
-bool wm_options_scene_open_internet(WmOptionsScene *scene) {
+static bool open_direct_settings(WmOptionsScene *scene, bool connect24) {
     if (!scene || !scene->settings) return false;
     wm_options_scene_reset(scene);
-    if (!wm_settings_scene_open_internet(scene->settings)) return false;
+    bool opened = connect24
+        ? wm_settings_scene_open_connect24(scene->settings)
+        : wm_settings_scene_open_internet(scene->settings);
+    if (!opened) return false;
     scene->page = WM_OPTIONS_PAGE_SYSTEM_SETTINGS;
     scene->exiting_page = WM_OPTIONS_PAGE_SYSTEM_SETTINGS;
     scene->phase = WM_OPTIONS_READY;
     scene->direct_settings = true;
     return true;
+}
+
+bool wm_options_scene_open_internet(WmOptionsScene *scene) {
+    return open_direct_settings(scene, false);
+}
+
+bool wm_options_scene_open_connect24(WmOptionsScene *scene) {
+    return open_direct_settings(scene, true);
 }
 
 static void finish_back_level(WmOptionsScene *scene) {
@@ -778,6 +789,18 @@ static WmSettingsControl settings_control(WmOptionsControl control) {
                 control - WM_OPTIONS_CONTROL_SETTINGS_ITEM_1);
         default: return WM_SETTINGS_CONTROL_NONE;
     }
+}
+
+const char *wm_options_scene_hover_cue(const WmOptionsScene *scene,
+                                        WmOptionsControl control) {
+    if (control == WM_OPTIONS_CONTROL_NONE) return NULL;
+    if (scene && scene->page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS &&
+        scene->settings &&
+        wm_settings_scene_directional_control(scene->settings,
+                                                settings_control(control))) {
+        return "WIPL_SE_BOARD_FOCUS";
+    }
+    return "buttonHover";
 }
 
 bool wm_options_scene_pointer_down(WmOptionsScene *scene,

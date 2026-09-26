@@ -49,6 +49,57 @@ void wm_platform_destroy_texture(WmPlatform *platform, uint32_t texture) {
     (void)texture;
 }
 
+static void test_directional_controls(const char *assets) {
+    WmSettingsScene *scene = wm_settings_scene_create(
+        (WmPlatform *)1, assets, (WmTextureCache *)1, (WmFontCache *)1);
+    assert(scene);
+    assert(!wm_settings_scene_directional_control(
+        scene, WM_SETTINGS_CONTROL_NEXT));
+    assert(wm_settings_scene_open(scene));
+    wm_settings_scene_advance(scene, 21.0f);
+    assert(wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_NEXT));
+    assert(!wm_settings_scene_directional_control(
+        scene, WM_SETTINGS_CONTROL_PREVIOUS));
+    assert(!wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_ITEM_1));
+
+    assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
+    assert(!wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_ITEM_1));
+    assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
+    for (WmSettingsControl control = WM_SETTINGS_CONTROL_ITEM_1;
+         control <= WM_SETTINGS_CONTROL_ITEM_6; control++)
+        assert(wm_settings_scene_directional_control(scene, control));
+    assert(!wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_NEXT));
+    assert(wm_settings_scene_back(scene));
+    assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
+    assert(wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_ITEM_4));
+    assert(!wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_ITEM_5));
+    assert(wm_settings_scene_back(scene));
+    assert(wm_settings_scene_back(scene));
+
+    assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_3));
+    assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
+    assert(wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_ITEM_1));
+    assert(wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_ITEM_2));
+    assert(!wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_NEXT));
+    assert(wm_settings_scene_back(scene));
+    assert(wm_settings_scene_back(scene));
+    for (unsigned page = 1; page < 3; page++) {
+        assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_NEXT));
+        assert(!wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_NEXT));
+        wm_settings_scene_advance(scene, 41.0f);
+    }
+    assert(wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_PREVIOUS));
+    assert(!wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_NEXT));
+    assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
+    assert(wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_ITEM_6));
+    assert(!wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_PREVIOUS));
+    for (unsigned page = 0; page < 9; page++)
+        assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_6));
+    assert(wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_PREVIOUS));
+    assert(!wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_ITEM_6));
+    wm_settings_scene_destroy(scene);
+}
+
 static void test_wide_projection(const char *assets) {
     WmSettingsScene *scene = wm_settings_scene_create(
         (WmPlatform *)1, assets, (WmTextureCache *)1,
@@ -119,15 +170,14 @@ static void test_wide_render(const char *assets) {
     for (size_t index = 0; index < drawn_quad_count; index++) {
         const WmQuad *quad = &drawn_quads[index];
         if (quad->texture != side_texture) continue;
-        float expected_x = side_count == 0 ? 0.0f
-            : projected.document_x + projected.document_width;
-        assert(side_count < 2);
-        assert(fabsf(quad->x - expected_x) < 0.001f);
-        assert(fabsf(quad->width - projected.side_width) < 0.001f);
+        assert(side_count == 0);
+        assert(quad->x == 0.0f && quad->y == 0.0f);
+        assert(quad->width == WM_FRAME_WIDTH);
         assert(quad->height == 456.0f);
+        assert(index == 1); /* Behind every document control. */
         side_count++;
     }
-    assert(side_count == 2);
+    assert(side_count == 1);
 
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_3));
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
@@ -280,13 +330,12 @@ static void test_initial_page_fades_as_one_raster(const char *assets) {
         wm_texture_cache_begin_frame(textures);
         wm_font_cache_begin_frame(fonts);
         assert(wm_settings_scene_draw(scene));
-        WmQuad document_quad = {0};
         WmQuad panel_quad = {0};
         WmQuad title_quad = {0};
-        assert(count_drawn_texture(background, &document_quad) == 1);
-        assert(count_drawn_texture(side_panel, &panel_quad) == 2);
+        assert(count_drawn_texture(background, NULL) == 0);
+        assert(count_drawn_texture(side_panel, &panel_quad) == 1);
         assert(count_drawn_texture(title, &title_quad) == 1);
-        assert(fabsf(document_quad.color.a - alpha[step]) < 0.001f);
+        assert(panel_quad.x == 0.0f && panel_quad.width == WM_FRAME_WIDTH);
         assert(fabsf(panel_quad.color.a - alpha[step]) < 0.001f);
         assert(fabsf(title_quad.color.a - alpha[step]) < 0.001f);
     }
@@ -296,7 +345,7 @@ static void test_initial_page_fades_as_one_raster(const char *assets) {
     wm_texture_cache_destroy(textures);
 }
 
-static void test_page_crossfade_keeps_side_panels_opaque(
+static void test_page_crossfade_keeps_background_continuous(
     const char *assets) {
     WmTextureCache *textures = wm_texture_cache_create(
         (WmPlatform *)1, assets, 64u * 1024u * 1024u);
@@ -322,19 +371,20 @@ static void test_page_crossfade_keeps_side_panels_opaque(
     wm_texture_cache_begin_frame(textures);
     wm_font_cache_begin_frame(fonts);
     assert(wm_settings_scene_draw(scene));
-    WmQuad first_background = {0};
     WmQuad first_panel = {0};
-    assert(count_drawn_texture(background, &first_background) == 2);
+    assert(count_drawn_texture(background, NULL) == 0);
     assert(count_drawn_texture(side_panel, &first_panel) == 2);
-    assert(first_background.color.a == 1.0f);
+    assert(first_panel.x == 0.0f && first_panel.width == WM_FRAME_WIDTH);
     assert(first_panel.color.a == 1.0f);
     unsigned faded_backgrounds = 0;
     unsigned black_shells = 0;
     for (size_t index = 0; index < drawn_quad_count; index++) {
         const WmQuad *quad = &drawn_quads[index];
-        if (quad->texture == background &&
-            fabsf(quad->color.a - 127.0f / 255.0f) < 0.001f)
-            faded_backgrounds++;
+        if (quad->texture == side_panel) {
+            assert(quad->x == 0.0f && quad->width == WM_FRAME_WIDTH);
+            if (fabsf(quad->color.a - 127.0f / 255.0f) < 0.001f)
+                faded_backgrounds++;
+        }
         if (!quad->texture && quad->x == 0.0f && quad->y == 0.0f &&
             quad->width == WM_FRAME_WIDTH &&
             quad->height == WM_FRAME_HEIGHT)
@@ -1596,52 +1646,50 @@ static void test_index_source_badges_and_scroll(const char *assets) {
     wm_texture_cache_begin_frame(textures);
     wm_font_cache_begin_frame(fonts);
     assert(wm_settings_scene_draw(scene));
-    float backgrounds[2] = {0};
-    float background_alpha[2] = {0};
     float titles[2] = {0};
+    float title_alpha[2] = {0};
     float footers[2] = {0};
-    unsigned background_count = 0;
     unsigned title_count = 0;
     unsigned footer_count = 0;
     for (size_t index = 0; index < drawn_quad_count; index++) {
         const WmQuad *quad = &drawn_quads[index];
-        if (quad->texture == background && background_count < 2) {
-            background_alpha[background_count] = quad->color.a;
-            backgrounds[background_count++] = quad->x;
-        }
-        if (quad->texture == title && title_count < 2)
+        if (quad->texture == title && title_count < 2) {
+            title_alpha[title_count] = quad->color.a;
             titles[title_count++] = quad->x;
+        }
         if (quad->texture == footer && footer_count < 2)
             footers[footer_count++] = quad->x;
     }
-    assert(background_count == 2 && title_count == 2 && footer_count == 2);
-    assert(background_alpha[0] == 1.0f);
-    assert(background_alpha[1] > 0.0f && background_alpha[1] < 1.0f);
-    assert(backgrounds[0] < 16.0f && backgrounds[1] > 16.0f);
+    assert(title_count == 2 && footer_count == 2);
+    assert(title_alpha[0] == 1.0f);
+    assert(title_alpha[1] > 0.0f && title_alpha[1] < 1.0f);
+    WmQuad backdrop = {0};
+    assert(count_drawn_texture(background, NULL) == 0);
+    assert(count_drawn_texture(side_panel, &backdrop) == 1);
+    assert(backdrop.x == 0.0f && backdrop.width == WM_FRAME_WIDTH);
+    assert(backdrop.color.a == 1.0f);
     /* SceenChange_b_Right's frame-13 N_Tra0 key is -443.8 of 477 units. */
     float source_shift = 443.8f * 608.0f / 477.0f;
-    assert(fabsf(backgrounds[0] - (16.0f - source_shift)) < 0.1f);
-    assert(fabsf(backgrounds[1] - backgrounds[0] - 608.0f) < 0.01f);
+    assert(fabsf(titles[0] - (40.0f - source_shift)) < 0.1f);
+    assert(fabsf(titles[1] - titles[0] - 608.0f) < 0.01f);
     for (unsigned page = 0; page < 2; page++) {
-        assert(fabsf(titles[page] - backgrounds[page] - 24.0f) < 0.01f);
-        assert(fabsf(footers[page] - backgrounds[page] - 28.0f) < 0.01f);
+        assert(fabsf(footers[page] - titles[page] - 4.0f) < 0.01f);
     }
     wm_settings_scene_advance(scene, 12.0f);
     drawn_quad_count = 0;
     wm_texture_cache_begin_frame(textures);
     wm_font_cache_begin_frame(fonts);
     assert(wm_settings_scene_draw(scene));
-    WmQuad first_background = {0};
-    assert(count_drawn_texture(background, &first_background) == 2);
-    assert(first_background.x == -592.0f);
+    assert(count_drawn_texture(side_panel, &backdrop) == 1);
+    assert(backdrop.x == 0.0f && backdrop.width == WM_FRAME_WIDTH);
     wm_settings_scene_advance(scene, 15.0f);
     drawn_quad_count = 0;
     wm_texture_cache_begin_frame(textures);
     wm_font_cache_begin_frame(fonts);
     assert(wm_settings_scene_draw(scene));
     assert(wm_settings_scene_snapshot(scene).phase == WM_SETTINGS_READY);
-    assert(count_drawn_texture(background, &first_background) == 1);
-    assert(first_background.x == 16.0f);
+    assert(count_drawn_texture(side_panel, &backdrop) == 1);
+    assert(backdrop.x == 0.0f && backdrop.width == WM_FRAME_WIDTH);
     assert(count_drawn_texture(page_on, &selected_badge) == 1);
     assert(selected_badge.x == 504.0f);
 
@@ -1656,34 +1704,25 @@ static void test_index_source_badges_and_scroll(const char *assets) {
     assert(wm_settings_scene_draw(scene));
     assert(document_clip_seen);
     assert(document_clip.x == 0.0f && document_clip.width == WM_FRAME_WIDTH);
-    WmQuad panel[4] = {0};
-    unsigned panel_count = 0;
+    assert(count_drawn_texture(side_panel, &backdrop) == 1);
+    assert(backdrop.x == 0.0f && backdrop.width == WM_FRAME_WIDTH);
+    assert(backdrop.color.a == 1.0f);
+    title_count = 0;
     for (size_t index = 0; index < drawn_quad_count; index++) {
-        if (drawn_quads[index].texture == side_panel && panel_count < 4)
-            panel[panel_count++] = drawn_quads[index];
-    }
-    assert(panel_count == 4);
-    background_count = 0;
-    for (size_t index = 0; index < drawn_quad_count; index++)
-        if (drawn_quads[index].texture == background && background_count < 2) {
-            background_alpha[background_count] = drawn_quads[index].color.a;
-            backgrounds[background_count++] = drawn_quads[index].x;
+        if (drawn_quads[index].texture == title && title_count < 2) {
+            title_alpha[title_count] = drawn_quads[index].color.a;
+            titles[title_count++] = drawn_quads[index].x;
         }
-    assert(background_count == 2);
-    assert(background_alpha[0] == 1.0f);
-    assert(background_alpha[1] > 0.0f && background_alpha[1] < 1.0f);
-    assert(backgrounds[0] > projection.document_x);
-    assert(backgrounds[1] < projection.document_x);
+    }
+    assert(title_count == 2);
+    assert(title_alpha[0] == 1.0f);
+    assert(title_alpha[1] > 0.0f && title_alpha[1] < 1.0f);
     /* The exported 41-frame clip is at 443.8/477 of its full displacement
      * on frame 13; each complete widescreen composition travels 640 pixels. */
     float wide_shift = 443.8f / 477.0f * WM_FRAME_WIDTH;
-    assert(fabsf(panel[0].x - wide_shift) < 0.1f);
-    assert(fabsf(panel[1].x - panel[0].x -
-                 (projection.document_x + projection.document_width)) < 0.01f);
-    assert(fabsf(panel[2].x - panel[0].x + WM_FRAME_WIDTH) < 0.01f);
-    assert(fabsf(panel[3].x - panel[2].x -
-                 (projection.document_x + projection.document_width)) < 0.01f);
-    assert(fabsf(backgrounds[0] - backgrounds[1] -
+    assert(fabsf(titles[0] - (projection.document_x +
+                 24.0f * 640.0f / 832.0f + wide_shift)) < 0.1f);
+    assert(fabsf(titles[0] - titles[1] -
                  WM_FRAME_WIDTH) < 0.01f);
 
     wm_settings_scene_destroy(scene);
@@ -1698,12 +1737,16 @@ static void test_immediate_index_hover_art(const char *assets) {
         (WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t row_focus = 0;
+    uint32_t format_focus = 0;
     uint32_t footer_focus = 0;
     uint32_t right_focus = 0;
     uint32_t left_focus = 0;
     assert(wm_texture_cache_resolve(
         textures, "textures/settings_html/index-row-focus.png",
         &row_focus));
+    assert(wm_texture_cache_resolve(
+        textures, "textures/settings_html/index-row-format-focus.png",
+        &format_focus));
     assert(wm_texture_cache_resolve(
         textures, "textures/settings_html/footer-button-focus.png",
         &footer_focus));
@@ -1770,6 +1813,28 @@ static void test_immediate_index_hover_art(const char *assets) {
     wm_font_cache_begin_frame(fonts);
     assert(wm_settings_scene_draw(scene));
     assert(count_drawn_texture(left_focus, NULL) == 0);
+
+    assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_NEXT));
+    wm_settings_scene_advance(scene, 40.0f);
+    for (unsigned aspect = 0; aspect < 2; aspect++) {
+        wm_settings_scene_set_wide(scene, aspect != 0);
+        assert(wm_settings_scene_hover(scene, WM_SETTINGS_CONTROL_ITEM_4));
+        drawn_quad_count = 0;
+        wm_texture_cache_begin_frame(textures);
+        wm_font_cache_begin_frame(fonts);
+        assert(wm_settings_scene_draw(scene));
+        WmQuad format_quad = {0};
+        assert(count_drawn_texture(format_focus, &format_quad) == 1);
+        assert(format_quad.color.a == 1.0f);
+        assert(count_drawn_texture(row_focus, NULL) == 0);
+        assert(wm_settings_scene_hover(scene, WM_SETTINGS_CONTROL_ITEM_3));
+        drawn_quad_count = 0;
+        wm_texture_cache_begin_frame(textures);
+        wm_font_cache_begin_frame(fonts);
+        assert(wm_settings_scene_draw(scene));
+        assert(count_drawn_texture(row_focus, NULL) == 1);
+        assert(count_drawn_texture(format_focus, NULL) == 0);
+    }
 
     wm_settings_scene_destroy(scene);
     wm_font_cache_destroy(fonts);
@@ -2726,6 +2791,13 @@ static void test_direct_internet_entry(const char *assets) {
     assert(wm_settings_scene_back(scene));
     assert(wm_settings_scene_take_exit(scene));
     assert(!wm_settings_scene_take_exit(scene));
+    assert(wm_settings_scene_open_connect24(scene));
+    entry = wm_settings_scene_snapshot(scene);
+    assert(entry.page == 2 && entry.category == 8 && entry.detail == 0);
+    wm_settings_scene_advance(scene, 21.0f);
+    assert(wm_settings_scene_back(scene));
+    assert(wm_settings_scene_take_exit(scene));
+    assert(!wm_settings_scene_take_exit(scene));
     assert(wm_settings_scene_open(scene));
     assert(wm_settings_scene_snapshot(scene).category == 0);
     wm_settings_scene_destroy(scene);
@@ -2744,10 +2816,11 @@ int main(int argc, char **argv) {
         return 0;
     }
     fclose(file);
+    test_directional_controls(assets);
     test_wide_projection(assets);
     test_wide_render(assets);
     test_initial_page_fades_as_one_raster(assets);
-    test_page_crossfade_keeps_side_panels_opaque(assets);
+    test_page_crossfade_keeps_background_continuous(assets);
     test_calendar_arrow_rollover(assets);
     test_country_source_art(assets);
     test_sensitivity_source_art(assets);

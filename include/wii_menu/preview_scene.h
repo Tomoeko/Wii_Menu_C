@@ -23,11 +23,13 @@ WmPreviewScene *wm_preview_scene_create(WmPlatform *platform,
                                          WmFontCache *fonts);
 void wm_preview_scene_destroy(WmPreviewScene *scene);
 void wm_preview_scene_move_channel(WmPreviewScene *scene, int from, int to);
+/* Start a settled preview's banner clock with its channel-module lead. */
 void wm_preview_scene_set_module_lead(WmPreviewScene *scene, float frames);
 bool wm_preview_scene_available(const WmPreviewScene *scene,
                                 const WmMenu *menu);
 
 /* Draw one complete preview frame. Time is measured from preview entry.
+ * Shop's opening uses its first actual presentation as frame zero.
  * Returns false without touching the framebuffer when its banner is absent. */
 bool wm_preview_scene_draw(WmPreviewScene *scene, const WmMenu *menu,
                             float preview_elapsed_seconds,

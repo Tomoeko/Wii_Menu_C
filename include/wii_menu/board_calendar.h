@@ -52,6 +52,8 @@ bool wm_board_calendar_set_message_dates(WmBoardCalendar *calendar,
                                           size_t count);
 void wm_board_calendar_advance(WmBoardCalendar *calendar, float frames);
 WmBoardCalendarPhase wm_board_calendar_phase(const WmBoardCalendar *calendar);
+/* Remaining frames in the current timed phase, or zero when stable. */
+float wm_board_calendar_frames_to_boundary(const WmBoardCalendar *calendar);
 WmBoardDate wm_board_calendar_month(const WmBoardCalendar *calendar);
 WmBoardCalendarOutcome wm_board_calendar_take_outcome(WmBoardCalendar *calendar,
                                                       WmBoardDate *selected_date);

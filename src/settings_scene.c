@@ -653,13 +653,21 @@ bool wm_settings_scene_open(WmSettingsScene *scene) {
     return true;
 }
 
-bool wm_settings_scene_open_internet(WmSettingsScene *scene) {
+static bool open_direct_category(WmSettingsScene *scene, unsigned category) {
     if (!wm_settings_scene_open(scene)) return false;
     scene->page = 2;
     scene->previous_page = 2;
-    scene->active_category = SETTINGS_INTERNET;
+    scene->active_category = category;
     scene->direct_entry = true;
     return true;
+}
+
+bool wm_settings_scene_open_internet(WmSettingsScene *scene) {
+    return open_direct_category(scene, SETTINGS_INTERNET);
+}
+
+bool wm_settings_scene_open_connect24(WmSettingsScene *scene) {
+    return open_direct_category(scene, SETTINGS_CONNECT24);
 }
 
 void wm_settings_scene_reset(WmSettingsScene *scene) {
@@ -1330,6 +1338,32 @@ void wm_settings_scene_pointer_up(WmSettingsScene *scene) {
     scene->next_repeat = 0.0f;
 }
 
+bool wm_settings_scene_directional_control(const WmSettingsScene *scene,
+                                            WmSettingsControl control) {
+    if (!scene || scene->phase != WM_SETTINGS_READY) return false;
+    if (scene->active_category == 0) {
+        return (control == WM_SETTINGS_CONTROL_PREVIOUS && scene->page > 1) ||
+               (control == WM_SETTINGS_CONTROL_NEXT && scene->page < 3);
+    }
+    if (scene->active_category == 2) {
+        WmSettingsControl last = scene->detail == 1
+            ? WM_SETTINGS_CONTROL_ITEM_6 : WM_SETTINGS_CONTROL_ITEM_4;
+        return (scene->detail == 1 || scene->detail == 2) &&
+               control >= WM_SETTINGS_CONTROL_ITEM_1 && control <= last;
+    }
+    if (scene->active_category == 3 && scene->detail == 1) {
+        return control == WM_SETTINGS_CONTROL_ITEM_1 ||
+               control == WM_SETTINGS_CONTROL_ITEM_2;
+    }
+    if (scene->active_category == 10) {
+        return (control == WM_SETTINGS_CONTROL_PREVIOUS &&
+                scene->country_page > 0) ||
+               (control == WM_SETTINGS_CONTROL_ITEM_6 &&
+                scene->country_page < 9);
+    }
+    return false;
+}
+
 bool wm_settings_scene_type_ascii(WmSettingsScene *scene, char character) {
     if (!wm_settings_scene_editing_nickname(scene) ||
         character < 32 || character > 126) return false;
@@ -1578,33 +1612,18 @@ static void draw_black_background(WmSettingsScene *scene) {
     wm_platform_draw_quad(scene->platform, &black);
 }
 
-static void draw_side_panels(WmSettingsScene *scene, float offset,
-                             float alpha) {
-    if (!scene->wide) return;
-    WmSettingsProjection projection = wm_settings_scene_projection(scene);
-    float translation = settings_width(scene, offset);
-    draw_image_raw(scene, "textures/settings_html/side-panel.png",
-                   translation, 0.0f, projection.side_width, 456.0f,
-                   (WmColor){1, 1, 1, alpha});
-    draw_image_raw(scene, "textures/settings_html/side-panel.png",
-                   translation + projection.document_x +
-                       projection.document_width,
-                   0.0f, projection.side_width, 456.0f,
-                   (WmColor){1, 1, 1, alpha});
-}
-
-static void draw_background_shell(WmSettingsScene *scene) {
-    draw_black_background(scene);
-    draw_side_panels(scene, 0.0f, appearance_opacity(scene));
-}
-
-static void draw_document_background(WmSettingsScene *scene, float offset,
-                                     float alpha) {
-    /* The source BG_common.gif repeats in an eight-pixel horizontal tile.
-     * Preparation expands that tile to one 608×456 texture to save draw calls. */
-    if (draw_image(scene, "textures/settings_html/background.png",
-                   16.0f + offset, 0.0f, 608.0f, 456.0f,
-                   (WmColor){1, 1, 1, alpha})) return;
+static void draw_surface_background(WmSettingsScene *scene, float alpha) {
+    /* BG_16x9's rows have no horizontal variation. Extend its RGB565 artwork
+     * beneath the whole viewport so the gradient and rules remain continuous
+     * while foreground pages move. The document's projection stays separate. */
+    if (draw_image_raw(scene, "textures/settings_html/side-panel.png",
+                       0.0f, 0.0f, WM_FRAME_WIDTH, WM_FRAME_HEIGHT,
+                       (WmColor){1, 1, 1, alpha})) return;
+    /* Retain the source GIF as a fallback for older local preparations. Its
+     * rows also have no horizontal variation, before RGB565 quantization. */
+    if (draw_image_raw(scene, "textures/settings_html/background.png",
+                       0.0f, 0.0f, WM_FRAME_WIDTH, WM_FRAME_HEIGHT,
+                       (WmColor){1, 1, 1, alpha})) return;
     /* Older local preparations can still open Settings until re-exported. */
     static const struct {
         float y;
@@ -1622,17 +1641,21 @@ static void draw_document_background(WmSettingsScene *scene, float offset,
             float fraction = (float)band / bands;
             float shade = stops[index].value +
                 (stops[index + 1].value - stops[index].value) * fraction;
-            draw_rectangle(scene, 16.0f + offset,
-                           start + (end - start) * fraction,
-                           608.0f, (end - start) / bands + 0.5f,
-                           (WmColor){shade, shade, shade, alpha});
+            WmQuad quad = {
+                .x = 0.0f, .y = start + (end - start) * fraction,
+                .width = WM_FRAME_WIDTH,
+                .height = (end - start) / bands + 0.5f,
+                .u1 = 1.0f, .v1 = 1.0f,
+                .color = {shade, shade, shade, alpha * scene->draw_opacity}
+            };
+            wm_platform_draw_quad(scene->platform, &quad);
         }
     }
 }
 
 static void draw_background(WmSettingsScene *scene) {
-    draw_background_shell(scene);
-    draw_document_background(scene, 0.0f, appearance_opacity(scene));
+    draw_black_background(scene);
+    draw_surface_background(scene, appearance_opacity(scene));
 }
 
 static void draw_index_page(WmSettingsScene *scene, unsigned page,
@@ -1660,19 +1683,34 @@ static void draw_index_page(WmSettingsScene *scene, unsigned page,
             (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 + item);
         float y = 78.0f + item * 72.0f;
         float focus = hover_enabled ? focus_opacity(scene, control) : 0.0f;
+        bool format_row = page == 3 && item == 3;
+        const char *focus_image = format_row
+            ? "textures/settings_html/index-row-format-focus.png"
+            : "textures/settings_html/index-row-focus.png";
         if (draw_image(scene, "textures/settings_html/index-row.png",
                        origin + 104.0f, y - 2.0f, 400.0f, 64.0f,
                        (WmColor){1, 1, 1, alpha})) {
             if (focus > 0.0f &&
-                !draw_image(scene,
-                            "textures/settings_html/index-row-focus.png",
+                !draw_image(scene, focus_image,
                             origin + 104.0f, y, 400.0f, 60.0f,
-                            (WmColor){1, 1, 1, alpha * focus}))
-                draw_button_focus(scene, origin + 104.0f, y,
-                                  400.0f, 60.0f, alpha * focus);
+                            (WmColor){1, 1, 1, alpha * focus})) {
+                if (format_row)
+                    draw_rectangle(scene, origin + 107.0f, y + 3.0f,
+                                   394.0f, 54.0f,
+                                   (WmColor){1, 242.0f / 255.0f, 0,
+                                             alpha * focus * 77.0f / 255.0f});
+                else
+                    draw_button_focus(scene, origin + 104.0f, y,
+                                      400.0f, 60.0f, alpha * focus);
+            }
         } else {
             draw_button(scene, origin + 104.0f, y, 400.0f, 60.0f,
-                        focus > 0.0f, alpha);
+                        focus > 0.0f && !format_row, alpha);
+            if (format_row && focus > 0.0f)
+                draw_rectangle(scene, origin + 107.0f, y + 3.0f,
+                               394.0f, 54.0f,
+                               (WmColor){1, 242.0f / 255.0f, 0,
+                                         alpha * focus * 77.0f / 255.0f});
         }
         draw_text(scene, index_labels[scene->language_choice][page - 1][item],
                   origin + 304.0f, y + 14.0f, 24.0f, dark, alpha,
@@ -2631,10 +2669,9 @@ bool wm_settings_scene_draw(WmSettingsScene *scene) {
         draw_page_content(prior, &clip);
         scene->draw_opacity = page_opacity(scene);
         if (scene->draw_opacity > 0.0f) {
-            /* The retained page already supplies the black shell and the
-             * widescreen panels. Only the new 608-pixel document is faded
-             * over it, as the source raster texture bank does. */
-            draw_document_background(scene, 0.0f, 1.0f);
+            /* Cover the previous foreground with the incoming page's fade,
+             * keeping the continuous background at the same position. */
+            draw_surface_background(scene, 1.0f);
             draw_page_content(scene, &clip);
         }
         scene->draw_opacity = 1.0f;
@@ -2642,29 +2679,21 @@ bool wm_settings_scene_draw(WmSettingsScene *scene) {
     }
     scene->draw_opacity = 1.0f;
     bool scrolling = scene->phase == WM_SETTINGS_SCROLL;
-    if (scrolling)
-        draw_black_background(scene);
-    else
-        draw_background(scene);
+    draw_background(scene);
     WmClipRect frame_clip = {0.0f, 0.0f, WM_FRAME_WIDTH, WM_FRAME_HEIGHT};
     wm_platform_set_clip(scene->platform, scrolling ? &frame_clip : &clip);
     if (scene->active_category) {
         draw_category_page(scene);
     } else if (scrolling) {
-        /* A widescreen page carries its two 112-unit side panels with the
-         * 608-unit document, so adjacent compositions span all 832 units. */
+        /* Only foreground content travels; the full-width backdrop stays
+         * fixed beneath both pages throughout the source scroll curve. */
         float page_width = scene->wide ? (float)SETTINGS_WIDE_WIDTH : 608.0f;
         SlideSample sample = scroll_sample(scene);
         float movement = sample.progress * page_width;
         float prior_offset = -scene->direction * movement;
         float next_offset = prior_offset + scene->direction * page_width;
-        draw_side_panels(scene, prior_offset, 1.0f);
-        draw_document_background(scene, prior_offset, 1.0f);
         draw_index_page(scene, scene->previous_page, prior_offset, 1.0f,
                         false);
-        draw_side_panels(scene, next_offset, sample.incoming_alpha);
-        draw_document_background(scene, next_offset,
-                                 sample.incoming_alpha);
         draw_index_page(scene, scene->page, next_offset,
                         sample.incoming_alpha, false);
     } else {

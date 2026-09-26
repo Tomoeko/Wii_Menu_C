@@ -136,11 +136,16 @@ float wm_sd_scroll_animation_frame(int direction, float elapsed_frames) {
            frame_clamp(elapsed_frames, 20.0f);
 }
 
-static void enqueue(WmSdScene *scene, WmSdEventType type, unsigned slot) {
-    if (scene->event_count >= SD_EVENT_CAPACITY) return;
+static WmSdEvent *enqueue(WmSdScene *scene, WmSdEventType type, unsigned slot) {
+    if (scene->event_count >= SD_EVENT_CAPACITY) return NULL;
     unsigned index = (scene->event_first + scene->event_count) % SD_EVENT_CAPACITY;
-    scene->events[index] = (WmSdEvent){type, slot};
+    scene->events[index] = (WmSdEvent){
+        .type = type,
+        .slot = slot,
+        .control = WM_SD_CONTROL_NONE
+    };
     scene->event_count++;
+    return &scene->events[index];
 }
 
 bool wm_sd_scene_take_event(WmSdScene *scene, WmSdEvent *event) {
@@ -1364,7 +1369,8 @@ void wm_sd_scene_hover(WmSdScene *scene, WmSdHit hit) {
     scene->hover = hit;
     target_balloon(scene, hit.control);
     if (hit.control == WM_SD_CONTROL_NONE) return;
-    enqueue(scene, WM_SD_EVENT_HOVER_SOUND, 0);
+    WmSdEvent *event = enqueue(scene, WM_SD_EVENT_HOVER_SOUND, 0);
+    if (event) event->control = hit.control;
     if (hit.control == WM_SD_CONTROL_CHANNEL) {
         SdFocus *focus = &scene->tile_focus[hit.slot];
         if (focus->active && focus->entering) {

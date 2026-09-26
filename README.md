@@ -20,12 +20,13 @@ ctest --test-dir build --output-on-failure
 
 ## Prepare and run
 
-Your own WAD, common key, and optional BootMii NAND dump is ignored in
-`.local/` storage. For a fresh asset installation:
+Keep your WAD and optional BootMii NAND dump in ignored `.local/` storage.
+Preparation selects the built-in retail common key from the WAD ticket,
+matching the HTML importer; a separate common-key file is not required.
+For a fresh asset installation:
 
 ```sh
 ./build/wm-prepare --wad .local/input/menu.wad \
-  --common-key-file .local/input/common-key.bin \
   --nand .local/input/nand.bin \
   --output .local/native-assets
 
@@ -36,7 +37,9 @@ Your own WAD, common key, and optional BootMii NAND dump is ignored in
 ./build/wii-menu --assets .local/native-assets
 ```
 
-Omit `--nand` to prepare only the System Menu. A NAND dump needs its matching
+Omit `--nand` to prepare only the System Menu. For an unsupported key index,
+use `--common-key-file FILE` and `--common-key-index N` to supply an override.
+A NAND dump needs its matching
 BootMii key footer or `--nand-keys` file for installed channels and shared
 fonts. The WAD also supplies the local Wii Settings outline font. Preparation
 extracts the software keyboard's OEM word containers into ignored local assets
@@ -65,4 +68,5 @@ without repeating extraction.
 
 See [WAD notes](tools/wad/README.md), [channel notes](tools/channels/README.md),
 [parity status](PARITY.md), and [development guide](AGENTS.md). Nintendo
-resources, keys, NAND data, and user state are never bundled here.
+resources, console-specific keys, NAND data, and user state are never bundled
+here. The retail WAD common-key defaults are built into the preparation tool.

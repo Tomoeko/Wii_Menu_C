@@ -141,6 +141,23 @@ int main(int argc, char **argv) {
                     temporary_parent) > 0);
     free(temporary_parent);
     assert(mkdtemp(root));
+    char absent_wad[PREPARE_PATH_CAPACITY];
+    char absent_output[PREPARE_PATH_CAPACITY];
+    assert(path_join(absent_wad, sizeof(absent_wad), root, "absent.wad"));
+    assert(path_join(absent_output, sizeof(absent_output), root, "new-assets"));
+    char *automatic_key_command[] = {
+        argv[0], "--wad", absent_wad, "--output", absent_output
+    };
+    /* Omitting the key reaches normal input resolution instead of a usage
+     * rejection. Explicit ticket indices follow the same optional path. */
+    assert(wm_prepare_command_main(5, automatic_key_command) == 1);
+    char *key_index_command[] = {
+        argv[0], "--wad", absent_wad, "--output", absent_output,
+        "--common-key-index", "1"
+    };
+    assert(wm_prepare_command_main(7, key_index_command) == 1);
+    key_index_command[6] = "256";
+    assert(wm_prepare_command_main(7, key_index_command) == 2);
     char base[PREPARE_PATH_CAPACITY], incoming[PREPARE_PATH_CAPACITY];
     char stage[PREPARE_PATH_CAPACITY], path[PREPARE_PATH_CAPACITY];
     assert(path_join(base, sizeof(base), root, "base"));

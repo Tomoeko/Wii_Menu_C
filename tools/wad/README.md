@@ -1,7 +1,7 @@
 # Local WAD content extractor
 
 `wm-wad-extract` is a standalone C11 tool. It parses a Wii WAD container, decrypts
-its title key and contents with a locally supplied 16-byte common key, and
+its title key and contents with the common key selected by the ticket, and
 checks every decrypted content against the TMD's SHA-1 digest before writing
 anything. It does not verify Nintendo signatures.
 
@@ -12,15 +12,17 @@ cmake -S . -B build
 cmake --build build --target wm-wad-extract
 ```
 
-Supply a key file containing exactly 16 raw bytes or 32 hexadecimal digits.
-Keep this file in ignored local storage. The expected ticket key index defaults
-to `0`; use `--common-key-index N` for another supplied key.
+Retail ticket indices `0` and `1` have built-in defaults, matching the HTML
+importer. No separate common-key file is needed for these inputs. An optional
+`--common-key-file FILE` override accepts exactly 16 raw bytes or 32
+hexadecimal digits; keep that file in ignored local storage. Use
+`--common-key-index N` to require an explicit ticket index. Unsupported
+indices require a supplied key file and are otherwise rejected.
 
 ```sh
 ./build/wm-wad-extract --wad .local/input/menu.wad \
-  --common-key-file .local/common-key.bin --verify-only
-./build/wm-wad-extract --wad .local/input/menu.wad \
-  --common-key-file .local/common-key.bin
+  --verify-only
+./build/wm-wad-extract --wad .local/input/menu.wad
 ```
 
 Successful extraction creates `.local/wad/<title-id>/content/*.app`,

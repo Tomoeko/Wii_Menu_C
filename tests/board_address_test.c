@@ -8,6 +8,7 @@
 #include "wii_menu/texture_cache.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +16,10 @@
 
 static unsigned next_texture = 1;
 static unsigned material_draws;
+static bool tracking_rows;
+static unsigned blue_row_draws;
+static unsigned yellow_row_draws;
+static float blue_row_alpha;
 
 void wm_platform_begin(WmPlatform *platform, WmColor clear_color) {
     (void)platform;
@@ -47,7 +52,19 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
                                     const WmMaterialQuad *quad) {
     (void)platform;
     material_draws++;
-    (void)quad;
+    if (tracking_rows) {
+        const float *color = quad->registers[1];
+        if (fabsf(color[0] - 204.0f / 255.0f) < 0.001f &&
+            fabsf(color[1] - 232.0f / 255.0f) < 0.001f &&
+            fabsf(color[2] - 1.0f) < 0.001f) {
+            blue_row_draws++;
+            blue_row_alpha = fmaxf(blue_row_alpha, quad->vertices[0].color.a);
+        }
+        if (fabsf(color[0] - 249.0f / 255.0f) < 0.001f &&
+            fabsf(color[1] - 1.0f) < 0.001f &&
+            fabsf(color[2] - 104.0f / 255.0f) < 0.001f)
+            yellow_row_draws++;
+    }
 }
 
 void wm_platform_prepare_material(WmPlatform *platform,
@@ -75,6 +92,156 @@ static int pane_center(const WmLayout *layout, const char *name,
                                NULL, &rect));
     return (int)(x_coordinate ? rect.x + rect.width * 0.5f :
                                 rect.y + rect.height * 0.5f);
+}
+
+static void pose_book_page(WmLayout *layout, unsigned page) {
+    WmLayoutClip clips[2] = {
+        {.animation = "th_Adress_a_note_e_rtt",
+         .group = "G_note_e_rtt", .frame = 15.0f},
+        {.animation = "th_Adress_a_note_c_rtt",
+         .group = "note_c_rtt", .frame = 15.0f}
+    };
+    assert(wm_layout_pose(layout, clips, 2));
+    assert(wm_layout_set_pane_translation(layout, "N_note_base",
+        -(float)page * (608.0f / 832.0f), -(float)page, 0.0f));
+}
+
+static float draw_rows(WmBoardAddress *book, unsigned expected_blue) {
+    tracking_rows = true;
+    blue_row_draws = 0;
+    yellow_row_draws = 0;
+    blue_row_alpha = 0.0f;
+    wm_board_address_draw(book);
+    tracking_rows = false;
+    assert(yellow_row_draws == 0);
+    assert(blue_row_draws == expected_blue);
+    return blue_row_alpha;
+}
+
+static void test_disabled_network_rows(WmPlatform *platform,
+                                       const char *assets,
+                                       WmTextureCache *textures,
+                                       WmFontCache *fonts) {
+    WmBoardCompose *compose = wm_board_compose_create(
+        platform, assets, textures, fonts);
+    assert(compose);
+    assert(wm_board_compose_open(compose));
+    wm_board_compose_advance(compose, 39.0f);
+    assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_ADDRESS));
+    wm_board_compose_advance(compose, 26.0f);
+    assert(!wm_board_compose_activate(compose,
+        WM_COMPOSE_CONTROL_ADDRESS_ENTRY_FIRST));
+    assert(wm_board_compose_activate(compose,
+        WM_COMPOSE_CONTROL_ADDRESS_NEXT));
+    wm_board_compose_advance(compose, 16.0f);
+    assert(strcmp(wm_board_compose_take_key_cue(compose),
+                  "WIPL_SE_FL_PAGE_INC") == 0);
+    assert(wm_board_compose_take_key_cue(compose) == NULL);
+
+    char path[4096];
+    char error[160] = {0};
+    int length = snprintf(path, sizeof(path),
+        "%s/layouts/board/th_Adress_a.json", assets);
+    assert(length > 0 && length < (int)sizeof(path));
+    WmLayout *book = wm_layout_load_json(path, error, sizeof(error));
+    assert(book);
+    pose_book_page(book, 1);
+    length = snprintf(path, sizeof(path),
+        "%s/layouts/dlgWdw/my_DialogWindow_a2.json", assets);
+    assert(length > 0 && length < (int)sizeof(path));
+    WmLayout *dialog = wm_layout_load_json(path, error, sizeof(error));
+    assert(dialog);
+    WmLayoutClip dialog_pose = {
+        .animation = "my_DialogWindow_a2_DialogIn",
+        .group = "G_InOut", .frame = 25.0f
+    };
+    assert(wm_layout_pose(dialog, &dialog_pose, 1));
+    int quit_x = pane_center(dialog, "B_BtnA", true);
+    int quit_y = pane_center(dialog, "B_BtnA", false);
+    int settings_x = pane_center(dialog, "B_BtnB", true);
+    int settings_y = pane_center(dialog, "B_BtnB", false);
+    static const char message[] =
+        "WiiConnect24 is not turned on.\n"
+        "Confirm your WiiConnect24 setting\nin Wii Settings.";
+
+    for (unsigned row = 0; row < 5; row++) {
+        char row_name[] = "B_name_b_00";
+        row_name[10] = (char)('0' + row);
+        int row_x = pane_center(book, row_name, true);
+        int row_y = pane_center(book, row_name, false);
+        WmBoardComposeControl control = (WmBoardComposeControl)
+            (WM_COMPOSE_CONTROL_ADDRESS_ENTRY_FIRST + row);
+        assert(wm_board_compose_network_message(compose) == NULL);
+        assert(wm_board_compose_hit(compose, row_x, row_y) == control);
+        wm_board_compose_hover(compose, control);
+        assert(wm_board_compose_activate(compose, control));
+        assert(strcmp(wm_board_compose_network_message(compose), message) == 0);
+        assert(strcmp(wm_board_compose_take_key_cue(compose),
+                      "WIPL_SE_DECIDE") == 0);
+        assert(strcmp(wm_board_compose_take_key_cue(compose),
+                      "WIPL_SE_INFO_WINDOW") == 0);
+        assert(wm_board_compose_take_key_cue(compose) == NULL);
+        assert(!wm_board_compose_activate(compose,
+            WM_COMPOSE_CONTROL_NETWORK_QUIT));
+        assert(!wm_board_compose_activate(compose,
+            WM_COMPOSE_CONTROL_ADDRESS_NEXT));
+        wm_board_compose_advance(compose, 25.0f);
+        wm_board_compose_draw(compose);
+        assert(wm_board_compose_hit(compose, row_x, row_y) != control);
+        assert(wm_board_compose_hit(compose, quit_x, quit_y) ==
+               WM_COMPOSE_CONTROL_NETWORK_QUIT);
+        assert(wm_board_compose_hit(compose, settings_x, settings_y) ==
+               WM_COMPOSE_CONTROL_NETWORK_SETTINGS);
+        if (row == 4) {
+            assert(wm_board_compose_back(compose));
+        } else {
+            assert(wm_board_compose_activate(compose,
+                WM_COMPOSE_CONTROL_NETWORK_QUIT));
+        }
+        assert(strcmp(wm_board_compose_take_key_cue(compose),
+                      "WIPL_SE_CANCEL") == 0);
+        wm_board_compose_advance(compose, 41.0f);
+        assert(wm_board_compose_network_message(compose));
+        assert(wm_board_compose_take_outcome(compose) ==
+               WM_COMPOSE_OUTCOME_NONE);
+        wm_board_compose_advance(compose, 1.0f);
+        assert(wm_board_compose_network_message(compose) == NULL);
+        assert(wm_board_compose_phase(compose) == WM_COMPOSE_ADDRESS);
+        assert(wm_board_compose_address_page(compose) == 1);
+        assert(wm_board_compose_hit(compose, row_x, row_y) == control);
+        assert(wm_board_compose_take_outcome(compose) ==
+               WM_COMPOSE_OUTCOME_NONE);
+    }
+
+    assert(wm_board_compose_activate(compose,
+        WM_COMPOSE_CONTROL_ADDRESS_ENTRY_FIRST));
+    wm_board_compose_advance(compose, 25.0f);
+    assert(wm_board_compose_activate(compose,
+        WM_COMPOSE_CONTROL_NETWORK_SETTINGS));
+    wm_board_compose_advance(compose, 41.0f);
+    assert(wm_board_compose_take_outcome(compose) == WM_COMPOSE_OUTCOME_NONE);
+    wm_board_compose_advance(compose, 1.0f);
+    assert(wm_board_compose_take_outcome(compose) ==
+           WM_COMPOSE_OUTCOME_OPEN_CONNECT24_SETTINGS);
+    assert(wm_board_compose_take_outcome(compose) == WM_COMPOSE_OUTCOME_NONE);
+    assert(wm_board_compose_network_message(compose) == NULL);
+
+    wm_board_compose_reset(compose);
+    assert(wm_board_compose_open(compose));
+    wm_board_compose_advance(compose, 39.0f);
+    assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_LETTER));
+    assert(strcmp(wm_board_compose_network_message(compose),
+        "No Internet connection has been configured.\n"
+        "Please configure your Internet settings.") == 0);
+    wm_board_compose_advance(compose, 25.0f);
+    assert(wm_board_compose_activate(compose,
+        WM_COMPOSE_CONTROL_NETWORK_SETTINGS));
+    wm_board_compose_advance(compose, 42.0f);
+    assert(wm_board_compose_take_outcome(compose) ==
+           WM_COMPOSE_OUTCOME_OPEN_SETTINGS);
+    wm_layout_destroy(dialog);
+    wm_layout_destroy(book);
+    wm_board_compose_destroy(compose);
 }
 
 int main(int argc, char **argv) {
@@ -130,6 +297,9 @@ int main(int argc, char **argv) {
     assert(wm_board_address_phase(book) == WM_BOARD_ADDRESS_READY);
     assert(wm_board_address_page(book) == 0);
 
+    WmLayout *row_source = wm_layout_load_json(path, error, sizeof(error));
+    assert(row_source);
+
     for (unsigned page = 1; page <= 20; page++) {
         assert(wm_board_address_turn(book, true));
         assert(!wm_board_address_turn(book, true));
@@ -140,7 +310,34 @@ int main(int argc, char **argv) {
         assert(wm_board_address_page(book) == page - 1);
         wm_board_address_advance(book, 8.0f);
         assert(wm_board_address_page(book) == page);
+        assert(draw_rows(book, 0) == 0.0f);
+        pose_book_page(row_source, page);
+        for (unsigned row = 0; row < 5; row++) {
+            char row_name[] = "B_name_b_00";
+            row_name[10] = (char)('0' + row);
+            unsigned hit_row;
+            assert(wm_board_address_entry_hit(book,
+                pane_center(row_source, row_name, true),
+                pane_center(row_source, row_name, false), &hit_row));
+            assert(hit_row == row);
+            char icon_name[] = "mii_b_00";
+            icon_name[7] = (char)('0' + row);
+            assert(wm_board_address_entry_hit(book,
+                pane_center(row_source, icon_name, true),
+                pane_center(row_source, icon_name, false), &hit_row));
+            assert(hit_row == row);
+            wm_board_address_hover_entry(book, (int)row);
+            wm_board_address_advance(book, 2.5f);
+            float middle_alpha = draw_rows(book, 2);
+            assert(middle_alpha > 0.4f && middle_alpha < 0.6f);
+            wm_board_address_advance(book, 2.5f);
+            assert(draw_rows(book, 2) > middle_alpha);
+            wm_board_address_hover_entry(book, -1);
+            wm_board_address_advance(book, 5.0f);
+            assert(draw_rows(book, 0) == 0.0f);
+        }
     }
+    wm_layout_destroy(row_source);
     material_draws = 0;
     wm_board_address_draw(book);
     unsigned last_page_draws = material_draws;
@@ -782,6 +979,8 @@ int main(int argc, char **argv) {
     wm_board_compose_advance(compose, 1.0f);
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_SELECTOR);
     wm_board_compose_destroy(compose);
+
+    test_disabled_network_rows(platform, assets, textures, fonts);
 
     WmBoardKeyboard *keyboard = wm_board_keyboard_create(
         platform, assets, textures, fonts);

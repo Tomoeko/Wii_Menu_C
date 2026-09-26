@@ -25,6 +25,16 @@ typedef enum AddressDialogPhase {
     ADDRESS_DIALOG_EXIT
 } AddressDialogPhase;
 
+typedef struct AddressEntryFocus {
+    bool active;
+    bool entering;
+    float frame;
+} AddressEntryFocus;
+
+static const char *const entry_groups[5] = {
+    "name_b_00", "name_b_01", "name_b_02", "name_b_03", "name_b_04"
+};
+
 struct WmBoardAddress {
     WmPlatform *platform;
     WmTextureCache *textures;
@@ -43,6 +53,8 @@ struct WmBoardAddress {
     size_t selected_slot;
     bool forward;
     bool wii_kind;
+    int hovered_entry;
+    AddressEntryFocus entry_focus[5];
     int hovered_kind;
     bool kind_focus[2];
     bool kind_focus_entering[2];
@@ -196,6 +208,7 @@ WmBoardAddress *wm_board_address_create(WmPlatform *platform,
     wm_layout_prepare_materials(platform, address->dialog);
     wm_layout_prepare_materials(platform, address->erase_dialog);
     address->hovered_kind = -1;
+    address->hovered_entry = -1;
     return address;
 }
 
@@ -247,6 +260,8 @@ void wm_board_address_reset(WmBoardAddress *address) {
     address->forward = true;
     address->wii_kind = true;
     address->hovered_kind = -1;
+    address->hovered_entry = -1;
+    memset(address->entry_focus, 0, sizeof(address->entry_focus));
     address->hovered_contact = WM_BOARD_ADDRESS_CONTACT_NONE;
     memset(address->kind_focus, 0, sizeof(address->kind_focus));
     memset(address->kind_focus_entering, 0,
@@ -286,6 +301,8 @@ bool wm_board_address_open(WmBoardAddress *address) {
     address->frame = 0.0f;
     address->wii_kind = true;
     address->hovered_kind = -1;
+    address->hovered_entry = -1;
+    memset(address->entry_focus, 0, sizeof(address->entry_focus));
     address->hovered_contact = WM_BOARD_ADDRESS_CONTACT_NONE;
     memset(address->kind_focus, 0, sizeof(address->kind_focus));
     memset(address->kind_focus_entering, 0,
@@ -319,6 +336,8 @@ bool wm_board_address_open(WmBoardAddress *address) {
 bool wm_board_address_turn(WmBoardAddress *address, bool forward) {
     if (!address || address->phase != WM_BOARD_ADDRESS_READY) return false;
     address->forward = forward;
+    address->hovered_entry = -1;
+    memset(address->entry_focus, 0, sizeof(address->entry_focus));
     address->next_page = forward
         ? (address->page + 1) % (ADDRESS_PAGE_COUNT + 1)
         : (address->page + ADDRESS_PAGE_COUNT) % (ADDRESS_PAGE_COUNT + 1);
@@ -391,6 +410,27 @@ bool wm_board_address_select_entry(WmBoardAddress *address, unsigned row) {
     address->phase = WM_BOARD_ADDRESS_BOOK_ENTRY_PRESS;
     address->frame = 0.0f;
     return true;
+}
+
+static void change_entry_focus(AddressEntryFocus *focus, bool entering) {
+    if (focus->active && focus->entering != entering) {
+        focus->frame = 5.0f - limit_frame(focus->frame, 5.0f);
+    } else if (!focus->active) {
+        focus->frame = 0.0f;
+    }
+    focus->active = true;
+    focus->entering = entering;
+}
+
+void wm_board_address_hover_entry(WmBoardAddress *address, int row) {
+    if (!address || address->phase != WM_BOARD_ADDRESS_READY ||
+        address->page == 0 || wm_board_address_dialog_active(address)) return;
+    if (row < 0 || row >= 5) row = -1;
+    if (address->hovered_entry == row) return;
+    if (address->hovered_entry >= 0)
+        change_entry_focus(&address->entry_focus[address->hovered_entry], false);
+    if (row >= 0) change_entry_focus(&address->entry_focus[row], true);
+    address->hovered_entry = row;
 }
 
 void wm_board_address_hover_kind(WmBoardAddress *address, int choice) {
@@ -577,6 +617,10 @@ void wm_board_address_advance(WmBoardAddress *address, float frames) {
             address->kind_focus_frame[index] += frames;
         if (address->contact_focus[index])
             address->contact_focus_frame[index] += frames;
+    }
+    for (size_t index = 0; index < 5; index++) {
+        if (address->entry_focus[index].active)
+            address->entry_focus[index].frame += frames;
     }
     while (frames > 0.0f) {
         float duration = address->phase == WM_BOARD_ADDRESS_ENTER ? 26.0f :
@@ -1751,9 +1795,6 @@ bool wm_board_address_entry_hit(WmBoardAddress *address, int x, int y,
         -(float)address->page, 0.0f);
     pose_sheet(address, 'b', 0.0f, 0.0f, 255.0f);
     for (unsigned index = 0; index < 5; index++) {
-        WmBoardContact contact;
-        size_t slot = (address->page - 1) * 5u + index;
-        if (!wm_board_address_contact(address, slot, &contact)) continue;
         char pane[] = "B_name_b_00";
         pane[10] = (char)('0' + index);
         if (hit_layout_pane(address->book, pane, x, y)) {
@@ -1852,7 +1893,7 @@ void wm_board_address_draw(WmBoardAddress *address) {
         address->frame >= 16.0f)
         return;
     AddressGeometry view = geometry(address);
-    WmLayoutClip clips[5] = {0};
+    WmLayoutClip clips[10] = {0};
     size_t count = 0;
     if (address->phase == WM_BOARD_ADDRESS_ENTER ||
         address->phase == WM_BOARD_ADDRESS_EXIT ||
@@ -1896,14 +1937,23 @@ void wm_board_address_draw(WmBoardAddress *address) {
                      ? turn_frame : 15.0f,
         .loop_override = 0
     };
+    /* Imported cursor panes start yellow and fully opaque. The row focus
+     * clips establish the source blue material and idle alpha-zero state. */
+    for (size_t index = 0; index < 5; index++) {
+        AddressEntryFocus focus = address->entry_focus[index];
+        clips[count++] = (WmLayoutClip){
+            .animation = focus.active && focus.entering
+                ? "th_Adress_a_name_in" : "th_Adress_a_name_out",
+            .group = entry_groups[index],
+            .frame = focus.active ? limit_frame(focus.frame, 5.0f) : 5.0f,
+            .loop_override = 0
+        };
+    }
     if (address->phase == WM_BOARD_ADDRESS_BOOK_ENTRY_PRESS &&
         address->selected_slot < WM_BOARD_CONTACT_CAPACITY) {
-        static const char *const row_groups[] = {
-            "name_b_00", "name_b_01", "name_b_02", "name_b_03", "name_b_04"
-        };
         clips[count++] = (WmLayoutClip){
             .animation = "th_Adress_a_name_psh",
-            .group = row_groups[address->selected_slot % 5],
+            .group = entry_groups[address->selected_slot % 5],
             .frame = limit_frame(address->frame, 20.0f),
             .loop_override = 0
         };

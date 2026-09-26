@@ -41,6 +41,7 @@ static const SettingsArtwork artwork[] = {
     {"FIX/COMMON/BG/Flame_R.gif", "position-flame-right"},
     {"FIX/COMMON/BTN/Btn_List03.gif", "index-row"},
     {"FIX/COMMON/BTN/List03_on.png", "index-row-focus"},
+    {"FIX/COMMON/BTN/List03_Red_on.png", "index-row-format-focus"},
     {"FIX/COMMON/BTN/Btn_List.gif", "large-row"},
     {"FIX/COMMON/BTN/Btn_List_bunkatu.gif", "connection-split-row"},
     {"FIX/COMMON/BTN/Btn_List_M.gif", "small-row"},
@@ -165,6 +166,8 @@ static bool country_dimensions_valid(const char *name,
 
 static bool other_dimensions_valid(const char *name,
                                    const WmImage *image) {
+    if (strcmp(name, "index-row-format-focus") == 0)
+        return image->width == 400 && image->height == 64;
     if (strcmp(name, "tab-dark-gray") == 0 ||
         strcmp(name, "tab-middle-gray-nested") == 0)
         return image->width == 32 && image->height == 26;

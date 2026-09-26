@@ -38,6 +38,10 @@ static float selected_text_min_x;
 static float normal_text_min_x;
 static bool keytop_seen;
 static WmSourceRect keytop_picture;
+static WmSourceRect toolbar_top_picture;
+static unsigned toolbar_top_draws;
+static float toolbar_top_alpha;
+static bool tracking_toolbar_top;
 
 static bool contains_center(const WmSourceRect *rect, float x, float y) {
     return x >= rect->x && x <= rect->x + rect->width &&
@@ -117,6 +121,10 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
             (double)quad->vertices[index].color.a * (index + 5);
     }
     if (matches_rect(quad, &keytop_picture)) keytop_seen = true;
+    if (tracking_toolbar_top && matches_rect(quad, &toolbar_top_picture)) {
+        toolbar_top_draws++;
+        toolbar_top_alpha = quad->vertices[0].color.a;
+    }
     if (matches_rect(quad, &language_button)) button_draws++;
     if (matches_rect(quad, &prediction_off_icon)) off_icon_draws++;
     if (matches_rect(quad, &candidate_next_picture))
@@ -444,6 +452,47 @@ int main(int argc, char **argv) {
     reset_draw_counts();
     wm_board_keyboard_draw(keyboard, 0.0f, true);
     assert(maximum_quad_alpha == 0.0f);
+
+    length = snprintf(path, sizeof(path),
+                      "%s/layouts/sofkeybd/fs_VK_toolbar_a.json", assets);
+    assert(length > 0 && length < (int)sizeof(path));
+    WmLayout *toolbar_source = wm_layout_load_json(path, error, sizeof(error));
+    assert(toolbar_source);
+    tracking_toolbar_top = true;
+    assert(wm_layout_pose(toolbar_source, NULL, 0));
+    assert(wm_source_pane_rect(toolbar_source, "P_toolbar_mskUP", true,
+        WM_LAYOUT_IPL, NULL, &toolbar_top_picture));
+    toolbar_top_draws = 0;
+    wm_board_keyboard_draw(keyboard, 1.0f, false);
+    assert(toolbar_top_draws == 1);
+    float top_full_alpha = toolbar_top_alpha;
+    assert(top_full_alpha > 0.0f);
+    const float transition_progress[] = {0.25f, 0.5f, 0.75f, 0.99f, 1.0f};
+    float previous_top = -INFINITY;
+    for (size_t index = 0; index < sizeof(transition_progress) /
+                                  sizeof(transition_progress[0]); index++) {
+        float progress = transition_progress[index];
+        float smooth = progress * progress * (3.0f - 2.0f * progress);
+        assert(wm_layout_pose(toolbar_source, NULL, 0));
+        assert(wm_layout_set_pane_translation(toolbar_source, "N_UP", 0.0f,
+            200.0f * (1.0f - smooth) / 3.0f, 0.0f));
+        assert(wm_source_pane_rect(toolbar_source, "P_toolbar_mskUP", true,
+            WM_LAYOUT_IPL, NULL, &toolbar_top_picture));
+        toolbar_top_draws = 0;
+        toolbar_top_alpha = 0.0f;
+        wm_board_keyboard_draw(keyboard, progress, true);
+        assert(toolbar_top_draws == 1);
+        assert(toolbar_top_picture.y > previous_top);
+        assert(fabsf(toolbar_top_alpha - top_full_alpha *
+                     floorf(255.0f * smooth) / 255.0f)
+               < 0.0001f);
+        if (progress == 1.0f) {
+            assert(toolbar_top_picture.y - previous_top < 0.03f);
+        }
+        previous_top = toolbar_top_picture.y;
+    }
+    tracking_toolbar_top = false;
+    wm_layout_destroy(toolbar_source);
 
     assert(wm_board_keyboard_activate(keyboard,
         (WmBoardKeyboardControl)(WM_KEYBOARD_PHONE_MODE_FIRST + 3),

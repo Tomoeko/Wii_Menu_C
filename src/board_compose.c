@@ -65,6 +65,7 @@ struct WmBoardCompose {
     WmBoardAddress *address;
     bool address_keyboard_open;
     ComposeNetworkDialog network_phase;
+    bool network_wii_connect24;
     float network_frame;
     WmBoardComposeControl network_selected;
     WmBoardComposePhase phase;
@@ -75,6 +76,11 @@ struct WmBoardCompose {
     char display_text[COMPOSE_MAX_TEXT_BYTES +
                       WM_KEYBOARD_CANDIDATE_UTF8_CAPACITY];
     size_t text_bytes;
+    size_t caret_bytes;
+    char keyboard_text[COMPOSE_MAX_TEXT_BYTES + 1];
+    size_t pointer_caret_bytes;
+    bool pointer_caret_valid;
+    bool follow_caret_pending;
     WmBoardComposeControl hover;
     ComposeFocus focus[WM_COMPOSE_CONTROL_ADDRESS_ENTRY_LAST + 1];
     float address_arrow_press[2];
@@ -97,11 +103,28 @@ struct WmBoardCompose {
 
 static bool close_address_keyboard(WmBoardCompose *compose, bool accepting);
 
+static void sync_keyboard_text(WmBoardCompose *compose) {
+    memcpy(compose->keyboard_text, compose->text, compose->caret_bytes);
+    compose->keyboard_text[compose->caret_bytes] = '\0';
+}
+
 static void queue_key_cue(WmBoardCompose *compose, const char *name) {
     if (compose->key_cue_count <
         sizeof(compose->key_cues) / sizeof(compose->key_cues[0])) {
         compose->key_cues[compose->key_cue_count++] = name;
     }
+}
+
+static void open_network_dialog(WmBoardCompose *compose, bool wii_connect24) {
+    wm_board_compose_hover(compose, WM_COMPOSE_CONTROL_NONE);
+    compose->network_wii_connect24 = wii_connect24;
+    compose->network_phase = COMPOSE_NETWORK_ENTER;
+    compose->network_frame = 0.0f;
+    compose->network_selected = WM_COMPOSE_CONTROL_NONE;
+    compose->focus[WM_COMPOSE_CONTROL_NETWORK_QUIT] = (ComposeFocus){0};
+    compose->focus[WM_COMPOSE_CONTROL_NETWORK_SETTINGS] = (ComposeFocus){0};
+    queue_key_cue(compose, "WIPL_SE_DECIDE");
+    queue_key_cue(compose, "WIPL_SE_INFO_WINDOW");
 }
 
 static float clamp_frame(float value, float maximum) {
@@ -180,35 +203,42 @@ static void reset_scroll(WmBoardCompose *compose) {
 
 static const char *memo_display_text(WmBoardCompose *compose,
                                       size_t *display_bytes) {
-    if (compose->phase == WM_COMPOSE_EDIT && compose->text_bytes > 0 &&
-        compose->text[compose->text_bytes - 1] == ' ' &&
+    if (compose->phase == WM_COMPOSE_EDIT && compose->caret_bytes > 0 &&
+        compose->text[compose->caret_bytes - 1] == ' ' &&
         wm_board_keyboard_phone_space_pending(compose->keyboard)) {
         static const char open_box[] = "\342\220\243"; /* U+2423 */
-        size_t prefix = compose->text_bytes - 1;
+        size_t prefix = compose->caret_bytes - 1;
         memcpy(compose->display_text, compose->text, prefix);
-        memcpy(compose->display_text + prefix, open_box, sizeof(open_box));
+        memcpy(compose->display_text + prefix, open_box, sizeof(open_box) - 1);
+        memcpy(compose->display_text + prefix + sizeof(open_box) - 1,
+               compose->text + compose->caret_bytes,
+               compose->text_bytes - compose->caret_bytes + 1);
         if (display_bytes) *display_bytes = prefix + sizeof(open_box) - 1;
         return compose->display_text;
     }
     WmBoardKeyboardComposition composition;
     if (compose->phase == WM_COMPOSE_EDIT &&
         wm_board_keyboard_composition(compose->keyboard, &composition) &&
-        composition.prefix_bytes <= compose->text_bytes &&
+        composition.prefix_bytes <= compose->caret_bytes &&
         composition.preview_candidate &&
         strcmp(composition.preview_candidate, ">") != 0) {
-        size_t prefix_start = compose->text_bytes - composition.prefix_bytes;
+        size_t prefix_start = compose->caret_bytes - composition.prefix_bytes;
         size_t preview_bytes = strlen(composition.preview_candidate);
-        if (prefix_start + preview_bytes < sizeof(compose->display_text)) {
+        size_t suffix_bytes = compose->text_bytes - compose->caret_bytes;
+        if (prefix_start + preview_bytes + suffix_bytes <
+            sizeof(compose->display_text)) {
             memcpy(compose->display_text, compose->text, prefix_start);
             memcpy(compose->display_text + prefix_start,
-                   composition.preview_candidate, preview_bytes + 1);
+                   composition.preview_candidate, preview_bytes);
+            memcpy(compose->display_text + prefix_start + preview_bytes,
+                   compose->text + compose->caret_bytes, suffix_bytes + 1);
             if (display_bytes) *display_bytes =
                 composition.preview_hovered
-                    ? prefix_start + preview_bytes : compose->text_bytes;
+                    ? prefix_start + preview_bytes : compose->caret_bytes;
             return compose->display_text;
         }
     }
-    if (display_bytes) *display_bytes = compose->text_bytes;
+    if (display_bytes) *display_bytes = compose->caret_bytes;
     return compose->text;
 }
 
@@ -266,13 +296,18 @@ static void set_arrow_visible(ComposeScrollArrow *arrow, bool visible) {
     }
 }
 
-static void refresh_scroll(WmBoardCompose *compose) {
+static float maximum_scroll(const WmBoardCompose *compose,
+                              ComposeScrollMode mode) {
     size_t lines = compose->scroll_lines;
     float height = compose->scroll_line_height;
-    ComposeScrollMode mode = scroll_mode(compose);
-    compose->scroll_maximum = mode == COMPOSE_SCROLL_EDITOR
+    return mode == COMPOSE_SCROLL_EDITOR
         ? (lines > 2 ? (float)(lines - 2) * height : 0.0f)
         : fmaxf(0.0f, (float)(lines > 4 ? lines : 4) * height - 100.0f);
+}
+
+static void refresh_scroll(WmBoardCompose *compose) {
+    ComposeScrollMode mode = scroll_mode(compose);
+    compose->scroll_maximum = maximum_scroll(compose, mode);
     if (compose->phase == WM_COMPOSE_EDIT &&
         compose->scroll_offset > compose->scroll_maximum &&
         !compose->scroll_moving) {
@@ -280,7 +315,8 @@ static void refresh_scroll(WmBoardCompose *compose) {
         compose->scroll_target = compose->scroll_maximum;
         compose->scroll_frame = 0.0f;
         compose->scroll_moving = true;
-    } else if (compose->phase != WM_COMPOSE_EDIT) {
+    } else if (compose->phase != WM_COMPOSE_EDIT &&
+               compose->phase != WM_COMPOSE_LEAVE_EDIT) {
         compose->scroll_offset = fminf(compose->scroll_offset,
                                        compose->scroll_maximum);
     }
@@ -317,6 +353,40 @@ static bool start_scroll(WmBoardCompose *compose, float target) {
     return true;
 }
 
+static void follow_memo_caret(WmBoardCompose *compose) {
+    if (!compose->follow_caret_pending || compose->phase != WM_COMPOSE_EDIT ||
+        compose->scroll_moving) return;
+    WmFontPane pane;
+    const char *font_name = NULL;
+    if (!wm_layout_pane_font(compose->body, "T_Letter", &pane, &font_name))
+        return;
+    WmCachedFont *face = wm_font_cache_resolve(compose->fonts, font_name);
+    size_t caret_bytes;
+    const char *display = memo_display_text(compose, &caret_bytes);
+    const WmFontTextLayout *layout = face
+        ? wm_font_cache_layout(face, display, &pane) : NULL;
+    float first_x, first_y, caret_x, caret_y;
+    if (!layout ||
+        !wm_font_text_layout_caret(layout, 0, &first_x, &first_y) ||
+        !wm_font_text_layout_caret(layout, caret_bytes, &caret_x, &caret_y))
+        return;
+    float height = compose->scroll_line_height;
+    float line_y = roundf((first_y - caret_y) / height) * height;
+    float midpoint = line_y + height * 0.5f;
+    float offset = compose->scroll_offset;
+    float target = offset;
+    if (offset > midpoint) {
+        target -= truncf((offset - line_y) / height) * height;
+    } else if (offset + 2.0f * height < midpoint) {
+        target += (truncf((midpoint - offset - 2.0f * height) / height) + 1.0f)
+            * height;
+    }
+    compose->follow_caret_pending = false;
+    if (start_scroll(compose, target)) {
+        queue_key_cue(compose, "WIPL_SE_LINE_SCROLL");
+    }
+}
+
 WmBoardCompose *wm_board_compose_create(WmPlatform *platform,
                                          const char *assets_directory,
                                          WmTextureCache *textures,
@@ -350,7 +420,8 @@ WmBoardCompose *wm_board_compose_create(WmPlatform *platform,
     wm_layout_prepare_materials(platform, compose->body);
     wm_layout_prepare_materials(platform, compose->footer);
     wm_layout_prepare_materials(platform, compose->network_dialog);
-    wm_board_keyboard_set_text_context(compose->keyboard, compose->text);
+    wm_board_keyboard_set_text_context(compose->keyboard,
+                                        compose->keyboard_text);
     WmLayoutPaneState body;
     compose->scroll_line_height =
         wm_layout_pane_state(compose->body, "N_Body", &body) &&
@@ -386,10 +457,15 @@ void wm_board_compose_reset(WmBoardCompose *compose) {
     compose->keyboard_age = 0.0f;
     compose->address_keyboard_open = false;
     compose->network_phase = COMPOSE_NETWORK_CLOSED;
+    compose->network_wii_connect24 = false;
     compose->network_frame = 0.0f;
     compose->network_selected = WM_COMPOSE_CONTROL_NONE;
     compose->text[0] = '\0';
     compose->text_bytes = 0;
+    compose->caret_bytes = 0;
+    compose->keyboard_text[0] = '\0';
+    compose->pointer_caret_valid = false;
+    compose->follow_caret_pending = false;
     compose->hover = WM_COMPOSE_CONTROL_NONE;
     compose->outcome = WM_COMPOSE_OUTCOME_NONE;
     compose->key_cue_count = 0;
@@ -399,7 +475,8 @@ void wm_board_compose_reset(WmBoardCompose *compose) {
     compose->address_arrow_press[0] = -1.0f;
     compose->address_arrow_press[1] = -1.0f;
     wm_board_keyboard_reset(compose->keyboard);
-    wm_board_keyboard_set_text_context(compose->keyboard, compose->text);
+    wm_board_keyboard_set_text_context(compose->keyboard,
+                                        compose->keyboard_text);
     wm_board_address_reset(compose->address);
     reset_scroll(compose);
 }
@@ -412,6 +489,7 @@ bool wm_board_compose_open(WmBoardCompose *compose) {
     compose->keyboard_age = 0.0f;
     compose->address_keyboard_open = false;
     compose->network_phase = COMPOSE_NETWORK_CLOSED;
+    compose->network_wii_connect24 = false;
     compose->network_frame = 0.0f;
     compose->network_selected = WM_COMPOSE_CONTROL_NONE;
     compose->hover = WM_COMPOSE_CONTROL_NONE;
@@ -421,11 +499,16 @@ bool wm_board_compose_open(WmBoardCompose *compose) {
     compose->repeating_keytop = false;
     compose->text[0] = '\0';
     compose->text_bytes = 0;
+    compose->caret_bytes = 0;
+    compose->keyboard_text[0] = '\0';
+    compose->pointer_caret_valid = false;
+    compose->follow_caret_pending = false;
     memset(compose->focus, 0, sizeof(compose->focus));
     compose->address_arrow_press[0] = -1.0f;
     compose->address_arrow_press[1] = -1.0f;
     wm_board_keyboard_reset(compose->keyboard);
-    wm_board_keyboard_set_text_context(compose->keyboard, compose->text);
+    wm_board_keyboard_set_text_context(compose->keyboard,
+                                        compose->keyboard_text);
     wm_board_address_reset(compose->address);
     reset_scroll(compose);
     return true;
@@ -433,6 +516,10 @@ bool wm_board_compose_open(WmBoardCompose *compose) {
 
 WmBoardComposePhase wm_board_compose_phase(const WmBoardCompose *compose) {
     return compose ? compose->phase : WM_COMPOSE_CLOSED;
+}
+
+float wm_board_compose_phase_frame(const WmBoardCompose *compose) {
+    return compose ? compose->frame : 0.0f;
 }
 
 unsigned wm_board_compose_address_page(const WmBoardCompose *compose) {
@@ -478,8 +565,22 @@ const char *wm_board_compose_text(const WmBoardCompose *compose) {
     return compose ? compose->text : NULL;
 }
 
+const char *wm_board_compose_network_message(const WmBoardCompose *compose) {
+    if (!compose || compose->network_phase == COMPOSE_NETWORK_CLOSED)
+        return NULL;
+    return compose->network_wii_connect24
+        ? "WiiConnect24 is not turned on.\n"
+          "Confirm your WiiConnect24 setting\nin Wii Settings."
+        : "No Internet connection has been configured.\n"
+          "Please configure your Internet settings.";
+}
+
 const char *wm_board_compose_display_text(WmBoardCompose *compose) {
     return compose ? memo_display_text(compose, NULL) : NULL;
+}
+
+size_t wm_board_compose_caret(const WmBoardCompose *compose) {
+    return compose ? compose->caret_bytes : 0;
 }
 
 static float phase_duration(WmBoardComposePhase phase) {
@@ -502,6 +603,11 @@ static float phase_duration(WmBoardComposePhase phase) {
     return 0.0f;
 }
 
+float wm_board_compose_frames_to_boundary(const WmBoardCompose *compose) {
+    if (!compose) return 0.0f;
+    return fmaxf(0.0f, phase_duration(compose->phase) - compose->frame);
+}
+
 static void advance_network_dialog(WmBoardCompose *compose, float frames) {
     while (frames > 0.0f) {
         float duration = compose->network_phase == COMPOSE_NETWORK_ENTER
@@ -522,8 +628,11 @@ static void advance_network_dialog(WmBoardCompose *compose, float frames) {
                 WM_COMPOSE_CONTROL_NETWORK_SETTINGS;
             compose->network_phase = COMPOSE_NETWORK_CLOSED;
             compose->network_selected = WM_COMPOSE_CONTROL_NONE;
-            if (open_settings)
-                compose->outcome = WM_COMPOSE_OUTCOME_OPEN_SETTINGS;
+            if (open_settings) {
+                compose->outcome = compose->network_wii_connect24
+                    ? WM_COMPOSE_OUTCOME_OPEN_CONNECT24_SETTINGS
+                    : WM_COMPOSE_OUTCOME_OPEN_SETTINGS;
+            }
         }
         compose->network_frame = 0.0f;
         if (compose->network_phase == COMPOSE_NETWORK_READY ||
@@ -601,6 +710,7 @@ void wm_board_compose_advance(WmBoardCompose *compose, float frames) {
         if (compose->scroll_frame >= 15.0f) compose->scroll_moving = false;
         refresh_scroll(compose);
     }
+    follow_memo_caret(compose);
     float remaining = frames;
     while (remaining > 0.0f) {
         float duration = phase_duration(compose->phase);
@@ -608,6 +718,12 @@ void wm_board_compose_advance(WmBoardCompose *compose, float frames) {
         float amount = fminf(remaining, duration - compose->frame);
         compose->frame += amount;
         remaining -= amount;
+        if (compose->phase == WM_COMPOSE_LEAVE_EDIT) {
+            float progress = clamp_frame(compose->frame, 30.0f) / 30.0f;
+            float eased = progress * progress * (3.0f - 2.0f * progress);
+            compose->scroll_offset = compose->scroll_start +
+                (compose->scroll_target - compose->scroll_start) * eased;
+        }
         if (compose->frame < duration) return;
         WmBoardComposePhase completed = compose->phase;
         switch (compose->phase) {
@@ -660,7 +776,11 @@ void wm_board_compose_advance(WmBoardCompose *compose, float frames) {
         refresh_scroll(compose);
         if (completed == WM_COMPOSE_ENTER_EDIT &&
             compose->phase == WM_COMPOSE_EDIT) {
-            (void)start_scroll(compose, compose->scroll_maximum);
+            compose->scroll_offset = fminf(compose->scroll_maximum,
+                roundf(compose->scroll_offset / compose->scroll_line_height) *
+                compose->scroll_line_height);
+            compose->scroll_moving = false;
+            follow_memo_caret(compose);
         }
         if (compose->outcome != WM_COMPOSE_OUTCOME_NONE) return;
     }
@@ -721,6 +841,12 @@ bool wm_board_compose_back(WmBoardCompose *compose) {
             return true;
         }
         wm_board_keyboard_finish_composition(compose->keyboard);
+        compose->scroll_lines = memo_line_count(compose);
+        compose->scroll_start = compose->scroll_offset;
+        compose->scroll_target = fminf(compose->scroll_offset,
+            maximum_scroll(compose, COMPOSE_SCROLL_DISPLAY));
+        compose->scroll_moving = false;
+        compose->follow_caret_pending = false;
         compose->phase = WM_COMPOSE_LEAVE_EDIT;
         compose->key_cue_count = 0;
         queue_key_cue(compose, "WIPL_SE_SK_CANCEL_CLOSE");
@@ -790,18 +916,25 @@ static bool replace_keyboard_suffix(WmBoardCompose *compose,
         return true;
     }
     if (compose->phase != WM_COMPOSE_EDIT ||
-        prefix_bytes > compose->text_bytes ||
+        prefix_bytes > compose->caret_bytes ||
         replacement_bytes > COMPOSE_MAX_TEXT_BYTES -
                             (compose->text_bytes - prefix_bytes)) return false;
-    size_t start = compose->text_bytes - prefix_bytes;
+    size_t start = compose->caret_bytes - prefix_bytes;
     if (start < compose->text_bytes &&
         ((unsigned char)compose->text[start] & 0xc0u) == 0x80u) return false;
-    memcpy(compose->text + start, replacement, replacement_bytes + 1);
-    compose->text_bytes = start + replacement_bytes;
+    memmove(compose->text + start + replacement_bytes,
+            compose->text + compose->caret_bytes,
+            compose->text_bytes - compose->caret_bytes + 1);
+    memcpy(compose->text + start, replacement, replacement_bytes);
+    compose->text_bytes = compose->text_bytes - prefix_bytes + replacement_bytes;
+    compose->caret_bytes = start + replacement_bytes;
+    sync_keyboard_text(compose);
     wm_board_keyboard_text_changed(compose->keyboard, phone_prediction);
     compose->keyboard_age = 0.0f;
     compose->scroll_lines = memo_line_count(compose);
     refresh_scroll(compose);
+    compose->follow_caret_pending = true;
+    follow_memo_caret(compose);
     return true;
 }
 
@@ -842,7 +975,9 @@ static bool activate_control(WmBoardCompose *compose,
                     queue_key_cue(compose, "WIPL_SE_CHAR_DELETE_ERROR");
                     return true;
                 }
-                if (compose->key_cue_count == 0)
+                if (compose->key_cue_count == 0 ||
+                    (compose->key_cue_count == 1 &&
+                     strcmp(compose->key_cues[0], "WIPL_SE_LINE_SCROLL") == 0))
                     queue_key_cue(compose,
                                   key == WM_KEYBOARD_SPACE ||
                                   key == WM_KEYBOARD_RETURN ||
@@ -860,14 +995,19 @@ static bool activate_control(WmBoardCompose *compose,
                                                 "WIPL_SE_CHAR_DELETE_ERROR");
                     return true;
                 }
-                if (compose->text_bytes == 0) {
+                if (compose->caret_bytes == 0) {
                     wm_board_keyboard_clear_phone_pending(compose->keyboard);
                     queue_key_cue(compose, "WIPL_SE_CHAR_DELETE_ERROR");
                     return true;
                 }
-                compose->text[compose->text_bytes - 1] = character[0];
+                compose->text[compose->caret_bytes - 1] = character[0];
+                sync_keyboard_text(compose);
                 compose->keyboard_age = 0.0f;
                 wm_board_keyboard_text_changed(compose->keyboard, true);
+                compose->scroll_lines = memo_line_count(compose);
+                refresh_scroll(compose);
+                compose->follow_caret_pending = true;
+                follow_memo_caret(compose);
                 queue_key_cue(compose, "WIPL_SE_CHAR_INPUT");
                 return true;
             case WM_KEYBOARD_ACTION_DELETE:
@@ -927,7 +1067,7 @@ static bool activate_control(WmBoardCompose *compose,
                 if (compose->address_keyboard_open ||
                     !wm_board_keyboard_composition(compose->keyboard,
                                                     &composition) ||
-                    composition.prefix_bytes > compose->text_bytes ||
+                    composition.prefix_bytes > compose->caret_bytes ||
                     !composition.selected_candidate) {
                     queue_key_cue(compose, "WIPL_SE_CHAR_DELETE_ERROR");
                     return true;
@@ -1025,12 +1165,11 @@ static bool activate_control(WmBoardCompose *compose,
         if (compose->address_keyboard_open) return false;
         if (control >= WM_COMPOSE_CONTROL_ADDRESS_ENTRY_FIRST &&
             control <= WM_COMPOSE_CONTROL_ADDRESS_ENTRY_LAST) {
-            unsigned row = (unsigned)(control -
-                WM_COMPOSE_CONTROL_ADDRESS_ENTRY_FIRST);
-            if (!wm_board_address_select_entry(compose->address, row))
+            if (wm_board_address_phase(compose->address) !=
+                    WM_BOARD_ADDRESS_READY ||
+                wm_board_address_page(compose->address) == 0)
                 return false;
-            wm_board_compose_hover(compose, WM_COMPOSE_CONTROL_NONE);
-            queue_key_cue(compose, "WIPL_SE_DECIDE");
+            open_network_dialog(compose, true);
             return true;
         }
         if (control == WM_COMPOSE_CONTROL_ADDRESS_MII) {
@@ -1130,16 +1269,7 @@ static bool activate_control(WmBoardCompose *compose,
             return true;
         }
         if (control == WM_COMPOSE_CONTROL_LETTER) {
-            wm_board_compose_hover(compose, WM_COMPOSE_CONTROL_NONE);
-            compose->network_phase = COMPOSE_NETWORK_ENTER;
-            compose->network_frame = 0.0f;
-            compose->network_selected = WM_COMPOSE_CONTROL_NONE;
-            compose->focus[WM_COMPOSE_CONTROL_NETWORK_QUIT] =
-                (ComposeFocus){0};
-            compose->focus[WM_COMPOSE_CONTROL_NETWORK_SETTINGS] =
-                (ComposeFocus){0};
-            queue_key_cue(compose, "WIPL_SE_DECIDE");
-            queue_key_cue(compose, "WIPL_SE_INFO_WINDOW");
+            open_network_dialog(compose, false);
             return true;
         }
         if (control == WM_COMPOSE_CONTROL_ADDRESS) {
@@ -1156,6 +1286,36 @@ static bool activate_control(WmBoardCompose *compose,
             return true;
         }
     }
+    if (compose->phase == WM_COMPOSE_EDIT &&
+        control == WM_COMPOSE_CONTROL_EDIT && compose->pointer_caret_valid) {
+        WmBoardKeyboardComposition composition;
+        if (wm_board_keyboard_composition(compose->keyboard, &composition) &&
+            composition.selected_candidate &&
+            strcmp(composition.selected_candidate, ">") != 0) {
+            bool committed = replace_keyboard_suffix(compose,
+                composition.prefix_bytes, composition.selected_candidate, false);
+            if (!committed) return false;
+            /* The first text press commits the displayed composition. The
+             * next fresh press selects a literal insertion boundary. */
+            wm_board_keyboard_finish_composition(compose->keyboard);
+            wm_board_keyboard_clear_phone_pending(compose->keyboard);
+            compose->pointer_caret_valid = false;
+            queue_key_cue(compose, "WIPL_SE_CHAR_DECIDE");
+            return true;
+        }
+        wm_board_keyboard_finish_composition(compose->keyboard);
+        wm_board_keyboard_clear_phone_pending(compose->keyboard);
+        compose->caret_bytes = compose->pointer_caret_bytes;
+        compose->pointer_caret_valid = false;
+        sync_keyboard_text(compose);
+        wm_board_keyboard_text_changed(compose->keyboard, false);
+        wm_board_keyboard_finish_composition(compose->keyboard);
+        compose->keyboard_age = 0.0f;
+        compose->follow_caret_pending = true;
+        follow_memo_caret(compose);
+        queue_key_cue(compose, "WIPL_SE_CHAR_CURSOR");
+        return true;
+    }
     if (compose->phase == WM_COMPOSE_MEMO) {
         if (control == WM_COMPOSE_CONTROL_MII) {
             if (!wm_board_address_show_memo_no_mii(compose->address))
@@ -1167,15 +1327,20 @@ static bool activate_control(WmBoardCompose *compose,
         }
         if (control == WM_COMPOSE_CONTROL_EDIT) {
             wm_board_compose_hover(compose, WM_COMPOSE_CONTROL_NONE);
+            compose->caret_bytes = compose->pointer_caret_valid
+                ? compose->pointer_caret_bytes : compose->text_bytes;
+            compose->pointer_caret_valid = false;
+            sync_keyboard_text(compose);
             wm_board_keyboard_reset(compose->keyboard);
             wm_board_keyboard_set_text_context(compose->keyboard,
-                                                compose->text);
+                                                compose->keyboard_text);
             compose->phase = WM_COMPOSE_ENTER_EDIT;
             compose->frame = 0.0f;
             compose->keyboard_age = 0.0f;
             compose->key_cue_count = 0;
             queue_key_cue(compose, "WIPL_SE_SK_OPEN");
             refresh_scroll(compose);
+            compose->follow_caret_pending = true;
             return true;
         }
         if (control == WM_COMPOSE_CONTROL_POST && has_nonspace_text(compose)) {
@@ -1201,6 +1366,7 @@ static bool activate_control(WmBoardCompose *compose,
         }
         arrow->press_active = true;
         arrow->press_frame = 0.0f;
+        compose->follow_caret_pending = false;
         return true;
     }
     if (compose->phase == WM_COMPOSE_MEMO &&
@@ -1286,8 +1452,8 @@ bool wm_board_compose_insert_text(WmBoardCompose *compose,
     bool commit_boundary = compose->phase == WM_COMPOSE_EDIT &&
         !has_whitespace && !compose->inserting_phone &&
         wm_board_keyboard_composition(compose->keyboard, &composition) &&
-        composition.prefix_bytes <= compose->text_bytes &&
-        utf16_units(compose->text + compose->text_bytes -
+        composition.prefix_bytes <= compose->caret_bytes &&
+        utf16_units(compose->text + compose->caret_bytes -
                     composition.prefix_bytes,
                     composition.prefix_bytes) >= 32;
     if (commit_boundary) {
@@ -1306,7 +1472,10 @@ bool wm_board_compose_insert_text(WmBoardCompose *compose,
     }
     if (bytes > COMPOSE_MAX_TEXT_BYTES - compose->text_bytes) return false;
     if (compose->phase == WM_COMPOSE_MEMO) {
+        sync_keyboard_text(compose);
         wm_board_keyboard_reset(compose->keyboard);
+        wm_board_keyboard_set_text_context(compose->keyboard,
+                                            compose->keyboard_text);
         compose->phase = WM_COMPOSE_ENTER_EDIT;
         compose->frame = 0.0f;
         compose->keyboard_age = 0.0f;
@@ -1315,21 +1484,21 @@ bool wm_board_compose_insert_text(WmBoardCompose *compose,
     }
     if (compose->phase == WM_COMPOSE_EDIT && has_whitespace)
         wm_board_keyboard_finish_composition(compose->keyboard);
-    memcpy(compose->text + compose->text_bytes, utf8, bytes + 1);
+    memmove(compose->text + compose->caret_bytes + bytes,
+            compose->text + compose->caret_bytes,
+            compose->text_bytes - compose->caret_bytes + 1);
+    memcpy(compose->text + compose->caret_bytes, utf8, bytes);
     compose->text_bytes += bytes;
+    compose->caret_bytes += bytes;
+    sync_keyboard_text(compose);
     wm_board_keyboard_text_changed(compose->keyboard,
                                     compose->inserting_phone);
     if (commit_boundary) queue_key_cue(compose, "WIPL_SE_CHAR_DECIDE");
     compose->keyboard_age = 0.0f;
     compose->scroll_lines = memo_line_count(compose);
     refresh_scroll(compose);
-    if (compose->phase == WM_COMPOSE_EDIT) {
-        if (compose->scroll_moving) {
-            compose->scroll_target = compose->scroll_maximum;
-        } else {
-            (void)start_scroll(compose, compose->scroll_maximum);
-        }
-    }
+    compose->follow_caret_pending = true;
+    follow_memo_caret(compose);
     return true;
 }
 
@@ -1351,20 +1520,25 @@ bool wm_board_compose_backspace(WmBoardCompose *compose) {
     }
     if (!compose || (compose->phase != WM_COMPOSE_EDIT &&
                      compose->phase != WM_COMPOSE_MEMO) ||
-        compose->text_bytes == 0) return false;
+        compose->caret_bytes == 0) return false;
     if (compose->phase == WM_COMPOSE_EDIT &&
         wm_board_keyboard_symbols_visible(compose->keyboard)) return false;
-    size_t start = compose->text_bytes - 1;
+    size_t start = compose->caret_bytes - 1;
     while (start > 0 &&
            ((unsigned char)compose->text[start] & 0xC0) == 0x80) {
         start--;
     }
-    compose->text[start] = '\0';
-    compose->text_bytes = start;
+    memmove(compose->text + start, compose->text + compose->caret_bytes,
+            compose->text_bytes - compose->caret_bytes + 1);
+    compose->text_bytes -= compose->caret_bytes - start;
+    compose->caret_bytes = start;
+    sync_keyboard_text(compose);
     wm_board_keyboard_text_changed(compose->keyboard, false);
     compose->keyboard_age = 0.0f;
     compose->scroll_lines = memo_line_count(compose);
     refresh_scroll(compose);
+    compose->follow_caret_pending = true;
+    follow_memo_caret(compose);
     return true;
 }
 
@@ -1698,15 +1872,19 @@ static void pose_body(WmBoardCompose *compose) {
         WmBoardKeyboardComposition composition;
         if (wm_board_keyboard_composition(compose->keyboard,
                                            &composition) &&
-            composition.prefix_bytes <= compose->text_bytes) {
-            size_t start = compose->text_bytes - composition.prefix_bytes;
+            composition.prefix_bytes <= compose->caret_bytes) {
+            size_t start = compose->caret_bytes - composition.prefix_bytes;
             size_t preview_bytes = composition.preview_candidate &&
                                    strcmp(composition.preview_candidate,
                                           ">") != 0
                 ? strlen(composition.preview_candidate) : 0;
+            size_t colored_end = preview_bytes &&
+                start + preview_bytes < compose->caret_bytes
+                    ? start + preview_bytes : compose->caret_bytes;
             WmLayoutTextColorRange colors[2] = {
-                {start, compose->text_bytes, {255, 50, 50, 255}},
-                {compose->text_bytes, start + preview_bytes,
+                {start, colored_end,
+                 {255, 50, 50, 255}},
+                {compose->caret_bytes, start + preview_bytes,
                  {192, 192, 192, 255}}
             };
             size_t count = 1;
@@ -1721,16 +1899,16 @@ static void pose_body(WmBoardCompose *compose) {
             (void)wm_layout_set_pose_text_colors(compose->body,
                                                   "T_Letter", colors, count);
         } else if (wm_board_keyboard_phone_pending(compose->keyboard) &&
-                   compose->text_bytes > 0) {
+                   compose->caret_bytes > 0) {
             size_t pending = wm_board_keyboard_phone_pending_bytes(
                 compose->keyboard);
-            if (pending <= compose->text_bytes) {
-                size_t displayed_end = compose->text_bytes;
-                if (compose->text[compose->text_bytes - 1] == ' ' &&
+            if (pending <= compose->caret_bytes) {
+                size_t displayed_end = compose->caret_bytes;
+                if (compose->text[compose->caret_bytes - 1] == ' ' &&
                     wm_board_keyboard_phone_space_pending(compose->keyboard))
                     displayed_end += 2; /* U+2423 replaces one byte with three. */
                 WmLayoutTextColorRange color = {
-                    .first_byte = compose->text_bytes - pending,
+                    .first_byte = compose->caret_bytes - pending,
                     .end_byte = displayed_end,
                     .rgba = {255, 50, 50, 255}
                 };
@@ -1962,8 +2140,8 @@ static void draw_memo_line_feeds(WmBoardCompose *compose,
         if (compose->text[index] != '\n' ||
             !wm_font_text_layout_caret(layout, index,
                                         &options.x, &options.y)) continue;
-        /* TextDrawer::draw uses the source font's E056 glyph only while the
-         * Memo input form is open. The stored newline and caret stay intact. */
+        /* Keep each draft newline's E056 display marker with its text during
+         * keyboard motion and after dismissal. It adds no stored character. */
         wm_font_emit_line(font, "\xee\x81\x96", &options);
     }
 }
@@ -2177,10 +2355,10 @@ static void draw_network_dialog(WmBoardCompose *compose) {
                     "G_InOut", compose->network_frame);
     wm_layout_pose(compose->network_dialog, clips, count);
     wm_layout_set_pose_text(compose->network_dialog, "T_Dialog",
-        "No Internet connection has been configured.\n"
-        "Please configure your Internet settings.");
+                             wm_board_compose_network_message(compose));
     wm_layout_set_pose_text(compose->network_dialog, "T_BtnA", "Quit");
-    wm_layout_set_pose_text(compose->network_dialog, "T_BtnB", "Settings");
+    wm_layout_set_pose_text(compose->network_dialog, "T_BtnB",
+        compose->network_wii_connect24 ? "Enter Settings" : "Settings");
     wm_layout_present_with_fonts(compose->platform, compose->textures,
         compose->fonts, compose->network_dialog, true, WM_LAYOUT_IPL, NULL);
 }
@@ -2204,10 +2382,7 @@ void wm_board_compose_draw(WmBoardCompose *compose) {
             compose->body, true, WM_LAYOUT_IPL, NULL,
             body_drawn ? capture_memo_caret_without_sheet :
                          capture_memo_caret_pane, &caret);
-        if (compose->phase == WM_COMPOSE_ENTER_EDIT ||
-            compose->phase == WM_COMPOSE_EDIT ||
-            compose->phase == WM_COMPOSE_LEAVE_EDIT)
-            draw_memo_line_feeds(compose, &caret);
+        draw_memo_line_feeds(compose, &caret);
         if (compose->phase == WM_COMPOSE_ENTER_EDIT ||
             compose->phase == WM_COMPOSE_EDIT) {
             draw_memo_caret(compose, &caret);
@@ -2248,8 +2423,66 @@ static bool hit_pane(const WmLayout *layout, const char *pane,
            (float)y >= rect.y && (float)y < rect.y + rect.height;
 }
 
+static bool hit_memo_caret(WmBoardCompose *compose, int x, int y) {
+    const char *hit_name = compose->phase == WM_COMPOSE_EDIT
+        ? "T_2l_TextBox" : "B_2l_TextBox";
+    if (y < 0 || y >= 456 || !hit_pane(compose->body, hit_name, x, y))
+        return false;
+    MemoCaretPane pane = {0};
+    WmLayoutDrawOptions options = {
+        .wide = true,
+        .mode = WM_LAYOUT_IPL,
+        .alpha = 1.0f,
+        .on_pane = capture_memo_caret_pane,
+        .context = &pane
+    };
+    wm_layout_draw(compose->body, &options);
+    if (!pane.visible) return false;
+    float determinant = pane.matrix[0] * pane.matrix[5] -
+                        pane.matrix[1] * pane.matrix[4];
+    if (!isfinite(determinant) || fabsf(determinant) < 0.000001f)
+        return false;
+    float projected_x = ((float)x - WM_FRAME_WIDTH * 0.5f) *
+        832.0f / WM_FRAME_WIDTH - pane.matrix[3];
+    float projected_y = WM_FRAME_HEIGHT * 0.5f - (float)y - pane.matrix[7];
+    float local_x = (pane.matrix[5] * projected_x -
+                     pane.matrix[1] * projected_y) / determinant;
+    float local_y = (pane.matrix[0] * projected_y -
+                     pane.matrix[4] * projected_x) / determinant;
+    WmCachedFont *face = wm_font_cache_resolve(compose->fonts, pane.font_name);
+    const char *display = memo_display_text(compose, NULL);
+    const WmFontTextLayout *layout = face
+        ? wm_font_cache_layout(face, display, &pane.font) : NULL;
+    size_t selected;
+    if (!wm_font_text_layout_hit_caret(layout, local_x, local_y, &selected))
+        return false;
+    WmBoardKeyboardComposition composition;
+    if (compose->phase == WM_COMPOSE_EDIT &&
+        wm_board_keyboard_composition(compose->keyboard, &composition) &&
+        composition.prefix_bytes <= compose->caret_bytes &&
+        composition.preview_candidate &&
+        strcmp(composition.preview_candidate, ">") != 0) {
+        size_t start = compose->caret_bytes - composition.prefix_bytes;
+        size_t preview_end = start + strlen(composition.preview_candidate);
+        if (selected >= preview_end) {
+            selected = compose->caret_bytes + selected - preview_end;
+        } else if (selected > start) {
+            selected = compose->caret_bytes;
+        }
+    } else if (compose->phase == WM_COMPOSE_EDIT && compose->caret_bytes > 0 &&
+               wm_board_keyboard_phone_space_pending(compose->keyboard)) {
+        size_t marker_end = compose->caret_bytes + 2;
+        if (selected >= marker_end) selected -= 2;
+        else if (selected >= compose->caret_bytes) selected = compose->caret_bytes;
+    }
+    compose->pointer_caret_bytes = selected < compose->text_bytes
+        ? selected : compose->text_bytes;
+    return true;
+}
+
 WmBoardComposeControl wm_board_compose_hit(WmBoardCompose *compose,
                                            int x, int y) {
+    if (compose) compose->pointer_caret_valid = false;
     if (!compose || (compose->phase != WM_COMPOSE_SELECTOR &&
                      compose->phase != WM_COMPOSE_MEMO &&
                      compose->phase != WM_COMPOSE_EDIT &&
@@ -2280,6 +2513,11 @@ WmBoardComposeControl wm_board_compose_hit(WmBoardCompose *compose,
         }
         WmBoardKeyboardControl key = wm_board_keyboard_hit(compose->keyboard,
                                                             x, y);
+        if (key == WM_KEYBOARD_NONE && !symbols &&
+            hit_memo_caret(compose, x, y)) {
+            compose->pointer_caret_valid = true;
+            return WM_COMPOSE_CONTROL_EDIT;
+        }
         return key == WM_KEYBOARD_NONE ? WM_COMPOSE_CONTROL_NONE :
                (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST + key - 1);
     }
@@ -2389,6 +2627,7 @@ WmBoardComposeControl wm_board_compose_hit(WmBoardCompose *compose,
             return WM_COMPOSE_CONTROL_SCROLL_DOWN;
         }
         if (hit_pane(compose->body, "B_2l_TextBox", x, y)) {
+            compose->pointer_caret_valid = hit_memo_caret(compose, x, y);
             return WM_COMPOSE_CONTROL_EDIT;
         }
     }
@@ -2437,6 +2676,10 @@ void wm_board_compose_hover(WmBoardCompose *compose,
     }
     if (compose->phase == WM_COMPOSE_ADDRESS ||
         wm_board_address_dialog_active(compose->address)) {
+        int entry_row = control >= WM_COMPOSE_CONTROL_ADDRESS_ENTRY_FIRST &&
+                        control <= WM_COMPOSE_CONTROL_ADDRESS_ENTRY_LAST
+            ? (int)(control - WM_COMPOSE_CONTROL_ADDRESS_ENTRY_FIRST) : -1;
+        wm_board_address_hover_entry(compose->address, entry_row);
         wm_board_address_dialog_hover(compose->address,
             control == WM_COMPOSE_CONTROL_ADDRESS_DIALOG_OK);
         if (compose->hover == WM_COMPOSE_CONTROL_ADDRESS_DIALOG_YES ||

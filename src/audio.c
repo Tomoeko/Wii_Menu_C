@@ -307,6 +307,7 @@ WmAudio *wm_audio_create(const char *assets_directory)
         wm_json_load(&audio->sequence_manifest, path, 1024 * 1024);
     static const char *const startup_cues[] = {
         "background", "backgroundIntro", "hover", "buttonHover",
+        "WIPL_SE_BOARD_FOCUS", "WIPL_SE_MSG_DISP", "WIPL_SE_MSG_HOUSE",
         "select", "click", "back", "page", "confirm", "cancel",
         "discPreview", "HOMESE_HOME_BUTTON", "HOMESE_FOCUS"
     };
@@ -339,7 +340,14 @@ void wm_audio_destroy(WmAudio *audio)
 
 bool wm_audio_play(WmAudio *audio, const char *name)
 {
-    if (!audio || !audio->device || !safe_name(name)) return false;
+    return wm_audio_play_panned(audio, name, 0.0f);
+}
+
+bool wm_audio_play_panned(WmAudio *audio, const char *name, float pan)
+{
+    if (!audio || !audio->device || !safe_name(name) || !isfinite(pan))
+        return false;
+    pan = fminf(fmaxf(pan, -1.0f), 1.0f);
     pthread_mutex_lock(&audio->mutex);
     bool muted = audio->muted;
     pthread_mutex_unlock(&audio->mutex);
@@ -357,6 +365,10 @@ bool wm_audio_play(WmAudio *audio, const char *name)
                            ? WM_VOICE_HOME : WM_VOICE_EFFECT;
     pthread_mutex_lock(&audio->mutex);
     WmAudioVoice *voice = audio->muted ? NULL : new_voice(audio, clip, kind);
+    if (voice) {
+        voice->pan_left = pan > 0.0f ? 1.0f - pan : 1.0f;
+        voice->pan_right = pan < 0.0f ? 1.0f + pan : 1.0f;
+    }
     pthread_mutex_unlock(&audio->mutex);
     return voice != NULL;
 }

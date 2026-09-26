@@ -23,7 +23,11 @@ enum {
     BOARD_MEMOS_PER_PAGE = 10,
     BOARD_MAX_MEMOS = 4096,
     BOARD_MAX_TEXT_BYTES = 16 * 1024 * 1024,
-    BOARD_CLIP_CAPACITY = 20
+    BOARD_CLIP_CAPACITY = 20,
+    BOARD_SOUND_CAPACITY = 32,
+    /* Requested local presentation: finish one authored PasteLetter before
+     * starting the next record. Native asynchronous I/O has no fixed cadence. */
+    BOARD_PASTE_DURATION = 11
 };
 
 typedef struct BoardMemo {
@@ -37,6 +41,8 @@ typedef struct BoardMemo {
     size_t source_index;
     WmBoardPinKind pin_kind;
     bool pin_sampled;
+    float pin_start_clock;
+    float paste_age;
 } BoardMemo;
 
 typedef struct BoardMemoOrder {
@@ -47,6 +53,7 @@ typedef struct BoardMemoOrder {
 typedef struct BoardPinState {
     WmBoardPinKind kind;
     bool sampled;
+    float start_clock;
 } BoardPinState;
 
 typedef struct BoardFocus {
@@ -54,6 +61,12 @@ typedef struct BoardFocus {
     bool entering;
     float frame;
 } BoardFocus;
+
+typedef struct BoardCardArrival {
+    size_t memo_index;
+    float age;
+    bool started;
+} BoardCardArrival;
 
 struct WmBoardScene {
     WmPlatform *platform;
@@ -84,8 +97,9 @@ struct WmBoardScene {
     float phase_frame;
     float age;
     float pin_age;
-    float card_age;
-    size_t arriving_memo;
+    BoardCardArrival card_arrivals[WM_BOARD_MAX_PRESENTED_MEMOS];
+    size_t card_arrival_count;
+    size_t pending_posted_memo;
     float scroll_offset_x;
     float mask_age;
     int mask_direction;
@@ -113,6 +127,8 @@ struct WmBoardScene {
     float drag_cue_pans[8];
     unsigned drag_cue_count;
     const char *pending_reader_cue;
+    WmBoardSoundEvent sound_events[BOARD_SOUND_CAPACITY];
+    unsigned sound_count;
     uint64_t rng_state;
     WmBoardTimeNow pin_time_now;
     void *pin_time_context;
@@ -138,6 +154,7 @@ void wm_board_scene_set_pin_clock(WmBoardScene *board,
 static WmBoardPinKind sample_pin_kind(WmBoardScene *board, size_t index) {
     BoardMemo *memo = &board->memos[index];
     if (memo->pin_sampled) return memo->pin_kind;
+    memo->pin_start_clock = board->pin_age;
     /* Version 1 stores only the calendar day. Treat its unknown creation time
      * as an ordinary settled Memo rather than a newly arrived one. */
     if (memo->created_at_ms == 0) {
@@ -369,7 +386,7 @@ WmBoardScene *wm_board_scene_create(WmPlatform *platform,
     board->today = board->date;
     board->selected = SIZE_MAX;
     board->dragged_index = SIZE_MAX;
-    board->arriving_memo = SIZE_MAX;
+    board->pending_posted_memo = SIZE_MAX;
     board->hover.memo_index = SIZE_MAX;
     wm_board_reader_scroll_reset(&board->reader_scroll);
     board->arrow_press[0] = -1.0f;
@@ -416,8 +433,11 @@ void wm_board_scene_reset(WmBoardScene *board) {
     board->phase = WM_BOARD_CLOSED;
     board->phase_frame = 0.0f;
     board->age = 0.0f;
-    board->card_age = 0.0f;
-    board->arriving_memo = SIZE_MAX;
+    board->card_arrival_count = 0;
+    board->pending_posted_memo = SIZE_MAX;
+    for (size_t index = 0; index < board->memo_count; index++) {
+        board->memos[index].paste_age = BOARD_PASTE_DURATION;
+    }
     board->page = 0;
     board->selected = SIZE_MAX;
     board->dragging = false;
@@ -425,6 +445,7 @@ void wm_board_scene_reset(WmBoardScene *board) {
     board->drag_gain = 0.0f;
     board->drag_cue_count = 0;
     board->pending_reader_cue = NULL;
+    board->sound_count = 0;
     board->hover = (WmBoardHit){WM_BOARD_CONTROL_NONE, SIZE_MAX};
     memset(board->button_focus, 0, sizeof(board->button_focus));
     memset(board->card_focus, 0, sizeof(board->card_focus));
@@ -489,6 +510,7 @@ bool wm_board_scene_set_memos(WmBoardScene *board,
                             ? clamp_position(source->y, -80.0f, 180.0f) : 53.0f;
         copy[index].read = source->read;
         copy[index].source_index = index;
+        copy[index].paste_age = BOARD_PASTE_DURATION;
         order[index] = (BoardMemoOrder){index, source->created_at_ms};
     }
     if (count > 1) qsort(order, count, sizeof(*order), compare_memo_order);
@@ -519,8 +541,8 @@ bool wm_board_scene_set_memos(WmBoardScene *board,
     board->dragged_index = SIZE_MAX;
     wm_board_reader_scroll_reset(&board->reader_scroll);
     board->page = 0;
-    board->card_age = 100000.0f;
-    board->arriving_memo = SIZE_MAX;
+    board->card_arrival_count = 0;
+    board->pending_posted_memo = SIZE_MAX;
     update_visible(board);
     return true;
 }
@@ -539,8 +561,8 @@ bool wm_board_scene_open(WmBoardScene *board, WmBoardDate date) {
     board->phase = WM_BOARD_ENTER;
     board->phase_frame = 0.0f;
     board->age = 0.0f;
-    board->card_age = 100000.0f;
-    board->arriving_memo = SIZE_MAX;
+    board->card_arrival_count = 0;
+    board->pending_posted_memo = SIZE_MAX;
     board->hover = (WmBoardHit){WM_BOARD_CONTROL_NONE, SIZE_MAX};
     memset(board->button_focus, 0, sizeof(board->button_focus));
     memset(board->card_focus, 0, sizeof(board->card_focus));
@@ -548,6 +570,9 @@ bool wm_board_scene_open(WmBoardScene *board, WmBoardDate date) {
     board->mask_direction = 0;
     board->mask_age = 0.0f;
     update_visible(board);
+    for (size_t position = 0; position < board->visible_count; position++) {
+        board->memos[board->visible[position]].paste_age = -1.0f;
+    }
     return true;
 }
 
@@ -709,6 +734,152 @@ static float clamp_pan(float value) {
     return fminf(1.0f, fmaxf(-1.0f, value));
 }
 
+static void queue_sound_event(WmBoardScene *board, const char *cue,
+                              float pan, size_t memo_index) {
+    if (board->sound_count >= BOARD_SOUND_CAPACITY) return;
+    board->sound_events[board->sound_count++] = (WmBoardSoundEvent){
+        .cue = cue,
+        .pan = clamp_pan(pan),
+        .memo_index = memo_index
+    };
+}
+
+bool wm_board_scene_take_sound_event(WmBoardScene *board,
+                                      WmBoardSoundEvent *event) {
+    if (!board || !event || !board->sound_count) return false;
+    *event = board->sound_events[0];
+    board->sound_count--;
+    if (board->sound_count) {
+        memmove(board->sound_events, board->sound_events + 1,
+                board->sound_count * sizeof(board->sound_events[0]));
+    }
+    return true;
+}
+
+static float card_arrival_age(const WmBoardScene *board, size_t memo_index) {
+    if (memo_index == board->pending_posted_memo) return -1.0f;
+    return memo_index < board->memo_count
+               ? board->memos[memo_index].paste_age : BOARD_PASTE_DURATION;
+}
+
+static void advance_card_arrivals(WmBoardScene *board, float frames) {
+    for (size_t index = 0; index < board->card_arrival_count; index++) {
+        board->card_arrivals[index].age = fminf(
+            100000.0f, board->card_arrivals[index].age + frames);
+        board->memos[board->card_arrivals[index].memo_index].paste_age =
+            board->card_arrivals[index].age;
+    }
+    for (;;) {
+        size_t next = SIZE_MAX;
+        for (size_t index = 0; index < board->card_arrival_count; index++) {
+            const BoardCardArrival *arrival = &board->card_arrivals[index];
+            if (arrival->started || arrival->age < 0.0f) continue;
+            /* Larger final age means an earlier crossing within this update.
+             * Equal starts retain their serial record-read order. */
+            if (next == SIZE_MAX ||
+                arrival->age > board->card_arrivals[next].age) next = index;
+        }
+        if (next == SIZE_MAX) break;
+        BoardCardArrival *arrival = &board->card_arrivals[next];
+        arrival->started = true;
+        sample_pin_kind(board, arrival->memo_index);
+        board->memos[arrival->memo_index].pin_start_clock =
+            board->pin_age - arrival->age;
+        /* Native audio divides object X by the projection's right edge.
+         * The Board's shared renderer currently uses the wide IPL view. */
+        queue_sound_event(board, "WIPL_SE_MSG_DISP",
+                          board->memos[arrival->memo_index].x / 416.0f,
+                          arrival->memo_index);
+    }
+}
+
+static void start_date_arrivals(WmBoardScene *board, WmBoardDate date,
+                                size_t page, bool preserve_outgoing,
+                                float elapsed) {
+    size_t retained = 0;
+    if (preserve_outgoing) {
+        for (size_t index = 0; index < board->card_arrival_count; index++) {
+            BoardCardArrival arrival = board->card_arrivals[index];
+            /* Keep the outgoing card already in its appearance, but cancel
+             * unread local records when navigation replaces their sheet. */
+            if (arrival.age >= 0.0f && arrival.age < BOARD_PASTE_DURATION &&
+                visible_position(board, arrival.memo_index) != SIZE_MAX) {
+                board->card_arrivals[retained++] = arrival;
+            }
+        }
+    }
+    board->card_arrival_count = retained;
+    size_t skipped = 0;
+    size_t arriving = 0;
+    for (size_t position = 0; position < board->memo_count &&
+                           arriving < BOARD_MEMOS_PER_PAGE; position++) {
+        size_t index = board->memo_order[position].index;
+        if (!same_date(board->memos[index].date, date)) continue;
+        if (skipped++ < page * BOARD_MEMOS_PER_PAGE) continue;
+        board->memos[index].pin_sampled = false;
+        board->card_arrivals[board->card_arrival_count++] = (BoardCardArrival){
+            .memo_index = index,
+            .age = elapsed - (float)arriving * BOARD_PASTE_DURATION
+        };
+        arriving++;
+    }
+    advance_card_arrivals(board, 0.0f);
+}
+
+static void cancel_unstarted_arrivals(WmBoardScene *board) {
+    size_t retained = 0;
+    for (size_t index = 0; index < board->card_arrival_count; index++) {
+        if (board->card_arrivals[index].started) {
+            board->card_arrivals[retained++] = board->card_arrivals[index];
+        }
+    }
+    board->card_arrival_count = retained;
+}
+
+static bool begin_date_transition(WmBoardScene *board, WmBoardDate target,
+                                   WmBoardPhase phase, float elapsed) {
+    if (!wm_board_date_valid(target)) return false;
+    int64_t selected_day = civil_day(board->date);
+    int64_t target_day = civil_day(target);
+    int direction = target_day > selected_day ? 1 :
+                    target_day < selected_day ? -1 : 0;
+    if (phase == WM_BOARD_DATE_SCROLL && direction == 0) return false;
+    board->next_date = target;
+    board->direction = direction;
+    board->return_direction = phase == WM_BOARD_EXIT ? direction : 0;
+    board->phase = phase;
+    board->phase_frame = 0.0f;
+    if (direction != 0) {
+        queue_sound_event(board, "page", 0.0f, SIZE_MAX);
+        start_date_arrivals(board, target, 0, true, elapsed);
+    } else if (phase == WM_BOARD_EXIT && board->page != 0) {
+        /* Home parks the newest page. Do not deliver unseen records from an
+         * older page beneath that different set of visible cards. */
+        cancel_unstarted_arrivals(board);
+    }
+    return true;
+}
+
+static void reveal_posted_memo(WmBoardScene *board, float elapsed) {
+    size_t index = board->pending_posted_memo;
+    if (index >= board->memo_count) return;
+    board->pending_posted_memo = SIZE_MAX;
+    board->card_arrival_count = 1;
+    board->card_arrivals[0] = (BoardCardArrival){
+        .memo_index = index,
+        .age = elapsed
+    };
+    advance_card_arrivals(board, 0.0f);
+}
+
+void wm_board_scene_advance_parked(WmBoardScene *board, float frames) {
+    if (!board || board->phase != WM_BOARD_CLOSED ||
+        !isfinite(frames) || frames <= 0.0f) return;
+    board->age += frames;
+    board->pin_age += frames;
+    advance_card_arrivals(board, frames);
+}
+
 static void queue_drag_cue(WmBoardScene *board, WmBoardDragCue cue, float pan) {
     if (board->drag_cue_count >= sizeof(board->drag_cues) /
                                   sizeof(board->drag_cues[0])) return;
@@ -727,8 +898,7 @@ bool wm_board_scene_pointer_down(WmBoardScene *board, WmBoardHit hit,
         hit.control != WM_BOARD_CONTROL_MEMO ||
         hit.memo_index >= board->memo_count ||
         visible_position(board, hit.memo_index) == SIZE_MAX ||
-        (hit.memo_index == board->arriving_memo &&
-         board->card_age < 11.0f)) return false;
+        card_arrival_age(board, hit.memo_index) < 11.0f) return false;
     board->dragging = true;
     board->dragged_index = hit.memo_index;
     board->drag_start_x = x;
@@ -927,22 +1097,39 @@ static void pose_background(WmBoardScene *board) {
         .loop_override = 0
     };
     wm_layout_pose(board->background, &clip, 1);
+    /* The previous-day copy has an authored one-unit X offset. Reuse the
+     * central label's local anchor so a forward-page return lands at the
+     * same position as the menu date, without a final ownership jump. */
+    WmLayoutPaneState center_date;
+    WmLayoutPaneState previous_date;
+    if (wm_layout_pane_state(board->background, "T_Day_b", &center_date) &&
+        wm_layout_pane_state(board->background, "T_Day_a", &previous_date)) {
+        wm_layout_set_pane_translation(board->background, "T_Day_a",
+            center_date.translation[0], previous_date.translation[1],
+            previous_date.translation[2]);
+    }
     char before[32], current[32], after[32];
     date_text(board->date, -1, before);
     date_text(board->date, 0, current);
     date_text(board->date, 1, after);
-    if (returning) {
-        /* One authored page slide returns to today even when the selected
-         * date is several days away. The entering label names the real date. */
-        if (direction < 0) date_text(board->today, 0, before);
-        else date_text(board->today, 0, after);
+    if (scrolling) {
+        /* Arrows, Calendar jumps and return-to-menu share one authored slide,
+         * whose entering label names the actual target rather than ±1 day. */
+        if (direction < 0) date_text(board->next_date, 0, before);
+        else date_text(board->next_date, 0, after);
     }
     wm_layout_set_pose_text(board->background, "T_Day_a", before);
-    /* On entry, idle and exit the visible date is retained above the Board
-     * footer. Draw it once there so an opaque footer cannot cover it. */
-    bool retain_date = board->phase == WM_BOARD_ENTER ||
-                       board->phase == WM_BOARD_READY ||
-                       (board->phase == WM_BOARD_EXIT && !returning);
+    /* The composer keeps the date with the cards underneath its shade and
+     * controls, including Memo, Letter and Address Book child transitions.
+     * A held card also owns the foreground over that date. Normal Board
+     * entry/idle/exit retains the date above its own footer. */
+    bool composing = wm_board_compose_phase(board->compose) !=
+                     WM_COMPOSE_CLOSED;
+    bool retain_date = !composing && !board->dragging &&
+        board->mask_direction >= 0 &&
+        (board->phase == WM_BOARD_ENTER ||
+         board->phase == WM_BOARD_READY ||
+         (board->phase == WM_BOARD_EXIT && !returning));
     wm_layout_set_pose_text(board->background, "T_Day_b",
                             retain_date ? "" : current);
     wm_layout_set_pose_text(board->background, "T_Day_c", after);
@@ -1057,7 +1244,7 @@ static void pose_card(WmBoardScene *board,
                                           ? "LetterS_a_DefAnim" : NULL;
     if (pin_animation) {
         /* Home's parked presentation uses the source's settled-card age. */
-        float frame = neutral ? 100000.0f : board->pin_age;
+        float frame = card->pin_frame;
         append_clip(clips, &count, pin_animation, "G_New", frame);
         clips[count - 1].loop_override = 1;
     }
@@ -1092,53 +1279,53 @@ static void append_visible_card(
     WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS],
     size_t *count) {
     size_t position = visible_position(board, memo_index);
+    float arrival_age = card_arrival_age(board, memo_index);
     if (position == SIZE_MAX || *count >= WM_BOARD_MAX_PRESENTED_MEMOS ||
+        arrival_age < 0.0f ||
         (board->phase == WM_BOARD_MEMO_ERASE_CLOSE &&
          memo_index == board->selected)) return;
     float matrix[12];
     card_matrix(board, position, matrix);
+    WmBoardPinKind pin = sample_pin_kind(board, memo_index);
     cards[(*count)++] = (WmBoardMemoPresentation){
         .memo_index = memo_index,
         .x = matrix[3],
         .y = matrix[7],
-        .paste_frame = memo_index == board->arriving_memo
-                           ? clamp_frame(board->card_age, 10.0f) : 10.0f,
+        .paste_frame = clamp_frame(arrival_age, 10.0f),
         .next_page_frame = board->phase == WM_BOARD_MEMO_PAGE
                                ? clamp_frame(board->phase_frame, 14.0f) : -1.0f,
-        .pin_kind = sample_pin_kind(board, memo_index)
+        .pin_kind = pin,
+        .pin_frame = board->pin_age - board->memos[memo_index].pin_start_clock
     };
 }
 
-static void append_entering_cards(
-    WmBoardScene *board, WmBoardDate date, size_t page,
-    int direction, bool date_slide,
+static void append_date_cards(
+    WmBoardScene *board, WmBoardDate date, int direction,
     WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS],
     size_t *count) {
-    size_t first = page * BOARD_MEMOS_PER_PAGE;
-    size_t found = 0;
     size_t entered = 0;
-    float progress = clamp_frame(board->phase_frame, 15.0f) / 15.0f;
-    float start_x = direction < 0 ? -304.0f : 304.0f;
     float page_offset = direction < 0 ? -832.0f : 832.0f;
     for (size_t position = 0; position < board->memo_count &&
                            entered < BOARD_MEMOS_PER_PAGE; position++) {
         size_t index = board->memo_order[position].index;
         const BoardMemo *memo = &board->memos[index];
         if (!same_date(memo->date, date)) continue;
-        if (found++ < first) continue;
+        float arrival_age = card_arrival_age(board, index);
+        if (arrival_age < 0.0f) {
+            entered++;
+            continue;
+        }
         if (*count >= WM_BOARD_MAX_PRESENTED_MEMOS) break;
-        float x = date_slide ? memo->x :
-                  start_x + (memo->x - start_x) * progress;
-        float y = date_slide ? memo->y :
-                  53.0f + (memo->y - 53.0f) * progress;
+        WmBoardPinKind pin = sample_pin_kind(board, index);
         cards[(*count)++] = (WmBoardMemoPresentation){
             .memo_index = index,
-            .x = x * (832.0f / 608.0f) + board->scroll_offset_x +
-                 (date_slide ? page_offset : 0.0f),
-            .y = y,
-            .paste_frame = 10.0f,
+            .x = memo->x * (832.0f / 608.0f) + board->scroll_offset_x +
+                 page_offset,
+            .y = memo->y,
+            .paste_frame = clamp_frame(arrival_age, 10.0f),
             .next_page_frame = -1.0f,
-            .pin_kind = sample_pin_kind(board, index),
+            .pin_kind = pin,
+            .pin_frame = board->pin_age - board->memos[index].pin_start_clock,
             .entering = true
         };
         entered++;
@@ -1159,18 +1346,13 @@ size_t wm_board_scene_memo_presentation(
     if (board->dragging) {
         append_visible_card(board, board->dragged_index, cards, &count);
     }
-    if (board->phase == WM_BOARD_MEMO_PAGE) {
-        size_t next_page = board->direction < 0
-                               ? board->page + 1 : board->page - 1;
-        append_entering_cards(board, board->date, next_page,
-                              board->direction, false, cards, &count);
-    } else if (board->phase == WM_BOARD_DATE_SCROLL) {
-        append_entering_cards(board, board->next_date, 0,
-                              board->direction, true, cards, &count);
+    if (board->phase == WM_BOARD_DATE_SCROLL) {
+        append_date_cards(board, board->next_date, board->direction,
+                          cards, &count);
     } else if (board->phase == WM_BOARD_EXIT &&
                board->return_direction != 0) {
-        append_entering_cards(board, board->today, 0,
-                              board->return_direction, true, cards, &count);
+        append_date_cards(board, board->next_date, board->return_direction,
+                          cards, &count);
     }
     return count;
 }
@@ -1181,18 +1363,32 @@ size_t wm_board_scene_parked_memo_presentation(
     if (!board || !cards || board->phase != WM_BOARD_CLOSED ||
         !wm_board_date_valid(today)) return 0;
     size_t count = 0;
+    size_t found = 0;
     for (size_t position = 0; position < board->memo_count &&
-                           count < BOARD_MEMOS_PER_PAGE; position++) {
+                           found < BOARD_MEMOS_PER_PAGE; position++) {
         size_t index = board->memo_order[position].index;
         const BoardMemo *memo = &board->memos[index];
         if (!same_date(memo->date, today)) continue;
+        found++;
+        float arrival_age = card_arrival_age(board, index);
+        if (arrival_age < 0.0f) continue;
+        WmBoardPinKind pin = sample_pin_kind(board, index);
+        bool scheduled = false;
+        for (size_t arrival = 0; arrival < board->card_arrival_count; arrival++) {
+            if (board->card_arrivals[arrival].memo_index == index) {
+                scheduled = true;
+                break;
+            }
+        }
         cards[count++] = (WmBoardMemoPresentation){
             .memo_index = index,
             .x = memo->x * (832.0f / 608.0f),
             .y = memo->y,
-            .paste_frame = 10.0f,
+            .paste_frame = clamp_frame(arrival_age, 10.0f),
             .next_page_frame = -1.0f,
-            .pin_kind = sample_pin_kind(board, index)
+            .pin_kind = pin,
+            .pin_frame = scheduled
+                ? board->pin_age - board->memos[index].pin_start_clock : 100000.0f
         };
     }
     return count;
@@ -1653,7 +1849,8 @@ void wm_board_scene_draw_footer(WmBoardScene *board) {
     pose_footer(board);
     present(board, board->footer, NULL);
     if (child == WM_BOARD_CHILD_ERASE) wm_board_erase_draw(board->erase);
-    if (child == WM_BOARD_CHILD_NONE &&
+    if (child == WM_BOARD_CHILD_NONE && !board->dragging &&
+        board->mask_direction >= 0 &&
         (board->phase == WM_BOARD_ENTER || board->phase == WM_BOARD_READY ||
          (board->phase == WM_BOARD_EXIT &&
           board->return_direction == 0))) {
@@ -1788,14 +1985,10 @@ bool wm_board_scene_back(WmBoardScene *board) {
         return true;
     }
     if (board->phase != WM_BOARD_READY) return false;
-    int64_t selected_day = civil_day(board->date);
-    int64_t today = civil_day(board->today);
-    board->return_direction = selected_day > today ? -1 :
-                              selected_day < today ? 1 : 0;
     wm_board_scene_hover(board,
                          (WmBoardHit){WM_BOARD_CONTROL_NONE, SIZE_MAX});
-    board->phase = WM_BOARD_EXIT;
-    board->phase_frame = 0.0f;
+    if (!begin_date_transition(board, board->today, WM_BOARD_EXIT, 0.0f))
+        return false;
     memset(board->button_focus, 0, sizeof(board->button_focus));
     return true;
 }
@@ -1825,7 +2018,8 @@ static bool append_posted_memo(WmBoardScene *board, const char *text) {
     for (size_t index = 0; index < previous_count; index++) {
         pins[index] = (BoardPinState){
             .kind = previous[index].pin_kind,
-            .sampled = previous[index].pin_sampled
+            .sampled = previous[index].pin_sampled,
+            .start_clock = previous[index].pin_start_clock
         };
         if (!wm_board_scene_get_memo(board, index, &records[index])) {
             free(records);
@@ -1848,22 +2042,6 @@ static bool append_posted_memo(WmBoardScene *board, const char *text) {
         free(pins);
         return false;
     }
-    struct tm local_time;
-    if (!localtime_r(&clock.tv_sec, &local_time)) {
-        free(records);
-        free(pins);
-        return false;
-    }
-    WmBoardDate today = {
-        .year = local_time.tm_year + 1900,
-        .month = local_time.tm_mon + 1,
-        .day = local_time.tm_mday
-    };
-    if (!wm_board_date_valid(today)) {
-        free(records);
-        free(pins);
-        return false;
-    }
     int64_t created_at_ms = (int64_t)clock.tv_sec * INT64_C(1000) +
                             clock.tv_nsec / 1000000;
     /* Native receive() evaluates Y before X, with separate float products. */
@@ -1874,7 +2052,9 @@ static bool append_posted_memo(WmBoardScene *board, const char *text) {
     records[previous_count] = (WmBoardMemo){
         .id = id,
         .text = text,
-        .date = today,
+        /* The selected sheet owns the post's date. Its real creation time
+         * remains independent metadata for ordering and the new-card pin. */
+        .date = board->date,
         .created_at_ms = created_at_ms,
         .x = x,
         .y = y,
@@ -1892,13 +2072,11 @@ static bool append_posted_memo(WmBoardScene *board, const char *text) {
     for (size_t index = 0; index < previous_count; index++) {
         board->memos[index].pin_sampled = pins[index].sampled;
         board->memos[index].pin_kind = pins[index].kind;
+        board->memos[index].pin_start_clock = pins[index].start_clock;
     }
     free(pins);
-    board->date = today;
-    board->today = today;
     board->page = 0;
-    board->card_age = 0.0f;
-    board->arriving_memo = previous_count;
+    board->pending_posted_memo = previous_count;
     update_visible(board);
     board->pending_action = WM_BOARD_ACTION_MEMO_POSTED;
     board->pending_memo_index = previous_count;
@@ -1949,8 +2127,8 @@ static bool finish_memo_erase(WmBoardScene *board) {
     }
     board->memo_count = new_count;
     board->selected = SIZE_MAX;
-    board->card_age = 100000.0f;
-    board->arriving_memo = SIZE_MAX;
+    board->card_arrival_count = 0;
+    board->pending_posted_memo = SIZE_MAX;
     update_visible(board);
     free(board->last_erased_id);
     board->last_erased_id = id;
@@ -1959,12 +2137,67 @@ static bool finish_memo_erase(WmBoardScene *board) {
     return true;
 }
 
+static void advance_compose_child(WmBoardScene *board, float frames) {
+    float remaining = frames;
+    while (remaining > 0.0f &&
+           wm_board_compose_phase(board->compose) != WM_COMPOSE_CLOSED) {
+        float amount = remaining;
+        /* Consume outcomes at their owning child's boundary: a large update
+         * must retain the posted record before composer exit reports CLOSED. */
+        float boundary = wm_board_compose_frames_to_boundary(board->compose);
+        if (boundary > 0.0f) amount = fminf(amount, boundary);
+        if (amount <= 0.0f) return;
+        wm_board_compose_advance(board->compose, amount);
+        remaining -= amount;
+        WmBoardComposeOutcome outcome = wm_board_compose_take_outcome(
+            board->compose);
+        if (outcome == WM_COMPOSE_OUTCOME_POSTED) {
+            append_posted_memo(board, wm_board_compose_text(board->compose));
+        } else if (outcome == WM_COMPOSE_OUTCOME_CLOSED) {
+            /* Local delivery begins when its card can be seen. The native
+             * transport's delivery time is not an authored composer clock. */
+            reveal_posted_memo(board, remaining);
+            board->mask_direction = -1;
+            board->mask_age = remaining;
+        } else if (outcome == WM_COMPOSE_OUTCOME_OPEN_SETTINGS) {
+            board->pending_action = WM_BOARD_ACTION_OPEN_SETTINGS;
+        } else if (outcome == WM_COMPOSE_OUTCOME_OPEN_CONNECT24_SETTINGS) {
+            board->pending_action = WM_BOARD_ACTION_OPEN_CONNECT24_SETTINGS;
+        }
+    }
+}
+
+static float advance_calendar_child(WmBoardScene *board, float frames) {
+    float remaining = frames;
+    while (remaining > 0.0f &&
+           wm_board_calendar_phase(board->calendar) != WM_CALENDAR_CLOSED) {
+        float amount = remaining;
+        float boundary = wm_board_calendar_frames_to_boundary(board->calendar);
+        if (boundary > 0.0f) amount = fminf(amount, boundary);
+        if (amount <= 0.0f) return 0.0f;
+        wm_board_calendar_advance(board->calendar, amount);
+        remaining -= amount;
+        WmBoardDate selected_date;
+        WmBoardCalendarOutcome outcome = wm_board_calendar_take_outcome(
+            board->calendar, &selected_date);
+        if (outcome == WM_CALENDAR_OUTCOME_NONE) continue;
+        if (outcome == WM_CALENDAR_OUTCOME_SELECTED) {
+            begin_date_transition(board, selected_date, WM_BOARD_DATE_SCROLL,
+                                  remaining);
+        }
+        board->mask_direction = -1;
+        board->mask_age = remaining;
+        return remaining;
+    }
+    return remaining;
+}
+
 void wm_board_scene_advance(WmBoardScene *board, float frames) {
     if (!board || board->phase == WM_BOARD_CLOSED ||
         !isfinite(frames) || frames <= 0.0f) return;
     board->age += frames;
     board->pin_age += frames;
-    board->card_age += frames;
+    advance_card_arrivals(board, frames);
     wm_board_reader_scroll_advance(&board->reader_scroll, frames);
     if (board->dragging && board->dragged_index < board->memo_count) {
         float delta_x = board->drag_delta_x - board->drag_last_x;
@@ -1982,37 +2215,11 @@ void wm_board_scene_advance(WmBoardScene *board, float frames) {
             board->mask_direction = 0;
         }
     }
-    if (wm_board_calendar_phase(board->calendar) != WM_CALENDAR_CLOSED) {
-        wm_board_calendar_advance(board->calendar, frames);
-        WmBoardDate selected_date;
-        WmBoardCalendarOutcome outcome = wm_board_calendar_take_outcome(
-            board->calendar, &selected_date);
-        if (outcome != WM_CALENDAR_OUTCOME_NONE) {
-            if (outcome == WM_CALENDAR_OUTCOME_SELECTED) {
-                if (!same_date(board->date, selected_date))
-                    reset_pin_choices(board);
-                board->date = selected_date;
-                board->page = 0;
-                board->card_age = 100000.0f;
-                board->arriving_memo = SIZE_MAX;
-                update_visible(board);
-            }
-            board->mask_direction = -1;
-            board->mask_age = 0.0f;
-        }
-    }
+    float phase_frames = frames;
+    if (wm_board_calendar_phase(board->calendar) != WM_CALENDAR_CLOSED)
+        phase_frames = advance_calendar_child(board, frames);
     if (wm_board_compose_phase(board->compose) != WM_COMPOSE_CLOSED) {
-        wm_board_compose_advance(board->compose, frames);
-        WmBoardComposeOutcome outcome = wm_board_compose_take_outcome(
-            board->compose);
-        if (outcome == WM_COMPOSE_OUTCOME_POSTED) {
-            append_posted_memo(board, wm_board_compose_text(board->compose));
-        } else if (outcome == WM_COMPOSE_OUTCOME_CLOSED) {
-            board->mask_direction = -1;
-            board->mask_age = 0.0f;
-        } else if (outcome == WM_COMPOSE_OUTCOME_OPEN_SETTINGS) {
-            board->pending_action = WM_BOARD_ACTION_OPEN_SETTINGS;
-        }
+        advance_compose_child(board, frames);
     }
     if (wm_board_erase_phase(board->erase) != WM_ERASE_CLOSED) {
         wm_board_erase_advance(board->erase, frames);
@@ -2057,7 +2264,7 @@ void wm_board_scene_advance(WmBoardScene *board, float frames) {
             }
         }
     }
-    float remaining = frames;
+    float remaining = phase_frames;
     while (remaining > 0.0f) {
         float duration = 0.0f;
         switch (board->phase) {
@@ -2088,6 +2295,7 @@ void wm_board_scene_advance(WmBoardScene *board, float frames) {
                 duration = 17.0f;
                 break;
             case WM_BOARD_CLOSED:
+                return;
             case WM_BOARD_READY:
             case WM_BOARD_MEMO_READ:
             case WM_BOARD_MEMO_DIALOG:
@@ -2100,11 +2308,11 @@ void wm_board_scene_advance(WmBoardScene *board, float frames) {
         switch (board->phase) {
             case WM_BOARD_ENTER:
                 board->phase = WM_BOARD_READY;
+                start_date_arrivals(board, board->date, board->page, false,
+                                    remaining);
                 break;
             case WM_BOARD_EXIT:
-                if (!same_date(board->date, board->today))
-                    reset_pin_choices(board);
-                board->date = board->today;
+                board->date = board->next_date;
                 board->page = 0;
                 update_visible(board);
                 board->return_direction = 0;
@@ -2112,12 +2320,9 @@ void wm_board_scene_advance(WmBoardScene *board, float frames) {
                 board->pending_action = WM_BOARD_ACTION_EXITED;
                 break;
             case WM_BOARD_DATE_SCROLL:
-                if (!same_date(board->date, board->next_date))
-                    reset_pin_choices(board);
                 board->date = board->next_date;
                 board->page = 0;
-                board->card_age = 100000.0f;
-                board->arriving_memo = SIZE_MAX;
+                board->pending_posted_memo = SIZE_MAX;
                 update_visible(board);
                 memset(board->card_focus, 0, sizeof(board->card_focus));
                 board->phase = WM_BOARD_READY;
@@ -2125,9 +2330,10 @@ void wm_board_scene_advance(WmBoardScene *board, float frames) {
             case WM_BOARD_MEMO_PAGE:
                 if (board->direction < 0) board->page++;
                 else if (board->page > 0) board->page--;
-                board->card_age = 100000.0f;
-                board->arriving_memo = SIZE_MAX;
+                board->pending_posted_memo = SIZE_MAX;
                 update_visible(board);
+                start_date_arrivals(board, board->date, board->page, false,
+                                    remaining);
                 memset(board->card_focus, 0, sizeof(board->card_focus));
                 board->phase = WM_BOARD_READY;
                 break;
@@ -2393,8 +2599,12 @@ WmBoardHit wm_board_scene_hit(WmBoardScene *board, int x, int y) {
             SIZE_MAX
         };
     }
+    bool turning_page = board &&
+        (board->phase == WM_BOARD_DATE_SCROLL ||
+         board->phase == WM_BOARD_MEMO_PAGE);
     if (!board || (board->phase != WM_BOARD_READY &&
-                   board->phase != WM_BOARD_MEMO_READ)) return none;
+                   board->phase != WM_BOARD_MEMO_READ &&
+                   !turning_page)) return none;
     pose_footer(board);
     if (board->phase == WM_BOARD_MEMO_READ) {
         if (footer_hit(board, "B_CalExit", x, y, 0)) {
@@ -2427,13 +2637,13 @@ WmBoardHit wm_board_scene_hit(WmBoardScene *board, int x, int y) {
         footer_hit(board, "B_ArwL", x, y, 4)) return board->hover;
     if (board->hover.control == WM_BOARD_CONTROL_NEXT &&
         footer_hit(board, "B_ArwR", x, y, 4)) return board->hover;
-    if (footer_hit(board, "B_Ch", x, y, 0)) {
+    if (!turning_page && footer_hit(board, "B_Ch", x, y, 0)) {
         return (WmBoardHit){WM_BOARD_CONTROL_BACK, SIZE_MAX};
     }
-    if (footer_hit(board, "B_Cal", x, y, 0)) {
+    if (!turning_page && footer_hit(board, "B_Cal", x, y, 0)) {
         return (WmBoardHit){WM_BOARD_CONTROL_CALENDAR, SIZE_MAX};
     }
-    if (footer_hit(board, "B_Add", x, y, 0)) {
+    if (!turning_page && footer_hit(board, "B_Add", x, y, 0)) {
         return (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX};
     }
     if ((!at_first_day(board) || board->page + 1 <
@@ -2445,16 +2655,20 @@ WmBoardHit wm_board_scene_hit(WmBoardScene *board, int x, int y) {
         footer_hit(board, "B_ArwR", x, y, 0)) {
         return (WmBoardHit){WM_BOARD_CONTROL_NEXT, SIZE_MAX};
     }
+    if (turning_page) return none;
     for (size_t position = board->visible_count; position > 0; position--) {
         size_t source_index = board->card_order[position - 1];
         size_t index = visible_position(board, source_index);
-        if (index == SIZE_MAX) continue;
+        float arrival_age = card_arrival_age(board, source_index);
+        if (index == SIZE_MAX || arrival_age < 11.0f) continue;
+        WmBoardPinKind pin = sample_pin_kind(board, source_index);
         WmBoardMemoPresentation card = {
             .memo_index = source_index,
-            .paste_frame = source_index == board->arriving_memo
-                               ? clamp_frame(board->card_age, 10.0f) : 10.0f,
+            .paste_frame = clamp_frame(arrival_age, 10.0f),
             .next_page_frame = -1.0f,
-            .pin_kind = sample_pin_kind(board, source_index)
+            .pin_kind = pin,
+            .pin_frame = board->pin_age -
+                          board->memos[source_index].pin_start_clock
         };
         pose_card(board, &card, false);
         float matrix[12];
@@ -2510,8 +2724,16 @@ void wm_board_scene_hover(WmBoardScene *board, WmBoardHit hit) {
                                                     (unsigned)hit.memo_index});
         return;
     }
+    bool turning_page = board &&
+        (board->phase == WM_BOARD_DATE_SCROLL ||
+         board->phase == WM_BOARD_MEMO_PAGE);
     if (!board || (board->phase != WM_BOARD_READY &&
-                   board->phase != WM_BOARD_MEMO_READ)) return;
+                   board->phase != WM_BOARD_MEMO_READ &&
+                   !turning_page)) return;
+    if (turning_page && hit.control != WM_BOARD_CONTROL_PREVIOUS &&
+        hit.control != WM_BOARD_CONTROL_NEXT) {
+        hit = (WmBoardHit){WM_BOARD_CONTROL_NONE, SIZE_MAX};
+    }
     if (board->phase == WM_BOARD_MEMO_READ) {
         WmBoardReaderArrow arrow = WM_BOARD_READER_ARROW_NONE;
         if (hit.control == WM_BOARD_CONTROL_MEMO_SCROLL_UP) {
@@ -2653,21 +2875,22 @@ bool wm_board_scene_activate(WmBoardScene *board, WmBoardHit hit) {
                 (!previous && board->page > 0)) {
                 board->phase = WM_BOARD_MEMO_PAGE;
                 board->phase_frame = 0.0f;
+                cancel_unstarted_arrivals(board);
+                queue_sound_event(board, "WIPL_SE_MSG_HOUSE",
+                                  previous ? 300.0f / 416.0f :
+                                             -300.0f / 416.0f, SIZE_MAX);
                 return true;
             }
             WmBoardDate next;
             if (!wm_board_date_shift(board->date,
                                      previous ? -1 : 1, &next)) return false;
-            board->next_date = next;
-            board->phase = WM_BOARD_DATE_SCROLL;
-            board->phase_frame = 0.0f;
-            return true;
+            return begin_date_transition(board, next, WM_BOARD_DATE_SCROLL,
+                                         0.0f);
         }
         case WM_BOARD_CONTROL_MEMO:
             if (hit.memo_index >= board->memo_count ||
                 visible_position(board, hit.memo_index) == SIZE_MAX ||
-                (hit.memo_index == board->arriving_memo &&
-                 board->card_age < 11.0f)) return false;
+                card_arrival_age(board, hit.memo_index) < 11.0f) return false;
             if (!configure_reader_scroll(
                     board, board->memos[hit.memo_index].text)) return false;
             board->selected = hit.memo_index;

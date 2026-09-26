@@ -6,7 +6,10 @@ The C scene loads the `fs_VK_ascii_keytop_a`, `fs_VK_toolbar_a`,
 USA v4.3 resources. Its letter and number keys, Shift, Caps, Space, Return,
 Delete, Back, OK, and More use the original pane hit areas. Back and OK both
 keep the draft; they close through the 30-frame keyboard and editor
-transition. The Memo scroll arrows become interactive after the keyboard
+transition. The memo's scroll offset eases to its display bounds during that
+descent, including when dismissal interrupts an editor scroll. Enter markers
+remain visible with the unposted draft after the keyboard closes. The Memo
+scroll arrows become interactive after the keyboard
 finishes entering and fade with its exit.
 
 More opens the ten US symbol pages after the source 18-frame entrance.
@@ -65,9 +68,20 @@ accented phone typing, and prepared OEM loading. Synthetic parser tests cover
 malformed offsets, UTF-16 termination and surrogates, and the HTML word filter.
 
 Keyboard layout, phone mode, dictionary state, and language survive a Memo
-keyboard reset in the current session. Native Zi8 working-memory behavior,
-durable keyboard preferences, and text-point caret selection remain open C
-parity work. A live 1920 × 1080 Metal check showed
+keyboard reset in the current session. Clicking visible text in an unposted
+Memo selects the nearest UTF-8 insertion boundary and opens the keyboard at
+that position. The editor follows the selected caret into its two-line window
+with `WIPL_SE_LINE_SCROLL` whenever following starts page movement. Visible
+caret selections stay silent, and typing sounds remain intact when a key also
+starts scrolling. Insertion, deletion, phone multi-tap, and completion retain
+text after the caret. Text can also be selected while the keyboard is open. If a completion
+is pending, the first text click commits it and a fresh click moves the caret.
+The top toolbar strip now remains visible during its downward entrance, using
+the same smooth progress and opacity as the bottom toolbar. This corrects the
+requested behavior; the current HTML scene still suppresses the top strip
+during entrance. Focused render-command and editing tests cover these flows.
+Native Zi8 working-memory behavior and durable keyboard preferences remain
+open C parity work. A live 1920 × 1080 Metal check showed
 the More panel on page 1/10, page 2/10 after the next arrow, `[` inserted
 into Memo text, and Close returning to QWERTY; it predates the dictionary and
 telephone changes. Keyboard text, glyphs, hover phases, and candidate

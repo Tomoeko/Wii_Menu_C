@@ -173,6 +173,26 @@ int main(void) {
     wm_font_emit_pane(layout, NULL, 1, sheet_provider, capture_quad, &wrapped);
     assert(wrapped.count == 3);
     assert(near(wrapped.first_left, -2.5f) && near(wrapped.first_top, 3));
+    size_t caret_byte;
+    float caret_x, caret_y;
+    assert(wm_font_text_layout_caret(layout, 1, &caret_x, &caret_y));
+    assert(wm_font_text_layout_hit_caret(layout, caret_x, caret_y - 2,
+                                         &caret_byte));
+    assert(caret_byte == 1);
+    wm_font_text_layout_destroy(layout);
+    pane.size[0] = 7;
+    layout = wm_font_layout_pane(font, "AA\303\251A\nA", &pane);
+    assert(layout && wm_font_text_layout_line_count(layout) == 3);
+    const size_t boundaries[] = {0, 1, 2, 4, 5, 6, 7};
+    for (size_t index = 0; index < sizeof(boundaries) / sizeof(boundaries[0]);
+         index++) {
+        assert(wm_font_text_layout_caret(layout, boundaries[index],
+                                          &caret_x, &caret_y));
+        assert(wm_font_text_layout_hit_caret(layout, caret_x, caret_y - 2,
+                                             &caret_byte));
+        assert(caret_byte == boundaries[index]);
+    }
+    assert(!wm_font_text_layout_hit_caret(layout, NAN, 0, &caret_byte));
     wm_font_text_layout_destroy(layout);
     wm_font_destroy(font);
 

@@ -818,14 +818,88 @@ static void check_preview_banner_fades(const char *assets) {
             previous = alpha;
         }
     }
+    /* A delayed first presentation must still use Shop's authored frame
+     * zero. The following update advances from that visible origin, and
+     * repeated rendering of one update must not advance the opening. */
+    menu.screen = WM_SCREEN_GRID;
+    menu.selected = -1;
+    assert(wm_menu_select(&menu, 2));
+    uint32_t shop_texture;
+    assert(wm_texture_cache_resolve(textures, textures_to_probe[1],
+                                    &shop_texture));
+    float shop_start = rendered_banner_alpha(scene, &menu, false,
+                                              shop_texture, 5, true);
+    assert(fabsf(shop_start - 0.5f) < 0.015f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
+                                       17, true) - shop_start) < 0.015f);
+    wm_menu_tick(&menu, 28.0f / 60.0f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
+                                       5, false) - shop_start) < 0.015f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
+                                       5, false) - shop_start) < 0.015f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
+                                       6, false) -
+                 (0.5f + 1.0f / 60.0f)) < 0.005f);
+    /* The application still announces the settled entry when every zoom
+     * draw was skipped. Reopening the same channel cannot rely on slot or
+     * time moving backwards to detect its new clock. */
+    wm_preview_scene_set_module_lead(scene, 0.0f);
+    (void)rendered_banner_alpha(scene, &menu, false, shop_texture, 1, false);
+    (void)rendered_banner_alpha(scene, &menu, false, shop_texture, 2, false);
+    menu.screen = WM_SCREEN_GRID;
+    menu.selected = -1;
+    assert(wm_menu_select(&menu, 2));
+    wm_menu_tick(&menu, 28.0f / 60.0f);
+    wm_preview_scene_set_module_lead(scene, 0.0f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
+                                       5, false) - shop_start) < 0.015f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
+                                       6, false) -
+                 (0.5f + 1.0f / 60.0f)) < 0.005f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
+                                       10, false) -
+                 (0.5f + 5.0f / 60.0f)) < 0.005f);
+    assert(wm_menu_change_preview(&menu, -1));
+    wm_menu_tick(&menu, 20.0f / 60.0f);
+    uint32_t photo_texture;
+    assert(wm_texture_cache_resolve(textures, textures_to_probe[0],
+                                    &photo_texture));
+    (void)rendered_banner_alpha(scene, &menu, true, photo_texture, 0, false);
+    assert(wm_menu_change_preview(&menu, 1));
+    /* The first draw of the incoming Shop may arrive halfway through the
+     * replacement window, with the old preview's clock still far ahead. */
+    wm_menu_tick(&menu, 15.0f / 60.0f);
+    wm_preview_scene_set_module_lead(scene, 10.0f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
+                                       99, false) - shop_start) < 0.015f);
+    wm_menu_tick(&menu, 5.0f / 60.0f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
+                                       5, false) - shop_start) < 0.015f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
+                                       6, false) -
+                 (0.5f + 1.0f / 60.0f)) < 0.005f);
+    menu.screen = WM_SCREEN_GRID;
+    menu.selected = -1;
+    assert(wm_menu_select(&menu, 1));
+    (void)rendered_banner_alpha(scene, &menu, true, photo_texture, 0, true);
+    wm_menu_tick(&menu, 28.0f / 60.0f);
+    (void)rendered_banner_alpha(scene, &menu, true, photo_texture, 0, false);
+    menu.screen = WM_SCREEN_GRID;
+    menu.selected = -1;
+    assert(wm_menu_select(&menu, 2));
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
+                                       5, true) - shop_start) < 0.015f);
+    wm_menu_tick(&menu, 28.0f / 60.0f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
+                                       5, false) - shop_start) < 0.015f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
+                                       6, false) -
+                 (0.5f + 1.0f / 60.0f)) < 0.005f);
     /* On a preview swap the module clock leads by ten frames while Shop's
      * base Start clock still begins at zero. Photo's Rso0 fade follows the
      * module clock, so its first swapped frame is already partly opaque. */
     wm_preview_scene_set_module_lead(scene, 10.0f);
     menu.selected = 1;
-    uint32_t photo_texture;
-    assert(wm_texture_cache_resolve(textures, textures_to_probe[0],
-                                    &photo_texture));
     assert(fabsf(rendered_banner_alpha(scene, &menu, true, photo_texture, 0,
                                        false) -
                  0.15625f) < 0.015f);

@@ -478,6 +478,69 @@ static void test_restart_reset(WmSdScene *scene) {
     assert(wm_sd_scene_phase(scene) == WM_SD_ACTIVE);
 }
 
+static unsigned take_arrow_hover_events(WmSdScene *scene,
+                                         WmSdControl control) {
+    unsigned count = 0;
+    WmSdEvent event;
+    while (wm_sd_scene_take_event(scene, &event)) {
+        if (event.type != WM_SD_EVENT_HOVER_SOUND) continue;
+        assert(event.control == control);
+        count++;
+    }
+    return count;
+}
+
+static void test_unified_arrow_hover(WmSdScene *scene) {
+    const WmSdControl controls[] = {
+        WM_SD_CONTROL_PREVIOUS,
+        WM_SD_CONTROL_NEXT
+    };
+    const int pointer_x[] = {20, 615};
+    for (unsigned side = 0; side < 2; side++) {
+        assert(wm_sd_scene_open(scene, 10, true, WM_SD_MEDIA_READY));
+        /* The retained synthetic channel mapping includes the source scan
+         * interval before footer interaction becomes available. */
+        wm_sd_scene_advance(scene, 109.0f, false);
+        assert(!wm_sd_scene_is_locked(scene));
+        assert(take_arrow_hover_events(scene, controls[side]) == 0);
+        int first_y = -1;
+        int last_y = -1;
+        for (int y = 0; y < 360; y++) {
+            if (wm_sd_scene_hit(scene, pointer_x[side], y).control !=
+                controls[side]) continue;
+            if (first_y < 0) first_y = y;
+            last_y = y;
+        }
+        assert(first_y >= 0 && last_y - first_y > 20);
+        unsigned hover_count = 0;
+        /* Traversing both the top and bottom portions enters one complete
+         * arrow. Its animated pane cannot split ownership into new cues. */
+        for (int y = first_y + 4; y <= last_y - 4; y++) {
+            WmSdHit hit = wm_sd_scene_hit(scene, pointer_x[side], y);
+            assert(hit.control == controls[side]);
+            wm_sd_scene_hover(scene, hit);
+            hover_count += take_arrow_hover_events(scene, controls[side]);
+            wm_sd_scene_advance(scene, 1.0f, false);
+        }
+        assert(hover_count == 1);
+        int center_y = (first_y + last_y) / 2;
+        assert(wm_sd_scene_activate(scene,
+            (WmSdHit){controls[side], 0}));
+        for (unsigned frame = 0; frame < 40; frame++) {
+            wm_sd_scene_advance(scene, 1.0f, false);
+            WmSdHit hit = wm_sd_scene_hit(scene, pointer_x[side], center_y);
+            assert(hit.control == controls[side]);
+            wm_sd_scene_hover(scene, hit);
+            hover_count += take_arrow_hover_events(scene, controls[side]);
+        }
+        assert(hover_count == 1);
+        wm_sd_scene_hover(scene, (WmSdHit){WM_SD_CONTROL_NONE, 0});
+        wm_sd_scene_hover(scene,
+            wm_sd_scene_hit(scene, pointer_x[side], center_y));
+        assert(take_arrow_hover_events(scene, controls[side]) == 1);
+    }
+}
+
 static void test_source_draw_transitions(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     WmPlatform *platform = (WmPlatform *)1;
@@ -656,6 +719,7 @@ int main(int argc, char **argv) {
     test_welcome_and_help(scene);
     test_channel_mapping(scene);
     test_restart_reset(scene);
+    test_unified_arrow_hover(scene);
     wm_sd_scene_destroy(scene);
     test_source_draw_transitions(argc, argv);
     test_footer_balloon_handoff(argc, argv);

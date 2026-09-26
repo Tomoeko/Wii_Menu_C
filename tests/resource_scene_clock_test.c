@@ -63,6 +63,21 @@ static unsigned clock_colon_count;
 static bool capture_clock_colon;
 static bool capture_date_glyphs;
 static DateGlyphBounds date_glyphs;
+static uint32_t board_mask_texture;
+static unsigned draw_sequence;
+static unsigned last_date_sequence;
+static unsigned board_mask_sequence;
+static bool date_font_textures[MAX_TEST_TEXTURES];
+static bool restrict_date_font;
+static uint32_t memo_sheet_texture;
+static unsigned first_memo_sequence;
+static unsigned memo_sheet_draws;
+
+static void capture_memo_sheet(uint32_t texture) {
+    if (!capture_date_glyphs || texture != memo_sheet_texture) return;
+    if (first_memo_sequence == 0) first_memo_sequence = draw_sequence;
+    memo_sheet_draws++;
+}
 
 void wm_platform_begin(WmPlatform *platform, WmColor clear_color) {
     (void)platform;
@@ -80,7 +95,11 @@ void wm_platform_set_clip(WmPlatform *platform, const WmClipRect *clip) {
 
 void wm_platform_draw_quad(WmPlatform *platform, const WmQuad *quad) {
     (void)platform;
-    (void)quad;
+    draw_sequence++;
+    capture_memo_sheet(quad->texture);
+    if (capture_date_glyphs && quad->texture == board_mask_texture &&
+        quad->color.a > 0.0f)
+        board_mask_sequence = draw_sequence;
 }
 
 void wm_platform_draw_vertices(WmPlatform *platform,
@@ -88,10 +107,15 @@ void wm_platform_draw_vertices(WmPlatform *platform,
                                uint32_t texture) {
     (void)platform;
     (void)texture;
+    draw_sequence++;
     if (!capture_date_glyphs || vertices[0].x < 200.0f ||
         vertices[0].x > 440.0f || vertices[0].y < 380.0f ||
         vertices[0].y > 420.0f) return;
+    assert(texture < MAX_TEST_TEXTURES);
+    if (restrict_date_font && !date_font_textures[texture]) return;
+    date_font_textures[texture] = true;
     date_glyphs.count++;
+    last_date_sequence = draw_sequence;
     for (size_t index = 0; index < 4; index++) {
         date_glyphs.left = fminf(date_glyphs.left, vertices[index].x);
         date_glyphs.top = fminf(date_glyphs.top, vertices[index].y);
@@ -109,6 +133,12 @@ void wm_platform_prepare_material(WmPlatform *platform,
 void wm_platform_draw_material_quad(WmPlatform *platform,
                                     const WmMaterialQuad *quad) {
     (void)platform;
+    draw_sequence++;
+    if (quad->texture_count > 0) capture_memo_sheet(quad->textures[0]);
+    if (capture_date_glyphs && quad->texture_count > 0 &&
+        quad->textures[0] == board_mask_texture &&
+        quad->vertices[0].color.a > 0.0f)
+        board_mask_sequence = draw_sequence;
     const float x = quad->vertices[0].x;
     const float y = quad->vertices[0].y;
     const float width = quad->vertices[1].x - x;
@@ -311,6 +341,11 @@ static float trace_overlay_clock_y(WmResourceScene *scene,
 }
 
 static void begin_date_capture(void) {
+    draw_sequence = 0;
+    last_date_sequence = 0;
+    board_mask_sequence = 0;
+    first_memo_sequence = 0;
+    memo_sheet_draws = 0;
     date_glyphs = (DateGlyphBounds){
         .left = INFINITY,
         .top = INFINITY,
@@ -336,6 +371,22 @@ static void assert_board_date_matches(WmBoardScene *board,
     wm_board_scene_draw_footer(board);
     capture_date_glyphs = false;
     assert_same_date_bounds(&date_glyphs, grid_date);
+}
+
+static void assert_compose_date_background(WmBoardScene *board,
+                                           const DateGlyphBounds *grid_date,
+                                           bool mask_visible) {
+    begin_date_capture();
+    wm_board_scene_draw_body(board);
+    unsigned body_date_count = date_glyphs.count;
+    wm_board_scene_draw_footer(board);
+    capture_date_glyphs = false;
+    assert_same_date_bounds(&date_glyphs, grid_date);
+    assert(body_date_count == date_glyphs.count);
+    if (mask_visible) {
+        assert(board_mask_sequence > 0);
+        assert(last_date_sequence < board_mask_sequence);
+    }
 }
 
 int main(int argc, char **argv) {
@@ -393,6 +444,9 @@ int main(int argc, char **argv) {
     capture_date_glyphs = false;
     DateGlyphBounds grid_date = date_glyphs;
     assert(grid_date.count > 0);
+    /* The keyboard uses a different font atlas and can draw labels in this
+     * same rectangle. Keep date checks scoped to the settled date's font. */
+    restrict_date_font = true;
     draw_overlay_and_capture(scene, &menu, 70.0f, 7.0f,
                              CLOCK_IMAGE_COUNT,
                              board_enter);
@@ -509,6 +563,8 @@ int main(int argc, char **argv) {
     };
     WmBoardScene *board = wm_board_scene_create(
         platform, assets, textures, fonts);
+    assert(wm_texture_cache_resolve(textures,
+        "textures/board/my_Mask_a.png", &board_mask_texture));
     assert(board && wm_board_scene_open(board, today));
     assert_board_date_matches(board, &grid_date);
     wm_board_scene_advance(board, 19.0f);
@@ -522,7 +578,117 @@ int main(int argc, char **argv) {
     assert_board_date_matches(board, &grid_date);
     wm_board_scene_advance(board, 20.0f);
     assert_board_date_matches(board, &grid_date);
+    wm_board_scene_advance(board, 1.0f);
+    assert(wm_board_scene_phase(board) == WM_BOARD_CLOSED);
+
+    const WmBoardControl return_cases[] = {
+        WM_BOARD_CONTROL_NEXT,
+        WM_BOARD_CONTROL_PREVIOUS
+    };
+    for (size_t direction = 0; direction < 2; direction++) {
+        for (unsigned days = 1; days <= 2; days++) {
+            assert(wm_board_scene_open(board, today));
+            wm_board_scene_advance(board, 40.0f);
+            for (unsigned day = 0; day < days; day++) {
+                assert(wm_board_scene_activate(board,
+                    (WmBoardHit){return_cases[direction], SIZE_MAX}));
+                wm_board_scene_advance(board, 20.0f);
+            }
+            assert(wm_board_scene_back(board));
+            wm_board_scene_advance(board, 20.0f);
+            /* The entering date has landed while the footer/grid return
+             * continues. Its glyphs must stay at the menu's settled position
+             * through every remaining frame, for either page direction. */
+            for (unsigned frame = 20; frame < 40; frame++) {
+                assert_board_date_matches(board, &grid_date);
+                wm_board_scene_advance(board, 1.0f);
+            }
+            assert(wm_board_scene_phase(board) == WM_BOARD_CLOSED);
+        }
+    }
+    assert(wm_board_scene_open(board, today));
+    wm_board_scene_advance(board, 40.0f);
+    assert(wm_board_scene_activate(board,
+        (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
+    /* The date stays with the background cards under the child shade,
+     * exactly once throughout selector entrance and return. */
+    for (unsigned frame = 0; frame <= 39; frame++) {
+        assert_compose_date_background(board, &grid_date, frame >= 20);
+        wm_board_scene_advance(board, 1.0f);
+    }
+    assert(wm_board_scene_back(board));
+    for (unsigned frame = 0; frame <= 46; frame++) {
+        assert_board_date_matches(board, &grid_date);
+        wm_board_scene_advance(board, 1.0f);
+    }
+    assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
+    /* Child closure starts a separate 20-frame shade fade. The date must
+     * remain underneath it with the cards until the shade is gone. */
+    for (unsigned frame = 0; frame < 19; frame++) {
+        assert_compose_date_background(board, &grid_date, true);
+        wm_board_scene_advance(board, 1.0f);
+    }
+    wm_board_scene_advance(board, 1.0f);
+    assert_board_date_matches(board, &grid_date);
     wm_board_scene_destroy(board);
+
+    board = wm_board_scene_create(platform, assets, textures, fonts);
+    WmBoardMemo dragged = {
+        .id = "date-drag", .text = "Drag", .date = today,
+        .has_position = true, .x = 0.0f, .y = 53.0f
+    };
+    assert(board && wm_board_scene_set_memos(board, &dragged, 1));
+    assert(wm_texture_cache_resolve(textures,
+        "textures/board/my_LetterS_a.png", &memo_sheet_texture));
+    assert(wm_board_scene_open(board, today));
+    wm_board_scene_advance(board, 51.0f);
+    assert_board_date_matches(board, &grid_date);
+    unsigned settled_sheet_draws = memo_sheet_draws;
+    assert(settled_sheet_draws > 0);
+    assert(wm_board_scene_pointer_down(board,
+        (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}, 320, 180));
+    assert(wm_board_scene_pointer_move(board, 320, 410));
+    assert_board_date_matches(board, &grid_date);
+    assert(first_memo_sequence > last_date_sequence);
+    assert(memo_sheet_draws == settled_sheet_draws);
+    assert(wm_board_scene_pointer_up(board, 320, 410));
+    assert_board_date_matches(board, &grid_date);
+    wm_board_scene_destroy(board);
+
+    const WmBoardControl choices[] = {
+        WM_BOARD_CONTROL_COMPOSE_MEMO,
+        WM_BOARD_CONTROL_COMPOSE_LETTER,
+        WM_BOARD_CONTROL_COMPOSE_ADDRESS
+    };
+    for (size_t choice = 0; choice < sizeof(choices) / sizeof(choices[0]);
+         choice++) {
+        board = wm_board_scene_create(platform, assets, textures, fonts);
+        assert(board && wm_board_scene_open(board, today));
+        wm_board_scene_advance(board, 40.0f);
+        assert(wm_board_scene_activate(board,
+            (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
+        wm_board_scene_advance(board, 40.0f);
+        assert(wm_board_scene_activate(board,
+            (WmBoardHit){choices[choice], SIZE_MAX}));
+        for (unsigned frame = 0; frame <= 75; frame++) {
+            assert_compose_date_background(board, &grid_date, true);
+            wm_board_scene_advance(board, 1.0f);
+        }
+        if (choices[choice] == WM_BOARD_CONTROL_COMPOSE_MEMO) {
+            assert(wm_board_scene_activate(board,
+                (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_EDIT, SIZE_MAX}));
+            for (unsigned frame = 0; frame <= 30; frame++) {
+                assert_compose_date_background(board, &grid_date, true);
+                wm_board_scene_advance(board, 1.0f);
+            }
+            assert(wm_board_scene_finish_edit(board));
+            for (unsigned frame = 0; frame <= 30; frame++) {
+                assert_compose_date_background(board, &grid_date, true);
+                wm_board_scene_advance(board, 1.0f);
+            }
+        }
+        wm_board_scene_destroy(board);
+    }
 
     wm_resource_scene_destroy(scene);
     wm_texture_cache_destroy(textures);

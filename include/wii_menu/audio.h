@@ -12,8 +12,11 @@ typedef struct WmAudio WmAudio;
 WmAudio *wm_audio_create(const char *assets_directory);
 void wm_audio_destroy(WmAudio *audio);
 
-/* Event symbols follow the HTML controller's local audio catalog. */
+/* Event symbols resolve through the prepared local audio catalog. */
 bool wm_audio_play(WmAudio *audio, const char *name);
+/* Give one new effect voice its own stereo position: -1 left, 0 center,
+ * 1 right. Existing voices of the same cue keep their positions. */
+bool wm_audio_play_panned(WmAudio *audio, const char *name, float pan);
 bool wm_audio_start_loop(WmAudio *audio, const char *name);
 void wm_audio_stop_loop(WmAudio *audio, const char *name);
 void wm_audio_set_loop(WmAudio *audio, const char *name,

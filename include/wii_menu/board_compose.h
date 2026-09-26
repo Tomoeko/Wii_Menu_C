@@ -69,7 +69,8 @@ typedef enum WmBoardComposeOutcome {
     WM_COMPOSE_OUTCOME_NONE,
     WM_COMPOSE_OUTCOME_CLOSED,
     WM_COMPOSE_OUTCOME_POSTED,
-    WM_COMPOSE_OUTCOME_OPEN_SETTINGS
+    WM_COMPOSE_OUTCOME_OPEN_SETTINGS,
+    WM_COMPOSE_OUTCOME_OPEN_CONNECT24_SETTINGS
 } WmBoardComposeOutcome;
 
 WmBoardCompose *wm_board_compose_create(WmPlatform *platform,
@@ -84,17 +85,25 @@ void wm_board_compose_reset(WmBoardCompose *compose);
 bool wm_board_compose_open(WmBoardCompose *compose);
 void wm_board_compose_advance(WmBoardCompose *compose, float frames);
 WmBoardComposePhase wm_board_compose_phase(const WmBoardCompose *compose);
+float wm_board_compose_phase_frame(const WmBoardCompose *compose);
+/* Remaining frames in the current timed phase; zero for a stable phase. */
+float wm_board_compose_frames_to_boundary(const WmBoardCompose *compose);
 WmBoardComposeOutcome wm_board_compose_take_outcome(WmBoardCompose *compose);
 const char *wm_board_compose_take_key_cue(WmBoardCompose *compose);
 bool wm_board_compose_keyboard_overlay_visible(
     const WmBoardCompose *compose);
 const char *wm_board_compose_text(const WmBoardCompose *compose);
+/* The retired-service substitute's current modal text; NULL when closed. */
+const char *wm_board_compose_network_message(const WmBoardCompose *compose);
 /* Phone Space remains a literal space in the draft and is shown as U+2423
  * only until pointer departure commits that key's cycle. */
 const char *wm_board_compose_display_text(WmBoardCompose *compose);
 void wm_board_compose_draw(WmBoardCompose *compose);
 WmBoardComposeControl wm_board_compose_hit(WmBoardCompose *compose,
                                            int x, int y);
+/* Text hits retain a UTF-8 insertion boundary until EDIT activation. Pointer
+ * motion alone never changes the draft or its current insertion point. */
+size_t wm_board_compose_caret(const WmBoardCompose *compose);
 void wm_board_compose_hover(WmBoardCompose *compose,
                             WmBoardComposeControl control);
 bool wm_board_compose_activate(WmBoardCompose *compose,

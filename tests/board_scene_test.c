@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 static bool capture_text_draws;
@@ -130,6 +131,12 @@ static WmBoardScene *load_board(int argc, char **argv) {
     return board;
 }
 
+static void settle_initial_memos(WmBoardScene *board) {
+    wm_board_scene_advance(board, 110.0f);
+    WmBoardSoundEvent event;
+    while (wm_board_scene_take_sound_event(board, &event)) {}
+}
+
 static void test_home_badge_midnight_refresh(int argc, char **argv) {
     WmBoardScene *board = load_board(argc, argv);
     assert(board);
@@ -161,6 +168,7 @@ static void test_home_badge_midnight_refresh(int argc, char **argv) {
 
     assert(wm_board_scene_open(board, current_day));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     assert(wm_board_scene_phase(board) == WM_BOARD_READY);
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_NEXT, SIZE_MAX}));
@@ -210,6 +218,7 @@ static void test_state(WmBoardScene *board) {
     assert(!wm_board_scene_grid_overlay(board, &grid_frame));
     wm_board_scene_advance(board, 20.0f);
     assert(wm_board_scene_phase(board) == WM_BOARD_READY);
+    settle_initial_memos(board);
     assert(wm_board_scene_hit(board, 582, 380).control ==
            WM_BOARD_CONTROL_BACK);
     assert(wm_board_scene_hit(board, 55, 380).control ==
@@ -264,6 +273,7 @@ static void test_state(WmBoardScene *board) {
 
     assert(wm_board_scene_open(board, (WmBoardDate){2026, 9, 25}));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
     assert(wm_board_scene_child(board) == WM_BOARD_CHILD_COMPOSE);
@@ -676,6 +686,7 @@ static void test_board_network_settings_action(int argc, char **argv) {
     assert(board);
     assert(wm_board_scene_open(board, (WmBoardDate){2026, 9, 25}));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
     wm_board_scene_advance(board, 39.0f);
@@ -1383,6 +1394,7 @@ static void test_board_arrow_return_from_create(int argc, char **argv) {
     assert(board);
     assert(wm_board_scene_open(board, (WmBoardDate){2026, 9, 25}));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     (void)wm_board_scene_hit(board, 320, 200);
     float settled_left = 0.0f;
     float settled_right = 0.0f;
@@ -1423,6 +1435,7 @@ static void test_child_return_retires_footer_focus(int argc, char **argv) {
     assert(board);
     assert(wm_board_scene_open(board, (WmBoardDate){2026, 9, 25}));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
 
     const WmBoardControl children[] = {
         WM_BOARD_CONTROL_CALENDAR, WM_BOARD_CONTROL_CREATE
@@ -1492,6 +1505,7 @@ static void test_memo_erase(int argc, char **argv) {
     assert(wm_board_scene_set_memos(board, &memo, 1));
     assert(wm_board_scene_open(board, memo.date));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     assert(wm_board_scene_today_unread_count(board) == 1);
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
@@ -1591,6 +1605,7 @@ static void test_reader_text_draw(int argc, char **argv) {
     assert(wm_board_scene_set_memos(board, &memo, 1));
     assert(wm_board_scene_open(board, memo.date));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     float left_ready = 0.0f;
     float right_ready = 0.0f;
     float unused_y = 0.0f;
@@ -1824,6 +1839,7 @@ static void test_memo_drag(int argc, char **argv) {
     assert(wm_board_scene_set_memos(board, &memo, 1));
     assert(wm_board_scene_open(board, memo.date));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     assert(wm_board_scene_phase(board) == WM_BOARD_READY);
 
     WmBoardHit card = {WM_BOARD_CONTROL_MEMO, 0};
@@ -1912,6 +1928,7 @@ static void test_memo_card_order(int argc, char **argv) {
     assert(wm_board_scene_set_memos(board, memos, 2));
     assert(wm_board_scene_open(board, memos[0].date));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     WmBoardHit hit = wm_board_scene_hit(board, 320, 175);
     assert(hit.control == WM_BOARD_CONTROL_MEMO && hit.memo_index == 1);
     wm_board_scene_hover(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0});
@@ -1933,6 +1950,7 @@ static void test_memo_reader_scroll_and_reset(int argc, char **argv) {
     assert(wm_board_scene_set_memos(board, &memo, 1));
     assert(wm_board_scene_open(board, memo.date));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
     wm_board_scene_advance(board, 26.0f);
@@ -1967,6 +1985,7 @@ static void test_memo_reader_scroll_and_reset(int argc, char **argv) {
     assert(!wm_board_scene_reader_scroll_sound_active(board));
     assert(wm_board_scene_open(board, memo.date));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_CALENDAR, SIZE_MAX}));
     assert(wm_board_scene_child(board) == WM_BOARD_CHILD_CALENDAR);
@@ -1974,6 +1993,7 @@ static void test_memo_reader_scroll_and_reset(int argc, char **argv) {
     assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
     assert(wm_board_scene_open(board, memo.date));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
     assert(wm_board_scene_child(board) == WM_BOARD_CHILD_COMPOSE);
@@ -1981,6 +2001,7 @@ static void test_memo_reader_scroll_and_reset(int argc, char **argv) {
     assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
     assert(wm_board_scene_open(board, memo.date));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
     wm_board_scene_advance(board, 26.0f);
@@ -2007,6 +2028,7 @@ static void test_reader_arrow_exit_timing(int argc, char **argv) {
     assert(wm_board_scene_set_memos(board, &memo, 1));
     assert(wm_board_scene_open(board, memo.date));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
     wm_board_scene_advance(board, 26.0f);
@@ -2070,6 +2092,7 @@ static void test_reader_back_hover_retired(int argc, char **argv) {
     assert(wm_board_scene_set_memos(board, &memo, 1));
     assert(wm_board_scene_open(board, memo.date));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     int board_back_x = 0;
     int board_back_y = 0;
     assert(find_board_control_point(board, WM_BOARD_CONTROL_BACK,
@@ -2191,6 +2214,7 @@ static void test_reader_arrow_hover_stability(int argc, char **argv) {
     assert(wm_board_scene_set_memos(board, &memo, 1));
     assert(wm_board_scene_open(board, memo.date));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
     wm_board_scene_advance(board, 26.0f);
@@ -2229,6 +2253,60 @@ static void test_reader_arrow_hover_stability(int argc, char **argv) {
     wm_board_scene_destroy(board);
 }
 
+static void test_page_arrow_focus_during_turns(int argc, char **argv) {
+    WmBoardScene *board = load_board(argc, argv);
+    assert(board);
+    WmBoardMemo memos[11] = {0};
+    char ids[11][16];
+    const WmBoardDate today = {2026, 9, 26};
+    for (size_t index = 0; index < 11; index++) {
+        snprintf(ids[index], sizeof(ids[index]), "arrow-memo-%zu", index);
+        memos[index] = (WmBoardMemo){
+            .id = ids[index], .text = "Memo", .date = today
+        };
+    }
+    assert(wm_board_scene_set_memos(board, memos, 11));
+    assert(wm_board_scene_open(board, today));
+    wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
+    WmBoardHit left = wm_board_scene_hit(board, 20, 175);
+    assert(left.control == WM_BOARD_CONTROL_PREVIOUS);
+    wm_board_scene_hover(board, left);
+    assert(wm_board_scene_activate(board, left));
+    assert(wm_board_scene_phase(board) == WM_BOARD_MEMO_PAGE);
+    for (unsigned frame = 0; frame < 15; frame++) {
+        WmBoardHit held = wm_board_scene_hit(board, 20, 175);
+        assert(held.control == WM_BOARD_CONTROL_PREVIOUS);
+        wm_board_scene_hover(board, held);
+        assert(!wm_board_scene_activate(board, held));
+        assert(wm_board_scene_hit(board, 582, 380).control ==
+               WM_BOARD_CONTROL_NONE);
+        wm_board_scene_advance(board, 1.0f);
+    }
+    assert(wm_board_scene_phase(board) == WM_BOARD_READY);
+    assert(wm_board_scene_activate(board, left));
+    assert(wm_board_scene_phase(board) == WM_BOARD_DATE_SCROLL);
+    for (unsigned frame = 0; frame < 20; frame++) {
+        WmBoardHit held = wm_board_scene_hit(board, 20, 175);
+        assert(held.control == WM_BOARD_CONTROL_PREVIOUS);
+        wm_board_scene_hover(board, held);
+        assert(!wm_board_scene_activate(board, held));
+        /* Moving off the arrow during the turn retires its focus; the next
+         * update can enter either complete arrow without unlocking buttons. */
+        if (frame == 10) {
+            WmBoardHit none = wm_board_scene_hit(board, 320, 100);
+            assert(none.control == WM_BOARD_CONTROL_NONE);
+            wm_board_scene_hover(board, none);
+            WmBoardHit right = wm_board_scene_hit(board, 615, 175);
+            assert(right.control == WM_BOARD_CONTROL_NEXT);
+            wm_board_scene_hover(board, right);
+        }
+        wm_board_scene_advance(board, 1.0f);
+    }
+    assert(wm_board_scene_phase(board) == WM_BOARD_READY);
+    wm_board_scene_destroy(board);
+}
+
 static void test_return_to_today(int argc, char **argv) {
     WmBoardScene *board = load_board(argc, argv);
     assert(board);
@@ -2243,6 +2321,7 @@ static void test_return_to_today(int argc, char **argv) {
     for (size_t index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
         assert(wm_board_scene_open(board, today));
         wm_board_scene_advance(board, 40.0f);
+        settle_initial_memos(board);
         for (int day = 0; day < 2; day++) {
             assert(wm_board_scene_activate(board,
                 (WmBoardHit){cases[index].arrow, SIZE_MAX}));
@@ -2320,6 +2399,7 @@ static void test_parked_memos(int argc, char **argv) {
     assert(wm_board_scene_parked_memo_presentation(board, today,
                                                     cards) == 0);
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
     wm_board_scene_advance(board, 20.0f);
@@ -2371,6 +2451,7 @@ static void test_memo_creation_order(int argc, char **argv) {
 
     assert(wm_board_scene_open(board, date));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     count = wm_board_scene_memo_presentation(board, cards);
     assert(count == 10);
     for (size_t position = 0; position < 10; position++) {
@@ -2380,14 +2461,271 @@ static void test_memo_creation_order(int argc, char **argv) {
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
     count = wm_board_scene_memo_presentation(board, cards);
-    assert(count == 12);
-    assert(cards[10].memo_index == 0 && cards[10].entering);
-    assert(cards[11].memo_index == 1 && cards[11].entering);
+    assert(count == 10);
     wm_board_scene_advance(board, 15.0f);
+    count = wm_board_scene_memo_presentation(board, cards);
+    assert(count == 1 && cards[0].memo_index == 0 &&
+           cards[0].paste_frame == 0.0f);
+    wm_board_scene_advance(board, 11.0f);
     count = wm_board_scene_memo_presentation(board, cards);
     assert(count == 2);
     assert(cards[0].memo_index == 0 && cards[1].memo_index == 1);
     wm_board_scene_destroy(board);
+}
+
+static bool board_dates_equal(WmBoardDate left, WmBoardDate right) {
+    return left.year == right.year && left.month == right.month &&
+           left.day == right.day;
+}
+
+static void select_board_calendar_date(WmBoardScene *board, WmBoardDate target) {
+    WmBoardDate current = wm_board_scene_date(board);
+    assert(wm_board_scene_activate(board,
+        (WmBoardHit){WM_BOARD_CONTROL_CALENDAR, SIZE_MAX}));
+    wm_board_scene_advance(board, 50.0f);
+    int month_delta = (target.year - current.year) * 12 +
+                      target.month - current.month;
+    while (month_delta != 0) {
+        bool previous = month_delta < 0;
+        assert(wm_board_scene_activate(board, (WmBoardHit){
+            previous ? WM_BOARD_CONTROL_CALENDAR_PREVIOUS :
+                       WM_BOARD_CONTROL_CALENDAR_NEXT, SIZE_MAX
+        }));
+        wm_board_scene_advance(board, 30.0f);
+        month_delta += previous ? 1 : -1;
+    }
+    struct tm first = {
+        .tm_year = target.year - 1900, .tm_mon = target.month - 1,
+        .tm_mday = 1, .tm_hour = 12, .tm_isdst = -1
+    };
+    assert(mktime(&first) != (time_t)-1);
+    size_t cell = (size_t)first.tm_wday + (size_t)target.day - 1;
+    assert(wm_board_scene_activate(board,
+        (WmBoardHit){WM_BOARD_CONTROL_CALENDAR_DAY, cell}));
+}
+
+static void test_calendar_date_transition(int argc, char **argv) {
+    const WmBoardDate current = {2026, 9, 25};
+    const WmBoardDate targets[] = {{2027, 1, 17}, {2025, 8, 2}, current};
+    for (size_t index = 0; index < sizeof(targets) / sizeof(targets[0]); index++) {
+        for (unsigned batched = 0; batched < 2; batched++) {
+            WmBoardScene *board = load_board(argc, argv);
+            WmBoardMemo memos[2] = {
+                {.id = "current", .text = "Current", .date = current,
+                 .has_position = true, .x = -210.0f, .y = -60.0f},
+                {.id = "target", .text = "Target", .date = targets[index],
+                 .has_position = true, .x = 210.0f, .y = 170.0f}
+            };
+            bool equal = board_dates_equal(current, targets[index]);
+            assert(board && wm_board_scene_set_memos(board, memos, equal ? 1 : 2));
+            assert(wm_board_scene_open(board, current));
+            wm_board_scene_advance(board, 40.0f);
+            settle_initial_memos(board);
+            select_board_calendar_date(board, targets[index]);
+            if (batched) wm_board_scene_advance(board, 85.0f);
+            else {
+                wm_board_scene_advance(board, 30.0f);
+                wm_board_scene_advance(board, 50.0f);
+            }
+            assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
+            WmBoardSoundEvent event;
+            if (equal) {
+                assert(wm_board_scene_phase(board) == WM_BOARD_READY);
+                assert(!wm_board_scene_take_sound_event(board, &event));
+            } else {
+                assert(wm_board_scene_phase(board) == WM_BOARD_DATE_SCROLL);
+                assert(board_dates_equal(wm_board_scene_date(board), current));
+                assert(wm_board_scene_take_sound_event(board, &event));
+                assert(strcmp(event.cue, "page") == 0);
+                assert(wm_board_scene_take_sound_event(board, &event));
+                assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
+                       event.memo_index == 1);
+                assert(!wm_board_scene_take_sound_event(board, &event));
+                WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
+                size_t count = wm_board_scene_memo_presentation(board, cards);
+                const WmBoardMemoPresentation *incoming = find_presented_memo(
+                    cards, count, 1);
+                assert(count == 2 && incoming && incoming->entering);
+                assert(incoming->paste_frame == (batched ? 5.0f : 0.0f) &&
+                       incoming->pin_frame == (batched ? 5.0f : 0.0f));
+                if (!batched) {
+                    float offset = index == 0 ? 832.0f : -832.0f;
+                    assert(fabsf(incoming->x -
+                        (memos[1].x * 832.0f / 608.0f + offset)) < 0.01f);
+                }
+                wm_board_scene_advance(board, batched ? 15.0f : 20.0f);
+            }
+            assert(wm_board_scene_phase(board) == WM_BOARD_READY);
+            assert(board_dates_equal(wm_board_scene_date(board), targets[index]));
+            wm_board_scene_advance(board, 40.0f);
+            assert(wm_board_scene_phase(board) == WM_BOARD_READY &&
+                   board_dates_equal(wm_board_scene_date(board), targets[index]));
+            assert(!wm_board_scene_take_sound_event(board, &event));
+            wm_board_scene_destroy(board);
+        }
+    }
+}
+
+static void test_return_arrival_transition(int argc, char **argv) {
+    const WmBoardDate today = {2026, 9, 25};
+    const WmBoardDate selected[] = {{2026, 10, 20}, {2026, 8, 4}};
+    for (size_t case_index = 0; case_index < 2; case_index++) {
+        WmBoardScene *board = load_board(argc, argv);
+        WmBoardMemo memos[11] = {0};
+        char ids[11][16];
+        for (size_t index = 0; index < 11; index++) {
+            snprintf(ids[index], sizeof(ids[index]), "return-%zu", index);
+            memos[index] = (WmBoardMemo){
+                .id = ids[index], .text = "Memo",
+                .date = index < 10 ? today : selected[case_index],
+                .has_position = true, .x = (float)index * 10.0f, .y = 53.0f
+            };
+        }
+        assert(board && wm_board_scene_set_memos(board, memos, 11));
+        assert(wm_board_scene_open(board, today));
+        wm_board_scene_advance(board, 40.0f);
+        settle_initial_memos(board);
+        select_board_calendar_date(board, selected[case_index]);
+        wm_board_scene_advance(board, 100.0f);
+        WmBoardSoundEvent event;
+        while (wm_board_scene_take_sound_event(board, &event)) {}
+        assert(wm_board_scene_back(board));
+        assert(wm_board_scene_take_sound_event(board, &event));
+        assert(strcmp(event.cue, "page") == 0);
+        for (unsigned frame = 0; frame <= 110; frame++) {
+            WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
+            bool parked = frame >= 40;
+            size_t count = parked
+                ? wm_board_scene_parked_memo_presentation(board, today, cards)
+                : wm_board_scene_memo_presentation(board, cards);
+            size_t arrived = frame < 99 ? frame / 11 + 1 : 10;
+            assert(count == arrived + (parked ? 0 : 1));
+            for (size_t index = 0; index < arrived; index++) {
+                const WmBoardMemoPresentation *incoming = find_presented_memo(
+                    cards, count, index);
+                float age = (float)frame - (float)index * 11.0f;
+                assert(incoming && incoming->paste_frame == fminf(age, 10.0f) &&
+                       incoming->pin_frame == age);
+                if (frame >= 20) {
+                    assert(fabsf(incoming->x -
+                                 memos[index].x * 832.0f / 608.0f) < 0.01f);
+                }
+            }
+            if (frame % 11 == 0 && frame < 110) {
+                assert(wm_board_scene_take_sound_event(board, &event));
+                assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
+                       event.memo_index == frame / 11);
+            }
+            assert(!wm_board_scene_take_sound_event(board, &event));
+            if (frame == 40) {
+                assert(wm_board_scene_phase(board) == WM_BOARD_CLOSED &&
+                       board_dates_equal(wm_board_scene_date(board), today));
+                assert(wm_board_scene_take_action(board, NULL) ==
+                       WM_BOARD_ACTION_EXITED);
+            }
+            if (frame < 110) {
+                if (parked) wm_board_scene_advance_parked(board, 1.0f);
+                else wm_board_scene_advance(board, 1.0f);
+            }
+        }
+        assert(wm_board_scene_open(board, today));
+        wm_board_scene_advance(board, 40.0f);
+        settle_initial_memos(board);
+        assert(wm_board_scene_back(board));
+        assert(!wm_board_scene_take_sound_event(board, &event));
+        wm_board_scene_destroy(board);
+    }
+}
+
+static void test_parked_arrival_batch_clock(int argc, char **argv) {
+    const WmBoardDate today = {2026, 9, 25};
+    const WmBoardDate other = {2026, 8, 4};
+    WmBoardMemo memos[11] = {0};
+    char ids[11][16];
+    for (size_t index = 0; index < 11; index++) {
+        snprintf(ids[index], sizeof(ids[index]), "park-batch-%zu", index);
+        memos[index] = (WmBoardMemo){
+            .id = ids[index], .text = "Memo", .date = index < 10 ? today : other
+        };
+    }
+    for (unsigned batched = 0; batched < 2; batched++) {
+        WmBoardScene *board = load_board(argc, argv);
+        assert(board && wm_board_scene_set_memos(board, memos, 11));
+        assert(wm_board_scene_open(board, today));
+        wm_board_scene_advance(board, 40.0f);
+        settle_initial_memos(board);
+        select_board_calendar_date(board, other);
+        wm_board_scene_advance(board, 100.0f);
+        WmBoardSoundEvent event;
+        while (wm_board_scene_take_sound_event(board, &event)) {}
+        assert(wm_board_scene_back(board));
+        if (batched) {
+            wm_board_scene_advance(board, 40.0f);
+            wm_board_scene_advance_parked(board, 70.0f);
+        } else {
+            for (unsigned frame = 0; frame < 40; frame++)
+                wm_board_scene_advance(board, 1.0f);
+            for (unsigned frame = 0; frame < 70; frame++)
+                wm_board_scene_advance_parked(board, 1.0f);
+        }
+        assert(wm_board_scene_take_sound_event(board, &event) &&
+               strcmp(event.cue, "page") == 0);
+        for (size_t index = 0; index < 10; index++) {
+            assert(wm_board_scene_take_sound_event(board, &event) &&
+                   strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
+                   event.memo_index == index);
+        }
+        assert(!wm_board_scene_take_sound_event(board, &event));
+        WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
+        size_t count = wm_board_scene_parked_memo_presentation(board, today, cards);
+        assert(count == 10);
+        for (size_t index = 0; index < count; index++) {
+            assert(cards[index].memo_index == index &&
+                   cards[index].paste_frame == 10.0f &&
+                   cards[index].pin_frame == 110.0f - (float)index * 11.0f);
+        }
+        wm_board_scene_destroy(board);
+    }
+}
+
+static void test_initial_ordered_arrivals(int argc, char **argv) {
+    const WmBoardDate day = {2026, 9, 25};
+    const WmBoardMemo memos[] = {
+        {.id = "newest", .text = "First", .date = day, .created_at_ms = 3},
+        {.id = "oldest", .text = "Last", .date = day, .created_at_ms = 1},
+        {.id = "middle", .text = "Second", .date = day, .created_at_ms = 2}
+    };
+    const size_t order[] = {0, 2, 1};
+    for (unsigned batched = 0; batched < 2; batched++) {
+        WmBoardScene *board = load_board(argc, argv);
+        assert(board && wm_board_scene_set_memos(board, memos, 3));
+        assert(wm_board_scene_open(board, day));
+        WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
+        assert(wm_board_scene_memo_presentation(board, cards) == 0);
+        wm_board_scene_advance(board, 39.0f);
+        assert(wm_board_scene_memo_presentation(board, cards) == 0);
+        WmBoardSoundEvent event;
+        assert(!wm_board_scene_take_sound_event(board, &event));
+        if (batched) wm_board_scene_advance(board, 23.0f);
+        else for (unsigned frame = 0; frame < 23; frame++)
+            wm_board_scene_advance(board, 1.0f);
+        size_t count = wm_board_scene_memo_presentation(board, cards);
+        assert(count == 3);
+        for (size_t index = 0; index < count; index++) {
+            float age = (float)(2 - index) * 11.0f;
+            assert(cards[index].memo_index == order[index] &&
+                   cards[index].paste_frame == fminf(10.0f, age) &&
+                   cards[index].pin_frame == age);
+            assert(wm_board_scene_take_sound_event(board, &event) &&
+                   event.memo_index == order[index]);
+        }
+        assert(!wm_board_scene_take_sound_event(board, &event));
+        wm_board_scene_advance(board, 11.0f);
+        count = wm_board_scene_memo_presentation(board, cards);
+        for (size_t index = 0; index < count; index++)
+            assert(cards[index].paste_frame == 10.0f);
+        wm_board_scene_destroy(board);
+    }
 }
 
 static void test_memo_date_continuity(int argc, char **argv) {
@@ -2409,65 +2747,61 @@ static void test_memo_date_continuity(int argc, char **argv) {
                                      : WM_BOARD_CONTROL_PREVIOUS;
         assert(wm_board_scene_open(board, memos[1].date));
         wm_board_scene_advance(board, 40.0f);
-
-        WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
+        settle_initial_memos(board);
         assert(wm_board_scene_activate(board,
             (WmBoardHit){control, SIZE_MAX}));
+        WmBoardSoundEvent event;
+        assert(wm_board_scene_take_sound_event(board, &event));
+        assert(strcmp(event.cue, "page") == 0 && event.memo_index == SIZE_MAX);
+        assert(wm_board_scene_take_sound_event(board, &event));
+        assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
+               event.memo_index == destination);
+        assert(fabsf(event.pan - memos[destination].x / 416.0f) < 0.001f);
+        assert(!wm_board_scene_take_sound_event(board, &event));
+
+        WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
         size_t count = wm_board_scene_memo_presentation(board, cards);
-        assert(count == 2);
         const WmBoardMemoPresentation *entering = find_presented_memo(
             cards, count, destination);
         const WmBoardMemoPresentation *leaving = find_presented_memo(
             cards, count, 1);
-        assert(entering && leaving && entering->entering && !leaving->entering);
-        assert(entering->paste_frame == 10.0f &&
-               leaving->paste_frame == 10.0f);
+        assert(count == 2 && entering && leaving && entering->entering);
+        assert(entering->paste_frame == 0.0f && leaving->paste_frame == 10.0f);
         float entering_start = entering->x;
         float leaving_start = leaving->x;
         float date_offset = case_index == 0 ? 832.0f : -832.0f;
         assert(fabsf(entering_start -
                      (memos[destination].x * 832.0f / 608.0f +
                       date_offset)) < 0.01f);
-
-        wm_board_scene_advance(board, 10.0f);
+        wm_board_scene_advance(board, 5.0f);
         count = wm_board_scene_memo_presentation(board, cards);
         entering = find_presented_memo(cards, count, destination);
         leaving = find_presented_memo(cards, count, 1);
-        assert(entering && leaving && entering->paste_frame == 10.0f &&
-               leaving->paste_frame == 10.0f);
+        assert(entering && leaving && entering->paste_frame == 5.0f);
         assert(fabsf((entering->x - entering_start) -
                      (leaving->x - leaving_start)) < 0.01f);
-        assert(fabsf(entering->x - entering_start) > 1.0f);
-
-        wm_board_scene_advance(board, 10.0f);
+        wm_board_scene_advance(board, 15.0f);
         assert(wm_board_scene_phase(board) == WM_BOARD_READY);
         count = wm_board_scene_memo_presentation(board, cards);
         assert(count == 1 && cards[0].memo_index == destination &&
-               cards[0].paste_frame == 10.0f);
+               cards[0].paste_frame == 10.0f && !cards[0].entering);
         assert(fabsf(cards[0].x -
                      memos[destination].x * 832.0f / 608.0f) < 0.01f);
+        assert(!wm_board_scene_take_sound_event(board, &event));
 
+        /* Returning to ChannelSelect uses the same incoming PasteLetter. */
         assert(wm_board_scene_back(board));
         count = wm_board_scene_memo_presentation(board, cards);
         entering = find_presented_memo(cards, count, 1);
-        leaving = find_presented_memo(cards, count, destination);
-        assert(count == 2 && entering && leaving && entering->entering);
-        assert(entering->paste_frame == 10.0f);
-        entering_start = entering->x;
-        leaving_start = leaving->x;
-        wm_board_scene_advance(board, 10.0f);
-        count = wm_board_scene_memo_presentation(board, cards);
-        entering = find_presented_memo(cards, count, 1);
-        leaving = find_presented_memo(cards, count, destination);
-        assert(entering && leaving);
-        assert(fabsf((entering->x - entering_start) -
-                     (leaving->x - leaving_start)) < 0.01f);
-        wm_board_scene_advance(board, 10.0f);
-        count = wm_board_scene_memo_presentation(board, cards);
-        entering = find_presented_memo(cards, count, 1);
-        assert(entering && entering->paste_frame == 10.0f);
-        assert(fabsf(entering->x - memos[1].x * 832.0f / 608.0f) < 0.01f);
-        wm_board_scene_advance(board, 20.0f);
+        assert(count == 2 && entering && entering->entering &&
+               entering->paste_frame == 0.0f);
+        assert(wm_board_scene_take_sound_event(board, &event));
+        assert(strcmp(event.cue, "page") == 0);
+        assert(wm_board_scene_take_sound_event(board, &event));
+        assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
+               event.memo_index == 1);
+        assert(!wm_board_scene_take_sound_event(board, &event));
+        wm_board_scene_advance(board, 40.0f);
         assert(wm_board_scene_phase(board) == WM_BOARD_CLOSED);
         assert(wm_board_scene_take_action(board, NULL) ==
                WM_BOARD_ACTION_EXITED);
@@ -2491,96 +2825,323 @@ static void test_memo_page_continuity(int argc, char **argv) {
     assert(wm_board_scene_set_memos(board, memos, 11));
     assert(wm_board_scene_open(board, memos[0].date));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+    WmBoardSoundEvent event;
+    assert(wm_board_scene_take_sound_event(board, &event));
+    assert(strcmp(event.cue, "WIPL_SE_MSG_HOUSE") == 0 &&
+           fabsf(event.pan - 300.0f / 416.0f) < 0.001f);
+    assert(!wm_board_scene_take_sound_event(board, &event));
     WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
     size_t count = wm_board_scene_memo_presentation(board, cards);
-    assert(count == 11);
-    const WmBoardMemoPresentation *incoming = find_presented_memo(cards,
-                                                                   count, 10);
-    assert(incoming && incoming->entering && incoming->paste_frame == 10.0f);
-    assert(incoming->next_page_frame < 0.0f);
-    assert(fabsf(incoming->x + 304.0f * 832.0f / 608.0f) < 0.01f);
+    assert(count == 10 && !find_presented_memo(cards, count, 10));
     for (size_t index = 0; index < 10; index++) {
-        const WmBoardMemoPresentation *outgoing = find_presented_memo(
-            cards, count, index);
-        assert(outgoing && !outgoing->entering &&
-               outgoing->paste_frame == 10.0f &&
-               outgoing->next_page_frame == 0.0f);
+        assert(cards[index].memo_index == index &&
+               cards[index].paste_frame == 10.0f &&
+               cards[index].next_page_frame == 0.0f);
     }
     wm_board_scene_advance(board, 7.5f);
     count = wm_board_scene_memo_presentation(board, cards);
-    incoming = find_presented_memo(cards, count, 10);
-    assert(incoming && incoming->paste_frame == 10.0f &&
-           incoming->x > -304.0f * 832.0f / 608.0f);
+    assert(count == 10 && !find_presented_memo(cards, count, 10));
+    assert(fabsf(cards[0].x - 152.0f * 832.0f / 608.0f) < 0.01f);
     wm_board_scene_advance(board, 7.5f);
     assert(wm_board_scene_phase(board) == WM_BOARD_READY);
     count = wm_board_scene_memo_presentation(board, cards);
     assert(count == 1 && cards[0].memo_index == 10 &&
-           cards[0].paste_frame == 10.0f &&
-           cards[0].next_page_frame < 0.0f);
+           cards[0].paste_frame == 0.0f && cards[0].next_page_frame < 0.0f);
     assert(fabsf(cards[0].x - memos[10].x * 832.0f / 608.0f) < 0.01f);
+    assert(wm_board_scene_take_sound_event(board, &event));
+    assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 && event.memo_index == 10);
+    assert(!wm_board_scene_activate(board,
+        (WmBoardHit){WM_BOARD_CONTROL_MEMO, 10}));
+    wm_board_scene_advance(board, 11.0f);
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_NEXT, SIZE_MAX}));
+    assert(wm_board_scene_take_sound_event(board, &event));
+    assert(strcmp(event.cue, "WIPL_SE_MSG_HOUSE") == 0 && event.pan < 0.0f);
     count = wm_board_scene_memo_presentation(board, cards);
-    assert(count == 11);
-    incoming = find_presented_memo(cards, count, 0);
-    assert(incoming && incoming->entering && incoming->paste_frame == 10.0f);
-    assert(fabsf(incoming->x - 304.0f * 832.0f / 608.0f) < 0.01f);
+    assert(count == 1 && cards[0].memo_index == 10);
     wm_board_scene_advance(board, 15.0f);
-    assert(wm_board_scene_phase(board) == WM_BOARD_READY);
+    for (size_t position = 0; position < 10; position++) {
+        count = wm_board_scene_memo_presentation(board, cards);
+        assert(count == position + 1);
+        for (size_t index = 0; index < count; index++) {
+            assert(cards[index].memo_index == index &&
+                   cards[index].paste_frame ==
+                       fminf(10.0f, (float)(position - index) * 11.0f));
+        }
+        assert(wm_board_scene_take_sound_event(board, &event));
+        assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
+               event.memo_index == position);
+        assert(fabsf(event.pan - memos[position].x / 416.0f) < 0.001f);
+        assert(!wm_board_scene_take_sound_event(board, &event));
+        assert(!wm_board_scene_pointer_down(board,
+            (WmBoardHit){WM_BOARD_CONTROL_MEMO, position}, 320, 228));
+        if (position < 9) wm_board_scene_advance(board, 11.0f);
+    }
+    wm_board_scene_advance(board, 11.0f);
     count = wm_board_scene_memo_presentation(board, cards);
     assert(count == 10);
     for (size_t index = 0; index < count; index++) {
-        assert(cards[index].paste_frame == 10.0f && !cards[index].entering);
+        assert(cards[index].paste_frame == 10.0f);
+    }
+    assert(!wm_board_scene_take_sound_event(board, &event));
+    wm_board_scene_destroy(board);
+}
+
+static void test_page_arrival_batch_clock(int argc, char **argv) {
+    WmBoardScene *board = load_board(argc, argv);
+    assert(board);
+    WmBoardMemo memos[20] = {0};
+    char ids[20][12];
+    for (size_t index = 0; index < 20; index++) {
+        snprintf(ids[index], sizeof(ids[index]), "batch-%zu", index);
+        memos[index] = (WmBoardMemo){
+            .id = ids[index], .text = "Memo", .date = {2026, 9, 25}
+        };
+    }
+    assert(wm_board_scene_set_memos(board, memos, 20));
+    for (unsigned batched = 0; batched < 2; batched++) {
+        assert(wm_board_scene_open(board, memos[0].date));
+        wm_board_scene_advance(board, 40.0f);
+        settle_initial_memos(board);
+        assert(wm_board_scene_activate(board,
+            (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+        if (batched) wm_board_scene_advance(board, 103.0f);
+        else for (unsigned frame = 0; frame < 103; frame++)
+            wm_board_scene_advance(board, 1.0f);
+        WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
+        size_t count = wm_board_scene_memo_presentation(board, cards);
+        assert(count == 9);
+        for (size_t position = 0; position < count; position++) {
+            assert(cards[position].memo_index == 10 + position);
+            float age = (float)(8 - position) * 11.0f;
+            assert(cards[position].paste_frame == fminf(10.0f, age));
+            assert(cards[position].pin_frame == age);
+        }
+        WmBoardSoundEvent event;
+        assert(wm_board_scene_take_sound_event(board, &event));
+        assert(strcmp(event.cue, "WIPL_SE_MSG_HOUSE") == 0);
+        for (size_t position = 0; position < 9; position++) {
+            assert(wm_board_scene_take_sound_event(board, &event));
+            assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
+                   event.memo_index == 10 + position);
+        }
+        assert(!wm_board_scene_take_sound_event(board, &event));
+        assert(wm_board_scene_back(board));
+        wm_board_scene_advance(board, 40.0f);
+        assert(wm_board_scene_take_action(board, NULL) == WM_BOARD_ACTION_EXITED);
+        while (wm_board_scene_take_sound_event(board, &event)) {}
     }
     wm_board_scene_destroy(board);
 }
 
-static void test_only_new_memo_pastes(int argc, char **argv) {
+static void test_rapid_arrival_cue_chronology(int argc, char **argv) {
+    WmBoardMemo memos[30] = {0};
+    char ids[30][12];
+    for (size_t index = 0; index < 30; index++) {
+        snprintf(ids[index], sizeof(ids[index]), "rapid-%zu", index);
+        memos[index] = (WmBoardMemo){
+            .id = ids[index], .text = "Memo",
+            .date = {2026, 9, index < 20 ? 25 : 24}
+        };
+    }
+    for (unsigned batched = 0; batched < 2; batched++) {
+        WmBoardScene *board = load_board(argc, argv);
+        assert(board && wm_board_scene_set_memos(board, memos, 30));
+        assert(wm_board_scene_open(board, memos[0].date));
+        wm_board_scene_advance(board, 40.0f);
+        settle_initial_memos(board);
+        assert(wm_board_scene_activate(board,
+            (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+        wm_board_scene_advance(board, 15.0f);
+        WmBoardSoundEvent event;
+        while (wm_board_scene_take_sound_event(board, &event)) {}
+        /* Replace the sheet during its first appearance. The outgoing card
+         * finishes, but records never made visible do not emit hidden cues. */
+        assert(wm_board_scene_activate(board,
+            (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+        assert(wm_board_scene_take_sound_event(board, &event) &&
+               strcmp(event.cue, "page") == 0);
+        assert(wm_board_scene_take_sound_event(board, &event) &&
+               event.memo_index == 20);
+        assert(!wm_board_scene_take_sound_event(board, &event));
+        if (batched) wm_board_scene_advance(board, 55.0f);
+        else for (unsigned frame = 0; frame < 55; frame++)
+            wm_board_scene_advance(board, 1.0f);
+        for (size_t index = 21; index <= 25; index++) {
+            assert(wm_board_scene_take_sound_event(board, &event) &&
+                   strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
+                   event.memo_index == index);
+        }
+        assert(!wm_board_scene_take_sound_event(board, &event));
+        WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
+        size_t count = wm_board_scene_memo_presentation(board, cards);
+        assert(count == 6);
+        for (size_t index = 0; index < count; index++) {
+            assert(cards[index].memo_index == 20 + index &&
+                   cards[index].paste_frame == fminf(10.0f, (float)(5 - index) * 11.0f) &&
+                   cards[index].pin_frame == (float)(5 - index) * 11.0f);
+        }
+        wm_board_scene_destroy(board);
+    }
     WmBoardScene *board = load_board(argc, argv);
-    assert(board);
-    WmBoardMemo previous = {
-        .id = "existing", .text = "Existing Memo",
-        .date = {2026, 9, 25}, .has_position = true,
-        .x = -210.0f, .y = -60.0f
-    };
-    assert(wm_board_scene_set_memos(board, &previous, 1));
-    assert(wm_board_scene_open(board, previous.date));
+    assert(board && wm_board_scene_set_memos(board, memos, 30));
+    assert(wm_board_scene_open(board, memos[0].date));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
+    assert(wm_board_scene_activate(board,
+        (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+    wm_board_scene_advance(board, 15.0f);
+    WmBoardSoundEvent event;
+    while (wm_board_scene_take_sound_event(board, &event)) {}
+    assert(wm_board_scene_back(board));
+    wm_board_scene_advance(board, 40.0f);
+    wm_board_scene_advance_parked(board, 110.0f);
+    assert(!wm_board_scene_take_sound_event(board, &event));
+    WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
+    assert(wm_board_scene_parked_memo_presentation(board, memos[0].date, cards) == 10);
+    for (size_t index = 0; index < 10; index++)
+        assert(cards[index].memo_index == index && cards[index].paste_frame == 10.0f);
+    wm_board_scene_destroy(board);
+}
+
+static void prepare_memo_post(WmBoardScene *board, const char *text) {
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
     wm_board_scene_advance(board, 39.0f);
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_MEMO, SIZE_MAX}));
     wm_board_scene_advance(board, 26.0f);
-    assert(wm_board_scene_insert_text(board, "New Memo"));
+    assert(wm_board_scene_insert_text(board, text));
     wm_board_scene_advance(board, 30.0f);
     assert(wm_board_scene_finish_edit(board));
     wm_board_scene_advance(board, 30.0f);
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_POST, SIZE_MAX}));
-    wm_board_scene_advance(board, 20.0f);
-    wm_board_scene_advance(board, 51.0f);
-    size_t posted_index = SIZE_MAX;
-    assert(wm_board_scene_take_action(board, &posted_index) ==
-           WM_BOARD_ACTION_MEMO_POSTED);
-    assert(posted_index == 1);
+}
 
-    WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
-    size_t count = wm_board_scene_memo_presentation(board, cards);
-    const WmBoardMemoPresentation *old = find_presented_memo(cards, count, 0);
-    const WmBoardMemoPresentation *posted = find_presented_memo(cards,
-                                                                  count, 1);
-    assert(count == 2 && old && posted);
-    assert(old->paste_frame == 10.0f && posted->paste_frame == 0.0f);
-    wm_board_scene_advance(board, 5.0f);
-    count = wm_board_scene_memo_presentation(board, cards);
-    old = find_presented_memo(cards, count, 0);
-    posted = find_presented_memo(cards, count, 1);
-    assert(old && posted && old->paste_frame == 10.0f &&
-           posted->paste_frame == 5.0f);
-    wm_board_scene_destroy(board);
+static void test_post_selected_date(int argc, char **argv) {
+    for (int offset = -7; offset <= 7; offset += 7) {
+        WmBoardScene *board = load_board(argc, argv);
+        assert(board);
+        WmBoardDate today = wm_board_scene_date(board);
+        WmBoardDate selected;
+        assert(wm_board_date_shift(today, offset, &selected));
+        WmBoardMemo previous = {
+            .id = "today-existing", .text = "Existing today", .date = today,
+            .read = true
+        };
+        assert(wm_board_scene_set_memos(board, &previous, 1));
+        assert(wm_board_scene_open(board, today));
+        wm_board_scene_advance(board, 40.0f);
+        settle_initial_memos(board);
+        if (offset != 0) {
+            select_board_calendar_date(board, selected);
+            wm_board_scene_advance(board, 100.0f);
+        }
+        assert(board_dates_equal(wm_board_scene_date(board), selected));
+        assert(wm_board_scene_today_count(board) == 1 &&
+               wm_board_scene_today_unread_count(board) == 0);
+        WmBoardSoundEvent event;
+        while (wm_board_scene_take_sound_event(board, &event)) {}
+        prepare_memo_post(board, "Posted on the selected date");
+        time_t before = time(NULL);
+        wm_board_scene_advance(board, 100.0f);
+        time_t after = time(NULL);
+        size_t posted_index = SIZE_MAX;
+        assert(wm_board_scene_take_action(board, &posted_index) ==
+               WM_BOARD_ACTION_MEMO_POSTED && posted_index == 1);
+        WmBoardMemo posted;
+        assert(wm_board_scene_get_memo(board, posted_index, &posted));
+        assert(board_dates_equal(posted.date, selected) &&
+               board_dates_equal(wm_board_scene_date(board), selected));
+        assert(posted.created_at_ms >= (int64_t)before * 1000 &&
+               posted.created_at_ms < ((int64_t)after + 1) * 1000);
+        assert(wm_board_scene_today_count(board) == (offset == 0 ? 2u : 1u));
+        assert(wm_board_scene_today_unread_count(board) == (offset == 0 ? 1u : 0u));
+        assert(wm_board_scene_take_sound_event(board, &event));
+        assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
+               event.memo_index == posted_index);
+        assert(!wm_board_scene_take_sound_event(board, &event));
+        assert(wm_board_scene_back(board));
+        wm_board_scene_advance(board, 40.0f);
+        assert(board_dates_equal(wm_board_scene_date(board), today));
+        assert(wm_board_scene_today_count(board) == (offset == 0 ? 2u : 1u));
+        assert(wm_board_scene_get_memo(board, posted_index, &posted) &&
+               board_dates_equal(posted.date, selected));
+        wm_board_scene_destroy(board);
+    }
+}
+
+static void test_only_new_memo_pastes(int argc, char **argv) {
+    time_t now = time(NULL);
+    struct tm today;
+    assert(now != (time_t)-1 && localtime_r(&now, &today));
+    WmBoardMemo previous = {
+        .id = "existing", .text = "Existing Memo",
+        .date = {today.tm_year + 1900, today.tm_mon + 1, today.tm_mday},
+        .has_position = true, .x = -210.0f, .y = -60.0f
+    };
+    for (unsigned batched = 0; batched < 2; batched++) {
+        WmBoardScene *board = load_board(argc, argv);
+        assert(board && wm_board_scene_set_memos(board, &previous, 1));
+        assert(wm_board_scene_open(board, previous.date));
+        wm_board_scene_advance(board, 40.0f);
+        settle_initial_memos(board);
+        WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
+        assert(wm_board_scene_memo_presentation(board, cards) == 1);
+        float existing_pin_age = cards[0].pin_frame;
+        prepare_memo_post(board, "New Memo");
+        WmBoardSoundEvent event;
+        if (batched) {
+            /* This crosses send, composer exit, and eight visible frames. */
+            wm_board_scene_advance(board, 100.0f);
+        } else {
+            wm_board_scene_advance(board, 20.0f);
+            wm_board_scene_advance(board, 51.0f);
+            size_t count = wm_board_scene_memo_presentation(board, cards);
+            assert(count == 1 && cards[0].memo_index == 0 &&
+                   cards[0].paste_frame == 10.0f);
+            assert(!wm_board_scene_take_sound_event(board, &event));
+            wm_board_scene_advance(board, 5.0f);
+            assert(!wm_board_scene_take_sound_event(board, &event));
+            wm_board_scene_advance(board, 16.0f);
+            count = wm_board_scene_memo_presentation(board, cards);
+            const WmBoardMemoPresentation *posted = find_presented_memo(
+                cards, count, 1);
+            assert(posted && posted->paste_frame == 0.0f &&
+                   posted->pin_frame == 0.0f);
+            assert(!wm_board_scene_pointer_down(board,
+                (WmBoardHit){WM_BOARD_CONTROL_MEMO, 1}, 320, 228));
+            wm_board_scene_advance(board, 8.0f);
+        }
+        size_t posted_index = SIZE_MAX;
+        assert(wm_board_scene_take_action(board, &posted_index) ==
+               WM_BOARD_ACTION_MEMO_POSTED && posted_index == 1);
+        assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
+        size_t count = wm_board_scene_memo_presentation(board, cards);
+        const WmBoardMemoPresentation *old = find_presented_memo(cards, count, 0);
+        const WmBoardMemoPresentation *posted = find_presented_memo(
+            cards, count, 1);
+        assert(count == 2 && old && posted && old->paste_frame == 10.0f &&
+               old->pin_frame == existing_pin_age + 225.0f &&
+               posted->paste_frame == 8.0f &&
+               posted->pin_frame == 8.0f);
+        assert(wm_board_scene_take_sound_event(board, &event));
+        assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
+               event.memo_index == 1);
+        WmBoardMemo saved;
+        assert(wm_board_scene_get_memo(board, 1, &saved));
+        assert(fabsf(event.pan - saved.x / 416.0f) < 0.001f);
+        assert(!wm_board_scene_take_sound_event(board, &event));
+        wm_board_scene_advance(board, 3.0f);
+        assert(wm_board_scene_activate(board,
+            (WmBoardHit){WM_BOARD_CONTROL_MEMO, 1}));
+        assert(!wm_board_scene_take_sound_event(board, &event));
+        wm_board_scene_destroy(board);
+    }
 }
 
 static void test_address_editor_scene_route(int argc, char **argv) {
@@ -2588,6 +3149,7 @@ static void test_address_editor_scene_route(int argc, char **argv) {
     assert(board);
     assert(wm_board_scene_open(board, (WmBoardDate){2026, 9, 25}));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
     wm_board_scene_advance(board, 39.0f);
@@ -2618,7 +3180,6 @@ static void test_address_editor_scene_route(int argc, char **argv) {
 }
 
 static void test_address_contact_scene_route(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char contacts_path[] = "/tmp/wm-board-contact-route-XXXXXX";
     int file_descriptor = mkstemp(contacts_path);
     assert(file_descriptor >= 0);
@@ -2636,6 +3197,7 @@ static void test_address_contact_scene_route(int argc, char **argv) {
            WM_BOARD_CONTACT_STORE_OK);
     assert(wm_board_scene_open(board, (WmBoardDate){2026, 9, 25}));
     wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
     wm_board_scene_advance(board, 39.0f);
@@ -2647,77 +3209,22 @@ static void test_address_contact_scene_route(int argc, char **argv) {
     wm_board_scene_advance(board, 16.0f);
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS_ENTRY_FIRST, SIZE_MAX}));
-    wm_board_scene_advance(board, 59.0f);
-
-    char path[4096];
-    int length = snprintf(path, sizeof(path),
-                          "%s/layouts/board/th_Adress_b.json", assets);
-    assert(length > 0 && length < (int)sizeof(path));
-    WmLayout *card = wm_layout_load_json(path, error, sizeof(error));
-    assert(card);
-    const WmLayoutClip card_entrance = {
-        .animation = "th_Adress_b_card_strt",
-        .group = "card_strt_fnsh", .frame = 18.0f
-    };
-    assert(wm_layout_pose(card, &card_entrance, 1));
-    WmSourceRect rename_rect, erase_rect;
-    assert(wm_source_pane_rect(card, "B_crd_btn_10", true,
-                               WM_LAYOUT_IPL, NULL, &rename_rect));
-    assert(wm_source_pane_rect(card, "B_crd_btn_11", true,
-                               WM_LAYOUT_IPL, NULL, &erase_rect));
-    WmBoardHit rename_hit = wm_board_scene_hit(board,
-        (int)(rename_rect.x + rename_rect.width * 0.5f),
-        (int)(rename_rect.y + rename_rect.height * 0.5f));
-    assert(rename_hit.control ==
-           WM_BOARD_CONTROL_COMPOSE_ADDRESS_CHANGE_NICKNAME);
-    wm_board_scene_hover(board, rename_hit);
-    assert(wm_board_scene_activate(board, rename_hit));
-    wm_board_scene_advance(board, 61.0f);
-    assert(wm_board_scene_back(board));
-    wm_board_scene_advance(board, 38.0f);
-    WmBoardHit erase_hit = wm_board_scene_hit(board,
-        (int)(erase_rect.x + erase_rect.width * 0.5f),
-        (int)(erase_rect.y + erase_rect.height * 0.5f));
-    assert(erase_hit.control == WM_BOARD_CONTROL_COMPOSE_ADDRESS_ERASE);
-    wm_board_scene_hover(board, erase_hit);
-    assert(wm_board_scene_activate(board, erase_hit));
-    wm_board_scene_advance(board, 32.0f);
-    wm_board_scene_advance(board, 26.0f);
-
-    length = snprintf(path, sizeof(path),
-                      "%s/layouts/dlgWdw/my_DialogWindow_b.json", assets);
-    assert(length > 0 && length < (int)sizeof(path));
-    WmLayout *dialog = wm_layout_load_json(path, error, sizeof(error));
-    assert(dialog);
-    const WmLayoutClip dialog_entrance = {
-        .animation = "my_DialogWindow_b_DialogIn",
-        .group = "G_InOut", .frame = 25.0f
-    };
-    assert(wm_layout_pose(dialog, &dialog_entrance, 1));
-    WmSourceRect yes_rect, no_rect;
-    assert(wm_source_pane_rect(dialog, "B_BtnA", true,
-                               WM_LAYOUT_IPL, NULL, &yes_rect));
-    assert(wm_source_pane_rect(dialog, "B_BtnB", true,
-                               WM_LAYOUT_IPL, NULL, &no_rect));
-    WmBoardHit no_hit = wm_board_scene_hit(board,
-        (int)(no_rect.x + no_rect.width * 0.5f),
-        (int)(no_rect.y + no_rect.height * 0.5f));
-    assert(no_hit.control == WM_BOARD_CONTROL_COMPOSE_ADDRESS_DIALOG_NO);
-    assert(wm_board_scene_activate(board, no_hit));
-    wm_board_scene_advance(board, 47.0f);
-    wm_board_scene_advance(board, 32.0f);
+    wm_board_scene_advance(board, 25.0f);
+    assert(!wm_board_scene_address_editor_active(board));
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS_ERASE, SIZE_MAX}));
-    wm_board_scene_advance(board, 32.0f);
-    wm_board_scene_advance(board, 26.0f);
-    WmBoardHit yes_hit = wm_board_scene_hit(board,
-        (int)(yes_rect.x + yes_rect.width * 0.5f),
-        (int)(yes_rect.y + yes_rect.height * 0.5f));
-    assert(yes_hit.control == WM_BOARD_CONTROL_COMPOSE_ADDRESS_DIALOG_YES);
-    assert(wm_board_scene_activate(board, yes_hit));
+        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_NETWORK_QUIT, SIZE_MAX}));
+    wm_board_scene_advance(board, 42.0f);
+    assert(wm_board_scene_take_action(board, NULL) == WM_BOARD_ACTION_NONE);
+    /* Quit keeps the same numbered page and its registered entry available. */
+    assert(wm_board_scene_activate(board,
+        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS_ENTRY_FIRST, SIZE_MAX}));
+    wm_board_scene_advance(board, 25.0f);
+    assert(wm_board_scene_activate(board,
+        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_NETWORK_SETTINGS, SIZE_MAX}));
+    wm_board_scene_advance(board, 42.0f);
+    assert(wm_board_scene_take_action(board, NULL) ==
+           WM_BOARD_ACTION_OPEN_CONNECT24_SETTINGS);
 
-    wm_layout_destroy(dialog);
-    wm_layout_destroy(card);
     wm_board_scene_destroy(board);
     assert(unlink(contacts_path) == 0);
 }
@@ -2755,6 +3262,10 @@ static void test_memo_pin_animation_choice(int argc, char **argv) {
     assert(wm_board_scene_open(board, day));
     WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
     size_t count = wm_board_scene_memo_presentation(board, cards);
+    assert(count == 0 && clock.calls == 0);
+    wm_board_scene_advance(board, 40.0f);
+    settle_initial_memos(board);
+    count = wm_board_scene_memo_presentation(board, cards);
     assert(count == 5 && clock.calls == 4);
     const WmBoardPinKind expected[] = {
         WM_BOARD_PIN_NEW, WM_BOARD_PIN_DEFAULT, WM_BOARD_PIN_NONE,
@@ -2783,6 +3294,7 @@ static void test_memo_pin_animation_choice(int argc, char **argv) {
     assert(wm_board_scene_activate(board,
         (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
     wm_board_scene_advance(board, 20.0f);
+    wm_board_scene_advance(board, 110.0f);
     count = wm_board_scene_memo_presentation(board, cards);
     assert(count == 5 && clock.calls == 8);
     const WmBoardPinKind after_return[] = {
@@ -2893,11 +3405,19 @@ int main(int argc, char **argv) {
     test_reader_arrow_exit_timing(argc, argv);
     test_reader_back_hover_retired(argc, argv);
     test_reader_arrow_hover_stability(argc, argv);
+    test_page_arrow_focus_during_turns(argc, argv);
     test_return_to_today(argc, argv);
     test_parked_memos(argc, argv);
     test_memo_creation_order(argc, argv);
+    test_calendar_date_transition(argc, argv);
+    test_parked_arrival_batch_clock(argc, argv);
+    test_initial_ordered_arrivals(argc, argv);
+    test_return_arrival_transition(argc, argv);
     test_memo_date_continuity(argc, argv);
     test_memo_page_continuity(argc, argv);
+    test_page_arrival_batch_clock(argc, argv);
+    test_rapid_arrival_cue_chronology(argc, argv);
+    test_post_selected_date(argc, argv);
     test_only_new_memo_pastes(argc, argv);
     test_address_editor_scene_route(argc, argv);
     test_address_contact_scene_route(argc, argv);

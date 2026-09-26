@@ -38,6 +38,7 @@ add_library(wii_menu_core STATIC
     src/font_cache.c
     src/health_scene.c
     src/home_overlay.c
+    src/hover_audio.c
     src/image.c
     src/json.c
     src/layout_runtime.c
@@ -83,7 +84,8 @@ else()
     add_executable(wii-menu src/main.c)
 endif()
 
-add_executable(wm-wad-extract tools/wad/crypto.c tools/wad/extract.c)
+add_executable(wm-wad-extract tools/wad/crypto.c tools/wad/extract.c
+                              tools/wad/retail_keys.c)
 add_executable(wm-prepare tools/prepare.c tools/wad/crypto.c src/json.c)
 target_include_directories(wm-prepare PRIVATE include)
 add_executable(wm-nand-extract tools/wad/crypto.c tools/nand/reader.c
@@ -103,7 +105,7 @@ add_executable(wm-restart-export tools/restart/export.c)
 target_link_libraries(wm-restart-export PRIVATE wii_menu_core)
 target_link_libraries(wm-layout-export PRIVATE wii_menu_core)
 target_link_libraries(wm-keyboard-dictionary-export PRIVATE wii_menu_core)
-add_dependencies(wm-prepare wm-keyboard-dictionary-export)
+add_dependencies(wm-prepare wm-wad-extract wm-keyboard-dictionary-export)
 target_link_libraries(wm-settings-export PRIVATE wii_menu_core)
 target_link_libraries(wm-outline-font-export PRIVATE wii_menu_core m)
 add_executable(wm-audio-export tools/audio/export.c)
@@ -170,6 +172,9 @@ if(BUILD_TESTING)
                           wii_menu_core m)
     add_test(NAME wii-menu-arrow-interaction
              COMMAND wii-menu-arrow-interaction-test)
+    add_executable(wii-menu-hover-audio-test tests/hover_audio_test.c)
+    target_link_libraries(wii-menu-hover-audio-test PRIVATE wii_menu_core)
+    add_test(NAME wii-menu-hover-audio COMMAND wii-menu-hover-audio-test)
     add_executable(wii-menu-prepare-update-test tests/prepare_update_test.c
                                                 src/json.c tools/wad/crypto.c)
     target_include_directories(wii-menu-prepare-update-test PRIVATE include tools)
@@ -191,6 +196,10 @@ if(BUILD_TESTING)
     add_test(NAME wii-menu-transition COMMAND wii-menu-transition-test)
     add_executable(wii-menu-crypto-test tools/wad/crypto.c tools/wad/test_crypto.c)
     add_test(NAME wii-menu-crypto COMMAND wii-menu-crypto-test)
+    add_executable(wii-menu-wad-extract-test tools/wad/test_extract.c
+                                             tools/wad/crypto.c
+                                             tools/wad/retail_keys.c)
+    add_test(NAME wii-menu-wad-extract COMMAND wii-menu-wad-extract-test)
     add_executable(wii-menu-resource-test tests/resource_formats_test.c)
     target_link_libraries(wii-menu-resource-test PRIVATE wii_menu_core)
     add_test(NAME wii-menu-resource COMMAND wii-menu-resource-test)

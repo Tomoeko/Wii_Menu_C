@@ -69,6 +69,7 @@ typedef enum WmSdEventType {
 typedef struct WmSdEvent {
     WmSdEventType type;
     unsigned slot;
+    WmSdControl control; /* Hover target for WM_SD_EVENT_HOVER_SOUND. */
 } WmSdEvent;
 
 typedef const char *(*WmSdMessageProvider)(void *context, unsigned message_id);

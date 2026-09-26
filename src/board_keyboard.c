@@ -2080,6 +2080,7 @@ static void pose_address_text_box(WmBoardKeyboard *keyboard) {
 
 void wm_board_keyboard_draw(WmBoardKeyboard *keyboard, float progress,
                             bool entering) {
+    (void)entering;
     if (!keyboard) return;
     if (keyboard->phone_layout) pose_phone(keyboard);
     else pose_keytop(keyboard);
@@ -2118,7 +2119,7 @@ void wm_board_keyboard_draw(WmBoardKeyboard *keyboard, float progress,
                                      -offset / 3.0f, 0.0f);
     wm_layout_set_pane_translation(keyboard->toolbar, "N_DOWN", 0.0f,
                                       offset / 3.0f, 0.0f);
-    wm_layout_set_pane_visible(keyboard->toolbar, "N_UP", !entering);
+    wm_layout_set_pane_visible(keyboard->toolbar, "N_UP", true);
     wm_layout_present_with_fonts_opacity(
         keyboard->platform, keyboard->textures, keyboard->fonts,
         keyboard->toolbar, true, WM_LAYOUT_IPL, NULL, opacity);

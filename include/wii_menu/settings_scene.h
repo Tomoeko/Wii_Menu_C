@@ -72,8 +72,9 @@ WmSettingsScene *wm_settings_scene_create(WmPlatform *platform,
                                            WmTextureCache *textures,
                                            WmFontCache *fonts);
 void wm_settings_scene_destroy(WmSettingsScene *scene);
-/* The source 16:9 surface has a 608-pixel document between two 112-pixel
- * side panels. Its 832-pixel raster is fitted into the 640-pixel framebuffer.
+/* The source 16:9 surface places the 608-pixel document in an 832-pixel
+ * composition fitted into the 640-pixel framebuffer. The C backdrop fills
+ * that framebuffer independently of this foreground projection.
  * Leave disabled for the source 4:3 document and its original hit geometry. */
 void wm_settings_scene_set_wide(WmSettingsScene *scene, bool wide);
 WmSettingsProjection wm_settings_scene_projection(
@@ -82,6 +83,8 @@ bool wm_settings_scene_open(WmSettingsScene *scene);
 /* Open the Internet category directly from the Message Board's connection
  * prompt. Back from its category index exits instead of showing page two. */
 bool wm_settings_scene_open_internet(WmSettingsScene *scene);
+/* The Address Book prompt enters WiiConnect24 with the same direct return. */
+bool wm_settings_scene_open_connect24(WmSettingsScene *scene);
 /* Discard transient navigation and input when HOME restarts the menu. */
 void wm_settings_scene_reset(WmSettingsScene *scene);
 void wm_settings_scene_advance(WmSettingsScene *scene, float frames);
@@ -101,6 +104,9 @@ WmSettingsControl wm_settings_scene_hit(const WmSettingsScene *scene,
                                         int x, int y);
 bool wm_settings_scene_hover(WmSettingsScene *scene,
                              WmSettingsControl control);
+/* Classify visible directional arrows separately from ordinary button rows. */
+bool wm_settings_scene_directional_control(const WmSettingsScene *scene,
+                                            WmSettingsControl control);
 bool wm_settings_scene_activate(WmSettingsScene *scene,
                                 WmSettingsControl control);
 /* Date/Time arrows act on press and repeat after 400 ms, then every 150 ms.

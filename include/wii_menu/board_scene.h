@@ -127,16 +127,15 @@ typedef struct WmBoardHit {
 
 enum { WM_BOARD_MAX_PRESENTED_MEMOS = 20 };
 
-/* Draw order and parent-layout coordinates for the current and entering Memo
- * pages. Existing records are already at the settled PasteLetter pose; only
- * a newly posted Memo progresses through that clip. An entering card ignores
- * outgoing page, hover, selection, and drag state. */
+/* Draw order, parent-layout coordinates, and authored animation clocks.
+ * Entering cards ignore outgoing page, hover, selection, and drag state. */
 typedef struct WmBoardMemoPresentation {
     size_t memo_index;
     float x;
     float y;
     float paste_frame;
     float next_page_frame; /* -1 when the outgoing NextPage clip is inactive. */
+    float pin_frame;
     WmBoardPinKind pin_kind;
     bool entering;
 } WmBoardMemoPresentation;
@@ -149,6 +148,7 @@ typedef enum WmBoardAction {
     WM_BOARD_ACTION_ERASE_MEMO,
     WM_BOARD_ACTION_MEMO_POSTED,
     WM_BOARD_ACTION_OPEN_SETTINGS,
+    WM_BOARD_ACTION_OPEN_CONNECT24_SETTINGS,
     WM_BOARD_ACTION_MEMO_READ,
     WM_BOARD_ACTION_MEMO_MOVED
 } WmBoardAction;
@@ -195,6 +195,9 @@ void wm_board_scene_set_grid_page(WmBoardScene *board, int page);
 bool wm_board_scene_sd_visible(const WmBoardScene *board);
 bool wm_board_scene_back(WmBoardScene *board);
 void wm_board_scene_advance(WmBoardScene *board, float frames);
+/* Continue ordered card arrivals after an exit hands the parked layer to the
+ * Home Menu. The caller drains sound events and pauses this under HOME. */
+void wm_board_scene_advance_parked(WmBoardScene *board, float frames);
 WmBoardPhase wm_board_scene_phase(const WmBoardScene *board);
 WmBoardChild wm_board_scene_child(const WmBoardScene *board);
 /* True for an active Memo or Address Book text editor. */
@@ -220,6 +223,16 @@ bool wm_board_scene_get_memo(const WmBoardScene *board, size_t index,
 const char *wm_board_scene_last_erased_id(const WmBoardScene *board);
 WmBoardAction wm_board_scene_take_action(WmBoardScene *board,
                                          size_t *memo_index);
+typedef struct WmBoardSoundEvent {
+    const char *cue;
+    float pan;
+    size_t memo_index;
+} WmBoardSoundEvent;
+
+/* Page selection and card appearance cues are queued in scene order. Cue
+ * names are static; memo_index is SIZE_MAX for a page cue. */
+bool wm_board_scene_take_sound_event(WmBoardScene *board,
+                                      WmBoardSoundEvent *event);
 bool wm_board_scene_insert_text(WmBoardScene *board, const char *utf8);
 bool wm_board_scene_backspace(WmBoardScene *board);
 bool wm_board_scene_finish_edit(WmBoardScene *board);
@@ -256,13 +269,13 @@ bool wm_board_scene_reader_arrow_target_visible(const WmBoardScene *board,
  * the first 20 updates. During exit, use frames 100–120 for all 40 updates.
  * The caller draws body, optional grid overlay, then footer, in that order. */
 bool wm_board_scene_grid_overlay(const WmBoardScene *board, float *grid_frame);
-/* Returns up to WM_BOARD_MAX_PRESENTED_MEMOS cards in render order. During a
- * date slide, this includes settled cards for the date moving onto the Board. */
+/* Date and return slides include incoming PasteLetter beside outgoing cards.
+ * A Memo page begins its incoming PasteLetter after the outgoing page clears. */
 size_t wm_board_scene_memo_presentation(
     WmBoardScene *board,
     WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS]);
 /* The closed Board leaves today's first Memo page parked behind ChannelSelect.
- * Cards have a neutral focus and completed PasteLetter pose. The caller's
+ * Cards keep a neutral focus and any unfinished arrival. The caller's
  * date tracks the Home Menu wall clock, including a day change while idle. */
 size_t wm_board_scene_parked_memo_presentation(
     WmBoardScene *board, WmBoardDate today,
