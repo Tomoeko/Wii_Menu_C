@@ -2,11 +2,19 @@
 #include "wii_menu/render/viewport.h"
 #include "geometry.h"
 
+#ifdef WM_PLATFORM_PSVR2
+#include "../psvr2/gl_api.h"
+#include "../psvr2/vr_layout.h"
+#include "wii_menu/platform/psvr2_pointer.h"
+#include "open_vrhmd.h"
+#include <time.h>
+#else
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
+#endif
 
 #include <stddef.h>
 #include <math.h>
@@ -59,11 +67,25 @@ typedef struct WmTevProgram {
 } WmTevProgram;
 
 struct WmPlatform {
+#ifdef WM_PLATFORM_PSVR2
+    bool owns_device;
+    bool devices_open;
+    GLuint scene_texture;
+    GLuint scene_framebuffer;
+    GLuint scanout_framebuffer;
+    GLuint scanout_renderbuffer;
+    EGLImageKHR scanout_image;
+    EGLBoolean (*destroy_image)(EGLDisplay, EGLImageKHR);
+    WmVrEyeRect eyes[2];
+    float menu_luminance;
+    WmPsvr2Pointer *pointer;
+#else
     Display *display;
     Window window;
     Colormap colormap;
     Cursor hidden_cursor;
     Atom delete_window;
+#endif
     int window_width;
     int window_height;
     int framebuffer_width;
@@ -799,6 +821,7 @@ static void wm_flush(WmPlatform *platform)
     platform->quad_count = 0;
 }
 
+#ifndef WM_PLATFORM_PSVR2
 static bool wm_choose_config(EGLDisplay display, EGLConfig *config)
 {
     static const EGLint rgba8888[] = {
@@ -827,6 +850,8 @@ static bool wm_choose_config(EGLDisplay display, EGLConfig *config)
     count = 0;
     return eglChooseConfig(display, rgb565, config, 1, &count) && count > 0;
 }
+
+#endif
 
 static bool wm_initialize_graphics(WmPlatform *platform)
 {
@@ -914,6 +939,179 @@ static bool wm_initialize_graphics(WmPlatform *platform)
     return glGetError() == GL_NO_ERROR;
 }
 
+#ifdef WM_PLATFORM_PSVR2
+static bool wm_psvr2_has_extension(const char *extensions, const char *name)
+{
+    if (!extensions || !name || !*name) return false;
+    size_t length = strlen(name);
+    const char *match = extensions;
+    while ((match = strstr(match, name))) {
+        if ((match == extensions || match[-1] == ' ') &&
+            (match[length] == ' ' || match[length] == '\0')) return true;
+        match += length;
+    }
+    return false;
+}
+
+static bool wm_psvr2_initialize(WmPlatform *platform)
+{
+    WmVrConfig config = wm_vr_default_config();
+    const char *configuration = getenv("WM_PSVR2_CONFIG");
+    if (!configuration || !*configuration) configuration = "/tmp/wii-menu.vr.conf";
+    if (!wm_vr_load_config(configuration, &config)) {
+        if (access(configuration, F_OK) == 0) {
+            fprintf(stderr, "PSVR2: invalid projection configuration; startup stopped.\n");
+            return false;
+        }
+        fprintf(stderr, "PSVR2: using bounded default menu projection.\n");
+    }
+    platform->menu_luminance = config.luminance;
+    WmVrCalibration calibration = {0};
+    if (!wm_vr_load_calibration("/data/optical_calib", &calibration))
+        fprintf(stderr, "PSVR2: factory panel offsets unavailable or invalid; "
+                        "using nominal optical centers.\n");
+    if (!wm_vr_eye_rects(&config, &calibration, platform->eyes)) return false;
+    fprintf(stderr, "PSVR2: fixed head-relative %.0f-degree menu, %.2fm disparity, "
+                    "%s panel offsets; head tracking and lens distortion "
+                    "are unavailable.\n", config.horizontal_fov_degrees,
+                    config.distance_m, calibration.loaded ? "factory" : "nominal");
+
+    if (application_lock_acquire(0) < 0) return false;
+    platform->owns_device = true;
+    if (open_devices() < 0) return false;
+    platform->devices_open = true;
+    if (fan_ctrl_init() < 0) return false;
+    if (application_stop_requested || cmd_go(0, 0, 0, 100) < 0 ||
+        application_stop_requested || fb_share_fd < 0) return false;
+
+    platform->egl_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    if (platform->egl_display == EGL_NO_DISPLAY ||
+        !eglInitialize(platform->egl_display, NULL, NULL) ||
+        !eglBindAPI(EGL_OPENGL_ES_API)) return false;
+    const char *egl_extensions = eglQueryString(platform->egl_display, EGL_EXTENSIONS);
+    if (!wm_psvr2_has_extension(egl_extensions, "EGL_KHR_surfaceless_context") ||
+        !wm_psvr2_has_extension(egl_extensions, "EGL_EXT_image_dma_buf_import")) {
+        fprintf(stderr, "PSVR2: driver lacks required native scanout extensions.\n");
+        return false;
+    }
+    static const EGLint attributes[] = {
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+        EGL_SURFACE_TYPE, 0,
+        EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_NONE
+    };
+    EGLConfig egl_config;
+    EGLint count = 0;
+    if (!eglChooseConfig(platform->egl_display, attributes, &egl_config, 1, &count) ||
+        count < 1) return false;
+    static const EGLint context_attributes[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
+    platform->egl_context = eglCreateContext(platform->egl_display, egl_config,
+        EGL_NO_CONTEXT, context_attributes);
+    if (platform->egl_context == EGL_NO_CONTEXT ||
+        !eglMakeCurrent(platform->egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE,
+                        platform->egl_context)) return false;
+    if (!wm_psvr2_has_extension((const char *)glGetString(GL_EXTENSIONS),
+                                "GL_OES_EGL_image")) return false;
+    EGLImageKHR (*create_image)(EGLDisplay, EGLContext, EGLenum,
+                               void *, const EGLint *);
+    void (*image_storage)(GLenum, EGLImageKHR);
+    void (*create_proc)(void) = eglGetProcAddress("eglCreateImageKHR");
+    void (*destroy_proc)(void) = eglGetProcAddress("eglDestroyImageKHR");
+    void (*storage_proc)(void) = eglGetProcAddress("glEGLImageTargetRenderbufferStorageOES");
+    _Static_assert(sizeof(create_image) == sizeof(create_proc), "EGL procedure ABI");
+    memcpy(&create_image, &create_proc, sizeof(create_image));
+    memcpy(&platform->destroy_image, &destroy_proc, sizeof(platform->destroy_image));
+    memcpy(&image_storage, &storage_proc, sizeof(image_storage));
+    if (!create_image || !platform->destroy_image || !image_storage) return false;
+    /* Same RGB888 dma-buf interpretation as open_vrhmd's verified renderer. */
+    EGLint image_attributes[] = {
+        EGL_WIDTH, 4000, EGL_HEIGHT, 2040,
+        EGL_LINUX_DRM_FOURCC_EXT, 0x34324742,
+        EGL_DMA_BUF_PLANE0_FD_EXT, fb_share_fd,
+        EGL_DMA_BUF_PLANE0_OFFSET_EXT, 0,
+        EGL_DMA_BUF_PLANE0_PITCH_EXT, 12000, EGL_NONE
+    };
+    platform->scanout_image = create_image(platform->egl_display,
+        EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, NULL, image_attributes);
+    if (!platform->scanout_image) {
+        image_attributes[5] = 0x34324752;
+        platform->scanout_image = create_image(platform->egl_display,
+            EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, NULL, image_attributes);
+    }
+    if (!platform->scanout_image) return false;
+    glGenRenderbuffers(1, &platform->scanout_renderbuffer);
+    glBindRenderbuffer(GL_RENDERBUFFER, platform->scanout_renderbuffer);
+    image_storage(GL_RENDERBUFFER, platform->scanout_image);
+    glGenFramebuffers(1, &platform->scanout_framebuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, platform->scanout_framebuffer);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                               GL_RENDERBUFFER, platform->scanout_renderbuffer);
+    if (!platform->scanout_framebuffer ||
+        glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        return false;
+    if (!wm_initialize_graphics(platform)) return false;
+    platform->scene_texture = wm_upload_texture(WM_FRAME_WIDTH, WM_FRAME_HEIGHT, NULL);
+    glGenFramebuffers(1, &platform->scene_framebuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, platform->scene_framebuffer);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                            GL_TEXTURE_2D, platform->scene_texture, 0);
+    if (!platform->scene_texture || !platform->scene_framebuffer ||
+        glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        return false;
+    platform->pointer = wm_psvr2_pointer_create(NULL);
+    return glGetError() == GL_NO_ERROR;
+}
+
+static void wm_psvr2_release_graphics(WmPlatform *platform)
+{
+    if (platform->egl_context != EGL_NO_CONTEXT &&
+        eglGetCurrentContext() == platform->egl_context) {
+        if (platform->scene_framebuffer)
+            glDeleteFramebuffers(1, &platform->scene_framebuffer);
+        if (platform->scene_texture) glDeleteTextures(1, &platform->scene_texture);
+        if (platform->scanout_framebuffer)
+            glDeleteFramebuffers(1, &platform->scanout_framebuffer);
+        if (platform->scanout_renderbuffer)
+            glDeleteRenderbuffers(1, &platform->scanout_renderbuffer);
+    }
+    if (platform->scanout_image && platform->destroy_image)
+        platform->destroy_image(platform->egl_display, platform->scanout_image);
+}
+
+static void wm_psvr2_present(WmPlatform *platform)
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, platform->scanout_framebuffer);
+    glViewport(0, 0, 4000, 2040);
+    glDisable(GL_SCISSOR_TEST);
+    platform->scissor_enabled = false;
+    glClearColor(0, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glUseProgram(platform->program);
+    glUniform2f(platform->projection_location, 4000.0f, 2040.0f);
+    for (unsigned eye = 0; eye < 2; ++eye) {
+        WmVrEyeRect rect = platform->eyes[eye];
+        WmQuad picture = {
+            .x = rect.x, .y = rect.y, .width = rect.width, .height = rect.height,
+            /* The scene texture is an FBO with a bottom-left origin. */
+            .u0 = 0, .v0 = 1, .u1 = 1, .v1 = 0,
+            .color = {platform->menu_luminance, platform->menu_luminance,
+                      platform->menu_luminance, 1}, .texture = platform->scene_texture
+        };
+        wm_platform_draw_quad(platform, &picture);
+    }
+    wm_flush(platform);
+    glUniform2f(platform->projection_location, WM_FRAME_WIDTH, WM_FRAME_HEIGHT);
+    /* The existing native pipeline scans one shared buffer. Completion is
+     * mandatory before reuse, but does not promise a tear-free page flip.
+     * No framebuffer readback, conversion, or per-frame allocation occurs. */
+    glFinish();
+    if (glGetError() != GL_NO_ERROR && !platform->swap_failure_reported) {
+        fprintf(stderr, "PSVR2: native frame presentation failed.\n");
+        platform->swap_failure_reported = true;
+        application_stop_requested = 1;
+    }
+}
+#endif
+
 WmPlatform *wm_platform_create(const char *title, int window_width, int window_height)
 {
     if (window_width <= 0 || window_height <= 0) {
@@ -931,6 +1129,14 @@ WmPlatform *wm_platform_create(const char *title, int window_width, int window_h
     platform->window_width = window_width;
     platform->window_height = window_height;
 
+#ifdef WM_PLATFORM_PSVR2
+    (void)title;
+    if (!wm_psvr2_initialize(platform)) {
+        if (platform->egl_display != EGL_NO_DISPLAY)
+            wm_report_egl_error("PSVR2 initialization");
+        goto fail;
+    }
+#else
     platform->display = XOpenDisplay(NULL);
     if (platform->display == NULL) {
         fprintf(stderr, "GLES2: could not open the X11 display.\n");
@@ -1067,6 +1273,7 @@ WmPlatform *wm_platform_create(const char *title, int window_width, int window_h
     }
     XMapWindow(platform->display, platform->window);
     XFlush(platform->display);
+#endif
     return platform;
 
 fail:
@@ -1081,8 +1288,7 @@ void wm_platform_destroy(WmPlatform *platform)
     }
 
     if (platform->egl_display != EGL_NO_DISPLAY &&
-        platform->egl_context != EGL_NO_CONTEXT &&
-        platform->egl_surface != EGL_NO_SURFACE) {
+        platform->egl_context != EGL_NO_CONTEXT) {
         eglMakeCurrent(platform->egl_display, platform->egl_surface,
                        platform->egl_surface, platform->egl_context);
     }
@@ -1114,6 +1320,9 @@ void wm_platform_destroy(WmPlatform *platform)
             glDeleteShader(platform->tev_vertex_shader);
         }
     }
+#ifdef WM_PLATFORM_PSVR2
+    wm_psvr2_release_graphics(platform);
+#endif
     if (platform->egl_display != EGL_NO_DISPLAY) {
         eglMakeCurrent(platform->egl_display, EGL_NO_SURFACE,
                        EGL_NO_SURFACE, EGL_NO_CONTEXT);
@@ -1125,6 +1334,14 @@ void wm_platform_destroy(WmPlatform *platform)
         }
         eglTerminate(platform->egl_display);
     }
+#ifdef WM_PLATFORM_PSVR2
+    wm_psvr2_pointer_destroy(platform->pointer);
+    if (platform->devices_open) {
+        cmd_stop();
+        close_devices();
+    }
+    if (platform->owns_device) application_lock_release();
+#else
     if (platform->display != NULL) {
         if (platform->hidden_cursor != None) {
             XFreeCursor(platform->display, platform->hidden_cursor);
@@ -1137,6 +1354,7 @@ void wm_platform_destroy(WmPlatform *platform)
         }
         XCloseDisplay(platform->display);
     }
+#endif
     while (platform->tev_programs) {
         WmTevProgram *next = platform->tev_programs->next;
         free(platform->tev_programs);
@@ -1145,6 +1363,18 @@ void wm_platform_destroy(WmPlatform *platform)
     free(platform);
 }
 
+#ifdef WM_PLATFORM_PSVR2
+bool wm_platform_poll(WmPlatform *platform, WmEvent *event)
+{
+    if (!platform || !event) return false;
+    memset(event, 0, sizeof(*event));
+    if (application_stop_requested) {
+        event->type = WM_EVENT_QUIT;
+        return true;
+    }
+    return wm_psvr2_pointer_poll(platform->pointer, event);
+}
+#else
 static void wm_pointer_event(WmPlatform *platform, WmEvent *event,
                               int x, int y)
 {
@@ -1255,6 +1485,8 @@ bool wm_platform_poll(WmPlatform *platform, WmEvent *event)
     return false;
 }
 
+#endif
+
 void wm_platform_begin(WmPlatform *platform, WmColor clear_color)
 {
     if (platform == NULL) {
@@ -1263,6 +1495,16 @@ void wm_platform_begin(WmPlatform *platform, WmColor clear_color)
 
     platform->quad_count = 0;
     platform->rendering_target = false;
+#ifdef WM_PLATFORM_PSVR2
+    glBindFramebuffer(GL_FRAMEBUFFER, platform->scene_framebuffer);
+    int width = WM_FRAME_WIDTH;
+    int height = WM_FRAME_HEIGHT;
+    platform->framebuffer_width = width;
+    platform->framebuffer_height = height;
+    platform->presentation = (WmViewport){0, 0, width, height};
+    WmViewport content = platform->presentation;
+    glViewport(0, 0, width, height);
+#else
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     EGLint width = platform->window_width;
     EGLint height = platform->window_height;
@@ -1274,6 +1516,7 @@ void wm_platform_begin(WmPlatform *platform, WmColor clear_color)
     WmViewport content = platform->presentation;
     glViewport(content.x, height - content.y - content.height,
                content.width, content.height);
+#endif
     glDisable(GL_SCISSOR_TEST);
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -1575,11 +1818,15 @@ void wm_platform_end(WmPlatform *platform)
         platform->rendering_target = false;
         return;
     }
+#ifdef WM_PLATFORM_PSVR2
+    wm_psvr2_present(platform);
+#else
     if (!eglSwapBuffers(platform->egl_display, platform->egl_surface) &&
         !platform->swap_failure_reported) {
         wm_report_egl_error("frame presentation");
         platform->swap_failure_reported = true;
     }
+#endif
 }
 
 void wm_platform_set_fade_alpha(WmPlatform *platform, float alpha)

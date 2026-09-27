@@ -53,6 +53,7 @@ add_library(wii_menu_core STATIC
     resources/resource_rsar.c
     resources/resource_tpl.c
     resources/resource_u8.c
+    resources/wm_pack.c
 
     scenes/health_scene.c
     scenes/home_overlay.c
@@ -84,6 +85,7 @@ if(WM_BUILD_APP)
     else()
         add_executable(wii-menu app/main.c)
     endif()
+    target_sources(wii-menu PRIVATE app/packed_assets.c)
     target_include_directories(wii-menu PRIVATE audio render)
     target_link_libraries(wii-menu PRIVATE wii_menu_core)
     wm_enable_warnings(wii-menu)

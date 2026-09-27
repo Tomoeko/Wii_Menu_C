@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "packed_assets.h"
 #include "wii_menu/audio/audio.h"
 #include "wii_menu/input/channel_drag.h"
 #include "wii_menu/scenes/health_scene.h"
@@ -429,14 +430,17 @@ static void handle_key(WmMenu *menu, WmAudio *audio,
 }
 
 static int print_usage(const char *program) {
-    fprintf(stderr, "Usage: %s [--assets DIRECTORY]\n", program);
+    fprintf(stderr, "Usage: %s [--assets DIRECTORY_OR_WM_PACKAGE]\n", program);
+#ifdef WM_PLATFORM_PSVR2
+    fprintf(stderr, "PSVR2 defaults to the executable's adjacent .wm file.\n");
+#endif
     fprintf(stderr, "       %s --layout JSON --raw-root DIRECTORY [--animation NAME] [--hide-masks]\n",
             program);
     fprintf(stderr, "Controls: pointer, arrow keys, Enter, Escape, H for HOME.\n");
     return 0;
 }
 
-int main(int argc, char **argv) {
+static int run_menu(int argc, char **argv) {
     const char *assets = NULL;
     const char *layout_path = NULL;
     const char *raw_root = NULL;
@@ -676,7 +680,11 @@ int main(int argc, char **argv) {
     float home_underlay_elapsed = 0.0f;
     float home_underlay_preview_elapsed = 0.0f;
     int preview_running_slot = -1;
+#ifdef WM_PLATFORM_PSVR2
+    const uint64_t frame_period = 1000000000ULL / 120ULL;
+#else
     const uint64_t frame_period = 1000000000ULL / 60ULL;
+#endif
     uint64_t next_frame_deadline = previous + frame_period;
 
     while (running) {
@@ -818,6 +826,7 @@ int main(int argc, char **argv) {
             }
             if (event.type == WM_EVENT_QUIT) {
                 running = false;
+                break;
             } else if (layout) {
                 if (event.type == WM_EVENT_KEY_DOWN &&
                     (event.key == WM_KEY_ESCAPE || event.key == 'q')) running = false;
@@ -1885,4 +1894,17 @@ int main(int argc, char **argv) {
     wm_layout_destroy(layout);
     wm_platform_destroy(platform);
     return 0;
+}
+
+int main(int argc, char **argv) {
+    WmPackedAssets assets;
+    char error[256] = {0};
+    if (!wm_packed_assets_open(&assets, argc, argv, error, sizeof(error))) {
+        fprintf(stderr, "Could not load assets: %s\n", error);
+        wm_packed_assets_close(&assets);
+        return 1;
+    }
+    int result = run_menu(assets.argc, assets.argv);
+    wm_packed_assets_close(&assets);
+    return result;
 }

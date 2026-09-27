@@ -173,6 +173,10 @@ wm_add_test(wii-menu-render-geometry
 )
 
 # Resources.
+wm_add_test(wii-menu-wm-pack
+    SOURCES resources/wm_pack_test.c
+    LIBRARIES wii_menu_core
+)
 wm_add_test(wii-menu-resource
     SOURCES resources/resource_formats_test.c
     LIBRARIES wii_menu_core
@@ -277,6 +281,7 @@ wm_add_test(wii-menu-prepare-update
     SOURCES
         tools/prepare_update_test.c
         "${PROJECT_SOURCE_DIR}/src/support/json.c"
+        "${PROJECT_SOURCE_DIR}/src/resources/wm_pack.c"
         "${PROJECT_SOURCE_DIR}/tools/wad/crypto.c"
     INCLUDE_DIRECTORIES
         "${PROJECT_SOURCE_DIR}/include"
@@ -312,3 +317,33 @@ wm_add_test(wii-menu-outline-font-export
     ARGUMENTS $<TARGET_FILE:wm-outline-font-export>
     DEPENDENCIES wm-outline-font-export
 )
+
+wm_add_test(wii-menu-packed-assets
+    SOURCES tools/packed_assets_test.c
+        "${PROJECT_SOURCE_DIR}/src/app/packed_assets.c"
+    LIBRARIES wii_menu_core
+)
+
+wm_add_test(wii-menu-psvr2-vr-layout
+    SOURCES platform/psvr2_vr_layout_test.c
+        "${PROJECT_SOURCE_DIR}/src/platform/psvr2/vr_layout.c"
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/platform/psvr2"
+    LIBRARIES m
+)
+
+wm_add_test(wii-menu-psvr2-pointer-protocol
+    SOURCES platform/psvr2_pointer_protocol_test.c
+        "${PROJECT_SOURCE_DIR}/src/platform/psvr2/pointer_protocol.c"
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/include"
+)
+
+if(UNIX)
+    wm_add_test(wii-menu-psvr2-pointer-transport
+        SOURCES platform/psvr2_pointer_transport_test.c
+            "${PROJECT_SOURCE_DIR}/tools/pointer/pointer_transport.c"
+            "${PROJECT_SOURCE_DIR}/src/platform/psvr2/pointer_protocol.c"
+        INCLUDE_DIRECTORIES
+            "${PROJECT_SOURCE_DIR}/include"
+            "${PROJECT_SOURCE_DIR}/tools/pointer"
+    )
+endif()

@@ -132,6 +132,116 @@ static void assert_catalog(const char *directory, const char *first_title,
     close_manifest(&manifest);
 }
 
+static void mock_tool(const char *directory, const char *name,
+                       const char *script) {
+    char path[PREPARE_PATH_CAPACITY];
+    assert(path_join(path, sizeof(path), directory, name));
+    write_text(path, script);
+    assert(chmod(path, 0700) == 0);
+}
+
+static void test_pack_enrichment(const char *root, const char *base,
+                                 const char *incoming) {
+    char bin[PREPARE_PATH_CAPACITY], self[PREPARE_PATH_CAPACITY];
+    char package[PREPARE_PATH_CAPACITY], unpacked[PREPARE_PATH_CAPACITY];
+    char nand[PREPARE_PATH_CAPACITY], wad[PREPARE_PATH_CAPACITY];
+    char path[PREPARE_PATH_CAPACITY], error[256], actual[256];
+    assert(path_join(bin, sizeof(bin), root, "mock-tools"));
+    assert(mkdir(bin, 0700) == 0);
+    assert(path_join(self, sizeof(self), bin, "wm-prepare"));
+    mock_tool(bin, "wm-prepare", "#!/bin/sh\nexit 0\n");
+    mock_tool(bin, "wm-nand-extract",
+        "#!/bin/sh\nset -eu\nmkdir \"$2\"\n");
+    mock_tool(bin, "wm-channel-export",
+        "#!/bin/sh\nset -eu\ncp -R \"$WM_TEST_INCOMING\"/. \"$2\"\n");
+    mock_tool(bin, "wm-shared-font-export",
+        "#!/bin/sh\nset -eu\n"
+        "if [ \"${WM_TEST_FONT_FAIL:-0}\" = 1 ]; then\n    exit 1\nfi\n"
+        "mkdir -p \"$2/fonts\"\nprintf 'NAND shared glyphs' > \"$2/fonts/shared.brfna\"\n");
+    mock_tool(bin, "wm-wad-extract",
+        "#!/bin/sh\nset -eu\n"
+        "mkdir -p .local/wad/0000000100000002/content\n");
+    mock_tool(bin, "wm-keyboard-dictionary-export",
+        "#!/bin/sh\nset -eu\nprintf 'converted menu base' > \"$2/base.txt\"\n");
+    const char *exports[] = {"wm-layout-export", "wm-settings-export",
+                             "wm-outline-font-export", "wm-audio-export",
+                             "wm-restart-export"};
+    for (size_t index = 0; index < sizeof(exports) / sizeof(exports[0]); index++)
+        mock_tool(bin, exports[index], "#!/bin/sh\nexit 0\n");
+    assert(setenv("WM_TEST_INCOMING", incoming, 1) == 0);
+    assert(path_join(nand, sizeof(nand), root, "pack-input.nand"));
+    assert(path_join(wad, sizeof(wad), root, "pack-input.wad"));
+    write_text(nand, "synthetic private NAND input");
+    write_text(wad, "synthetic private WAD input");
+    assert(path_join(path, sizeof(path), incoming, "iplsave.bin"));
+    write_text(path, "incoming placement");
+    assert(path_join(path, sizeof(path), base, "psvr2/vr.conf"));
+    write_text(path, "convergence_pixels=0\n");
+
+    assert(path_join(package, sizeof(package), root, "existing-menu.wm"));
+    assert(wm_pack_create(base, package, error, sizeof(error)));
+    char *command[] = {self, "--output", package, "--nand", nand,
+                       "--wad", wad, NULL};
+    /* Repeated --wad enriches the existing converted base instead of replacing it. */
+    assert(wm_prepare_command_main(7, command) == 0);
+    assert(path_join(unpacked, sizeof(unpacked), root, "unpacked-existing"));
+    assert(wm_pack_extract(package, unpacked, error, sizeof(error)));
+    assert_catalog(unpacked, "A old", 3);
+    assert_artwork(unpacked, "0001000141414141", "A old artwork");
+    assert(path_join(path, sizeof(path), unpacked, "iplsave.bin"));
+    read_text(path, actual, sizeof(actual));
+    assert(strcmp(actual, "preserved placement") == 0);
+    assert(path_join(path, sizeof(path), unpacked, "psvr2/vr.conf"));
+    read_text(path, actual, sizeof(actual));
+    assert(strcmp(actual, "convergence_pixels=0\n") == 0);
+    assert(path_join(path, sizeof(path), unpacked, "fonts/shared.brfna"));
+    read_text(path, actual, sizeof(actual));
+    assert(strcmp(actual, "NAND shared glyphs") == 0);
+
+    assert(path_join(package, sizeof(package), root, "initially-without-nand.wm"));
+    char *initial[] = {self, "--wad", wad, "--output", package, NULL};
+    assert(wm_prepare_command_main(5, initial) == 0);
+    assert(path_join(unpacked, sizeof(unpacked), root, "unpacked-initial"));
+    assert(wm_pack_extract(package, unpacked, error, sizeof(error)));
+    PrepareManifest manifest;
+    assert(open_manifest(unpacked, &manifest) && manifest.count == 0);
+    close_manifest(&manifest);
+    assert(remove_tree(unpacked));
+    char *enrich[] = {self, "--nand", nand, "--output", package, NULL};
+    assert(wm_prepare_command_main(5, enrich) == 0);
+    assert(wm_pack_extract(package, unpacked, error, sizeof(error)));
+    assert(open_manifest(unpacked, &manifest) && manifest.count == 2);
+    close_manifest(&manifest);
+    assert(path_join(path, sizeof(path), unpacked, "base.txt"));
+    read_text(path, actual, sizeof(actual));
+    assert(strcmp(actual, "converted menu base") == 0);
+    assert(path_join(path, sizeof(path), unpacked, "iplsave.bin"));
+    read_text(path, actual, sizeof(actual));
+    assert(strcmp(actual, "incoming placement") == 0);
+    assert(remove_tree(unpacked));
+    /* An importer failure must not damage the previous complete package. */
+    char before[41], after[41];
+    assert(hash_regular_file(package, before));
+    assert(setenv("WM_TEST_FONT_FAIL", "1", 1) == 0);
+    assert(wm_prepare_command_main(5, enrich) == 1);
+    assert(hash_regular_file(package, after));
+    assert(strcmp(before, after) == 0);
+    assert(unsetenv("WM_TEST_FONT_FAIL") == 0);
+    assert(wm_prepare_command_main(5, enrich) == 0);
+
+    char identity[41], staged[PREPARE_PATH_CAPACITY];
+    recovery_identity('O', package, identity);
+    assert(create_owned_stage(root, identity, staged));
+    assert(path_join(path, sizeof(path), staged, "private-staged.bin"));
+    write_text(path, "interrupted private contents");
+    char *recover[] = {self, "--recover", "--output", package, NULL};
+    assert(wm_prepare_command_main(4, recover) == 0);
+    struct stat metadata;
+    assert(lstat(staged, &metadata) != 0 && errno == ENOENT);
+    assert(lstat(package, &metadata) == 0 && S_ISREG(metadata.st_mode));
+    assert(unsetenv("WM_TEST_INCOMING") == 0);
+}
+
 int main(int argc, char **argv) {
     (void)argc;
     char *temporary_parent = realpath("/tmp", NULL);
@@ -164,6 +274,7 @@ int main(int argc, char **argv) {
     assert(path_join(incoming, sizeof(incoming), root, "incoming"));
     fixture(base, false);
     fixture(incoming, true);
+    test_pack_enrichment(root, base, incoming);
 
     PrepareChoices empty = {0};
     assert(path_join(stage, sizeof(stage), root, "stage-keep"));

@@ -7,6 +7,7 @@
 #endif
 
 #include "wii_menu/support/json.h"
+#include "wii_menu/resources/wm_pack.h"
 #include "wad/crypto.h"
 
 #include <ctype.h>
@@ -1103,7 +1104,7 @@ static bool update_channels(const char *base_assets,
 
 static int usage(const char *program, int result) {
     fprintf(stderr,
-            "Usage: %s --wad FILE --output DIRECTORY "
+            "Usage: %s --wad FILE --output DIRECTORY_OR_FILE.wm "
             "[--common-key-file FILE] [--common-key-index N] "
             "[--nand FILE] [--nand-keys FILE] [--language ENG]\n"
             "       %s --update-from DIRECTORY --nand FILE --output DIRECTORY "
@@ -1118,12 +1119,15 @@ static int usage(const char *program, int result) {
             program, program, program, program, program);
     fputs("Output must be a new directory. Updates preserve the source "
           "directory and its saved placement. Inputs stay local.\n"
+          "A .wm output packages all converted assets. An existing .wm plus "
+          "--nand preserves its base and atomically adds NAND assets; "
+          "--wad may be omitted or repeated.\n"
           "WAD retail ticket indices 0 and 1 select a built-in common key.\n",
           stderr);
     return result;
 }
 
-int main(int argc, char **argv) {
+static int prepare_directory_main(int argc, char **argv, bool enrich_nand) {
     const char *wad = NULL, *common_key = NULL, *nand = NULL;
     const char *common_key_index = NULL;
     const char *nand_keys = NULL, *output_request = NULL;
@@ -1425,7 +1429,7 @@ int main(int argc, char **argv) {
         okay = run_tool(self, "wm-channel-export", temporary,
                         channel_arguments, plan);
     }
-    if (okay && nand_path && !base_path) {
+    if (okay && nand_path && !plan && (!base_path || enrich_nand)) {
         char *font_arguments[] = {"wm-shared-font-export", nand_output,
                                   assets, NULL};
         okay = run_tool(self, "wm-shared-font-export", temporary,
@@ -1453,6 +1457,20 @@ int main(int argc, char **argv) {
         }
         if (okay) okay = update_channels(assets, incoming_assets, assets,
                                         &replace_ids, &keep_ids, replace_all);
+        if (okay && enrich_nand) {
+            char placement[PREPARE_PATH_CAPACITY];
+            char incoming_placement[PREPARE_PATH_CAPACITY];
+            struct stat placement_metadata;
+            okay = path_join(placement, sizeof(placement), assets, "iplsave.bin") &&
+                path_join(incoming_placement, sizeof(incoming_placement),
+                          incoming_assets, "iplsave.bin");
+            if (okay && lstat(placement, &placement_metadata) != 0) {
+                okay = errno == ENOENT;
+                if (okay && lstat(incoming_placement, &placement_metadata) == 0)
+                    okay = copy_file(incoming_placement, placement);
+                else if (okay && errno != ENOENT) okay = false;
+            }
+        }
     }
     if (okay && !plan) {
         okay = publish_directory_no_replace(assets, output);
@@ -1468,4 +1486,159 @@ int main(int argc, char **argv) {
     free(wad_path); free(common_key_path); free(nand_path);
     free(nand_keys_path); free(base_path); free(self);
     return okay && cleaned ? 0 : 1;
+}
+
+static bool prepare_empty_catalog(const char *directory, const char *language) {
+    char path[PREPARE_PATH_CAPACITY];
+    if (!path_join(path, sizeof(path), directory, "channels.json")) return false;
+    struct stat metadata;
+    if (lstat(path, &metadata) == 0) return S_ISREG(metadata.st_mode);
+    if (errno != ENOENT) return false;
+    if (!language) language = "ENG";
+    if (strlen(language) != 3) return false;
+    for (size_t index = 0; index < 3; index++)
+        if (language[index] < 'A' || language[index] > 'Z') return false;
+    int descriptor = open(path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
+    FILE *stream = descriptor >= 0 ? fdopen(descriptor, "wb") : NULL;
+    if (!stream) { if (descriptor >= 0) close(descriptor); return false; }
+    bool okay = fprintf(stream,
+        "{\n  \"schemaVersion\": 1,\n  \"language\": \"%s\",\n"
+        "  \"channels\": [],\n  \"defaultOrder\": [],\n"
+        "  \"savedLayout\": null\n}\n", language) > 0;
+    if (fclose(stream) != 0) okay = false;
+    if (!okay) unlink(path);
+    return okay;
+}
+
+static int prepare_pack_main(int argc, char **argv, const char *output_request,
+                              const char *update_from, const char *nand,
+                              const char *language) {
+    if (argc < 1 || argc > 4096) return usage(argv[0], 2);
+    char output[PREPARE_PATH_CAPACITY], parent[PREPARE_PATH_CAPACITY];
+    if (!resolved_output(output_request, output, sizeof(output), parent,
+                         sizeof(parent), true)) return 1;
+    int lock = lock_preparation_parent(parent);
+    if (lock < 0) {
+        fputs("Another preparation is active for this package directory.\n", stderr);
+        return 1;
+    }
+    struct stat metadata;
+    bool exists = lstat(output, &metadata) == 0;
+    bool okay = exists ? S_ISREG(metadata.st_mode) && metadata.st_nlink == 1 :
+                         errno == ENOENT;
+    if ((exists && (!nand || update_from)) || !okay) {
+        fputs("An existing .wm can only be enriched with --nand; "
+              "its converted base is preserved.\n", stderr);
+        close(lock);
+        return 1;
+    }
+    char identity[41];
+    recovery_identity('O', output, identity);
+    if (!recover_owned_stage(parent, identity)) {
+        fputs("An ambiguous package recovery journal needs attention.\n", stderr);
+        close(lock);
+        return 1;
+    }
+    char temporary[PREPARE_PATH_CAPACITY];
+    if (!create_owned_stage(parent, identity, temporary)) {
+        close(lock);
+        return 1;
+    }
+    char base[PREPARE_PATH_CAPACITY], assets[PREPARE_PATH_CAPACITY];
+    okay = path_join(base, sizeof(base), temporary, "base") &&
+           path_join(assets, sizeof(assets), temporary, "assets");
+    char error[256];
+    const char *base_source = exists ? output : update_from;
+    const char *directory_base = NULL;
+    if (okay && base_source) {
+        struct stat base_metadata;
+        okay = lstat(base_source, &base_metadata) == 0;
+        if (okay && S_ISREG(base_metadata.st_mode)) {
+            okay = wm_pack_extract(base_source, base, error, sizeof(error));
+            if (!okay) fprintf(stderr, "%s\n", error);
+        } else if (okay && S_ISDIR(base_metadata.st_mode)) {
+            okay = copy_tree(base_source, base);
+        } else okay = false;
+        if (okay) okay = prepare_empty_catalog(base, language);
+        directory_base = base;
+    }
+    char **arguments = calloc((size_t)argc + 3, sizeof(*arguments));
+    if (!arguments) okay = false;
+    size_t count = 0;
+    if (okay) {
+        arguments[count++] = argv[0];
+        for (int index = 1; index < argc; index++) {
+            const char *option = argv[index];
+            bool has_value = strcmp(option, "--help") != 0 &&
+                strcmp(option, "--plan") != 0 && strcmp(option, "--recover") != 0;
+            if (has_value && index + 1 >= argc) { okay = false; break; }
+            const char *value = has_value ? argv[++index] : NULL;
+            if (strcmp(option, "--output") == 0) {
+                arguments[count++] = (char *)option;
+                arguments[count++] = assets;
+            } else if (strcmp(option, "--update-from") == 0) {
+                continue;
+            } else if (exists && (strcmp(option, "--wad") == 0 ||
+                                   strcmp(option, "--common-key-file") == 0 ||
+                                   strcmp(option, "--common-key-index") == 0)) {
+                continue;
+            } else {
+                arguments[count++] = (char *)option;
+                if (has_value) arguments[count++] = (char *)value;
+            }
+        }
+        if (okay && directory_base) {
+            arguments[count++] = "--update-from";
+            arguments[count++] = (char *)directory_base;
+        }
+        if (exists) fputs("Using existing .wm converted assets as the base "
+                          "for NAND enrichment.\n", stdout);
+        if (okay) okay = prepare_directory_main((int)count, arguments, true) == 0;
+    }
+    free(arguments);
+    if (okay) okay = prepare_empty_catalog(assets, language);
+    if (okay) {
+        okay = wm_pack_create(assets, output, error, sizeof(error));
+        if (!okay) fprintf(stderr, "%s\n", error);
+    }
+    if (!okay) fputs("Package preparation failed; the previous .wm "
+                     "was preserved.\n", stderr);
+    bool cleaned = recover_owned_stage(parent, identity);
+    if (!cleaned) fputs("Could not remove private package staging; "
+                        "use --recover --output FILE.wm.\n", stderr);
+    close(lock);
+    return okay && cleaned ? 0 : 1;
+}
+
+int main(int argc, char **argv) {
+    const char *output = NULL, *base = NULL, *nand = NULL, *language = NULL;
+    bool plan = false, recover = false;
+    for (int index = 1; index < argc; index++) {
+        const char *option = argv[index];
+        if (strcmp(option, "--help") == 0) return usage(argv[0], 0);
+        if (strcmp(option, "--plan") == 0) { plan = true; continue; }
+        if (strcmp(option, "--recover") == 0) { recover = true; continue; }
+        if (index + 1 >= argc) return usage(argv[0], 2);
+        const char *value = argv[++index];
+        if (strcmp(option, "--output") == 0) {
+            if (output) return usage(argv[0], 2);
+            output = value;
+        } else if (strcmp(option, "--update-from") == 0) {
+            if (base) return usage(argv[0], 2);
+            base = value;
+        } else if (strcmp(option, "--nand") == 0) {
+            if (nand) return usage(argv[0], 2);
+            nand = value;
+        } else if (strcmp(option, "--language") == 0) {
+            if (language) return usage(argv[0], 2);
+            language = value;
+        }
+    }
+    size_t length = output ? strlen(output) : 0;
+    if (length >= 3 && strcmp(output + length - 3, ".wm") == 0) {
+        if (recover) return prepare_directory_main(argc, argv, false);
+        if (plan) return usage(argv[0], 2);
+        return prepare_pack_main(argc, argv, output, base, nand, language);
+    }
+    return prepare_directory_main(argc, argv, false);
 }

@@ -16,12 +16,20 @@ add_executable(wm-prepare
     preparation/prepare.c
     wad/crypto.c
     "${PROJECT_SOURCE_DIR}/src/support/json.c"
+    "${PROJECT_SOURCE_DIR}/src/resources/wm_pack.c"
 )
 target_include_directories(wm-prepare PRIVATE
     "${PROJECT_SOURCE_DIR}/include"
     "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 wm_enable_warnings(wm-prepare ERROR)
+
+add_executable(wm-pack
+    preparation/pack.c
+    "${PROJECT_SOURCE_DIR}/src/resources/wm_pack.c"
+)
+target_include_directories(wm-pack PRIVATE "${PROJECT_SOURCE_DIR}/include")
+wm_enable_warnings(wm-pack ERROR)
 
 add_executable(wm-layout-export layout/export.c)
 target_link_libraries(wm-layout-export PRIVATE wii_menu_core)
@@ -77,3 +85,20 @@ add_dependencies(wm-prepare
     wm-shared-font-export
     wm-channel-export
 )
+
+if(APPLE)
+    enable_language(OBJC)
+    add_executable(wm-psvr2-pointer
+        pointer/psvr2_pointer_mac.m
+        pointer/pointer_transport.c
+        "${PROJECT_SOURCE_DIR}/src/platform/psvr2/pointer_protocol.c"
+    )
+    target_include_directories(wm-psvr2-pointer PRIVATE
+        "${PROJECT_SOURCE_DIR}/include"
+    )
+    target_compile_options(wm-psvr2-pointer PRIVATE
+        "$<$<COMPILE_LANGUAGE:OBJC>:-fobjc-arc>"
+    )
+    target_link_libraries(wm-psvr2-pointer PRIVATE "-framework AppKit")
+    wm_enable_warnings(wm-psvr2-pointer ERROR)
+endif()

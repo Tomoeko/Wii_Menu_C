@@ -10,6 +10,7 @@
 .board-contacts.json
 .board-contacts.json.tmp.*
 *.wad
+*.wm
 *.nand
 *.img
 *.iso
@@ -66,3 +67,4 @@ __pycache__/
 .env
 .env.*
 !.env.example
+/build-psvr2-host

@@ -6,6 +6,10 @@ This is a port of [Wii_Menu_HTML](https://github.com/Tomoeko/Wii_Menu_HTML).
 The current renderer targets OpenGL ES 2.0; Apple builds use a separate Metal
 adapter.
 
+The `codex/psvr2` branch includes a firmware 06.00 PSVR2 adapter, adjacent
+`.wm` asset packs with later NAND enrichment, and an unlocked macOS mouse
+bridge. See [PSVR2 build, packaging, input and VR status](docs/psvr2.md).
+
 ## Build
 
 ```sh
