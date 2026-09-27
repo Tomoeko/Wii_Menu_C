@@ -8,9 +8,10 @@ adapter.
 
 The `codex/psvr2` branch includes a firmware 06.00 PSVR2 adapter, adjacent
 `.wm` asset packs with later NAND enrichment, and an unlocked macOS mouse
-bridge. Native presentation checks the GPU and scanout byte/row order, and
-the rebuilt Stage3 bridge recovers after USB reconfiguration. See
-[PSVR2 build, packaging, input and VR status](docs/psvr2.md).
+bridge. It uses the public
+[PSVR2_Research toolkit](https://github.com/Tomoeko/PSVR2_Research).
+See the [macOS deployment steps](#psvr2-on-macos) and
+[PSVR2 packaging, input and VR status](docs/psvr2.md).
 
 ## Build
 
@@ -27,6 +28,142 @@ ctest --test-dir build --output-on-failure
 Use `-DWM_BUILD_APP=OFF` to build the portable core, preparation tools, and
 tests without a windowing or graphics SDK. Executables keep their existing
 names and locations under the build directory.
+
+## PSVR2 on macOS
+
+Use the `codex/psvr2` branch and firmware **06.00**. Keep `Wii_Menu_C` and
+`PSVR2_Research` in sibling directories; the paths below work from any parent
+directory. Follow the toolkit's
+[macOS build instructions](https://github.com/Tomoeko/PSVR2_Research/blob/main/docs/build.md#macos-from-a-fresh-checkout)
+to build its host program, matching modules, and BusyBox. A first headset setup
+also needs its
+[RAM deployment sequence](https://github.com/Tomoeko/PSVR2_Research/blob/main/docs/build.md#ram-deployment-check),
+which loads `rmmod_helper` before Stage1. A verified persistent installation
+can supply that initial module chain instead.
+
+From the Wii Menu checkout, load Homebrew's environment, build the host tools,
+and prepare your own assets. Use `/usr/local/bin/brew` in the first command
+on an Intel Mac:
+
+```sh
+eval "$(/opt/homebrew/bin/brew shellenv)"
+cmake -S . -B .local/host-build -DWM_BUILD_APP=OFF
+cmake --build .local/host-build --parallel
+.local/host-build/wm-prepare --wad .local/input/menu.wad \
+  --nand .local/input/nand.bin --output .local/wii-menu.wm
+```
+
+NAND is optional; it can be added later to the same `.wm` with `wm-prepare
+--nand`. See the [packaging details](docs/psvr2.md#prepare-the-adjacent-asset-pack)
+for key-footer requirements and configuration preservation.
+
+Open **one macOS Terminal in the PSVR2_Research checkout** for the following
+commands. Start with the menu and pointer application closed.
+
+1. Set portable paths, build the headset executable, and place its pack beside it:
+
+   ```sh
+   WM_MENU=../Wii_Menu_C
+   WM_KRW="$PWD/psvr2_krw_c/.local/build-release/psvr2_krw_c"
+   WM_TOOLS="$PWD/output/psvr2-build/06.00/tools"
+   WM_FILES="$WM_TOOLS/wii-menu-folder"
+   WM_MODULES="$PWD/output/psvr2-build/06.00/modules"
+   export PSVR2_BUSYBOX="$WM_TOOLS/busybox"
+
+   ./build.sh wii-menu --project "$WM_MENU" --firmware 06.00 \
+     --runtime-root .local/inputs/psvr2-runtime
+   cp "$WM_MENU/.local/wii-menu.wm" "$WM_FILES/wii-menu.wm"
+   ```
+
+   The runtime root must contain your local AArch64 firmware 06.00
+   `lib/libEGL.so.1` and `lib/libGLESv2.so.2`. Those graphics libraries, WADs,
+   NAND dumps, console-specific keys, and converted assets are not bundled
+   in either repository.
+
+2. Upload the executable **first**, the `.wm` **second**, then BusyBox and the
+   matching serial modules. Enable both Stage3 serial ports:
+
+   ```sh
+   "$WM_KRW" --tmp --no-serial \
+     --fast "$WM_FILES/wii-menu" \
+     --fast "$WM_FILES/wii-menu.wm" \
+     --fast "$WM_TOOLS/busybox" \
+     --fast "$WM_MODULES/u_serial.ko" \
+     --fast "$WM_MODULES/usb_f_acm.ko" \
+     --fast "$WM_MODULES/stage3_serial.ko" \
+     --command 'serial reset double-evict'
+   ```
+
+   Use the toolkit's automatically detected firmware; it must report 06.00.
+   Wait for USB reconnection and `OK acm x2 active after USB reset`. This
+   sequence loads the RAM candidates. It does not install persistent files.
+
+3. Initialize the mouse input bridge before starting the menu:
+
+   ```sh
+   "$WM_KRW" --tmp --no-serial \
+     --command "s1exec echo 'input bridge' > /proc/stage3 && test -c /dev/fast_input && cat /proc/stage3"
+   ```
+
+   Expected: `OK input bridge ttyGS1 software ring`. Select the software
+   `input bridge` route. Hardware endpoint takeover is not used for the mouse.
+
+4. Start the menu in the background and record its PID:
+
+   ```sh
+   "$WM_KRW" --tmp --no-serial \
+     --command 's1exec chmod 755 /tmp/wii-menu && { /tmp/wii-menu </dev/null >/tmp/wii-menu.log 2>&1 & echo $! >/tmp/wii-menu.pid; }'
+   ```
+
+   It automatically loads `/tmp/wii-menu.wm`. Allow roughly 10–20 seconds
+   for extraction and initialization, then inspect startup:
+
+   ```sh
+   "$WM_KRW" --tmp --no-serial \
+     --command 's1exec tail -n 60 /tmp/wii-menu.log'
+   ```
+
+   Successful startup includes `DISPLAY PIPELINE ACTIVE` and
+   `WM1801: init complete`, with no graphics initialization failure.
+
+5. Identify the dedicated input port and start the Mac pointer application:
+
+   ```sh
+   ls /dev/cu.usbmodem*
+   "$PWD/psvr2_krw_c/.local/build-release/psvr2_serial_tool" \
+     /dev/cu.usbmodemCANDIDATE shell
+   ```
+
+   Replace `usbmodemCANDIDATE` with a new Stage3 port and press Return.
+   The control interface, target `/dev/ttyGS0`, returns a shell prompt.
+   Close that client with Ctrl-] before trying another candidate. The
+   toolkit's [port guide](https://github.com/Tomoeko/PSVR2_Research/blob/main/docs/build.md#control-and-input-ports)
+   covers identification. Use the other Stage3 interface, target
+   `/dev/ttyGS1`, for the pointer. macOS suffixes vary; replace
+   `usbmodemINPUT` below with that dedicated input port:
+
+   ```sh
+   WM_INPUT_PORT=/dev/cu.usbmodemINPUT
+   "$WM_MENU/.local/host-build/wm-psvr2-pointer" \
+     --input-port "$WM_INPUT_PORT"
+   ```
+
+   Activate the black window, then hover and use left/right clicks. Resizing
+   rescales pointer coordinates; the Mac mouse remains unlocked. Keep one
+   host consumer per serial port and only the menu reading `/dev/fast_input`.
+
+6. To stop, close the pointer window, then send SIGTERM to the recorded menu
+   process after verifying its executable:
+
+   ```sh
+   "$WM_KRW" --tmp --no-serial \
+     --command 's1exec wm_pid=$(cat /tmp/wii-menu.pid) && test "$(/tmp/busybox readlink "/proc/$wm_pid/exe")" = /tmp/wii-menu && kill -TERM "$wm_pid"'
+
+   "$WM_KRW" --tmp --no-serial \
+     --command 's1exec tail -n 25 /tmp/wii-menu.log'
+   ```
+
+   Wait for `TEARDOWN COMPLETE` before uploading again or resetting Stage3.
 
 ## Source layout
 

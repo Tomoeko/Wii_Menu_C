@@ -19,9 +19,9 @@ Build on macOS using the normal **host** compiler, separately from the headset
 cross compilation:
 
 ```sh
-cmake -S . -B build-host -DWM_BUILD_APP=OFF
-cmake --build build-host --target wm-psvr2-pointer
-build-host/wm-psvr2-pointer --input-port /dev/cu.usbmodemINPUT
+cmake -S . -B .local/host-build -DWM_BUILD_APP=OFF
+cmake --build .local/host-build --target wm-psvr2-pointer
+.local/host-build/wm-psvr2-pointer --input-port /dev/cu.usbmodemINPUT
 ```
 
 The host executable launches directly from a terminal; it does not require an
@@ -37,8 +37,10 @@ ownership. An in-use port is retried without disrupting its owner.
 
 The current Stage3 module defaults to one ACM port. A pointer connection needs
 its explicit `double_evict=1` configuration; that configuration evicts Sony
-data8/data9, so follow the firmware-specific Stage3 setup in the native PSVR2
-toolkit. It also needs `/dev/fast_input` initialized with the rebuilt module's
+data8/data9, so follow the firmware-specific Stage3 setup in
+[PSVR2_Research](https://github.com/Tomoeko/PSVR2_Research) and the menu's
+[macOS deployment sequence](../../README.md#psvr2-on-macos).
+It also needs `/dev/fast_input` initialized with the rebuilt module's
 `input bridge` command, which creates a software ring without taking over a
 Sony input endpoint. Run only
 one consumer of `/dev/fast_input`; `input_verify` or another controller reader
@@ -121,9 +123,9 @@ and writer alongside a real nonblocking pipe; it is not a throughput benchmark.
 They run without extracted assets or a headset:
 
 ```sh
-cmake --build build-host --target wii-menu-psvr2-pointer-protocol-test \
+cmake --build .local/host-build --target wii-menu-psvr2-pointer-protocol-test \
     wii-menu-psvr2-pointer-transport-test
-ctest --test-dir build-host -R 'psvr2-pointer' --output-on-failure
+ctest --test-dir .local/host-build -R 'psvr2-pointer' --output-on-failure
 ```
 
 A firmware 06.00 device test ran synthetic movement and left/right button
@@ -138,6 +140,6 @@ nominal scheduling target, not a guaranteed rate.
 The final inactive packet was not observed at the target after the probe
 immediately closed its serial descriptor. Completing a host write does not
 acknowledge delivery; timeout cancellation remains necessary on disconnect.
-This test verifies sustained transport and button event delivery. Visible
-headset cursor behavior, menu interaction, and end-to-end latency still need
-visual and timing validation.
+This test verifies sustained transport and button event delivery. Subsequent
+headset user testing confirmed visible cursor movement and menu clicks.
+End-to-end latency still needs timing validation.

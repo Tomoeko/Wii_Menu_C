@@ -1,8 +1,9 @@
 # PSVR2 port
 
 The `codex/psvr2` branch adds a firmware 06.00 device adapter using the
-native PSVR2 build system and its first-party `open_vrhmd` hardware
-layer. The same menu scene and ES 2.0 renderer produce a 640×456 menu texture,
+[PSVR2_Research build system](https://github.com/Tomoeko/PSVR2_Research) and its
+first-party `open_vrhmd` hardware layer. The same menu scene and ES 2.0 renderer
+produce a 640×456 menu texture,
 composed into both 2000×2040 eyes with black surrounds. The displayed aspect
 defaults to 16:9; the logical raster and displayed aspect remain separate.
 
@@ -27,10 +28,13 @@ validation for each supported device configuration.
 
 ## Build the device executable
 
-Run this in your native PSVR2 build checkout, supplying the menu checkout:
+Follow the toolkit's
+[macOS setup](https://github.com/Tomoeko/PSVR2_Research/blob/main/docs/build.md#macos-from-a-fresh-checkout)
+first. With sibling tool and menu checkouts, run from PSVR2_Research:
 
 ```sh
-./build.sh wii-menu --project /path/to/menu-checkout --firmware 06.00
+./build.sh wii-menu --project ../Wii_Menu_C --firmware 06.00 \
+  --runtime-root .local/inputs/psvr2-runtime
 ```
 
 The native builder uses its saved AArch64 userspace compiler, Zig's glibc 2.28
@@ -103,40 +107,24 @@ memory. File-size limits do not establish that a near-limit pack fits the
 headset's available RAM. Forced termination can leave a temporary extraction
 tree until reboot.
 
-## Upload executable first, pack second
+## Upload and start
 
-Copy the prepared `.wm` into the output folder, then run this from the PSVR2
-repository with a working firmware-matched Stage1:
+The README contains the complete
+[macOS upload, input, launch and teardown sequence](../README.md#psvr2-on-macos).
+It uploads `/tmp/wii-menu` first and its adjacent `/tmp/wii-menu.wm` second,
+then prepares the matching two-port Stage3 chain. The toolkit uploads in
+argument order and uses each file's basename.
 
-```sh
-cp /path/to/menu-checkout/.local/wii-menu.wm \
-  output/psvr2-build/06.00/tools/wii-menu-folder/wii-menu.wm
-psvr2_krw_c/build-release/psvr2_krw_c --no-serial \
-  --fast output/psvr2-build/06.00/tools/wii-menu-folder/wii-menu \
-  --fast output/psvr2-build/06.00/tools/wii-menu-folder/wii-menu.wm
-```
-
-The toolkit uploads in argument order and uses each file's basename. Wait
-for both transfers to finish. The target paths are `/tmp/wii-menu` and
-`/tmp/wii-menu.wm`. Launch through the existing target shell or toolkit
-supervised job mode:
-
-```text
-krw s1exec chmod 755 /tmp/wii-menu
-krw s1exec /tmp/wii-menu >/tmp/wii-menu.log 2>&1 & echo $! >/tmp/wii-menu.pid
-```
-
-The menu uses signals and the dedicated input endpoint; it does not require
-a stdin FIFO. Stop the recorded process with SIGTERM and wait for its log
-to confirm display/audio cleanup before launching another display owner or
-replacing the executable. It takes over the stock display using the shared
+The menu uses signals and the dedicated software input bridge; it does not
+require a stdin FIFO. It takes over the stock display using the shared
 `open_vrhmd` ownership checks and cooling controller. Stage3 is required for
-the existing audio patch and dedicated pointer path. Uploading with
-`--no-serial` preserves a loaded Stage3; it does not deploy a missing one.
+the audio patch and dedicated pointer path. `--no-serial` preserves a loaded
+Stage3; the explicit serial reset command in the README deploys the chain.
 
 ## Unlocked host mouse
 
-On macOS, the host tool is built with the preparation tools:
+On macOS, the host tool is built with the preparation tools. Run it from the
+Wii Menu checkout:
 
 ```sh
 .local/host-build/wm-psvr2-pointer --input-port /dev/cu.usbmodemINPUT
@@ -157,9 +145,9 @@ it does not require a Sony input endpoint. Initialize it before launching
 the menu. Use the toolkit's `--double-evict` startup option or
 `krw serial reset double-evict` for the two-port layout after preparing its
 complete matching module chain. The ordinary `ttyGS0` control shell
-port is a separate service and cannot carry these packets. See the PSVR2
-toolkit's Stage3 deployment instructions; the bridge does not replace or
-reconfigure a running module automatically.
+port is a separate service and cannot carry these packets. See the toolkit's
+[Stage3 deployment instructions](https://github.com/Tomoeko/PSVR2_Research/blob/main/docs/build.md#ram-deployment-check);
+the bridge does not replace or reconfigure a running module automatically.
 
 The window is black and resizable. Hover inside its menu area to position
 the Wii pointer; left and right clicks retain their menu meanings. Resizing
