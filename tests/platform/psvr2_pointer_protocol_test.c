@@ -99,6 +99,9 @@ static void test_buttons_and_loss(void) {
     feed(&decoder, state, 3); /* Duplicate frame must not repeat buttons. */
     empty(&decoder);
     assert(decoder.last_packet_ms == 2);
+    assert(decoder.accepted_packets == 2 && decoder.rejected_packets == 1);
+    assert(decoder.events_delivered == 3);
+    assert(decoder.left_down_events == 1 && decoder.right_down_events == 1);
     state.sequence++;
     state.buttons = 0;
     state.left_edges++;
@@ -122,6 +125,8 @@ static void test_buttons_and_loss(void) {
     empty(&decoder);
     wm_psvr2_pointer_decoder_tick(&decoder, 256);
     assert(event(&decoder, WM_EVENT_POINTER_LEAVE).cancel_capture);
+    assert(decoder.watchdog_cancels == 1);
+    assert(decoder.left_up_events == 1 && decoder.right_up_events == 1);
     state.sequence++;
     feed(&decoder, state, 257); /* A held button cannot re-trigger after timeout. */
     event(&decoder, WM_EVENT_POINTER_MOVE);

@@ -68,6 +68,10 @@ typedef ptrdiff_t GLsizeiptr;
 #define GL_BLEND 0x0BE2
 #define GL_CULL_FACE 0x0B44
 #define GL_DEPTH_TEST 0x0B71
+#define GL_DITHER 0x0BD0
+#define GL_SCISSOR_BOX 0x0C10
+#define GL_VIEWPORT 0x0BA2
+#define GL_COLOR_CLEAR_VALUE 0x0C22
 #define GL_SCISSOR_TEST 0x0C11
 #define GL_COLOR_BUFFER_BIT 0x4000
 #define GL_TEXTURE_2D 0x0DE1
@@ -152,6 +156,8 @@ void glGenTextures(GLsizei count, GLuint *textures);
 GLenum glGetError(void);
 const unsigned char *glGetString(GLenum name);
 void glGetIntegerv(GLenum name, GLint *value);
+void glGetFloatv(GLenum name, GLfloat *value);
+GLboolean glIsEnabled(GLenum capability);
 void glGetProgramInfoLog(GLuint program, GLsizei size, GLsizei *length, GLchar *log);
 void glGetProgramiv(GLuint program, GLenum name, GLint *value);
 void glGetShaderInfoLog(GLuint shader, GLsizei size, GLsizei *length, GLchar *log);

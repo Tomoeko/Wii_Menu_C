@@ -8,7 +8,9 @@ adapter.
 
 The `codex/psvr2` branch includes a firmware 06.00 PSVR2 adapter, adjacent
 `.wm` asset packs with later NAND enrichment, and an unlocked macOS mouse
-bridge. See [PSVR2 build, packaging, input and VR status](docs/psvr2.md).
+bridge. Native presentation checks the GPU and scanout byte/row order, and
+the rebuilt Stage3 bridge recovers after USB reconfiguration. See
+[PSVR2 build, packaging, input and VR status](docs/psvr2.md).
 
 ## Build
 

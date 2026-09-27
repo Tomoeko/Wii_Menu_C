@@ -622,6 +622,9 @@ static int run_menu(int argc, char **argv) {
     WmPointer *pointer = !layout && scene_textures
                              ? wm_pointer_create(platform, assets, scene_textures)
                              : NULL;
+    if (!layout && !pointer)
+        fprintf(stderr, "Could not load source cursor layouts; "
+                        "cursor presentation is unavailable.\n");
     WmAudio *audio = !layout && assets ? wm_audio_create(assets) : NULL;
     WmHomeOverlay *home = !layout && assets && scene_textures && scene_fonts
         ? wm_home_overlay_create(platform, assets, scene_textures, scene_fonts,
@@ -799,7 +802,11 @@ static int run_menu(int argc, char **argv) {
                 wm_menu_restart_alpha(&restart));
 
         WmEvent event;
-        while (wm_platform_poll(platform, &event)) {
+        unsigned events_processed = 0;
+        /* A continuously arriving input stream must leave time to advance
+         * animations and draw. Queued transitions resume on the next frame. */
+        while (events_processed < 64 && wm_platform_poll(platform, &event)) {
+            events_processed++;
             bool memo_release_outside = event.outside_viewport &&
                 event.type == WM_EVENT_POINTER_UP &&
                 menu.screen == WM_SCREEN_BOARD &&
@@ -824,6 +831,9 @@ static int run_menu(int argc, char **argv) {
                 pointer_y = event.y;
                 pointer_inside = true;
             }
+            /* Scene input gates must not discard the cursor's presentation
+             * state: stationary heartbeats intentionally emit no new MOVE. */
+            wm_pointer_apply_event(pointer, &event);
             if (event.type == WM_EVENT_QUIT) {
                 running = false;
                 break;
@@ -1718,6 +1728,9 @@ static int run_menu(int argc, char **argv) {
             wm_font_cache_begin_frame(scene_fonts);
             wm_platform_begin(platform, (WmColor){0, 0, 0, 1});
             wm_health_scene_draw(health_scene);
+#if defined(WM_PLATFORM_PSVR2)
+            wm_pointer_draw(pointer);
+#endif
             wm_platform_end(platform);
         } else if (wm_menu_restart_active(&restart)) {
             if (restart.phase == WM_MENU_RESTART_GRID && resource_scene) {

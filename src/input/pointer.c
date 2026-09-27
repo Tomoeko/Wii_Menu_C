@@ -75,6 +75,17 @@ void wm_pointer_hide(WmPointer *pointer) {
     if (pointer) pointer->visible = false;
 }
 
+void wm_pointer_apply_event(WmPointer *pointer, const WmEvent *event) {
+    if (!event) return;
+    if (event->type == WM_EVENT_POINTER_MOVE ||
+        event->type == WM_EVENT_POINTER_DOWN ||
+        event->type == WM_EVENT_POINTER_UP) {
+        wm_pointer_move(pointer, (float)event->x, (float)event->y);
+    } else if (event->type == WM_EVENT_POINTER_LEAVE) {
+        wm_pointer_hide(pointer);
+    }
+}
+
 void wm_pointer_set_grabbed(WmPointer *pointer, bool grabbed) {
     if (pointer) pointer->grabbed = grabbed;
 }

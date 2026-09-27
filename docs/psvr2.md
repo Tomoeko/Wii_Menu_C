@@ -6,6 +6,25 @@ layer. The same menu scene and ES 2.0 renderer produce a 640×456 menu texture,
 composed into both 2000×2040 eyes with black surrounds. The displayed aspect
 defaults to 16:9; the logical raster and displayed aspect remain separate.
 
+Final presentation uses a separate ES 2.0 shader. An accepted EGL dma-buf
+fourcc does not prove the GPU's actual storage order or the native scanout's
+color interpretation. At startup, two dim 2×2 patches at the outer framebuffer
+edge are rendered, completed, and inspected through
+the uncached ION mapping. This determines GL row direction and RGB/BGR byte
+order. The adapter also reads the format and red/blue swap bit from all four
+MDP_RDMA strip engines. In the verified 24-bit mode, SWAP clear selects packed
+little-endian RGB888: its memory bytes are B,G,R. SWAP set instead expects
+R,G,B bytes. The final swizzle combines that native contract with measured
+GPU stores; CPU framebuffer filler names are not treated as format evidence.
+Every sampled pixel and RDMA channel must agree; unfamiliar storage or native
+formats stop startup. The probe clears its patches back to black before
+returning. The selected projection and optional red/blue swizzle affect only
+final scanout, preserving
+scene FBO coordinates and asset colors. Normal frames perform no pixel probe
+or framebuffer readback. The startup log records the observed bytes and the
+chosen correction; physical orientation and color still require headset
+validation for each supported device configuration.
+
 ## Build the device executable
 
 Run this in your native PSVR2 build checkout, supplying the menu checkout:
@@ -159,6 +178,28 @@ This avoids a shell command round trip for every mouse event. Stage3's
 existing finite input ring can still drop packets during long stalls.
 Software timing and packet rate do not establish measured end-to-end latency.
 
+## Headset audio
+
+The existing mixer supplies stereo S32_LE samples to the native DL12 SRAM
+ring at 48 kHz. Playback uses the headset's headphone jack. The codec's
+ADC-to-DAC sidetone sources are disabled, so ambient microphone sound is not
+mixed into the menu output. Playback routing and attenuated headphone volume
+are reapplied after the stock driver finishes its power sequence. Failure,
+a stalled DMA cursor, and normal teardown mute the DAC before cleanup.
+Headphone codes follow the firmware's 0 dB origin of 121. The 50% startup
+setting requests -18 dB, and the accepted range never permits positive gain.
+The earlier origin of 100 introduced an additional, unintended 21 dB of
+attenuation; that calculation has been corrected.
+
+The Stage3 audio patch response is checked as well as its write result; a
+rejected patch stops audio initialization. `WM_PSVR2_AUDIO_STATS=1` enables
+bounded, approximately once-per-second mixer and DMA diagnostics. Redirect
+the application log to a regular RAM file when using these counters. They
+report active music voices, pause/mute state, render lock misses, converted
+samples, and cursor progress; converted-sample counters alone do not verify
+physical buffer contents or audible output. Diagnostics are disabled by
+default.
+
 ## Convergence and device calibration
 
 The adapter reads `/data/optical_calib` from the **running headset**, using
@@ -187,10 +228,11 @@ setting. The menu and pointer occupy the same stereo plane.
 
 Host checks cover package round trips and corruption/path handling, atomic
 NAND enrichment, pointer state recovery, and bounded stereo/configuration
-geometry. The canonical native build produces an AArch64 executable, and
-the existing macOS renderer remains buildable.
+geometry, scanout row direction, FBO corner UVs, and GPU/RDMA byte-order
+classification. The canonical native build produces an AArch64 executable,
+and the existing macOS renderer remains buildable.
 
-The current port passed all 65 native host tests. A real USA v4.3 WAD and
+The current port passed all 70 host tests. A real USA v4.3 WAD and
 matching NAND import produced a 1,438-file, approximately 189.8 MiB package
 with 13 channels and the shared font aliases. Extraction and repacking were
 byte-identical, and a second extraction matched every input file. On a
@@ -204,6 +246,22 @@ packet unchanged from the second host ACM port to `/dev/fast_input`.
 The refactored Stage3 was installed in persistent device storage and its
 hash verified without capturing a partition backup. These checks establish
 startup, cleanup and transport, not visual comfort or audible output quality.
+
+Subsequent firmware 06.00 checks measured GPU stores as RGB with GL-bottom
+at memory row zero, while all four RDMA engines required BGR bytes. The
+separate final presentation corrects both contracts. A 15-second input run
+delivered every left/right button transition without reconnects, rejected
+packets, lost edges, or ring drops; see the
+[pointer test details](../tools/pointer/README.md). Headset user testing
+confirmed correct colors and normal pointer movement/click interaction.
+Live home-menu audio
+diagnostics showed an active, unpaused background voice and nonzero samples
+in all 1,152 DL12 SRAM words, with a moving DMA cursor, DAC mute clear, and
+both sidetone sources disabled. SIGTERM set the DAC mute bit. These register
+and buffer checks do not establish acoustic output by themselves. After the
+headphone gain-origin correction, headset user testing confirmed that menu
+music is audible through the headphone jack with microphone monitoring
+disabled. Audio continuity and quality still need longer device testing.
 
 This is a device bring-up port with a head-relative flat menu. It does not
 implement tracked world placement, lens-distortion compensation, or verified

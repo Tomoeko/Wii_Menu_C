@@ -21,6 +21,9 @@ void wm_pointer_destroy(WmPointer *pointer);
  * hand-tip correction or motion interpolation in the HTML reference. */
 void wm_pointer_move(WmPointer *pointer, float x, float y);
 void wm_pointer_hide(WmPointer *pointer);
+/* Apply routed pointer presentation independently of the active scene. This
+ * preserves a position received during screens that only accept button input. */
+void wm_pointer_apply_event(WmPointer *pointer, const WmEvent *event);
 void wm_pointer_set_grabbed(WmPointer *pointer, bool grabbed);
 /* The HTML drawPointer contract uses Cat only in its channel grab/drag
  * phases or while the Board is dragging a memo. Drop/cancel use Def. */

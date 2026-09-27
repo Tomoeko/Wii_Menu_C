@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <errno.h>
+#include <unistd.h>
 
 static uint64_t monotonic_ms(void) {
     struct timespec now;
@@ -31,6 +33,9 @@ static uint64_t monotonic_ms(void) {
     uint64_t _lastSentMs;
     uint64_t _lastInactiveHeartbeatMs;
     int _writeFd;
+    uint64_t _writerGeneration;
+    uint64_t _writeConnectionGeneration;
+    uint64_t _nextWriterRetryMs;
     BOOL _wasConnected;
 }
 @property(nonatomic, strong) NSWindow *window;
@@ -38,8 +43,8 @@ static uint64_t monotonic_ms(void) {
 @property(nonatomic, strong) NSTimer *timer;
 @property(nonatomic, strong) dispatch_source_t writeSource;
 @property(nonatomic) const char *inputPath;
-- (void)recordPointer:(NSEvent *)event immediate:(BOOL)immediate;
-- (void)cancelPointer;
+- (void)recordPointer:(NSEvent *)event type:(WmEventType)type immediate:(BOOL)immediate;
+- (void)cancelPointerForReason:(const char *)reason;
 - (void)resizePointer;
 @end
 
@@ -64,17 +69,28 @@ static uint64_t monotonic_ms(void) {
     [self addTrackingArea:self.pointerTrackingArea];
 }
 
-- (void)mouseEntered:(NSEvent *)event { [self.owner recordPointer:event immediate:YES]; }
-- (void)mouseExited:(NSEvent *)event { (void)event; [self.owner cancelPointer]; }
-- (void)mouseMoved:(NSEvent *)event { [self.owner recordPointer:event immediate:NO]; }
-- (void)mouseDragged:(NSEvent *)event { [self.owner recordPointer:event immediate:NO]; }
-- (void)rightMouseDragged:(NSEvent *)event { [self.owner recordPointer:event immediate:NO]; }
-- (void)mouseDown:(NSEvent *)event { [self.owner recordPointer:event immediate:YES]; }
-- (void)mouseUp:(NSEvent *)event { [self.owner recordPointer:event immediate:YES]; }
-- (void)rightMouseDown:(NSEvent *)event { [self.owner recordPointer:event immediate:YES]; }
-- (void)rightMouseUp:(NSEvent *)event { [self.owner recordPointer:event immediate:YES]; }
+- (void)mouseEntered:(NSEvent *)event {
+    [self.owner recordPointer:event type:WM_EVENT_POINTER_MOVE immediate:YES];
+}
+- (void)mouseExited:(NSEvent *)event {
+    (void)event;
+    [self.owner cancelPointerForReason:"left content area"];
+}
+- (void)mouseMoved:(NSEvent *)event {
+    [self.owner recordPointer:event type:WM_EVENT_POINTER_MOVE immediate:NO];
+}
+- (void)mouseDragged:(NSEvent *)event { [self mouseMoved:event]; }
+- (void)rightMouseDragged:(NSEvent *)event { [self mouseMoved:event]; }
+- (void)mouseDown:(NSEvent *)event {
+    [self.owner recordPointer:event type:WM_EVENT_POINTER_DOWN immediate:YES];
+}
+- (void)mouseUp:(NSEvent *)event {
+    [self.owner recordPointer:event type:WM_EVENT_POINTER_UP immediate:YES];
+}
+- (void)rightMouseDown:(NSEvent *)event { [self mouseDown:event]; }
+- (void)rightMouseUp:(NSEvent *)event { [self mouseUp:event]; }
 - (void)keyDown:(NSEvent *)event {
-    if (event.keyCode == 53) [self.owner cancelPointer];
+    if (event.keyCode == 53) [self.owner cancelPointerForReason:"Escape"];
 }
 @end
 
@@ -116,36 +132,70 @@ static uint64_t monotonic_ms(void) {
     [self updateWriter];
 }
 
-- (void)updateWriter {
-    if (self.writeSource && (_transport.fd != _writeFd || !_transport.count)) {
+- (void)cancelWriter {
+    if (self.writeSource) {
         dispatch_source_cancel(self.writeSource);
         self.writeSource = nil;
-        _writeFd = -1;
     }
-    if (!self.writeSource && _transport.fd >= 0 && _transport.count) {
+    _writeFd = -1;
+    _writerGeneration++;
+}
+
+- (void)updateWriter {
+    if (self.writeSource && (_transport.fd != _writeFd || !_transport.count ||
+        _transport.connection_generation != _writeConnectionGeneration)) {
+        [self cancelWriter];
+    }
+    if (!self.writeSource && _transport.fd >= 0 && _transport.count &&
+        monotonic_ms() >= _nextWriterRetryMs) {
+        /* GCD retains its own descriptor until cancellation completes. The
+         * transport may close/reopen its descriptor without racing a watcher
+         * registered against a newly reused descriptor number. */
+        int watcher_fd = dup(_transport.fd);
+        if (watcher_fd < 0) {
+            fprintf(stderr, "Pointer write watcher dup failed: errno=%d (%s).\n",
+                    errno, strerror(errno));
+            _nextWriterRetryMs = monotonic_ms() + 1000;
+            return;
+        }
+        dispatch_source_t source = dispatch_source_create(DISPATCH_SOURCE_TYPE_WRITE,
+            (uintptr_t)watcher_fd, 0, dispatch_get_main_queue());
+        if (!source) {
+            close(watcher_fd);
+            fprintf(stderr, "Pointer write watcher allocation failed; timer retries writes.\n");
+            _nextWriterRetryMs = monotonic_ms() + 1000;
+            return;
+        }
         _writeFd = _transport.fd;
-        self.writeSource = dispatch_source_create(DISPATCH_SOURCE_TYPE_WRITE,
-            (uintptr_t)_writeFd, 0, dispatch_get_main_queue());
+        _writeConnectionGeneration = _transport.connection_generation;
+        uint64_t generation = ++_writerGeneration;
+        uint64_t connection = _writeConnectionGeneration;
+        int observed_fd = _writeFd;
+        self.writeSource = source;
         __weak WmPointerApp *weakSelf = self;
-        dispatch_source_set_event_handler(self.writeSource, ^{
+        dispatch_source_set_cancel_handler(source, ^{ close(watcher_fd); });
+        dispatch_source_set_event_handler(source, ^{
             WmPointerApp *owner = weakSelf;
-            if (!owner) return;
+            if (!owner || owner->_writerGeneration != generation ||
+                owner->_transport.connection_generation != connection ||
+                owner->_transport.fd != observed_fd) return;
             wm_pointer_transport_flush(&owner->_transport, monotonic_ms());
             [owner updateWriter];
         });
-        dispatch_resume(self.writeSource);
+        dispatch_resume(source);
     }
 }
 
-- (void)recordPosition:(NSPoint)point immediate:(BOOL)immediate {
+- (void)recordPosition:(NSPoint)point buttons:(uint8_t)buttons immediate:(BOOL)immediate {
     BOOL active = wm_psvr2_pointer_normalize(
         point.x, point.y, self.view.bounds.size.width,
         self.view.bounds.size.height, &_x, &_y);
     active = active && self.window.visible && !self.window.miniaturized &&
              self.window.keyWindow && NSApp.active;
-    NSUInteger physical = NSEvent.pressedMouseButtons;
-    uint8_t buttons = (physical & 1 ? WM_PSVR2_POINTER_LEFT : 0) |
-                      (physical & 2 ? WM_PSVR2_POINTER_RIGHT : 0);
+    if (active != _active) {
+        fprintf(stderr, "Pointer hover %s: window_key=%d app_active=%d.\n",
+                active ? "active" : "inactive", self.window.keyWindow, NSApp.active);
+    }
     immediate |= active != _active || buttons != _buttons;
     _active = active;
     _buttons = buttons;
@@ -154,19 +204,29 @@ static uint64_t monotonic_ms(void) {
     if (immediate || now - _lastSentMs >= 8) [self sendState:now];
 }
 
-- (void)recordPointer:(NSEvent *)event immediate:(BOOL)immediate {
+- (uint8_t)physicalButtons {
+    NSUInteger physical = NSEvent.pressedMouseButtons;
+    return (physical & 1 ? WM_PSVR2_POINTER_LEFT : 0) |
+           (physical & 2 ? WM_PSVR2_POINTER_RIGHT : 0);
+}
+
+- (void)recordPointer:(NSEvent *)event type:(WmEventType)type immediate:(BOOL)immediate {
+    uint8_t buttons = event.type == NSEventTypeMouseEntered ? [self physicalButtons] :
+        wm_pointer_event_buttons(_buttons, type,
+            event.buttonNumber == 1 ? WM_POINTER_RIGHT : WM_POINTER_LEFT);
     [self recordPosition:[self.view convertPoint:event.locationInWindow fromView:nil]
-                immediate:immediate];
+                buttons:buttons immediate:immediate];
 }
 
 - (void)resizePointer {
     /* Re-evaluate stationary hover when the user resizes the content area. */
     [self recordPosition:[self.view convertPoint:
                           self.window.mouseLocationOutsideOfEventStream fromView:nil]
-                immediate:YES];
+                buttons:[self physicalButtons] immediate:YES];
 }
 
-- (void)cancelPointer {
+- (void)cancelPointerForReason:(const char *)reason {
+    if (_active) fprintf(stderr, "Pointer inactive: %s.\n", reason);
     _active = NO;
     [self sendState:monotonic_ms()];
 }
@@ -195,13 +255,11 @@ static uint64_t monotonic_ms(void) {
 }
 - (void)windowDidResignKey:(NSNotification *)notification {
     (void)notification;
-    [self cancelPointer];
-    if (self.writeSource) dispatch_source_cancel(self.writeSource);
-    self.writeSource = nil;
+    [self cancelPointerForReason:"window lost focus"];
 }
 - (void)windowDidMiniaturize:(NSNotification *)notification {
     (void)notification;
-    [self cancelPointer];
+    [self cancelPointerForReason:"window minimized"];
 }
 - (void)windowDidBecomeKey:(NSNotification *)notification {
     (void)notification;
@@ -209,7 +267,7 @@ static uint64_t monotonic_ms(void) {
 }
 - (void)applicationDidResignActive:(NSNotification *)notification {
     (void)notification;
-    [self cancelPointer];
+    [self cancelPointerForReason:"application lost focus"];
 }
 - (void)applicationDidBecomeActive:(NSNotification *)notification {
     (void)notification;
@@ -222,7 +280,8 @@ static uint64_t monotonic_ms(void) {
 - (void)applicationWillTerminate:(NSNotification *)notification {
     (void)notification;
     [self.timer invalidate];
-    [self cancelPointer];
+    [self cancelPointerForReason:"application quitting"];
+    [self cancelWriter];
     wm_pointer_transport_close(&_transport);
     fprintf(stderr, "Pointer packets written: %llu; coalesced pending motions: %llu.\n",
             (unsigned long long)_transport.packets_written,

@@ -125,6 +125,7 @@ static void accept_state(WmPsvr2PointerDecoder *decoder,
     decoder->previous = state;
     decoder->have_session = true;
     decoder->last_packet_ms = now_ms;
+    decoder->accepted_packets++;
     if (!(state.flags & WM_PSVR2_POINTER_ACTIVE)) {
         cancel(decoder);
         return;
@@ -181,6 +182,14 @@ bool wm_psvr2_pointer_decoder_poll(WmPsvr2PointerDecoder *decoder,
     *event = decoder->events[decoder->event_head];
     decoder->event_head = (decoder->event_head + 1) % WM_PSVR2_POINTER_EVENTS;
     decoder->event_count--;
+    decoder->events_delivered++;
+    if (event->type == WM_EVENT_POINTER_DOWN) {
+        if (event->button == WM_POINTER_LEFT) decoder->left_down_events++;
+        if (event->button == WM_POINTER_RIGHT) decoder->right_down_events++;
+    } else if (event->type == WM_EVENT_POINTER_UP) {
+        if (event->button == WM_POINTER_LEFT) decoder->left_up_events++;
+        if (event->button == WM_POINTER_RIGHT) decoder->right_up_events++;
+    }
     return true;
 }
 
@@ -189,6 +198,8 @@ void wm_psvr2_pointer_decoder_tick(WmPsvr2PointerDecoder *decoder,
     if (decoder->event_count < WM_PSVR2_POINTER_EVENTS &&
         decoder->have_session && now_ms - decoder->last_packet_ms >=
         WM_PSVR2_POINTER_WATCHDOG_MS) {
+        if (decoder->visible || decoder->held_buttons)
+            decoder->watchdog_cancels++;
         decoder->event_count = 0;
         decoder->event_head = 0;
         cancel(decoder);

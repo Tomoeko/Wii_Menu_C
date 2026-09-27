@@ -14,6 +14,12 @@ wm_add_test(wii-menu-scene-fader
 )
 
 # Audio.
+wm_add_test(wii-menu-psvr2-audio-stage3
+    SOURCES platform/psvr2_audio_stage3_test.c
+)
+wm_add_test(wii-menu-psvr2-audio-codec-path
+    SOURCES platform/psvr2_audio_codec_path_test.c
+)
 wm_add_test(wii-menu-audio-held
     SOURCES audio/audio_held_test.c
     LIBRARIES wii_menu_core m
@@ -33,6 +39,11 @@ wm_add_test(wii-menu-audio-wave
 )
 wm_add_test(wii-menu-audio-restart
     SOURCES audio/audio_restart_test.c
+    LIBRARIES wii_menu_core m
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/audio"
+)
+wm_add_test(wii-menu-audio-statistics
+    SOURCES audio/audio_statistics_test.c
     LIBRARIES wii_menu_core m
     INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/audio"
 )
@@ -97,6 +108,12 @@ wm_add_test(wii-menu-shared-font-export
 )
 
 # Input.
+wm_add_test(wii-menu-pointer-presentation
+    SOURCES input/pointer_presentation_test.c
+        "${PROJECT_SOURCE_DIR}/src/input/pointer.c"
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/include"
+    LIBRARIES m
+)
 wm_add_test(wii-menu-arrow-interaction
     SOURCES input/arrow_interaction_test.c
     LIBRARIES wii_menu_core m
@@ -347,3 +364,9 @@ if(UNIX)
             "${PROJECT_SOURCE_DIR}/tools/pointer"
     )
 endif()
+
+wm_add_test(wii-menu-psvr2-scanout
+    SOURCES platform/psvr2_scanout_test.c
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/platform/psvr2"
+    LIBRARIES m
+)

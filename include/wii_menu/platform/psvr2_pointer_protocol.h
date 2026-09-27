@@ -43,8 +43,15 @@ typedef struct WmPsvr2PointerDecoder {
     WmEvent events[WM_PSVR2_POINTER_EVENTS];
     unsigned event_head;
     unsigned event_count;
+    uint64_t accepted_packets;
     uint64_t rejected_packets;
     uint64_t lost_button_edges;
+    uint64_t watchdog_cancels;
+    uint64_t events_delivered;
+    uint64_t left_down_events;
+    uint64_t left_up_events;
+    uint64_t right_down_events;
+    uint64_t right_up_events;
 } WmPsvr2PointerDecoder;
 
 void wm_psvr2_pointer_encode(uint8_t bytes[WM_PSVR2_POINTER_PACKET_SIZE],

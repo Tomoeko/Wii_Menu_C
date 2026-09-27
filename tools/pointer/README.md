@@ -24,6 +24,10 @@ cmake --build build-host --target wm-psvr2-pointer
 build-host/wm-psvr2-pointer --input-port /dev/cu.usbmodemINPUT
 ```
 
+The host executable launches directly from a terminal; it does not require an
+application bundle. Its dependencies are macOS system frameworks. Use the
+host build for this window, rather than the AArch64 Linux menu executable.
+
 The path above is a placeholder. Select the **second Stage3 ACM interface**,
 which corresponds to `/dev/ttyGS1` on the headset. Do not select the first
 interface: `/dev/ttyGS0` is the control shell and upload connection. The pointer
@@ -40,7 +44,11 @@ Sony input endpoint. Run only
 one consumer of `/dev/fast_input`; `input_verify` or another controller reader
 would compete with the menu. The target intentionally does not mutate Sony
 USB endpoints by itself. Kernel bridge initialization supports ring setup
-after the serial bridge starts.
+after the serial bridge starts. The rebuilt Stage3 module waits for both tty
+ports before activation and reopens a permanently hung-up input descriptor
+following ACM reconfiguration. Without that recovery, an apparently connected
+host can stall while the bridge repeatedly reads EOF. `input status` on Stage3
+reports tty open/read progress, hangups, endpoint state, and ring delivery.
 
 The window title shows whether the host serial descriptor is connected. This
 does not prove that the headset menu is receiving input; the existing kernel
@@ -66,13 +74,29 @@ event storage.
 
 Mouse movement coalesces over an 8 ms tick (nominally 125 updates/second).
 Button changes and cancellation send immediately with the latest coordinates.
+Queued AppKit button events preserve their own down/up transitions even when
+the physical button has already been released before those events are handled.
 An active heartbeat uses the same 8 ms tick; inactive heartbeats use 50 ms.
 Nonblocking writes happen directly on events and resume through a serial
-writability dispatch source when necessary. The bounded host queue replaces
+writability dispatch source when necessary. That source owns a duplicate
+descriptor until cancellation completes, and a connection generation guard
+rejects callbacks from an earlier connection. The bounded host queue replaces
 only unsent movement snapshots; it preserves queued button transitions and
-partial writes. A full queue or more than 100 ms of write backpressure closes
-the transport. The target cancels input after 250 ms without a valid advancing
-packet, even when the serial endpoint remains open.
+partial writes. Completing a packet advances its queue deadline to the next
+packet. A full transition queue, a packet older than 100 ms, or 100 ms without
+write progress closes the transport. Replacing pending movement cannot conceal
+a stalled writer. Raw serial setup disables software and hardware flow control
+and asserts DTR/RTS when the driver supports those lines. The target cancels
+input after 250 ms without a valid advancing packet, even when the serial
+endpoint remains open.
+
+Disconnect logs identify write errors with their actual errno, zero writes,
+queue overflow, packet age, or lack of write progress. They also report pending
+packet count, partial-write offset, queue/progress ages, bytes, packets, and
+would-block count. Startup logs show connection generation and inherited versus
+configured flow flags. Hover/focus logs distinguish an inactive window from a
+transport failure. These diagnostics describe host writes; they do not prove
+receipt by the headset.
 
 These are scheduling intervals and failsafe limits, not measured end-to-end
 latency. AppKit scheduling, USB transfers, the existing Stage3 bridge polling,
@@ -89,6 +113,11 @@ Focused tests cover resize mapping, every single-bit packet corruption,
 all packet split points, noise resynchronization, sequence wrap, stale packets,
 left/right transitions, dropped edge detection, reconnect/timeout cancellation,
 bounded event consumption, and host motion coalescing under write backpressure.
+The host transport regression drives 400 active updates at 8 ms intervals through
+a continuously nonempty queue with short writes, validates both ordered click
+streams and every transmitted packet, and injects stalled writes, stale partial
+packets, EIO, zero writes, and queue overflow. This uses a deterministic clock
+and writer alongside a real nonblocking pipe; it is not a throughput benchmark.
 They run without extracted assets or a headset:
 
 ```sh
@@ -97,8 +126,18 @@ cmake --build build-host --target wii-menu-psvr2-pointer-protocol-test \
 ctest --test-dir build-host -R 'psvr2-pointer' --output-on-failure
 ```
 
-The macOS tool's black content area and native zoom resizing were visually
-inspected. A separate firmware 06.00 device check sent one inactive packet
-through the real transport to the second ACM port and received identical
-bytes from `/dev/fast_input`. This verifies USB delivery, while interactive
-headset behavior and end-to-end latency still require measurement.
+A firmware 06.00 device test ran synthetic movement and left/right button
+pulses for 15 seconds through the real host transport and Stage3 bridge. The
+host wrote 1,568 packets (25,088 bytes) with zero would-block writes and zero
+disconnects. The target accepted 1,567 packets (25,072 bytes), with zero
+rejected packets, lost button transitions, or kernel ring drops. It recorded
+eight left-button presses/releases and seven right-button presses/releases.
+That run delivered about 104 updates per second; the 8 ms interval remains a
+nominal scheduling target, not a guaranteed rate.
+
+The final inactive packet was not observed at the target after the probe
+immediately closed its serial descriptor. Completing a host write does not
+acknowledge delivery; timeout cancellation remains necessary on disconnect.
+This test verifies sustained transport and button event delivery. Visible
+headset cursor behavior, menu interaction, and end-to-end latency still need
+visual and timing validation.

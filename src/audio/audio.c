@@ -7,6 +7,7 @@
 
 #include "audio_platform.h"
 
+#include <inttypes.h>
 #include <math.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -82,6 +83,12 @@ struct WmAudio {
     float master_volume;
     bool muted;
     int active_preview;
+    bool statistics;
+    uint64_t statistics_since;
+    uint64_t statistics_buffers;
+    uint64_t statistics_lock_misses;
+    uint64_t statistics_nonzero;
+    float statistics_peak;
 };
 
 static uint64_t monotonic_nanoseconds(void)
@@ -281,6 +288,14 @@ static WmAudioClip *load_clip(WmAudio *audio, const char *name,
         }
     }
     if (!isfinite(clip->gain) || clip->gain < 0.0f) clip->gain = 1.0f;
+    if (audio->statistics && (strcmp(name, "background") == 0 ||
+                              strcmp(name, "backgroundIntro") == 0)) {
+        fprintf(stderr, "PSVR2 audio track: cue=%s rate=%u channels=%u "
+                "frames=%u loop=%u loop_start=%u loop_end=%u gain=%.6g\n",
+                name, clip->pcm.sample_rate, clip->pcm.channels,
+                clip->pcm.frame_count, clip->pcm.looping,
+                clip->pcm.loop_start, clip->pcm.loop_end, (double)clip->gain);
+    }
     return clip;
 }
 
@@ -390,13 +405,64 @@ static void mix_held_voice(WmAudio *audio, WmAudioVoice *voice,
     }
 }
 
+/* Only the render thread owns the counters. Voice state is inspected while
+ * holding the existing mixer lock; diagnostics never wait for that lock. */
+static void report_mixer_statistics(WmAudio *audio, const float *interleaved,
+                                     size_t frames, bool locked)
+{
+    for (size_t sample = 0; sample < frames * 2; ++sample) {
+        float magnitude = fabsf(interleaved[sample]);
+        audio->statistics_nonzero += magnitude > 0.0f;
+        if (magnitude > audio->statistics_peak)
+            audio->statistics_peak = magnitude;
+    }
+    uint64_t now = monotonic_nanoseconds();
+    if (now - audio->statistics_since < UINT64_C(1000000000)) return;
+    fprintf(stderr, "PSVR2 audio mixer: buffers=%" PRIu64
+            " lock_misses=%" PRIu64 " nonzero=%" PRIu64
+            " peak=%.6g snapshot=%s",
+            audio->statistics_buffers, audio->statistics_lock_misses,
+            audio->statistics_nonzero, (double)audio->statistics_peak,
+            locked ? "locked" : "busy");
+    if (locked) {
+        unsigned active = 0, paused = 0;
+        const WmAudioVoice *background = NULL;
+        for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; ++index) {
+            const WmAudioVoice *voice = &audio->voices[index];
+            if (!voice->active) continue;
+            ++active;
+            paused += voice->paused;
+            if (voice->kind == WM_VOICE_BACKGROUND) background = voice;
+        }
+        fprintf(stderr, " voices=%u paused=%u bgm=%s bgm_frame=%.0f "
+                "started=%u menu_paused=%u muted=%u volume=%.6g",
+                active, paused,
+                background ? (background->paused ? "paused" : "playing") : "inactive",
+                background ? background->frame : 0.0, audio->background_started,
+                audio->menu_paused, audio->muted, (double)audio->master_volume);
+    }
+    fputc('\n', stderr);
+    audio->statistics_since = now;
+    audio->statistics_buffers = 0;
+    audio->statistics_lock_misses = 0;
+    audio->statistics_nonzero = 0;
+    audio->statistics_peak = 0.0f;
+}
+
 static void mix_audio(void *context, float *interleaved, size_t frames)
 {
     WmAudio *audio = context;
     if (!audio || !interleaved || frames > SIZE_MAX / (2 * sizeof(float)))
         return;
     memset(interleaved, 0, frames * 2 * sizeof(float));
-    if (pthread_mutex_trylock(&audio->mutex) != 0) return;
+    if (audio->statistics) ++audio->statistics_buffers;
+    if (pthread_mutex_trylock(&audio->mutex) != 0) {
+        if (audio->statistics) {
+            ++audio->statistics_lock_misses;
+            report_mixer_statistics(audio, interleaved, frames, false);
+        }
+        return;
+    }
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
         WmAudioVoice *voice = &audio->voices[index];
         if (!voice->active || voice->paused) continue;
@@ -445,6 +511,7 @@ static void mix_audio(void *context, float *interleaved, size_t frames)
         if (interleaved[frame] > 1.0f) interleaved[frame] = 1.0f;
         if (interleaved[frame] < -1.0f) interleaved[frame] = -1.0f;
     }
+    if (audio->statistics) report_mixer_statistics(audio, interleaved, frames, true);
     pthread_mutex_unlock(&audio->mutex);
 }
 
@@ -456,6 +523,9 @@ WmAudio *wm_audio_create(const char *assets_directory)
     WmAudio *audio = calloc(1, sizeof(*audio));
     if (!audio) return NULL;
     strcpy(audio->assets, assets_directory);
+    const char *statistics = getenv("WM_PSVR2_AUDIO_STATS");
+    audio->statistics = statistics && strcmp(statistics, "1") == 0;
+    audio->statistics_since = monotonic_nanoseconds();
     audio->master_volume = 1.0f;
     audio->active_preview = -1;
     if (pthread_mutex_init(&audio->mutex, NULL) != 0) {

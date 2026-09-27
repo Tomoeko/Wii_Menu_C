@@ -1,9 +1,12 @@
 #define _DEFAULT_SOURCE
 #include "audio_platform.h"
 #include "open_vrhmd.h"
+#include "audio_stage3.h"
+#include "audio_codec_path.h"
 
 #include <linux/i2c.h>
 #include <linux/i2c-dev.h>
+#include <inttypes.h>
 #include <math.h>
 #include <pthread.h>
 #include <stdatomic.h>
@@ -26,8 +29,6 @@
 #define AFE_CONN_MUX_CFG 0x0af8
 #define WM1801_I2C_BUS 0
 #define WM1801_I2C_ADDR 0x4A
-#define WM1801_OUTPUT_MIXER_LEFT 57
-#define WM1801_OUTPUT_MIXER_RIGHT 58
 #define WM1801_VOLUME_UPDATE 0x100
 #define WM1801_DAC_VOLUME_LEFT 10
 #define WM1801_DAC_VOLUME_RIGHT 11
@@ -41,6 +42,7 @@ struct WmAudioDevice {
     volatile uint32_t *sram;
     WmAudioRender render;
     void *context;
+    uint16_t headphone_volume;
     pthread_t thread;
     atomic_bool running;
     bool thread_started;
@@ -82,7 +84,7 @@ static int wm1801_read(WmAudioDevice *device, uint8_t reg, uint16_t *val)
         ERR("WM1801: read reg %d failed (errno=%d)", reg, errno);
         return -1;
     }
-    *val = (data_buf[0] << 8) | data_buf[1];
+    *val = (uint16_t)((uint16_t)data_buf[0] << 8 | data_buf[1]);
     return 0;
 }
 
@@ -96,10 +98,18 @@ static int wm1801_rmw(WmAudioDevice *device, uint8_t reg, uint16_t mask, uint16_
     return wm1801_write(device, reg, newval);
 }
 
+static int wm1801_update(void *context, uint8_t reg, uint16_t mask, uint16_t value)
+{
+    return wm1801_rmw(context, reg, mask, value);
+}
+
 /* Initialize the WM1801 codec — replicated from vrhmd_main.elf sub_13B4C.
  * This powers on the DAC, headphone amp, sets I2S format, and unmutes. */
 static int wm1801_init(WmAudioDevice *device, int volume_pct)
 {
+    uint16_t vol_val;
+    if (wm_audio_codec_headphone_code(volume_pct, &vol_val) < 0)
+        return -1;
     char i2c_path[32];
     snprintf(i2c_path, sizeof(i2c_path), "/dev/i2c-%d", WM1801_I2C_BUS);
 
@@ -127,7 +137,8 @@ static int wm1801_init(WmAudioDevice *device, int volume_pct)
     LOG("WM1801 Device ID: 0x%04x (rev %d)", dev_id, (dev_id >> 9) & 7);
     fflush(stdout);
 
-    /* === Full init sequence from vrhmd_main.elf sub_13B4C === */
+    /* Headphone power sequence from vrhmd_main.elf sub_13B4C, with
+     * microphone monitoring omitted for menu playback. */
 
     /* Step 1: Software reset */
     if (wm1801_write(device, 15, 0) < 0)
@@ -136,10 +147,10 @@ static int wm1801_init(WmAudioDevice *device, int volume_pct)
     fflush(stdout);
     usleep(10000); /* 10ms */
 
-    /* Step 2: Power management */
+    /* Step 2: Power management and anti-pop */
     if (wm1801_write(device, 25, 234) < 0) /* 0xEA — power mgmt 1 */
         goto fail;
-    if (wm1801_write(device, 28, 24) < 0) /* 0x18 — power mgmt 3 */
+    if (wm1801_write(device, 28, 24) < 0) /* 0x18 — anti-pop control */
         goto fail;
     LOG("WM1801: power mgmt registers written");
     fflush(stdout);
@@ -148,22 +159,21 @@ static int wm1801_init(WmAudioDevice *device, int volume_pct)
     /* Step 3: Configure basic output routing */
     if (wm1801_write(device, 82, 0) < 0) /* Reg 0x52 */
         goto fail;
-    if (wm1801_write(device, WM1801_OUTPUT_MIXER_LEFT, 0xC4) < 0 ||
-        wm1801_write(device, WM1801_OUTPUT_MIXER_RIGHT, 0xC4) < 0)
+    /* The menu has no microphone-monitoring control. Keep ambient microphone
+     * audio out of both headphone DAC channels. */
+    if (wm1801_write(device, WM_AUDIO_CODEC_SIDETONE_0, 0) < 0 ||
+        wm1801_write(device, WM_AUDIO_CODEC_SIDETONE_1, 0) < 0)
         goto fail;
     if (wm1801_write(device, 71, 435) < 0) /* Reg 0x47 = 0x01B3 */
         goto fail;
-    if (wm1801_write(device, 32, 16) < 0) /* Reg 0x20 = 0x10 (DAC control) */
+    if (wm1801_write(device, 32, 16) < 0) /* Reg 0x20 = 0x10 (left ADC input path) */
         goto fail;
     if (wm1801_rmw(device, 48, 1, 0) < 0) /* Reg 0x30: clear bit 0 */
         goto fail;
 
     /* Set both gains before powering/unmuting the outputs, matching Sony's
      * initialization order. Retain the player's attenuated headphone ceiling. */
-    int mdb = (volume_pct - 100) * 360;
-    if (mdb < -36000)
-        mdb = -36000;
-    uint16_t vol_val = (mdb / 1000) + 100;
+    device->headphone_volume = vol_val;
     if (wm1801_write(device, 2, vol_val | 0x80) < 0 ||
         wm1801_write(device, 3, vol_val | 0x80 | WM1801_VOLUME_UPDATE) < 0)
         goto fail;
@@ -171,11 +181,7 @@ static int wm1801_init(WmAudioDevice *device, int volume_pct)
         wm1801_write(device, WM1801_DAC_VOLUME_RIGHT, WM1801_DAC_0DB | WM1801_VOLUME_UPDATE) < 0)
         goto fail;
 
-    /* Step 4: Output Master config */
-    if (wm1801_write(device, 0, 434) < 0) /* Reg 0 = 0x01B2 */
-        goto fail;
-
-    /* Step 5: Gain and Level config */
+    /* Step 4: Start the stock headphone power sequencer */
     if (wm1801_write(device, 87, 48) < 0) /* Reg 0x57 = 0x30 */
         goto fail;
     if (wm1801_write(device, 88, 256) < 0) /* Reg 0x58 = 0x100 */
@@ -183,15 +189,14 @@ static int wm1801_init(WmAudioDevice *device, int volume_pct)
     if (wm1801_write(device, 90, 128) < 0) /* Reg 0x5A = 0x80 */
         goto fail;
 
-    /* Step 6: Wait for VMID charge (CRITICAL) */
+    /* Step 5: Wait for VMID charge (CRITICAL) */
     LOG("WM1801: waiting 400ms for VMID charge...");
     fflush(stdout);
     usleep(400000);
 
-    /* Step 7: Enable outputs and clear force mute */
-    if (wm1801_rmw(device, 0, 0x0180, 0x0100) < 0) /* Reg 0: set bit 8, clear bit 7 */
-        goto fail;
-    if (wm1801_rmw(device, 5, 0x0008, 0x0000) < 0) /* Reg 5: clear bit 3 */
+    /* Step 6: Reassert playback-only routing and unmute the DAC. Register 0
+     * belongs to the microphone PGA and is not a headphone mute control. */
+    if (wm_audio_codec_start_playback(device, wm1801_update, vol_val) < 0)
         goto fail;
 
     LOG("WM1801: init complete, volume=%d%% (val=0x%02x)", volume_pct, vol_val);
@@ -202,24 +207,12 @@ static int wm1801_init(WmAudioDevice *device, int volume_pct)
 fail:
     {
         int saved_errno = errno;
-        wm1801_rmw(device, 0, 0x0180, 0x0080);
+        wm_audio_codec_mute_playback(device, wm1801_update);
         close(device->i2c_fd);
         device->i2c_fd = -1;
         errno = saved_errno;
     }
     return -1;
-}
-
-static bool wm_audio_patch(void)
-{
-    int descriptor = open("/proc/stage3", O_WRONLY | O_CLOEXEC);
-    if (descriptor < 0)
-        return false;
-    static const char command[] = "audiopatch";
-    bool succeeded =
-        write(descriptor, command, sizeof(command) - 1) == (ssize_t)(sizeof(command) - 1);
-    close(descriptor);
-    return succeeded;
 }
 
 /* Called by the shared display teardown before releasing its device nodes. */
@@ -230,7 +223,7 @@ int audio_stop_hardware(void)
         ioctl(descriptor, SIE_AUDIO_IO_TRANSFER_STOP);
         close(descriptor);
     }
-    return wm_audio_patch() ? 0 : -1;
+    return wm_audio_stage3_patch() ? 0 : -1;
 }
 
 static int64_t wm_audio_milliseconds(void)
@@ -247,16 +240,23 @@ static void *wm_audio_output(void *context)
     float mixed[DL12_HALF_FRAMES * 2];
     int last_half = -1;
     int64_t last_transition = wm_audio_milliseconds();
+    int64_t statistics_since = last_transition;
+    const char *statistics_option = getenv("WM_PSVR2_AUDIO_STATS");
+    bool statistics = statistics_option && strcmp(statistics_option, "1") == 0;
+    uint64_t fills = 0, nonzero = 0, invalid_cursors = 0;
+    uint32_t peak = 0;
     while (atomic_load_explicit(&device->running, memory_order_relaxed) &&
            !application_stop_requested) {
         uint32_t cursor = device->registers[AFE_DL12_CUR_R / 4];
         int half = -1;
         if (cursor >= AFE_SRAM_BASE && cursor < AFE_SRAM_BASE + DL12_SRAM_SIZE)
             half = (cursor - AFE_SRAM_BASE) / (DL12_SRAM_SIZE / 2);
+        if (statistics && half < 0) ++invalid_cursors;
         if (half >= 0 && half != last_half) {
             last_half = half;
             last_transition = wm_audio_milliseconds();
             device->render(device->context, mixed, DL12_HALF_FRAMES);
+            if (statistics) ++fills;
             volatile uint32_t *output = device->sram + (1 - half) * DL12_HALF_FRAMES * 2;
             for (size_t sample = 0; sample < DL12_HALF_FRAMES * 2; ++sample) {
                 float value = isfinite(mixed[sample]) ? mixed[sample] : 0.0f;
@@ -265,12 +265,28 @@ static void *wm_audio_output(void *context)
                  * controlled by the portable mixer; startup cannot blast. */
                 int32_t converted = (int32_t)(value * 1073741823.0f);
                 output[sample] = (uint32_t)converted;
+                if (statistics) {
+                    uint32_t magnitude = converted < 0 ?
+                        (uint32_t)-(int64_t)converted : (uint32_t)converted;
+                    nonzero += magnitude > 0;
+                    if (magnitude > peak) peak = magnitude;
+                }
             }
         }
         int64_t now = wm_audio_milliseconds();
+        if (statistics && now - statistics_since >= 1000) {
+            fprintf(stderr, "PSVR2 audio DMA: fills=%" PRIu64
+                    " nonzero=%" PRIu64 " peak=%" PRIu32
+                    " invalid_cursors=%" PRIu64 " cursor=%08" PRIx32 "\n",
+                    fills, nonzero, peak, invalid_cursors, cursor);
+            statistics_since = now;
+            fills = nonzero = invalid_cursors = 0;
+            peak = 0;
+        }
         if (now < 0 || last_transition < 0 || now - last_transition > 1000) {
             fprintf(stderr, "PSVR2: audio DMA cursor stalled; output stopped.\n");
             atomic_store(&device->running, false);
+            wm_audio_codec_mute_playback(device, wm1801_update);
             ioctl(device->audio_fd, SIE_AUDIO_IO_TRANSFER_STOP);
             break;
         }
@@ -290,7 +306,7 @@ WmAudioDevice *wm_audio_device_open(WmAudioRender render, void *context)
     device->render = render;
     device->context = context;
     device->audio_fd = open("/dev/audio", O_RDWR | O_CLOEXEC);
-    if (device->audio_fd < 0 || !wm_audio_patch())
+    if (device->audio_fd < 0 || !wm_audio_stage3_patch())
         goto fail;
     usleep(10000);
     if (ioctl(device->audio_fd, SIE_AUDIO_IO_PREPARE) < 0 || wm1801_init(device, 50) < 0)
@@ -313,7 +329,8 @@ WmAudioDevice *wm_audio_device_open(WmAudioRender render, void *context)
     for (size_t word = 0; word < DL12_SRAM_SIZE / 4; ++word)
         device->sram[word] = 0;
     struct audio_io_transfer_start_req transfer = {1, 48000};
-    if (ioctl(device->audio_fd, SIE_AUDIO_IO_TRANSFER_START, &transfer) < 0 || !wm_audio_patch())
+    if (ioctl(device->audio_fd, SIE_AUDIO_IO_TRANSFER_START, &transfer) < 0 ||
+        !wm_audio_stage3_patch())
         goto fail;
     usleep(10000);
     if (ioctl(device->audio_fd, SIE_AUDIO_IO_PREPARE) < 0)
@@ -323,6 +340,11 @@ WmAudioDevice *wm_audio_device_open(WmAudioRender render, void *context)
     device->registers[AFE_DAC_CON0 / 4] |= 1U << 8;
     uint32_t mux = device->registers[AFE_CONN_MUX_CFG / 4];
     device->registers[AFE_CONN_MUX_CFG / 4] = (mux & ~0xFFFFU) | 0x3210;
+    /* The stock headphone sequencer can overwrite routing and volume. Reapply
+     * the bounded playback path after the complete driver startup sequence. */
+    if (wm_audio_codec_start_playback(device, wm1801_update,
+                                      device->headphone_volume) < 0)
+        goto fail;
     atomic_store(&device->running, true);
     if (pthread_create(&device->thread, NULL, wm_audio_output, device) != 0)
         goto fail;
@@ -342,6 +364,9 @@ void wm_audio_device_close(WmAudioDevice *device)
     atomic_store(&device->running, false);
     if (device->thread_started)
         pthread_join(device->thread, NULL);
+    /* Silence headphone playback before stopping DMA or clearing its ring. */
+    if (device->i2c_fd >= 0)
+        wm_audio_codec_mute_playback(device, wm1801_update);
     if (device->audio_fd >= 0) {
         ioctl(device->audio_fd, SIE_AUDIO_IO_TRANSFER_STOP);
         close(device->audio_fd);
@@ -356,8 +381,6 @@ void wm_audio_device_close(WmAudioDevice *device)
     if (device->memory_fd >= 0)
         close(device->memory_fd);
     if (device->i2c_fd >= 0) {
-        /* Restore force mute before relinquishing the amplifier. */
-        wm1801_rmw(device, 0, 0x0180, 0x0080);
         close(device->i2c_fd);
     }
     free(device);

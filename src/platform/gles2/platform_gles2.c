@@ -5,6 +5,8 @@
 #ifdef WM_PLATFORM_PSVR2
 #include "../psvr2/gl_api.h"
 #include "../psvr2/vr_layout.h"
+#include "../psvr2/scanout.h"
+#include <sys/mman.h>
 #include "wii_menu/platform/psvr2_pointer.h"
 #include "open_vrhmd.h"
 #include <time.h>
@@ -74,6 +76,10 @@ struct WmPlatform {
     GLuint scene_framebuffer;
     GLuint scanout_framebuffer;
     GLuint scanout_renderbuffer;
+    GLuint scanout_program;
+    GLuint scanout_vertex_buffer;
+    GLint scanout_output_location;
+    WmPsvr2ScanoutLayout scanout_layout;
     EGLImageKHR scanout_image;
     EGLBoolean (*destroy_image)(EGLDisplay, EGLImageKHR);
     WmVrEyeRect eyes[2];
@@ -953,6 +959,191 @@ static bool wm_psvr2_has_extension(const char *extensions, const char *name)
     return false;
 }
 
+/* The first-party allocator requests uncached ION storage (flags=0), whose
+ * user mapping is write-combined. glFinish completes GPU stores before these
+ * startup-only volatile byte reads. No cached mapping or CPU writes are used. */
+static bool wm_psvr2_probe_scanout(WmPlatform *platform)
+{
+    const size_t size = WM_PSVR2_SCANOUT_PITCH * WM_PSVR2_SCANOUT_HEIGHT;
+    volatile const uint8_t *memory = mmap(NULL, size, PROT_READ, MAP_SHARED,
+                                          fb_share_fd, 0);
+    if (memory == MAP_FAILED) {
+        perror("PSVR2: scanout probe map");
+        return false;
+    }
+    GLint old_scissor[4];
+    GLint old_viewport[4];
+    GLfloat old_clear[4];
+    GLboolean old_scissor_enabled = glIsEnabled(GL_SCISSOR_TEST);
+    GLboolean old_dither = glIsEnabled(GL_DITHER);
+    glGetIntegerv(GL_SCISSOR_BOX, old_scissor);
+    glGetIntegerv(GL_VIEWPORT, old_viewport);
+    glGetFloatv(GL_COLOR_CLEAR_VALUE, old_clear);
+    glDisable(GL_SCISSOR_TEST);
+    glClearColor(0, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glDisable(GL_DITHER);
+    glEnable(GL_SCISSOR_TEST);
+    glViewport(0, 0, WM_PSVR2_SCANOUT_WIDTH, WM_PSVR2_SCANOUT_HEIGHT);
+    glUseProgram(platform->program);
+    glUniform2f(platform->projection_location,
+                WM_PSVR2_SCANOUT_WIDTH, WM_PSVR2_SCANOUT_HEIGHT);
+    const uint8_t *colors[2] = {
+        wm_psvr2_probe_gl_bottom, wm_psvr2_probe_gl_top
+    };
+    for (unsigned patch = 0; patch < 2; ++patch) {
+        glScissor(0, patch ? WM_PSVR2_SCANOUT_HEIGHT - 2 : 0, 2, 2);
+        WmQuad pixel_patch = {
+            .x = 0, .y = patch ? 0 : WM_PSVR2_SCANOUT_HEIGHT - 2,
+            .width = 2, .height = 2, .u0 = 0, .v0 = 0, .u1 = 1, .v1 = 1,
+            .color = {colors[patch][0] / 255.0f, colors[patch][1] / 255.0f,
+                      colors[patch][2] / 255.0f, 1}, .texture = 0
+        };
+        /* Use actual fragment output, not a driver's clear-color fast path. */
+        wm_platform_draw_quad(platform, &pixel_patch);
+        wm_flush(platform);
+    }
+    glFinish();
+    uint8_t first[3] = {0};
+    uint8_t last[3] = {0};
+    bool valid = glGetError() == GL_NO_ERROR;
+    WmPsvr2ScanoutLayout detected = {0};
+    for (unsigned y = 0; y < 2; ++y) {
+        for (unsigned x = 0; x < 2; ++x) {
+            size_t first_offset = y * WM_PSVR2_SCANOUT_PITCH + x * 3;
+            size_t last_offset = (WM_PSVR2_SCANOUT_HEIGHT - 1 - y) *
+                                WM_PSVR2_SCANOUT_PITCH + x * 3;
+            for (unsigned channel = 0; channel < 3; ++channel) {
+                first[channel] = memory[first_offset + channel];
+                last[channel] = memory[last_offset + channel];
+            }
+            WmPsvr2ScanoutLayout sample;
+            if (!wm_psvr2_scanout_classify(first, last, &sample)) {
+                valid = false;
+            } else if (!x && !y) {
+                detected = sample;
+            } else if (sample.row_zero_is_gl_bottom != detected.row_zero_is_gl_bottom ||
+                       sample.gpu_stores_bgr != detected.gpu_stores_bgr) {
+                valid = false;
+            }
+        }
+    }
+    /* Clear even a failed probe before returning to caller-owned teardown. */
+    glDisable(GL_SCISSOR_TEST);
+    glClearColor(0, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glFinish();
+    glScissor(old_scissor[0], old_scissor[1], old_scissor[2], old_scissor[3]);
+    glClearColor(old_clear[0], old_clear[1], old_clear[2], old_clear[3]);
+    glViewport(old_viewport[0], old_viewport[1], old_viewport[2], old_viewport[3]);
+    glUniform2f(platform->projection_location, WM_FRAME_WIDTH, WM_FRAME_HEIGHT);
+    if (old_scissor_enabled) glEnable(GL_SCISSOR_TEST);
+    if (old_dither) glEnable(GL_DITHER);
+    if (glGetError() != GL_NO_ERROR) valid = false;
+    if (munmap((void *)memory, size) != 0) valid = false;
+    fprintf(stderr, "PSVR2: scanout probe row0=%u,%u,%u last=%u,%u,%u; %s\n",
+            first[0], first[1], first[2], last[0], last[1], last[2],
+            valid ? "verified" : "unrecognized storage; startup stopped");
+    if (!valid) return false;
+    platform->scanout_layout = detected;
+    fprintf(stderr, "PSVR2: GPU storage row0=GL-%s, bytes=%s.\n",
+            detected.row_zero_is_gl_bottom ? "bottom" : "top",
+            detected.gpu_stores_bgr ? "BGR" : "RGB");
+    return true;
+}
+
+static bool wm_psvr2_read_scanout_format(WmPlatform *platform)
+{
+    int memory_fd = open("/dev/mem", O_RDONLY | O_CLOEXEC);
+    if (memory_fd < 0) {
+        perror("PSVR2: scanout format read");
+        return false;
+    }
+    uint32_t source[4], source2[4];
+    for (unsigned channel = 0; channel < 4; ++channel) {
+        uint64_t base = 0x14004000u + channel * 0x1000u;
+        source[channel] = devmem_read32(memory_fd, base + 0x30);
+        source2[channel] = devmem_read32(memory_fd, base + 0x38);
+        fprintf(stderr, "PSVR2: RDMA%u SRC_CON=%08x SRC_CON2=%08x.\n",
+                channel, source[channel], source2[channel]);
+    }
+    int close_result = close(memory_fd);
+    if (close_result != 0 || !wm_psvr2_scanout_rdma_contract(
+            source, source2, &platform->scanout_layout)) {
+        fprintf(stderr, "PSVR2: unsupported/inconsistent native RDMA color format; "
+                        "startup stopped.\n");
+        return false;
+    }
+    fprintf(stderr, "PSVR2: RDMA native bytes=%s; final presentation %s red/blue.\n",
+            platform->scanout_layout.native_expects_bgr ? "BGR" : "RGB",
+            platform->scanout_layout.swap_red_blue ? "swaps" : "preserves");
+    return true;
+}
+
+static bool wm_psvr2_initialize_presentation(WmPlatform *platform)
+{
+    static const char vertex_source[] =
+        "attribute vec2 a_position;\n"
+        "attribute vec2 a_uv;\n"
+        "varying mediump vec2 v_uv;\n"
+        "void main() {\n"
+        "    gl_Position = vec4(a_position, 0.0, 1.0);\n"
+        "    v_uv = a_uv;\n"
+        "}\n";
+    static const char fragment_source[] =
+        "precision mediump float;\n"
+        "uniform sampler2D u_texture;\n"
+        "uniform vec4 u_output;\n"
+        "varying mediump vec2 v_uv;\n"
+        "void main() {\n"
+        "    vec4 color = texture2D(u_texture, v_uv);\n"
+        "    if (u_output.x > 0.5) color = color.bgra;\n"
+        "    gl_FragColor = vec4(color.rgb * u_output.y, 1.0);\n"
+        "}\n";
+    GLuint vertex = wm_compile_shader(GL_VERTEX_SHADER, vertex_source, "");
+    if (!vertex) return false;
+    GLuint fragment = wm_compile_shader(GL_FRAGMENT_SHADER, fragment_source, "");
+    if (!fragment) {
+        glDeleteShader(vertex);
+        return false;
+    }
+    platform->scanout_program = glCreateProgram();
+    if (platform->scanout_program) {
+        glAttachShader(platform->scanout_program, vertex);
+        glAttachShader(platform->scanout_program, fragment);
+        glBindAttribLocation(platform->scanout_program, 0, "a_position");
+        glBindAttribLocation(platform->scanout_program, 1, "a_uv");
+        glLinkProgram(platform->scanout_program);
+    }
+    glDeleteShader(fragment);
+    glDeleteShader(vertex);
+    if (!platform->scanout_program) return false;
+    GLint linked = GL_FALSE;
+    glGetProgramiv(platform->scanout_program, GL_LINK_STATUS, &linked);
+    if (linked != GL_TRUE) {
+        char log[1024] = {0};
+        glGetProgramInfoLog(platform->scanout_program, sizeof(log), NULL, log);
+        fprintf(stderr, "PSVR2: presentation shader link failed: %s\n", log);
+        return false;
+    }
+    platform->scanout_output_location = glGetUniformLocation(
+        platform->scanout_program, "u_output");
+    GLint texture_location = glGetUniformLocation(platform->scanout_program, "u_texture");
+    if (platform->scanout_output_location < 0 || texture_location < 0) return false;
+    glUseProgram(platform->scanout_program);
+    glUniform1i(texture_location, 0);
+    WmPsvr2ScanoutVertex vertices[2 * WM_PSVR2_SCANOUT_VERTICES_PER_EYE];
+    for (unsigned eye = 0; eye < 2; ++eye)
+        wm_psvr2_scanout_eye_vertices(&platform->eyes[eye], &platform->scanout_layout,
+                                     vertices + eye * WM_PSVR2_SCANOUT_VERTICES_PER_EYE);
+    glGenBuffers(1, &platform->scanout_vertex_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, platform->scanout_vertex_buffer);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STREAM_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, platform->vertex_buffer);
+    glUseProgram(platform->program);
+    return platform->scanout_vertex_buffer && glGetError() == GL_NO_ERROR;
+}
+
 static bool wm_psvr2_initialize(WmPlatform *platform)
 {
     WmVrConfig config = wm_vr_default_config();
@@ -1022,7 +1213,7 @@ static bool wm_psvr2_initialize(WmPlatform *platform)
     memcpy(&platform->destroy_image, &destroy_proc, sizeof(platform->destroy_image));
     memcpy(&image_storage, &storage_proc, sizeof(image_storage));
     if (!create_image || !platform->destroy_image || !image_storage) return false;
-    /* Same RGB888 dma-buf interpretation as open_vrhmd's verified renderer. */
+    /* Match the native renderer imports, then probe the actual storage. */
     EGLint image_attributes[] = {
         EGL_WIDTH, 4000, EGL_HEIGHT, 2040,
         EGL_LINUX_DRM_FOURCC_EXT, 0x34324742,
@@ -1048,7 +1239,10 @@ static bool wm_psvr2_initialize(WmPlatform *platform)
     if (!platform->scanout_framebuffer ||
         glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         return false;
-    if (!wm_initialize_graphics(platform)) return false;
+    if (!wm_initialize_graphics(platform) ||
+        !wm_psvr2_probe_scanout(platform) ||
+        !wm_psvr2_read_scanout_format(platform) ||
+        !wm_psvr2_initialize_presentation(platform)) return false;
     platform->scene_texture = wm_upload_texture(WM_FRAME_WIDTH, WM_FRAME_HEIGHT, NULL);
     glGenFramebuffers(1, &platform->scene_framebuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, platform->scene_framebuffer);
@@ -1065,6 +1259,9 @@ static void wm_psvr2_release_graphics(WmPlatform *platform)
 {
     if (platform->egl_context != EGL_NO_CONTEXT &&
         eglGetCurrentContext() == platform->egl_context) {
+        if (platform->scanout_program) glDeleteProgram(platform->scanout_program);
+        if (platform->scanout_vertex_buffer)
+            glDeleteBuffers(1, &platform->scanout_vertex_buffer);
         if (platform->scene_framebuffer)
             glDeleteFramebuffers(1, &platform->scene_framebuffer);
         if (platform->scene_texture) glDeleteTextures(1, &platform->scene_texture);
@@ -1080,29 +1277,46 @@ static void wm_psvr2_release_graphics(WmPlatform *platform)
 static void wm_psvr2_present(WmPlatform *platform)
 {
     glBindFramebuffer(GL_FRAMEBUFFER, platform->scanout_framebuffer);
-    glViewport(0, 0, 4000, 2040);
+    glViewport(0, 0, WM_PSVR2_SCANOUT_WIDTH, WM_PSVR2_SCANOUT_HEIGHT);
     glDisable(GL_SCISSOR_TEST);
     platform->scissor_enabled = false;
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT);
+    glUseProgram(platform->scanout_program);
+    glUniform4f(platform->scanout_output_location,
+                platform->scanout_layout.swap_red_blue ? 1.0f : 0.0f,
+                platform->menu_luminance, 0, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, platform->scene_texture);
+    glBindBuffer(GL_ARRAY_BUFFER, platform->scanout_vertex_buffer);
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    for (GLuint index = 2; index < 6; ++index) glDisableVertexAttribArray(index);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE,
+                          sizeof(WmPsvr2ScanoutVertex),
+                          (const void *)offsetof(WmPsvr2ScanoutVertex, x));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE,
+                          sizeof(WmPsvr2ScanoutVertex),
+                          (const void *)offsetof(WmPsvr2ScanoutVertex, u));
+    glDisable(GL_BLEND);
+    glDrawArrays(GL_TRIANGLES, 0, 2 * WM_PSVR2_SCANOUT_VERTICES_PER_EYE);
+    /* Restore the shared scene renderer before another draw/target begins. */
     glUseProgram(platform->program);
-    glUniform2f(platform->projection_location, 4000.0f, 2040.0f);
-    for (unsigned eye = 0; eye < 2; ++eye) {
-        WmVrEyeRect rect = platform->eyes[eye];
-        WmQuad picture = {
-            .x = rect.x, .y = rect.y, .width = rect.width, .height = rect.height,
-            /* The scene texture is an FBO with a bottom-left origin. */
-            .u0 = 0, .v0 = 1, .u1 = 1, .v1 = 0,
-            .color = {platform->menu_luminance, platform->menu_luminance,
-                      platform->menu_luminance, 1}, .texture = platform->scene_texture
-        };
-        wm_platform_draw_quad(platform, &picture);
-    }
-    wm_flush(platform);
-    glUniform2f(platform->projection_location, WM_FRAME_WIDTH, WM_FRAME_HEIGHT);
-    /* The existing native pipeline scans one shared buffer. Completion is
-     * mandatory before reuse, but does not promise a tear-free page flip.
-     * No framebuffer readback, conversion, or per-frame allocation occurs. */
+    glBindBuffer(GL_ARRAY_BUFFER, platform->vertex_buffer);
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(WmVertex),
+                          (const void *)offsetof(WmVertex, x));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(WmVertex),
+                          (const void *)offsetof(WmVertex, u));
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(WmVertex),
+                          (const void *)offsetof(WmVertex, r));
+    glEnable(GL_BLEND);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+                        GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    glBindFramebuffer(GL_FRAMEBUFFER, platform->scene_framebuffer);
+    glViewport(0, 0, WM_FRAME_WIDTH, WM_FRAME_HEIGHT);
+    /* One shared scanout buffer still cannot promise a tear-free page flip.
+     * The probe is startup-only; normal frames perform no readback/conversion. */
     glFinish();
     if (glGetError() != GL_NO_ERROR && !platform->swap_failure_reported) {
         fprintf(stderr, "PSVR2: native frame presentation failed.\n");
@@ -1110,6 +1324,7 @@ static void wm_psvr2_present(WmPlatform *platform)
         application_stop_requested = 1;
     }
 }
+
 #endif
 
 WmPlatform *wm_platform_create(const char *title, int window_width, int window_height)
