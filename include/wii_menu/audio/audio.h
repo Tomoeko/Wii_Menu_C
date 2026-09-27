@@ -18,6 +18,10 @@ bool wm_audio_play(WmAudio *audio, const char *name);
  * 1 right. Existing voices of the same cue keep their positions. */
 bool wm_audio_play_panned(WmAudio *audio, const char *name, float pan);
 bool wm_audio_start_loop(WmAudio *audio, const char *name);
+/* Start or refresh one held loop with its controls in the same operation.
+ * This avoids a callback playing a new drag voice at full gain first. */
+bool wm_audio_hold_loop(WmAudio *audio, const char *name,
+                        float gain, float pan, float pitch);
 void wm_audio_stop_loop(WmAudio *audio, const char *name);
 void wm_audio_set_loop(WmAudio *audio, const char *name,
                        float gain, float pan, float pitch);

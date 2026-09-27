@@ -211,6 +211,16 @@ static void test_drag_audio_parameters(void) {
     assert(near(audio.gain, 300.0f / 304.0f));
     assert(near(audio.pan, -1));
     assert(audio.changes_pitch && near(audio.pitch, 5));
+    audio = wm_channel_drag_audio_parameters(0, 0, true, 0, 30, 1);
+    assert(near(audio.gain, 60.0f / 304.0f));
+    assert(!audio.changes_pitch);
+    audio = wm_channel_drag_audio_parameters(0, 0, true, 0, 60, 1);
+    assert(audio.changes_pitch && near(audio.pitch, 2));
+    audio = wm_channel_drag_audio_parameters(0, 0, true, 0, 60, 2);
+    assert(!audio.changes_pitch);
+    audio = wm_channel_drag_audio_parameters(0, 0, true, 0, 0, 1);
+    assert(near(audio.gain, 0));
+    assert(!audio.changes_pitch);
     audio = wm_channel_drag_audio_for_framebuffer(true, 352, 228,
                                                    true, 320, 228, 1);
     assert(near(audio.pan, 41.6f / 304.0f));

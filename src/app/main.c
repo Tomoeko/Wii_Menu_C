@@ -662,6 +662,7 @@ int main(int argc, char **argv) {
     bool sd_help_seen = false;
     WmPointerButton drag_button = 0;
     float drag_previous_x = 0.0f, drag_previous_y = 0.0f;
+    float drag_pitch = 1.0f;
     bool drag_has_previous = false;
     int focused_slot = 0;
     uint64_t previous = monotonic_nanoseconds();
@@ -1042,11 +1043,11 @@ int main(int argc, char **argv) {
                                                (float)event.x, (float)event.y)) {
                         drag_button = event.button;
                         drag_has_previous = false;
+                        drag_pitch = 1.0f;
                         drag_point(drag, resource_scene, &menu,
                                     event.x, event.y);
                         wm_audio_play(audio, "grab");
-                        wm_audio_start_loop(audio, "drag");
-                        wm_audio_set_loop(audio, "drag", 0.0f, 0.0f, 1.0f);
+                        wm_audio_hold_loop(audio, "drag", 0.0f, 0.0f, 1.0f);
                         hover = (WmHit){WM_HIT_NONE, -1};
                         pressed = hover;
                         continue;
@@ -1479,16 +1480,18 @@ int main(int argc, char **argv) {
             while ((cue = wm_board_scene_take_drag_cue(board_scene,
                                                         &cue_pan)) !=
                    WM_BOARD_DRAG_CUE_NONE) {
-                wm_audio_play(audio, cue == WM_BOARD_DRAG_CUE_HOLD
-                                       ? "WIPL_SE_BOARD_HOLD"
-                                       : "WIPL_SE_BOARD_RELEASE");
+                wm_audio_play_panned(audio, cue == WM_BOARD_DRAG_CUE_HOLD
+                                              ? "WIPL_SE_BOARD_HOLD"
+                                              : "WIPL_SE_BOARD_RELEASE",
+                                     cue_pan);
             }
             float drag_gain = 0.0f;
             float drag_pan = 0.0f;
-            if (wm_board_scene_drag_mix(board_scene, &drag_gain, &drag_pan)) {
-                wm_audio_start_loop(audio, "WIPL_SE_BOARD_DRAG");
-                wm_audio_set_loop(audio, "WIPL_SE_BOARD_DRAG",
-                                  drag_gain, drag_pan, 1.0f);
+            float memo_drag_pitch = 1.0f;
+            if (wm_board_scene_drag_mix(board_scene, &drag_gain, &drag_pan,
+                                          &memo_drag_pitch)) {
+                wm_audio_hold_loop(audio, "WIPL_SE_BOARD_DRAG",
+                                  drag_gain, drag_pan, memo_drag_pitch);
             } else {
                 wm_audio_stop_loop(audio, "WIPL_SE_BOARD_DRAG");
             }
@@ -1638,8 +1641,9 @@ int main(int argc, char **argv) {
                         true, state.pointer_x, state.pointer_y,
                         drag_has_previous, drag_previous_x,
                         drag_previous_y, elapsed * 60.0f);
-                wm_audio_set_loop(audio, "drag", parameters.gain,
-                                   parameters.pan, parameters.pitch);
+                if (parameters.changes_pitch) drag_pitch = parameters.pitch;
+                wm_audio_hold_loop(audio, "drag", parameters.gain,
+                                   parameters.pan, drag_pitch);
                 drag_previous_x = state.pointer_x;
                 drag_previous_y = state.pointer_y;
                 drag_has_previous = true;

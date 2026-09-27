@@ -123,22 +123,106 @@ static bool audio_filename(char destination[4096], const char *output,
 
 static bool write_sequence_entry(FILE *manifest, const char *name,
                                  const char *symbol, const WmAudioPcm *pcm,
-                                 bool first)
+                                 float gain, bool first)
 {
     if (!first && fputs(",\n", manifest) < 0) return false;
     return fprintf(manifest,
                    "  \"%s\": {\"sourceSymbol\": \"%s\", "
-                   "\"gain\": 1, \"loop\": %s, "
+                   "\"gain\": %.9g, \"loop\": %s, "
                    "\"loopStart\": %.9g, \"loopEnd\": %.9g}",
-                   name, symbol, pcm->looping ? "true" : "false",
+                   name, symbol, (double)gain, pcm->looping ? "true" : "false",
                    (double)pcm->loop_start / pcm->sample_rate,
                    (double)pcm->loop_end / pcm->sample_rate) > 0;
+}
+
+static bool held_symbol(const char *symbol)
+{
+    return strcmp(symbol, "WIPL_SE_CH_DRAG") == 0 ||
+           strcmp(symbol, "WIPL_SE_BOARD_DRAG") == 0;
+}
+
+static bool write_float_array(FILE *file, const float *values, size_t count)
+{
+    for (size_t index = 0; index < count; index++) {
+        if (fprintf(file, "      %.9g%s\n", (double)values[index],
+                     index + 1 < count ? "," : "") < 0) return false;
+    }
+    return true;
+}
+
+static bool write_held_profile(FILE *file, const char *symbol,
+                               const WmAudioHeldProfile *profile, bool first)
+{
+    if (!first && fputs(",\n", file) < 0) return false;
+    return fprintf(file,
+                   "    \"%s\": {\n"
+                   "      \"attackMultiplier\": %.9g,\n"
+                   "      \"decayRate\": %.9g,\n"
+                   "      \"sustainLevel\": %.9g,\n"
+                   "      \"releaseRate\": %.9g,\n"
+                   "      \"volume\": %.9g,\n"
+                   "      \"pan\": %.9g\n"
+                   "    }",
+                   symbol, (double)profile->attack_multiplier,
+                   (double)profile->decay_rate, (double)profile->sustain_level,
+                   (double)profile->release_rate, (double)profile->volume,
+                   (double)profile->pan) > 0;
+}
+
+static bool export_held_manifest(const WmRsar *archive,
+                                 const uint8_t *executable,
+                                 size_t executable_size, const char *output)
+{
+    static const char *const symbols[] = {
+        "WIPL_SE_CH_DRAG", "WIPL_SE_BOARD_DRAG"
+    };
+    WmAudioHeldProfile profiles[2];
+    WmAudioHeldTables tables;
+    for (size_t index = 0; index < 2; index++) {
+        WmRsarSound sound;
+        WmAudioPcm wave = {0};
+        char error[160] = {0};
+        if (!wm_rsar_find_sound(archive, symbols[index], &sound) ||
+            !wm_sequence_extract_held(archive, &sound, executable,
+                                      executable_size, &profiles[index],
+                                      &tables, &wave, error, sizeof(error))) {
+            fprintf(stderr, "Unsupported held sequence %s: %s\n",
+                    symbols[index], error);
+            return false;
+        }
+        wm_audio_pcm_free(&wave);
+    }
+    char path[4096];
+    if (!combine_path(path, output, "", "audio-held.json")) return false;
+    FILE *file = fopen(path, "wb");
+    if (!file) return false;
+    bool valid = fputs("{\n"
+                       "  \"schema\": 1,\n"
+                       "  \"sampleRate\": 32000,\n"
+                       "  \"blockFrames\": 96,\n"
+                       "  \"tables\": {\n"
+                       "    \"decibels\": [\n", file) >= 0;
+    if (valid) valid = write_float_array(file, tables.decibels,
+                                         WM_AUDIO_HELD_DECIBELS);
+    if (valid) valid = fputs("    ],\n    \"pan\": [\n", file) >= 0;
+    if (valid) valid = write_float_array(file, tables.pan, WM_AUDIO_HELD_PAN);
+    if (valid) valid = fputs("    ]\n  },\n  \"profiles\": {\n", file) >= 0;
+    for (size_t index = 0; index < 2 && valid; index++) {
+        valid = write_held_profile(file, symbols[index], &profiles[index],
+                                    index == 0);
+    }
+    if (valid) valid = fputs("\n  }\n}\n", file) >= 0;
+    if (fclose(file) != 0) valid = false;
+    if (!valid) remove(path);
+    return valid;
 }
 
 static bool export_sequences(const WmRsar *archive,
                              const uint8_t *executable, size_t executable_size,
                              const char *output)
 {
+    if (!export_held_manifest(archive, executable, executable_size, output))
+        return false;
     char manifest_path[4096];
     if (!combine_path(manifest_path, output, "", "audio-sequence.json"))
         return false;
@@ -158,9 +242,23 @@ static bool export_sequences(const WmRsar *archive,
         }
         if (sound.type != 1) continue;
         WmAudioPcm pcm = {0};
-        if (!wm_sequence_render(archive, &sound, executable,
-                                executable_size, &pcm,
-                                error, sizeof(error))) {
+        float gain = 1.0f;
+        bool held = held_symbol(symbol);
+        bool decoded;
+        if (held) {
+            WmAudioHeldProfile profile;
+            WmAudioHeldTables tables;
+            decoded = wm_sequence_extract_held(archive, &sound, executable,
+                                               executable_size, &profile,
+                                               &tables, &pcm,
+                                               error, sizeof(error));
+            gain = (float)sound.volume / 127.0f;
+        } else {
+            decoded = wm_sequence_render(archive, &sound, executable,
+                                          executable_size, &pcm,
+                                          error, sizeof(error));
+        }
+        if (!decoded) {
             fprintf(stderr, "Unsupported sequence %s: %s\n", symbol, error);
             skipped++;
             continue;
@@ -168,7 +266,7 @@ static bool export_sequences(const WmRsar *archive,
         if (!audio_filename(destination, output, symbol) ||
             !wm_audio_wav_write(destination, &pcm, error, sizeof(error)) ||
             !write_sequence_entry(manifest, symbol, symbol, &pcm,
-                                  rendered + aliases == 0)) {
+                                  gain, rendered + aliases == 0)) {
             fprintf(stderr, "Could not export sequence %s: %s\n", symbol, error);
             wm_audio_pcm_free(&pcm);
             valid = false;
@@ -184,7 +282,7 @@ static bool export_sequences(const WmRsar *archive,
                 !wm_audio_wav_write(destination, &pcm,
                                     error, sizeof(error)) ||
                 !write_sequence_entry(manifest, sequence_aliases[alias].name,
-                                      symbol, &pcm, false)) {
+                                      symbol, &pcm, gain, false)) {
                 fprintf(stderr, "Could not export sequence alias %s: %s\n",
                         sequence_aliases[alias].name, error);
                 valid = false;

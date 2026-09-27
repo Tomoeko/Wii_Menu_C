@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "wii_menu/audio/audio.h"
+#include "wii_menu/audio/audio_held.h"
 #include "wii_menu/audio/audio_wave.h"
 #include "wii_menu/support/json.h"
 
@@ -32,6 +33,7 @@ typedef struct WmAudioClip {
     char name[96];
     WmAudioPcm pcm;
     float gain;
+    const WmAudioHeldProfile *held_profile;
     bool missing;
 } WmAudioClip;
 
@@ -43,6 +45,17 @@ typedef struct WmAudioVoice {
     float gain;
     float pan_left;
     float pan_right;
+    float pan;
+    float pitch;
+    WmAudioHeldState held_state;
+    float held_block[WM_AUDIO_HELD_BLOCK * 2];
+    float held_current[2];
+    float held_next[2];
+    size_t held_cursor;
+    unsigned held_phase;
+    bool held_primed;
+    bool held_has_next;
+    bool releasing;
     float fade_step;
     size_t fade_frames;
     bool active;
@@ -58,6 +71,10 @@ struct WmAudio {
     WmAudioDevice *device;
     WmJson direct_manifest;
     WmJson sequence_manifest;
+    WmAudioHeldTables held_tables;
+    WmAudioHeldProfile held_profiles[2];
+    bool has_held_profiles;
+    bool warned_held_profiles;
     uint64_t last_hover_ns;
     bool background_started;
     bool menu_paused;
@@ -128,6 +145,82 @@ static size_t manifest_entry(const WmAudio *audio, const char *name,
     return WM_JSON_INVALID;
 }
 
+static bool read_table(const WmJson *json, size_t token, float *values,
+                        size_t count, float maximum)
+{
+    if (token >= json->count || json->tokens[token].type != WM_JSON_ARRAY ||
+        json->tokens[token].children != count) return false;
+    for (size_t index = 0; index < count; index++) {
+        float value = json_number(json, wm_json_index(json, token, index), NAN);
+        if (!isfinite(value) || value < 0 || value > maximum) return false;
+        values[index] = value;
+    }
+    return true;
+}
+
+static bool read_held_profile(const WmJson *json, size_t token,
+                              WmAudioHeldProfile *profile)
+{
+    if (token >= json->count || json->tokens[token].type != WM_JSON_OBJECT)
+        return false;
+    profile->attack_multiplier = json_number(json,
+        wm_json_member(json, token, "attackMultiplier"), NAN);
+    profile->decay_rate = json_number(json,
+        wm_json_member(json, token, "decayRate"), NAN);
+    profile->sustain_level = json_number(json,
+        wm_json_member(json, token, "sustainLevel"), NAN);
+    profile->release_rate = json_number(json,
+        wm_json_member(json, token, "releaseRate"), NAN);
+    profile->volume = json_number(json,
+        wm_json_member(json, token, "volume"), NAN);
+    profile->pan = json_number(json,
+        wm_json_member(json, token, "pan"), NAN);
+    return isfinite(profile->attack_multiplier) &&
+           profile->attack_multiplier >= 0 && profile->attack_multiplier < 1 &&
+           isfinite(profile->decay_rate) &&
+           profile->decay_rate > 0 && profile->decay_rate <= 65535 &&
+           isfinite(profile->sustain_level) &&
+           profile->sustain_level >= -904 && profile->sustain_level <= 0 &&
+           isfinite(profile->release_rate) &&
+           profile->release_rate > 0 && profile->release_rate <= 65535 &&
+           isfinite(profile->volume) && profile->volume >= 0 &&
+           profile->volume <= 1 && isfinite(profile->pan) &&
+           profile->pan >= -1 && profile->pan <= 1;
+}
+
+static void load_held_profiles(WmAudio *audio)
+{
+    char path[4096];
+    int length = snprintf(path, sizeof(path), "%s/audio-held.json", audio->assets);
+    WmJson json = {0};
+    if (length <= 0 || length >= (int)sizeof(path) ||
+        !wm_json_load(&json, path, 128 * 1024)) return;
+    int schema = 0, rate = 0, block = 0;
+    size_t tables = wm_json_member(&json, 0, "tables");
+    size_t profiles = wm_json_member(&json, 0, "profiles");
+    audio->has_held_profiles =
+        wm_json_integer(&json, wm_json_member(&json, 0, "schema"), &schema) &&
+        schema == 1 &&
+        wm_json_integer(&json, wm_json_member(&json, 0, "sampleRate"), &rate) &&
+        rate == WM_AUDIO_HELD_RATE &&
+        wm_json_integer(&json, wm_json_member(&json, 0, "blockFrames"), &block) &&
+        block == WM_AUDIO_HELD_BLOCK &&
+        read_table(&json, wm_json_member(&json, tables, "decibels"),
+            audio->held_tables.decibels, WM_AUDIO_HELD_DECIBELS, 2) &&
+        read_table(&json, wm_json_member(&json, tables, "pan"),
+            audio->held_tables.pan, WM_AUDIO_HELD_PAN, 2) &&
+        wm_audio_held_tables_valid(&audio->held_tables) &&
+        read_held_profile(&json,
+            wm_json_member(&json, profiles, "WIPL_SE_CH_DRAG"),
+            &audio->held_profiles[0]) &&
+        read_held_profile(&json,
+            wm_json_member(&json, profiles, "WIPL_SE_BOARD_DRAG"),
+            &audio->held_profiles[1]);
+    if (!audio->has_held_profiles)
+        fprintf(stderr, "Invalid held-audio metadata; drag playback remains approximate.\n");
+    wm_json_free(&json);
+}
+
 static WmAudioClip *load_clip(WmAudio *audio, const char *name,
                               const char *directory)
 {
@@ -173,6 +266,18 @@ static WmAudioClip *load_clip(WmAudio *audio, const char *name,
                     clip->pcm.loop_end = end;
                 }
             }
+            size_t symbol = wm_json_member(manifest, entry, "sourceSymbol");
+            int profile = wm_json_equals(manifest, symbol, "WIPL_SE_CH_DRAG") ? 0 :
+                wm_json_equals(manifest, symbol, "WIPL_SE_BOARD_DRAG") ? 1 : -1;
+            if (profile >= 0 && clip->pcm.looping &&
+                clip->pcm.channels == 1 && clip->pcm.sample_rate == WM_AUDIO_HELD_RATE) {
+                if (audio->has_held_profiles) {
+                    clip->held_profile = &audio->held_profiles[profile];
+                } else if (!audio->warned_held_profiles) {
+                    fprintf(stderr, "Drag envelope metadata unavailable; re-export audio for held-voice playback.\n");
+                    audio->warned_held_profiles = true;
+                }
+            }
         }
     }
     if (!isfinite(clip->gain) || clip->gain < 0.0f) clip->gain = 1.0f;
@@ -202,9 +307,12 @@ static WmAudioVoice *new_voice(WmAudio *audio, const WmAudioClip *clip,
             .gain = clip->gain,
             .pan_left = 1.0f,
             .pan_right = 1.0f,
+            .pitch = 1.0f,
+            .held_cursor = WM_AUDIO_HELD_BLOCK,
             .active = true,
             .paused = audio->menu_paused && kind != WM_VOICE_HOME
         };
+        if (clip->held_profile) wm_audio_held_start(&voice->held_state);
         return voice;
     }
     return NULL;
@@ -229,6 +337,59 @@ static float sample_at(const WmAudioClip *clip, uint32_t frame, uint8_t channel)
            32768.0f;
 }
 
+static bool held_native_sample(WmAudio *audio, WmAudioVoice *voice,
+                                const WmAudioClip *clip, float sample[2])
+{
+    if (voice->held_cursor == WM_AUDIO_HELD_BLOCK) {
+        if (!voice->held_state.active ||
+            !wm_audio_held_render(&voice->held_state, clip->held_profile,
+                &audio->held_tables, &clip->pcm, voice->gain, voice->pan,
+                voice->pitch, voice->held_block)) return false;
+        voice->held_cursor = 0;
+    }
+    sample[0] = voice->held_block[voice->held_cursor * 2];
+    sample[1] = voice->held_block[voice->held_cursor * 2 + 1];
+    voice->held_cursor++;
+    return true;
+}
+
+static void mix_held_voice(WmAudio *audio, WmAudioVoice *voice,
+                            const WmAudioClip *clip, float *output, size_t frames)
+{
+    /* The held voice runs at native 32 kHz. Retain its 2:3 output phase and
+     * lookahead across arbitrary host callback sizes, without allocation. */
+    if (!voice->held_primed) {
+        if (!held_native_sample(audio, voice, clip, voice->held_current)) {
+            voice->active = false;
+            return;
+        }
+        voice->held_has_next = held_native_sample(audio, voice, clip,
+                                                  voice->held_next);
+        voice->held_primed = true;
+    }
+    for (size_t frame = 0; frame < frames; frame++) {
+        float fraction = (float)voice->held_phase / 3.0f;
+        for (size_t channel = 0; channel < 2; channel++) {
+            output[frame * 2 + channel] += voice->held_current[channel] +
+                (voice->held_next[channel] - voice->held_current[channel]) * fraction;
+        }
+        voice->held_phase += 2;
+        if (voice->held_phase >= 3) {
+            voice->held_phase -= 3;
+            if (!voice->held_has_next) {
+                voice->active = false;
+                break;
+            }
+            memcpy(voice->held_current, voice->held_next,
+                   sizeof(voice->held_current));
+            voice->held_has_next = held_native_sample(audio, voice, clip,
+                                                      voice->held_next);
+            if (!voice->held_has_next)
+                memset(voice->held_next, 0, sizeof(voice->held_next));
+        }
+    }
+}
+
 static void mix_audio(void *context, float *interleaved, size_t frames)
 {
     WmAudio *audio = context;
@@ -240,6 +401,10 @@ static void mix_audio(void *context, float *interleaved, size_t frames)
         WmAudioVoice *voice = &audio->voices[index];
         if (!voice->active || voice->paused) continue;
         const WmAudioClip *clip = &audio->clips[voice->clip_index];
+        if (clip->held_profile) {
+            mix_held_voice(audio, voice, clip, interleaved, frames);
+            continue;
+        }
         uint32_t end = clip->pcm.looping ? clip->pcm.loop_end :
                        clip->pcm.frame_count;
         for (size_t output = 0; output < frames; output++) {
@@ -305,6 +470,7 @@ WmAudio *wm_audio_create(const char *assets_directory)
     length = snprintf(path, sizeof(path), "%s/audio-sequence.json", audio->assets);
     if (length > 0 && length < (int)sizeof(path))
         wm_json_load(&audio->sequence_manifest, path, 1024 * 1024);
+    load_held_profiles(audio);
     static const char *const startup_cues[] = {
         "background", "backgroundIntro", "hover", "buttonHover",
         "WIPL_SE_BOARD_FOCUS", "WIPL_SE_MSG_DISP", "WIPL_SE_MSG_HOUSE",
@@ -366,6 +532,7 @@ bool wm_audio_play_panned(WmAudio *audio, const char *name, float pan)
     pthread_mutex_lock(&audio->mutex);
     WmAudioVoice *voice = audio->muted ? NULL : new_voice(audio, clip, kind);
     if (voice) {
+        voice->pan = pan;
         voice->pan_left = pan > 0.0f ? 1.0f - pan : 1.0f;
         voice->pan_right = pan < 0.0f ? 1.0f + pan : 1.0f;
     }
@@ -382,7 +549,7 @@ bool wm_audio_start_loop(WmAudio *audio, const char *name)
     pthread_mutex_lock(&audio->mutex);
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
         WmAudioVoice *voice = &audio->voices[index];
-        if (voice->active && voice->clip_index == clip_index) {
+        if (voice->active && !voice->releasing && voice->clip_index == clip_index) {
             pthread_mutex_unlock(&audio->mutex);
             return true;
         }
@@ -392,15 +559,54 @@ bool wm_audio_start_loop(WmAudio *audio, const char *name)
     return started;
 }
 
+static void set_loop_controls(WmAudioVoice *voice, const WmAudioClip *clip,
+                              float gain, float pan, float pitch)
+{
+    voice->gain = clip->gain * fminf(fmaxf(gain, 0.0f), 2.0f);
+    voice->pan = fminf(fmaxf(pan, -1.0f), 1.0f);
+    voice->pitch = fminf(fmaxf(pitch, 0.25f), 4.0f);
+    voice->step = (double)clip->pcm.sample_rate * voice->pitch / WM_AUDIO_RATE;
+    voice->pan_left = voice->pan > 0.0f ? 1.0f - voice->pan : 1.0f;
+    voice->pan_right = voice->pan < 0.0f ? 1.0f + voice->pan : 1.0f;
+}
+
+bool wm_audio_hold_loop(WmAudio *audio, const char *name,
+                        float gain, float pan, float pitch)
+{
+    if (!audio || !audio->device || !safe_name(name) ||
+        !isfinite(gain) || !isfinite(pan) || !isfinite(pitch)) return false;
+    WmAudioClip *clip = load_clip(audio, name, "audio");
+    if (!clip || !clip->pcm.looping) return false;
+    size_t clip_index = (size_t)(clip - audio->clips);
+    pthread_mutex_lock(&audio->mutex);
+    WmAudioVoice *held = NULL;
+    for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
+        WmAudioVoice *voice = &audio->voices[index];
+        if (voice->active && !voice->releasing && voice->clip_index == clip_index) {
+            held = voice;
+            break;
+        }
+    }
+    if (!held) held = new_voice(audio, clip, WM_VOICE_EFFECT);
+    if (held) set_loop_controls(held, clip, gain, pan, pitch);
+    pthread_mutex_unlock(&audio->mutex);
+    return held != NULL;
+}
+
 void wm_audio_stop_loop(WmAudio *audio, const char *name)
 {
     if (!audio || !safe_name(name)) return;
     pthread_mutex_lock(&audio->mutex);
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
         WmAudioVoice *voice = &audio->voices[index];
-        if (voice->active &&
-            strcmp(audio->clips[voice->clip_index].name, name) == 0)
+        if (!voice->active || voice->releasing ||
+            strcmp(audio->clips[voice->clip_index].name, name) != 0) continue;
+        if (audio->clips[voice->clip_index].held_profile) {
+            voice->releasing = true;
+            wm_audio_held_release(&voice->held_state);
+        } else {
             fade_voice(voice, 0);
+        }
     }
     pthread_mutex_unlock(&audio->mutex);
 }
@@ -410,22 +616,13 @@ void wm_audio_set_loop(WmAudio *audio, const char *name,
 {
     if (!audio || !safe_name(name) || !isfinite(gain) ||
         !isfinite(pan) || !isfinite(pitch)) return;
-    if (gain < 0.0f) gain = 0.0f;
-    if (gain > 2.0f) gain = 2.0f;
-    if (pan < -1.0f) pan = -1.0f;
-    if (pan > 1.0f) pan = 1.0f;
-    if (pitch < 0.25f) pitch = 0.25f;
-    if (pitch > 4.0f) pitch = 4.0f;
     pthread_mutex_lock(&audio->mutex);
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
         WmAudioVoice *voice = &audio->voices[index];
-        if (!voice->active ||
+        if (!voice->active || voice->releasing ||
             strcmp(audio->clips[voice->clip_index].name, name) != 0) continue;
         const WmAudioClip *clip = &audio->clips[voice->clip_index];
-        voice->gain = clip->gain * gain;
-        voice->step = (double)clip->pcm.sample_rate * pitch / WM_AUDIO_RATE;
-        voice->pan_left = pan > 0.0f ? 1.0f - pan : 1.0f;
-        voice->pan_right = pan < 0.0f ? 1.0f + pan : 1.0f;
+        set_loop_controls(voice, clip, gain, pan, pitch);
     }
     pthread_mutex_unlock(&audio->mutex);
 }

@@ -2,6 +2,7 @@
 #define WII_MENU_AUDIO_SEQUENCE_H
 
 #include "wii_menu/resources/resource_rsar.h"
+#include "wii_menu/audio/audio_held.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -63,5 +64,13 @@ bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
                         const uint8_t *system_menu_dol, size_t dol_size,
                         WmAudioPcm *output, char *error,
                         size_t error_capacity);
+
+/* Extract the audited drag voice shape, keeping its wave unscaled so runtime
+ * movement can precede native gain stages. Lookup tables remain local output. */
+bool wm_sequence_extract_held(const WmRsar *archive, const WmRsarSound *sound,
+                              const uint8_t *system_menu_dol, size_t dol_size,
+                              WmAudioHeldProfile *profile,
+                              WmAudioHeldTables *tables, WmAudioPcm *output,
+                              char *error, size_t error_capacity);
 
 #endif

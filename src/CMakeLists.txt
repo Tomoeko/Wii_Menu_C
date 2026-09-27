@@ -4,6 +4,7 @@ add_library(wii_menu_core STATIC
     animation/scene_fader.c
 
     audio/audio.c
+    audio/audio_held.c
     audio/audio_sequence.c
     audio/audio_wave.c
     audio/hover_audio.c

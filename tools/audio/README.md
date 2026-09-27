@@ -25,3 +25,12 @@ RSEQ renderer follows the original sequence and lookup tables, while native AX
 mix and effects still need complete capture comparison before any 1:1 audio
 claim. Unsupported sequence commands are reported during export and never
 replaced with another cue.
+
+Channel and memo drag sounds are exported as raw looping PCM with archive gain
+in the sequence manifest. `audio-held.json` contains the locally extracted
+USA 4.3 envelope and pan tables used by the runtime's held voices. Copy that
+metadata together with the newly exported drag WAVs and sequence manifest;
+older assets use approximate playback and print a re-export notice.
+Regenerate existing assets with the command above while the app is closed.
+The held path still uses linear interpolation instead of exact AX source
+filtering. See [audio evidence and limits](../../docs/audio-accuracy.md).

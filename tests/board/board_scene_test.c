@@ -1852,17 +1852,40 @@ static void test_memo_drag(int argc, char **argv) {
     assert(wm_board_scene_take_drag_cue(board, &pan) ==
            WM_BOARD_DRAG_CUE_HOLD);
     assert(fabsf(pan) < 0.001f);
+    float gain = -1.0f;
+    float pitch = -1.0f;
+    assert(wm_board_scene_drag_mix(board, &gain, &pan, &pitch));
+    assert(fabsf(gain) < 0.001f);
+    assert(fabsf(pitch - 1.0f) < 0.001f);
     assert(wm_board_scene_pointer_move(board, 384, 180));
     wm_board_scene_advance(board, 1.0f);
-    float gain = 0.0f;
-    assert(wm_board_scene_drag_mix(board, &gain, &pan));
+    assert(wm_board_scene_drag_mix(board, &gain, &pan, &pitch));
     float delta_x = 64.0f * 608.0f / 640.0f;
     float speed = hypotf(delta_x, 20.0f);
+    float fast_pitch = speed / 30.0f;
     assert(fabsf(gain - 2.0f * speed / 304.0f) < 0.001f);
     assert(fabsf(pan - delta_x / 304.0f) < 0.001f);
+    assert(fabsf(pitch - fast_pitch) < 0.001f);
+
+    /* A held native voice keeps its raised pitch below the strict threshold,
+     * including stationary holds. Motion controls its audibility separately. */
+    wm_board_scene_advance(board, 1.0f);
+    assert(wm_board_scene_drag_mix(board, &gain, &pan, &pitch));
+    assert(fabsf(gain) < 0.001f);
+    assert(fabsf(pitch - fast_pitch) < 0.001f);
+    assert(wm_board_scene_pointer_move(board, 384, 150));
+    wm_board_scene_advance(board, 1.0f);
+    assert(wm_board_scene_drag_mix(board, &gain, &pan, &pitch));
+    assert(fabsf(gain - 60.0f / 304.0f) < 0.001f);
+    assert(fabsf(pitch - fast_pitch) < 0.001f);
+    assert(wm_board_scene_pointer_move(board, 384, 180));
+    wm_board_scene_advance(board, 2.0f);
+    assert(wm_board_scene_drag_mix(board, &gain, &pan, &pitch));
+    assert(fabsf(gain - 30.0f / 304.0f) < 0.001f);
+    assert(fabsf(pitch - fast_pitch) < 0.001f);
     assert(wm_board_scene_pointer_up(board, 384, 180));
     assert(!wm_board_scene_dragging(board));
-    assert(!wm_board_scene_drag_mix(board, &gain, &pan));
+    assert(!wm_board_scene_drag_mix(board, &gain, &pan, &pitch));
     assert(wm_board_scene_take_drag_cue(board, &pan) ==
            WM_BOARD_DRAG_CUE_RELEASE);
     assert(fabsf(pan - delta_x / 304.0f) < 0.001f);
@@ -1878,6 +1901,9 @@ static void test_memo_drag(int argc, char **argv) {
     assert(fabsf(moved.y - 73.0f) < 0.001f);
 
     assert(wm_board_scene_pointer_down(board, card, 320, 200));
+    assert(wm_board_scene_drag_mix(board, &gain, &pan, &pitch));
+    assert(fabsf(gain) < 0.001f);
+    assert(fabsf(pitch - 1.0f) < 0.001f);
     assert(wm_board_scene_pointer_move(board, 640, 0));
     assert(wm_board_scene_pointer_up(board, 640, 0));
     assert(wm_board_scene_get_memo(board, 0, &moved));

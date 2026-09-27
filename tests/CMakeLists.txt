@@ -14,6 +14,15 @@ wm_add_test(wii-menu-scene-fader
 )
 
 # Audio.
+wm_add_test(wii-menu-audio-held
+    SOURCES audio/audio_held_test.c
+    LIBRARIES wii_menu_core m
+)
+wm_add_test(wii-menu-audio-held-runtime
+    SOURCES audio/audio_held_runtime_test.c
+    LIBRARIES wii_menu_core m
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/audio"
+)
 wm_add_test(wii-menu-hover-audio
     SOURCES audio/hover_audio_test.c
     LIBRARIES wii_menu_core

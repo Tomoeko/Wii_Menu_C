@@ -124,6 +124,7 @@ struct WmBoardScene {
     float drag_last_y;
     float drag_gain;
     float drag_pan;
+    float drag_pitch;
     WmBoardDragCue drag_cues[8];
     float drag_cue_pans[8];
     unsigned drag_cue_count;
@@ -444,6 +445,7 @@ void wm_board_scene_reset(WmBoardScene *board) {
     board->dragging = false;
     board->dragged_index = SIZE_MAX;
     board->drag_gain = 0.0f;
+    board->drag_pitch = 1.0f;
     board->drag_cue_count = 0;
     board->pending_reader_cue = NULL;
     board->sound_count = 0;
@@ -931,6 +933,7 @@ bool wm_board_scene_pointer_down(WmBoardScene *board, WmBoardHit hit,
     board->drag_last_y = 0.0f;
     board->drag_gain = 0.0f;
     board->drag_pan = clamp_pan(board->memos[hit.memo_index].x / 304.0f);
+    board->drag_pitch = 1.0f;
     promote_card(board, hit.memo_index);
     queue_drag_cue(board, WM_BOARD_DRAG_CUE_HOLD, board->drag_pan);
     return true;
@@ -998,10 +1001,11 @@ WmBoardDragCue wm_board_scene_take_drag_cue(WmBoardScene *board, float *pan) {
 }
 
 bool wm_board_scene_drag_mix(const WmBoardScene *board, float *gain,
-                              float *pan) {
-    if (!board || !board->dragging || !gain || !pan) return false;
+                              float *pan, float *pitch) {
+    if (!board || !board->dragging || !gain || !pan || !pitch) return false;
     *gain = board->drag_gain;
     *pan = board->drag_pan;
+    *pitch = board->drag_pitch;
     return true;
 }
 
@@ -2234,6 +2238,9 @@ void wm_board_scene_advance(WmBoardScene *board, float frames) {
         board->drag_gain = fminf(1.0f, 2.0f * speed / 304.0f);
         board->drag_pan = clamp_pan((board->memos[board->dragged_index].x +
                                      board->drag_delta_x) / 304.0f);
+        /* holdSEwithPosDis changes pitch only above 30 units per update.
+         * Slower motion keeps the held voice's previous pitch. */
+        if (speed > 30.0f) board->drag_pitch = speed / 30.0f;
     }
     if (board->mask_direction != 0) {
         board->mask_age += frames;

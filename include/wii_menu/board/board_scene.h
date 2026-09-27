@@ -253,7 +253,7 @@ bool wm_board_scene_dragging(const WmBoardScene *board);
 WmBoardDragCue wm_board_scene_take_drag_cue(WmBoardScene *board,
                                              float *pan);
 bool wm_board_scene_drag_mix(const WmBoardScene *board, float *gain,
-                              float *pan);
+                              float *pan, float *pitch);
 
 /* Source reader scroll arrows move the text/card by 300 units with a
  * 20-frame Hermite curve. Sound is the WIPL_SE_MESSAGE_SCROLL loop. */
