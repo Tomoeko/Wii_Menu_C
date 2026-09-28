@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "app_resources.h"
 #include "frame_render.h"
 #include "input_routing.h"
 
@@ -17,7 +18,6 @@
 #include "wii_menu/platform/platform.h"
 #include "wii_menu/render/texture_cache.h"
 #include "wii_menu/render/ui.h"
-#include "wii_menu/resources/resource_bmg.h"
 #include "wii_menu/scenes/health_scene.h"
 #include "wii_menu/scenes/home_overlay.h"
 #include "wii_menu/scenes/options_scene.h"
@@ -30,7 +30,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -49,17 +48,6 @@ typedef struct WmHomeEntryContext {
     float *underlay_preview_elapsed;
     WmAppRenderer *renderer;
 } WmHomeEntryContext;
-
-static void home_cue(void *context, const char *symbol) {
-    wm_audio_play((WmAudio *)context, symbol);
-}
-
-static void home_remote_changed(void *context,
-                                const WmHomeRemoteState *state) {
-    WmAudio *audio = context;
-    wm_audio_set_volume(audio, state->volume);
-    wm_audio_set_muted(audio, state->muted);
-}
 
 static bool open_home(WmHomeOverlay *home, WmMenu *menu,
                       WmResourceScene *resource_scene,
@@ -268,161 +256,30 @@ int main(int argc, char **argv) {
 
     WmMenu menu;
     wm_menu_init(&menu);
-    bool catalog_loaded = !layout_path && assets && wm_catalog_load(&menu, assets);
-
-    WmLayout *layout = NULL;
-    if (layout_path) {
-        char error[160];
-        layout = wm_layout_load_json(layout_path, error, sizeof(error));
-        if (!layout) {
-            fprintf(stderr, "Could not load layout: %s\n", error);
-            return 1;
-        }
-    }
-
-    WmPlatform *platform = wm_platform_create("Wii Menu in C", 960, 540);
-    if (!platform) {
-        fprintf(stderr, "Could not initialize the graphics backend.\n");
-        wm_layout_destroy(layout);
+    WmAppResources resources;
+    if (!wm_app_resources_create(&resources, &menu, assets, layout_path,
+                                 raw_root)) {
         return 1;
     }
-    WmTextureCache *textures = NULL;
-    WmFontCache *fonts = NULL;
-    if (layout) {
-        textures = wm_texture_cache_create(platform, raw_root, 128u * 1024u * 1024u);
-        fonts = wm_font_cache_create(platform, raw_root, 16u * 1024u * 1024u);
-        if (!textures || !fonts) {
-            fprintf(stderr, "Could not open the layout asset directory.\n");
-            wm_texture_cache_destroy(textures);
-            wm_font_cache_destroy(fonts);
-            wm_layout_destroy(layout);
-            wm_platform_destroy(platform);
-            return 1;
-        }
-    }
-    WmTextureCache *scene_textures = !layout && assets
-                                        ? wm_texture_cache_create(platform, assets,
-                                                                   128u * 1024u * 1024u)
-                                        : NULL;
-    WmFontCache *scene_fonts = !layout && assets
-                                    ? wm_font_cache_create(platform, assets,
-                                                            16u * 1024u * 1024u)
-                                    : NULL;
-    WmResourceScene *resource_scene = !layout && assets
-                                          ? wm_resource_scene_create(platform, assets,
-                                                                     &menu, scene_textures,
-                                                                     scene_fonts)
-                                          : NULL;
-    WmPreviewScene *preview_scene = !layout && assets
-                                        ? wm_preview_scene_create(platform, assets, &menu,
-                                                                  scene_textures,
-                                                                  scene_fonts)
-                                        : NULL;
-    WmBoardScene *board_scene = !layout && assets && scene_textures && scene_fonts
-        ? wm_board_scene_create(platform, assets, scene_textures, scene_fonts)
-        : NULL;
-    WmMenuRestartScene *restart_scene = !layout && assets &&
-        scene_textures && scene_fonts
-        ? wm_menu_restart_scene_create(platform, assets, scene_textures,
-                                       scene_fonts)
-        : NULL;
-    WmHealthScene *health_scene = !layout && assets && scene_textures &&
-        scene_fonts ? wm_health_scene_create(platform, assets, scene_textures,
-                                            scene_fonts, true, NULL) : NULL;
-    char *board_state_path = NULL;
-    if (board_scene && assets) {
-        static const char suffix[] = "/.board-memos.json";
-        static const char contacts_suffix[] = "/.board-contacts.json";
-        size_t length = strlen(assets);
-        if (length <= SIZE_MAX - sizeof(suffix)) {
-            board_state_path = malloc(length + sizeof(suffix));
-            if (board_state_path) {
-                memcpy(board_state_path, assets, length);
-                memcpy(board_state_path + length, suffix, sizeof(suffix));
-                char error[160] = {0};
-                if (wm_board_store_load(board_state_path, board_scene,
-                                        error, sizeof(error)) ==
-                    WM_BOARD_STORE_ERROR) {
-                    fprintf(stderr, "Could not load Message Board memos: %s\n",
-                            error);
-                }
-            }
-        }
-        if (length <= SIZE_MAX - sizeof(contacts_suffix)) {
-            char *contacts_path = malloc(length + sizeof(contacts_suffix));
-            if (contacts_path) {
-                memcpy(contacts_path, assets, length);
-                memcpy(contacts_path + length, contacts_suffix,
-                       sizeof(contacts_suffix));
-                char error[160] = {0};
-                if (wm_board_scene_load_contacts(board_scene, contacts_path,
-                                                 error, sizeof(error)) ==
-                    WM_BOARD_CONTACT_STORE_ERROR) {
-                    fprintf(stderr, "Could not load Address Book contacts: %s\n",
-                            error);
-                }
-                free(contacts_path);
-            }
-        }
-    }
-    WmOptionsScene *options_scene = !layout && assets && scene_textures && scene_fonts
-        ? wm_options_scene_create(platform, assets, scene_textures, scene_fonts)
-        : NULL;
-    WmSdScene *sd_scene = !layout && assets && scene_textures && scene_fonts
-        ? wm_sd_scene_create(platform, assets, scene_textures, scene_fonts)
-        : NULL;
-    char message_error[160] = {0};
-    WmBmg *messages = !layout && assets
-        ? wm_bmg_load_assets(assets, "eng", message_error,
-                             sizeof(message_error)) : NULL;
-    if (sd_scene && messages)
-        wm_sd_scene_set_messages(sd_scene, wm_bmg_message, messages);
-    WmStorageScene *storage_scenes[3] = {0};
-    if (!layout && assets && scene_textures && scene_fonts) {
-        for (int kind = 0; kind < 3; kind++) {
-            storage_scenes[kind] = wm_storage_scene_create(
-                platform, assets, scene_textures, scene_fonts,
-                (WmStorageKind)kind);
-        }
-        if (storage_scenes[WM_STORAGE_CHANNELS]) {
-            WmStorageRecord records[WM_SLOT_COUNT];
-            size_t count = 0;
-            for (int slot = 1; slot < WM_SLOT_COUNT; slot++) {
-                const WmChannel *channel = &menu.slots[slot];
-                if (!channel->occupied || !channel->icon_layout[0]) continue;
-                WmStorageRecord *record = &records[count++];
-                memset(record, 0, sizeof(*record));
-                snprintf(record->id, sizeof(record->id), "%s", channel->id);
-                snprintf(record->title, sizeof(record->title), "%s",
-                         channel->title);
-                snprintf(record->icon_layout, sizeof(record->icon_layout),
-                         "%s", channel->icon_layout);
-                record->blocks = 1;
-            }
-            if (!wm_storage_scene_set_medium(
-                    storage_scenes[WM_STORAGE_CHANNELS], WM_STORAGE_WII,
-                    WM_STORAGE_READY, records, count, 0)) {
-                fprintf(stderr, "Could not populate Channels storage.\n");
-            }
-        }
-    }
-    WmPointer *pointer = !layout && scene_textures
-                             ? wm_pointer_create(platform, assets, scene_textures)
-                             : NULL;
-    WmAudio *audio = !layout && assets ? wm_audio_create(assets) : NULL;
-    WmHomeOverlay *home = !layout && assets && scene_textures && scene_fonts
-        ? wm_home_overlay_create(platform, assets, scene_textures, scene_fonts,
-                                 home_cue, home_remote_changed, audio)
-        : NULL;
-    WmChannelDrag *drag = !layout && assets && scene_textures && scene_fonts
-        ? wm_channel_drag_create(platform, assets, scene_textures,
-                                  scene_fonts, true) : NULL;
-    if (assets && !layout && !pointer) {
-        fprintf(stderr, "Could not load the source Wii hand pointer.\n");
-    }
-    if (assets && !layout && !catalog_loaded && !resource_scene) {
-        fprintf(stderr, "Could not load a valid prepared channel catalog; showing Disc only.\n");
-    }
+    WmLayout *layout = resources.layout;
+    WmPlatform *platform = resources.platform;
+    WmTextureCache *textures = resources.layout_textures;
+    WmFontCache *fonts = resources.layout_fonts;
+    WmTextureCache *scene_textures = resources.scene_textures;
+    WmFontCache *scene_fonts = resources.scene_fonts;
+    WmResourceScene *resource_scene = resources.resource_scene;
+    WmPreviewScene *preview_scene = resources.preview_scene;
+    WmBoardScene *board_scene = resources.board_scene;
+    WmMenuRestartScene *restart_scene = resources.restart_scene;
+    WmHealthScene *health_scene = resources.health_scene;
+    WmOptionsScene *options_scene = resources.options_scene;
+    WmSdScene *sd_scene = resources.sd_scene;
+    WmStorageScene **storage_scenes = resources.storage_scenes;
+    WmPointer *pointer = resources.pointer;
+    WmAudio *audio = resources.audio;
+    WmHomeOverlay *home = resources.home;
+    WmChannelDrag *drag = resources.drag;
+    char *board_state_path = resources.board_state_path;
 
     bool running = true;
     bool keyboard_focus = false;
@@ -1500,27 +1357,7 @@ int main(int argc, char **argv) {
         else
             next_frame_deadline += frame_period;
     }
-    wm_texture_cache_destroy(textures);
-    wm_font_cache_destroy(fonts);
-    wm_pointer_destroy(pointer);
-    wm_channel_drag_destroy(drag);
-    wm_home_overlay_destroy(home);
     wm_app_renderer_release_home_underlay(&renderer);
-    wm_audio_destroy(audio);
-    wm_resource_scene_destroy(resource_scene);
-    wm_preview_scene_destroy(preview_scene);
-    wm_board_scene_destroy(board_scene);
-    free(board_state_path);
-    wm_health_scene_destroy(health_scene);
-    wm_menu_restart_scene_destroy(restart_scene);
-    wm_options_scene_destroy(options_scene);
-    wm_sd_scene_destroy(sd_scene);
-    wm_bmg_destroy(messages);
-    for (int kind = 0; kind < 3; kind++)
-        wm_storage_scene_destroy(storage_scenes[kind]);
-    wm_texture_cache_destroy(scene_textures);
-    wm_font_cache_destroy(scene_fonts);
-    wm_layout_destroy(layout);
-    wm_platform_destroy(platform);
+    wm_app_resources_destroy(&resources);
     return 0;
 }

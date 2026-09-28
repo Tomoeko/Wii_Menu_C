@@ -5,9 +5,13 @@ if(WM_BACKEND STREQUAL "metal")
     enable_language(OBJC)
     target_sources(wii-menu PRIVATE
         platform/metal/platform_metal.m
+        platform/metal/shaders.m
         platform/apple/audio_platform_apple.c
     )
-    set_source_files_properties(platform/metal/platform_metal.m PROPERTIES
+    set_source_files_properties(
+        platform/metal/platform_metal.m
+        platform/metal/shaders.m
+        PROPERTIES
         COMPILE_OPTIONS "-fobjc-arc")
     target_link_libraries(wii-menu PRIVATE
         "-framework AppKit"
@@ -25,6 +29,7 @@ elseif(WM_BACKEND STREQUAL "gles2")
     find_library(GLES2_LIBRARY GLESv2 REQUIRED)
     target_sources(wii-menu PRIVATE
         platform/gles2/platform_gles2.c
+        platform/gles2/host.c
         platform/gles2/shaders.c
         platform/linux/audio_platform_linux.c
     )

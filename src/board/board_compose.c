@@ -2,6 +2,7 @@
 
 #include "wii_menu/board/board_compose.h"
 #include "wii_menu/board/board_address.h"
+#include "board_text.h"
 
 #include "wii_menu/layout/layout_present.h"
 #include "wii_menu/layout/layout_runtime.h"
@@ -10,6 +11,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -240,26 +242,6 @@ static const char *memo_display_text(WmBoardCompose *compose,
     }
     if (display_bytes) *display_bytes = compose->caret_bytes;
     return compose->text;
-}
-
-static size_t utf16_units(const char *text, size_t bytes) {
-    size_t units = 0;
-    for (size_t index = 0; index < bytes;) {
-        unsigned char first = (unsigned char)text[index];
-        size_t sequence = first >= 0xf0 && first <= 0xf4 ? 4 :
-                          first >= 0xe0 && first <= 0xef ? 3 :
-                          first >= 0xc2 && first <= 0xdf ? 2 : 1;
-        if (sequence > bytes - index) sequence = 1;
-        for (size_t tail = 1; tail < sequence; tail++) {
-            if (((unsigned char)text[index + tail] & 0xc0u) != 0x80u) {
-                sequence = 1;
-                break;
-            }
-        }
-        units += sequence == 4 ? 2 : 1;
-        index += sequence;
-    }
-    return units;
 }
 
 static size_t memo_line_count(WmBoardCompose *compose) {
@@ -919,15 +901,10 @@ static bool replace_keyboard_suffix(WmBoardCompose *compose,
         prefix_bytes > compose->caret_bytes ||
         replacement_bytes > COMPOSE_MAX_TEXT_BYTES -
                             (compose->text_bytes - prefix_bytes)) return false;
-    size_t start = compose->caret_bytes - prefix_bytes;
-    if (start < compose->text_bytes &&
-        ((unsigned char)compose->text[start] & 0xc0u) == 0x80u) return false;
-    memmove(compose->text + start + replacement_bytes,
-            compose->text + compose->caret_bytes,
-            compose->text_bytes - compose->caret_bytes + 1);
-    memcpy(compose->text + start, replacement, replacement_bytes);
-    compose->text_bytes = compose->text_bytes - prefix_bytes + replacement_bytes;
-    compose->caret_bytes = start + replacement_bytes;
+    if (!wm_board_text_replace_before_caret(
+            compose->text, sizeof(compose->text), &compose->text_bytes,
+            &compose->caret_bytes, prefix_bytes, replacement,
+            replacement_bytes)) return false;
     sync_keyboard_text(compose);
     wm_board_keyboard_text_changed(compose->keyboard, phone_prediction);
     compose->keyboard_age = 0.0f;
@@ -1440,22 +1417,23 @@ bool wm_board_compose_insert_text(WmBoardCompose *compose,
     if (compose->phase == WM_COMPOSE_EDIT &&
         wm_board_keyboard_symbols_visible(compose->keyboard) &&
         !compose->inserting_symbol) return false;
-    size_t bytes = strlen(utf8);
-    if (bytes == 0) return false;
+    size_t bytes;
     bool has_whitespace = false;
-    for (size_t index = 0; index < bytes; index++) {
-        unsigned char value = (unsigned char)utf8[index];
-        if (value < 0x20 && value != '\n') return false;
-        if (value == ' ' || value == '\n') has_whitespace = true;
-    }
+    if (!wm_board_text_memo_input(utf8, COMPOSE_MAX_TEXT_BYTES,
+                                   &bytes, &has_whitespace)) return false;
     WmBoardKeyboardComposition composition;
-    bool commit_boundary = compose->phase == WM_COMPOSE_EDIT &&
+    size_t prefix_units = SIZE_MAX;
+    bool has_composition = compose->phase == WM_COMPOSE_EDIT &&
         !has_whitespace && !compose->inserting_phone &&
         wm_board_keyboard_composition(compose->keyboard, &composition) &&
-        composition.prefix_bytes <= compose->caret_bytes &&
-        utf16_units(compose->text + compose->caret_bytes -
-                    composition.prefix_bytes,
-                    composition.prefix_bytes) >= 32;
+        composition.prefix_bytes <= compose->caret_bytes;
+    if (has_composition) {
+        prefix_units = wm_board_text_utf16_units(
+            compose->text + compose->caret_bytes - composition.prefix_bytes,
+            composition.prefix_bytes);
+    }
+    bool commit_boundary = has_composition && prefix_units != SIZE_MAX &&
+                           prefix_units >= 32;
     if (commit_boundary) {
         char candidate[WM_KEYBOARD_CANDIDATE_UTF8_CAPACITY];
         const char *selected = composition.selected_candidate;
@@ -1484,12 +1462,9 @@ bool wm_board_compose_insert_text(WmBoardCompose *compose,
     }
     if (compose->phase == WM_COMPOSE_EDIT && has_whitespace)
         wm_board_keyboard_finish_composition(compose->keyboard);
-    memmove(compose->text + compose->caret_bytes + bytes,
-            compose->text + compose->caret_bytes,
-            compose->text_bytes - compose->caret_bytes + 1);
-    memcpy(compose->text + compose->caret_bytes, utf8, bytes);
-    compose->text_bytes += bytes;
-    compose->caret_bytes += bytes;
+    if (!wm_board_text_insert(compose->text, sizeof(compose->text),
+                               &compose->text_bytes, &compose->caret_bytes,
+                               utf8, bytes)) return false;
     sync_keyboard_text(compose);
     wm_board_keyboard_text_changed(compose->keyboard,
                                     compose->inserting_phone);
@@ -1523,15 +1498,9 @@ bool wm_board_compose_backspace(WmBoardCompose *compose) {
         compose->caret_bytes == 0) return false;
     if (compose->phase == WM_COMPOSE_EDIT &&
         wm_board_keyboard_symbols_visible(compose->keyboard)) return false;
-    size_t start = compose->caret_bytes - 1;
-    while (start > 0 &&
-           ((unsigned char)compose->text[start] & 0xC0) == 0x80) {
-        start--;
-    }
-    memmove(compose->text + start, compose->text + compose->caret_bytes,
-            compose->text_bytes - compose->caret_bytes + 1);
-    compose->text_bytes -= compose->caret_bytes - start;
-    compose->caret_bytes = start;
+    if (!wm_board_text_backspace(compose->text, sizeof(compose->text),
+                                  &compose->text_bytes,
+                                  &compose->caret_bytes)) return false;
     sync_keyboard_text(compose);
     wm_board_keyboard_text_changed(compose->keyboard, false);
     compose->keyboard_age = 0.0f;

@@ -1,13 +1,10 @@
 #include "wii_menu/platform/platform.h"
 #include "wii_menu/render/viewport.h"
 #include "geometry.h"
+#include "host.h"
 #include "shaders.h"
 
-#include <EGL/egl.h>
 #include <GLES2/gl2.h>
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
-#include <X11/keysym.h>
 
 #include <stddef.h>
 #include <math.h>
@@ -39,13 +36,7 @@ typedef struct WmMaterialGpuVertex {
 } WmMaterialGpuVertex;
 
 struct WmPlatform {
-    Display *display;
-    Window window;
-    Colormap colormap;
-    Cursor hidden_cursor;
-    Atom delete_window;
-    int window_width;
-    int window_height;
+    WmGles2Host *host;
     int framebuffer_width;
     int framebuffer_height;
     WmViewport presentation;
@@ -54,10 +45,6 @@ struct WmPlatform {
     int scissor_y;
     int scissor_width;
     int scissor_height;
-
-    EGLDisplay egl_display;
-    EGLSurface egl_surface;
-    EGLContext egl_context;
 
     GLuint program;
     GLuint material_program;
@@ -84,15 +71,8 @@ struct WmPlatform {
     WmVertex vertices[WM_BATCH_QUADS * WM_VERTICES_PER_QUAD];
     size_t quad_count;
     GLuint batch_texture;
-    bool swap_failure_reported;
     float fade_alpha;
 };
-
-static void wm_report_egl_error(const char *operation)
-{
-    fprintf(stderr, "GLES2: %s failed (EGL 0x%04x).\n",
-            operation, (unsigned int)eglGetError());
-}
 
 static GLuint wm_upload_texture(int width, int height, const uint8_t *rgba)
 {
@@ -152,35 +132,6 @@ static void wm_flush(WmPlatform *platform)
     glDrawArrays(GL_TRIANGLES, 0,
                  (GLsizei)(platform->quad_count * WM_VERTICES_PER_QUAD));
     platform->quad_count = 0;
-}
-
-static bool wm_choose_config(EGLDisplay display, EGLConfig *config)
-{
-    static const EGLint rgba8888[] = {
-        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-        EGL_RED_SIZE, 8,
-        EGL_GREEN_SIZE, 8,
-        EGL_BLUE_SIZE, 8,
-        EGL_ALPHA_SIZE, 8,
-        EGL_NONE
-    };
-    static const EGLint rgb565[] = {
-        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-        EGL_RED_SIZE, 5,
-        EGL_GREEN_SIZE, 6,
-        EGL_BLUE_SIZE, 5,
-        EGL_ALPHA_SIZE, 0,
-        EGL_NONE
-    };
-    EGLint count = 0;
-
-    if (eglChooseConfig(display, rgba8888, config, 1, &count) && count > 0) {
-        return true;
-    }
-    count = 0;
-    return eglChooseConfig(display, rgb565, config, 1, &count) && count > 0;
 }
 
 static bool wm_initialize_graphics(WmPlatform *platform)
@@ -277,153 +228,18 @@ WmPlatform *wm_platform_create(const char *title, int window_width, int window_h
     if (platform == NULL) {
         return NULL;
     }
-    platform->egl_display = EGL_NO_DISPLAY;
-    platform->egl_surface = EGL_NO_SURFACE;
-    platform->egl_context = EGL_NO_CONTEXT;
-    platform->window_width = window_width;
-    platform->window_height = window_height;
-
-    platform->display = XOpenDisplay(NULL);
-    if (platform->display == NULL) {
-        fprintf(stderr, "GLES2: could not open the X11 display.\n");
-        goto fail;
-    }
-
-    platform->egl_display = eglGetDisplay((EGLNativeDisplayType)platform->display);
-    if (platform->egl_display == EGL_NO_DISPLAY ||
-        !eglInitialize(platform->egl_display, NULL, NULL)) {
-        wm_report_egl_error("display initialization");
-        goto fail;
-    }
-    if (!eglBindAPI(EGL_OPENGL_ES_API)) {
-        wm_report_egl_error("OpenGL ES selection");
-        goto fail;
-    }
-
-    EGLConfig config;
-    if (!wm_choose_config(platform->egl_display, &config)) {
-        wm_report_egl_error("ES2 window configuration selection");
-        goto fail;
-    }
-
-    EGLint visual_id = 0;
-    if (!eglGetConfigAttrib(platform->egl_display, config,
-                            EGL_NATIVE_VISUAL_ID, &visual_id)) {
-        wm_report_egl_error("X11 visual lookup");
-        goto fail;
-    }
-
-    int screen = DefaultScreen(platform->display);
-    Visual *visual = DefaultVisual(platform->display, screen);
-    int depth = DefaultDepth(platform->display, screen);
-    XVisualInfo *visual_info = NULL;
-    if (visual_id != 0) {
-        XVisualInfo query = {0};
-        query.visualid = (VisualID)visual_id;
-        query.screen = screen;
-        int matches = 0;
-        visual_info = XGetVisualInfo(platform->display,
-                                     VisualIDMask | VisualScreenMask,
-                                     &query, &matches);
-        if (visual_info == NULL || matches == 0) {
-            fprintf(stderr, "GLES2: EGL requested an unavailable X11 visual.\n");
-            if (visual_info != NULL) {
-                XFree(visual_info);
-            }
-            goto fail;
-        }
-        visual = visual_info->visual;
-        depth = visual_info->depth;
-    }
-
-    Window root = RootWindow(platform->display, screen);
-    platform->colormap = XCreateColormap(platform->display, root, visual, AllocNone);
-    if (platform->colormap == 0) {
-        fprintf(stderr, "GLES2: could not create the X11 colormap.\n");
-        if (visual_info != NULL) {
-            XFree(visual_info);
-        }
-        goto fail;
-    }
-
-    XSetWindowAttributes attributes = {0};
-    attributes.colormap = platform->colormap;
-    attributes.border_pixel = 0;
-    attributes.event_mask = StructureNotifyMask | ExposureMask |
-                            PointerMotionMask | ButtonPressMask |
-                            ButtonReleaseMask | KeyPressMask |
-                            EnterWindowMask | LeaveWindowMask | FocusChangeMask;
-    platform->window = XCreateWindow(
-        platform->display, root, 0, 0,
-        (unsigned int)window_width, (unsigned int)window_height,
-        0, depth, InputOutput, visual,
-        CWColormap | CWBorderPixel | CWEventMask, &attributes);
-    if (visual_info != NULL) {
-        XFree(visual_info);
-    }
-    if (platform->window == 0) {
-        fprintf(stderr, "GLES2: could not create the X11 window.\n");
-        goto fail;
-    }
-
-    const char transparent_pixel = 0;
-    Pixmap blank = XCreateBitmapFromData(platform->display, platform->window,
-                                         &transparent_pixel, 1, 1);
-    if (blank != None) {
-        XColor transparent = {0};
-        platform->hidden_cursor = XCreatePixmapCursor(
-            platform->display, blank, blank, &transparent, &transparent, 0, 0);
-        XFreePixmap(platform->display, blank);
-        if (platform->hidden_cursor != None) {
-            XDefineCursor(platform->display, platform->window,
-                          platform->hidden_cursor);
-        }
-    }
-
-    XStoreName(platform->display, platform->window,
-               title != NULL ? title : "Wii Menu");
-    platform->delete_window = XInternAtom(platform->display, "WM_DELETE_WINDOW", False);
-    XSetWMProtocols(platform->display, platform->window,
-                    &platform->delete_window, 1);
-
-    platform->egl_surface = eglCreateWindowSurface(
-        platform->egl_display, config,
-        (EGLNativeWindowType)platform->window, NULL);
-    if (platform->egl_surface == EGL_NO_SURFACE) {
-        wm_report_egl_error("window surface creation");
-        goto fail;
-    }
-
-    static const EGLint context_attributes[] = {
-        EGL_CONTEXT_CLIENT_VERSION, 2,
-        EGL_NONE
-    };
-    platform->egl_context = eglCreateContext(
-        platform->egl_display, config, EGL_NO_CONTEXT, context_attributes);
-    if (platform->egl_context == EGL_NO_CONTEXT) {
-        wm_report_egl_error("ES2 context creation");
-        goto fail;
-    }
-    if (!eglMakeCurrent(platform->egl_display, platform->egl_surface,
-                        platform->egl_surface, platform->egl_context)) {
-        wm_report_egl_error("context activation");
-        goto fail;
+    platform->host = wm_gles2_host_create(title, window_width, window_height);
+    if (platform->host == NULL) {
+        wm_platform_destroy(platform);
+        return NULL;
     }
     if (!wm_initialize_graphics(platform)) {
         fprintf(stderr, "GLES2: graphics initialization failed.\n");
-        goto fail;
+        wm_platform_destroy(platform);
+        return NULL;
     }
-
-    if (!eglSwapInterval(platform->egl_display, 1)) {
-        wm_report_egl_error("swap interval selection");
-    }
-    XMapWindow(platform->display, platform->window);
-    XFlush(platform->display);
+    wm_gles2_host_show(platform->host);
     return platform;
-
-fail:
-    wm_platform_destroy(platform);
-    return NULL;
 }
 
 void wm_platform_destroy(WmPlatform *platform)
@@ -432,14 +248,7 @@ void wm_platform_destroy(WmPlatform *platform)
         return;
     }
 
-    if (platform->egl_display != EGL_NO_DISPLAY &&
-        platform->egl_context != EGL_NO_CONTEXT &&
-        platform->egl_surface != EGL_NO_SURFACE) {
-        eglMakeCurrent(platform->egl_display, platform->egl_surface,
-                       platform->egl_surface, platform->egl_context);
-    }
-    if (platform->egl_context != EGL_NO_CONTEXT &&
-        eglGetCurrentContext() == platform->egl_context) {
+    if (wm_gles2_host_make_current(platform->host)) {
         if (platform->white_texture != 0) {
             glDeleteTextures(1, &platform->white_texture);
         }
@@ -466,29 +275,7 @@ void wm_platform_destroy(WmPlatform *platform)
             glDeleteShader(platform->tev_vertex_shader);
         }
     }
-    if (platform->egl_display != EGL_NO_DISPLAY) {
-        eglMakeCurrent(platform->egl_display, EGL_NO_SURFACE,
-                       EGL_NO_SURFACE, EGL_NO_CONTEXT);
-        if (platform->egl_context != EGL_NO_CONTEXT) {
-            eglDestroyContext(platform->egl_display, platform->egl_context);
-        }
-        if (platform->egl_surface != EGL_NO_SURFACE) {
-            eglDestroySurface(platform->egl_display, platform->egl_surface);
-        }
-        eglTerminate(platform->egl_display);
-    }
-    if (platform->display != NULL) {
-        if (platform->hidden_cursor != None) {
-            XFreeCursor(platform->display, platform->hidden_cursor);
-        }
-        if (platform->window != 0) {
-            XDestroyWindow(platform->display, platform->window);
-        }
-        if (platform->colormap != 0) {
-            XFreeColormap(platform->display, platform->colormap);
-        }
-        XCloseDisplay(platform->display);
-    }
+    wm_gles2_host_destroy(platform->host);
     while (platform->tev_programs) {
         WmTevProgram *next = platform->tev_programs->next;
         free(platform->tev_programs);
@@ -497,114 +284,9 @@ void wm_platform_destroy(WmPlatform *platform)
     free(platform);
 }
 
-static void wm_pointer_event(WmPlatform *platform, WmEvent *event,
-                              int x, int y)
-{
-    WmViewport viewport = wm_viewport_fit(platform->window_width,
-                                           platform->window_height);
-    if (viewport.width <= 0 || viewport.height <= 0) {
-        event->type = WM_EVENT_POINTER_LEAVE;
-        return;
-    }
-    event->outside_viewport = !wm_viewport_map_pointer_unbounded(
-        viewport, x, y, &event->x, &event->y);
-}
-
-static WmKey wm_lookup_key(XKeyEvent *key_event)
-{
-    KeySym symbol = NoSymbol;
-    char text[8] = {0};
-    int count = XLookupString(key_event, text, (int)sizeof(text), &symbol, NULL);
-
-    switch (symbol) {
-    case XK_Left:      return WM_KEY_LEFT;
-    case XK_Right:     return WM_KEY_RIGHT;
-    case XK_Up:        return WM_KEY_UP;
-    case XK_Down:      return WM_KEY_DOWN;
-    case XK_Return:
-    case XK_KP_Enter:  return WM_KEY_ENTER;
-    case XK_Escape:    return WM_KEY_ESCAPE;
-    case XK_BackSpace: return WM_KEY_BACKSPACE;
-    case XK_Home:      return WM_KEY_HOME;
-    default:           break;
-    }
-
-    if (count == 1 && (unsigned char)text[0] >= 32 &&
-        (unsigned char)text[0] <= 126) {
-        unsigned char character = (unsigned char)text[0];
-        if (character >= 'A' && character <= 'Z') {
-            character = (unsigned char)(character - 'A' + 'a');
-        }
-        return (WmKey)character;
-    }
-    return WM_KEY_UNKNOWN;
-}
-
 bool wm_platform_poll(WmPlatform *platform, WmEvent *event)
 {
-    if (platform == NULL || event == NULL) {
-        return false;
-    }
-    *event = (WmEvent){.type = WM_EVENT_NONE, .key = WM_KEY_UNKNOWN};
-
-    while (XPending(platform->display) > 0) {
-        XEvent native_event;
-        XNextEvent(platform->display, &native_event);
-
-        switch (native_event.type) {
-        case ClientMessage:
-            if ((Atom)native_event.xclient.data.l[0] == platform->delete_window) {
-                event->type = WM_EVENT_QUIT;
-                return true;
-            }
-            break;
-        case DestroyNotify:
-            platform->window = 0;
-            event->type = WM_EVENT_QUIT;
-            return true;
-        case ConfigureNotify:
-            platform->window_width = native_event.xconfigure.width;
-            platform->window_height = native_event.xconfigure.height;
-            break;
-        case MotionNotify:
-            event->type = WM_EVENT_POINTER_MOVE;
-            wm_pointer_event(platform, event, native_event.xmotion.x,
-                              native_event.xmotion.y);
-            return true;
-        case EnterNotify:
-            event->type = WM_EVENT_POINTER_MOVE;
-            wm_pointer_event(platform, event, native_event.xcrossing.x,
-                              native_event.xcrossing.y);
-            return true;
-        case LeaveNotify:
-            event->type = WM_EVENT_POINTER_LEAVE;
-            return true;
-        case FocusOut:
-            event->type = WM_EVENT_POINTER_LEAVE;
-            event->cancel_capture = true;
-            return true;
-        case ButtonPress:
-        case ButtonRelease:
-            if (native_event.xbutton.button != Button1 &&
-                native_event.xbutton.button != Button2 &&
-                native_event.xbutton.button != Button3) {
-                break;
-            }
-            event->type = native_event.type == ButtonPress ?
-                          WM_EVENT_POINTER_DOWN : WM_EVENT_POINTER_UP;
-            event->button = (WmPointerButton)native_event.xbutton.button;
-            wm_pointer_event(platform, event, native_event.xbutton.x,
-                              native_event.xbutton.y);
-            return true;
-        case KeyPress:
-            event->type = WM_EVENT_KEY_DOWN;
-            event->key = wm_lookup_key(&native_event.xkey);
-            return true;
-        default:
-            break;
-        }
-    }
-    return false;
+    return platform != NULL && wm_gles2_host_poll(platform->host, event);
 }
 
 void wm_platform_begin(WmPlatform *platform, WmColor clear_color)
@@ -616,10 +298,9 @@ void wm_platform_begin(WmPlatform *platform, WmColor clear_color)
     platform->quad_count = 0;
     platform->rendering_target = false;
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    EGLint width = platform->window_width;
-    EGLint height = platform->window_height;
-    eglQuerySurface(platform->egl_display, platform->egl_surface, EGL_WIDTH, &width);
-    eglQuerySurface(platform->egl_display, platform->egl_surface, EGL_HEIGHT, &height);
+    int width = 0;
+    int height = 0;
+    wm_gles2_host_surface_size(platform->host, &width, &height);
     platform->framebuffer_width = width;
     platform->framebuffer_height = height;
     platform->presentation = wm_viewport_fit(width, height);
@@ -933,11 +614,7 @@ void wm_platform_end(WmPlatform *platform)
         platform->rendering_target = false;
         return;
     }
-    if (!eglSwapBuffers(platform->egl_display, platform->egl_surface) &&
-        !platform->swap_failure_reported) {
-        wm_report_egl_error("frame presentation");
-        platform->swap_failure_reported = true;
-    }
+    wm_gles2_host_present(platform->host);
 }
 
 void wm_platform_set_fade_alpha(WmPlatform *platform, float alpha)

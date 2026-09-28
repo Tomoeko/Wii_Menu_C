@@ -1,4 +1,5 @@
 #include "wii_menu/board/board_address.h"
+#include "board_text.h"
 
 #include "wii_menu/layout/layout_present.h"
 #include "wii_menu/layout/layout_runtime.h"
@@ -104,8 +105,6 @@ typedef struct AddressGeometry {
 static float limit_frame(float frame, float last) {
     return fminf(fmaxf(frame, 0.0f), last);
 }
-
-static size_t utf16_units(const char *text);
 
 static WmLayout *load_layout_in(const char *assets_directory,
                                 const char *subdirectory,
@@ -401,8 +400,10 @@ bool wm_board_address_select_entry(WmBoardAddress *address, unsigned row) {
     memcpy(address->nickname, contact.nickname, nickname_bytes + 1);
     address->text_bytes = address_bytes;
     address->nickname_bytes = nickname_bytes;
-    address->text_units = utf16_units(address->text);
-    address->nickname_units = utf16_units(address->nickname);
+    address->text_units = wm_board_text_utf16_units(address->text,
+                                                    address_bytes);
+    address->nickname_units = wm_board_text_utf16_units(address->nickname,
+                                                        nickname_bytes);
     address->wii_kind = contact.wii;
     address->selected_slot = slot;
     address->hovered_contact = WM_BOARD_ADDRESS_CONTACT_NONE;
@@ -514,7 +515,8 @@ bool wm_board_address_back(WmBoardAddress *address) {
         snprintf(address->nickname, sizeof(address->nickname), "%s",
                  saved.nickname);
         address->nickname_bytes = strlen(address->nickname);
-        address->nickname_units = utf16_units(address->nickname);
+        address->nickname_units = wm_board_text_utf16_units(
+            address->nickname, address->nickname_bytes);
         address->phase = WM_BOARD_ADDRESS_CONTACT_NAME_FORM_RETURN;
     }
     else return false;
@@ -881,49 +883,8 @@ const char *wm_board_address_field_text(const WmBoardAddress *address) {
 }
 
 /* The original keyboard's type 12 filter keeps ASCII digits; type 7 keeps
- * entered text for validation after OK. Count UTF-16 units like the HTML
- * controller's maxLength field, while retaining UTF-8 for the C font path. */
-static bool utf8_character(const char *text, size_t remaining,
-                           size_t *bytes, size_t *units) {
-    if (!text || remaining == 0 || !bytes || !units) return false;
-    unsigned char lead = (unsigned char)text[0];
-    uint32_t codepoint;
-    if (lead < 0x80) {
-        *bytes = 1;
-        *units = 1;
-        return true;
-    }
-    size_t length = lead >= 0xF0 && lead <= 0xF4 ? 4 :
-                    lead >= 0xE0 && lead <= 0xEF ? 3 :
-                    lead >= 0xC2 && lead <= 0xDF ? 2 : 0;
-    if (length == 0 || length > remaining) return false;
-    codepoint = lead & (length == 4 ? 0x07u : length == 3 ? 0x0Fu : 0x1Fu);
-    for (size_t index = 1; index < length; index++) {
-        unsigned char next = (unsigned char)text[index];
-        if ((next & 0xC0u) != 0x80u) return false;
-        codepoint = (codepoint << 6) | (next & 0x3Fu);
-    }
-    if (codepoint < (length == 2 ? 0x80u : length == 3 ? 0x800u :
-                     0x10000u) || codepoint > 0x10FFFFu ||
-        (codepoint >= 0xD800u && codepoint <= 0xDFFFu)) return false;
-    *bytes = length;
-    *units = length == 4 ? 2 : 1;
-    return true;
-}
-
-static size_t utf16_units(const char *text) {
-    size_t length = strlen(text);
-    size_t count = 0;
-    for (size_t offset = 0; offset < length;) {
-        size_t bytes, units;
-        if (!utf8_character(text + offset, length - offset,
-                            &bytes, &units)) return SIZE_MAX;
-        offset += bytes;
-        count += units;
-    }
-    return count;
-}
-
+ * entered text for validation after OK. Both fields count UTF-16 units like
+ * the HTML controller's maxLength field, while retaining UTF-8 for fonts. */
 static void format_address(const WmBoardAddress *address, bool shorten,
                            char *output, size_t capacity) {
     if (!address || !output || capacity == 0) return;
@@ -948,9 +909,9 @@ static void format_address(const WmBoardAddress *address, bool shorten,
     size_t units = 0;
     for (size_t offset = 0; offset < address->text_bytes && units < 14;) {
         size_t bytes, character_units;
-        if (!utf8_character(address->text + offset,
-                            address->text_bytes - offset,
-                            &bytes, &character_units) ||
+        if (!wm_board_text_character(address->text + offset,
+                                     address->text_bytes - offset,
+                                     &bytes, &character_units) ||
             units + character_units > 14 ||
             written + bytes + 4 > capacity) break;
         memcpy(output + written, address->text + offset, bytes);
@@ -976,8 +937,8 @@ bool wm_board_address_insert_text(WmBoardAddress *address,
     size_t output_units = 0;
     for (size_t offset = 0; offset < input_bytes;) {
         size_t bytes, units;
-        if (!utf8_character(utf8 + offset, input_bytes - offset,
-                            &bytes, &units)) return false;
+        if (!wm_board_text_character(utf8 + offset, input_bytes - offset,
+                                     &bytes, &units)) return false;
         unsigned char first = (unsigned char)utf8[offset];
         bool keep = numeric
             ? bytes == 1 && first >= '0' && first <= '9'

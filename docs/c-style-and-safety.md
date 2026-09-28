@@ -77,16 +77,17 @@ behavior sanitizer checks where the host supports them. A source-resource
 test that skips because private assets are absent is not a rendered comparison.
 Visual and performance claims still need the evidence required by `AGENTS.md`.
 
-The application now has private `input_routing` and `frame_render` modules;
-the Board has a private memo model; keyboard text handling has its own module;
-the GLES2 shader cache is separate from draw submission; and five scenes
-share a checked layout loader. These boundaries keep scene state and render
-ordering in their existing owners, with no new per-frame allocation.
+The application has private resource ownership, input routing, and frame
+rendering modules. The Board has a private memo model and strict text editor;
+keyboard prediction text has its own module. Sequence parsing is separate
+from synthesis. GLES2 host/window management and shader caching are separate
+from draw submission, and Metal shader source is separate from its adapter.
+Five scenes share a checked layout loader. These boundaries keep scene state
+and render ordering in their existing owners, with no new per-frame allocation.
 
-The next steps are the remaining long event and update paths in
-`src/app/main.c`, keyboard presentation in `src/board/board_keyboard.c`,
-Board presentation in `src/board/board_scene.c`, and host/window setup in
-`src/platform/gles2/platform_gles2.c`. Each should move behind a narrow
-private interface after its state and order dependencies are mapped. File
-length alone is not a bug; make each change reviewable against its tests and
-rendered behavior.
+The next steps are the remaining event and update paths in `src/app/main.c`,
+Board and Settings presentation, layout import and posing, and the
+preparation tool's staging/update transaction. [The source audit](refactor-audit.md)
+records these seams. Each should move behind a narrow private interface after
+its state and order dependencies are mapped. File length alone is not a bug;
+make each change reviewable against its tests and rendered behavior.

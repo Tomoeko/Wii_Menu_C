@@ -51,6 +51,11 @@ wm_add_test(wii-menu-keyboard-text
     LIBRARIES wii_menu_core
     INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/board"
 )
+wm_add_test(wii-menu-board-text
+    SOURCES board/board_text_test.c
+    LIBRARIES wii_menu_core
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/board"
+)
 wm_add_test(wii-menu-board-scene
     SOURCES board/board_scene_test.c
     LIBRARIES wii_menu_core m

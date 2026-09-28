@@ -572,6 +572,8 @@ int main(int argc, char **argv) {
                   "WIPL_SE_SK_PREDICT_ON") == 0);
     assert(wm_board_compose_insert_text(compose, "hel"));
     assert(strcmp(wm_board_compose_text(compose), "hel") == 0);
+    assert(!wm_board_compose_insert_text(compose, "\xed\xa0\x80"));
+    assert(strcmp(wm_board_compose_text(compose), "hel") == 0);
     assert(strcmp(wm_board_compose_display_text(compose), "hello") == 0);
     assert(wm_board_compose_activate(compose, compose_key(
         WM_KEYBOARD_CANDIDATE_FIRST)));

@@ -6,6 +6,7 @@ add_library(wii_menu_core STATIC
     audio/audio.c
     audio/audio_held.c
     audio/audio_sequence.c
+    audio/audio_sequence_parse.c
     audio/audio_wave.c
     audio/hover_audio.c
 
@@ -17,6 +18,7 @@ add_library(wii_menu_core STATIC
     board/board_reader_scroll.c
     board/board_model.c
     board/board_scene.c
+    board/board_text.c
     board/keyboard_dictionary.c
     board/keyboard_text.c
 
@@ -79,6 +81,7 @@ endif()
 
 if(WM_BUILD_APP)
     set(WM_APP_SOURCES
+        app/app_resources.c
         app/frame_render.c
         app/main.c
         app/input_routing.c
