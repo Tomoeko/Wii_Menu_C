@@ -1,3 +1,5 @@
+#include "atomic_file.h"
+
 #include "wii_menu/render/image.h"
 #include "wii_menu/resources/resource_ash.h"
 #include "wii_menu/resources/resource_bmg.h"
@@ -139,22 +141,6 @@ static uint8_t *read_file(const char *path, size_t *size)
     fclose(file);
     *size = (size_t)length;
     return data;
-}
-
-static bool write_data(const char *path, const void *data, size_t size)
-{
-    FILE *file = fopen(path, "wb");
-    if (file == NULL) {
-        return false;
-    }
-    bool valid = fwrite(data, 1, size, file) == size;
-    if (fclose(file) != 0) {
-        valid = false;
-    }
-    if (!valid) {
-        remove(path);
-    }
-    return valid;
 }
 
 static int compare_entries(const void *left, const void *right)
@@ -395,7 +381,7 @@ static bool export_package(const WmU8Entry *entry,
         if (filename_size < 0 || filename_size >= (int)sizeof(filename) ||
             directory_size < 0 || directory_size >= (int)sizeof(subdirectory) ||
             !write_path(path, output, subdirectory, filename) ||
-            !write_data(path, json, json_size)) {
+            !wm_atomic_file_replace(path, json, json_size)) {
             fprintf(stderr, "Could not write a local layout.\n");
             valid = false;
         }
@@ -457,7 +443,7 @@ static bool export_fonts(const WmU8Archive *outer, const char *output,
         }
         char path[WM_EXPORT_PATH_CAPACITY];
         valid = write_path(path, output, "fonts", basename) &&
-                write_data(path, item->data, item->size);
+                wm_atomic_file_replace(path, item->data, item->size);
         if (valid) {
             (*font_total)++;
         }
@@ -500,7 +486,7 @@ static bool export_messages(const WmU8Archive *outer, const char *output,
                  write_path(path, output, subdirectory, "") &&
                  ensure_directory(path) &&
                  write_path(path, output, subdirectory, "ipl_common.bmg") &&
-                 write_data(path, entry->data, entry->size);
+                 wm_atomic_file_replace(path, entry->data, entry->size);
     if (!valid) {
         fprintf(stderr, "Could not write local BMG messages.\n");
     } else {

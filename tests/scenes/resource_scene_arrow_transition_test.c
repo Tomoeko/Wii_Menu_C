@@ -1,4 +1,5 @@
 #include "wii_menu/scenes/resource_scene.h"
+#include "wii_menu/board/board_scene.h"
 #include "wii_menu/input/channel_drag.h"
 #include "wii_menu/input/pointer.h"
 
@@ -20,11 +21,15 @@ typedef struct ArrowSample {
 
 static uint32_t next_texture = 1;
 static uint32_t right_arrow_texture;
+static uint32_t left_arrow_texture;
 static uint32_t grab_overlay_texture;
 static ArrowSample drawn;
 static unsigned draw_event;
 static unsigned last_arrow_event;
 static unsigned grab_pointer_event;
+static bool capture_arrow_centers;
+static float arrow_centers[2];
+static unsigned arrow_center_counts[2];
 
 void wm_platform_begin(WmPlatform *platform, WmColor clear_color) {
     (void)platform;
@@ -66,8 +71,18 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
     if (quad->texture_count >= 2 &&
         quad->textures[1] == grab_overlay_texture)
         grab_pointer_event = draw_event;
-    if (!quad->texture_count || quad->textures[0] != right_arrow_texture ||
+    if (!quad->texture_count ||
+        (quad->textures[0] != right_arrow_texture &&
+         (!capture_arrow_centers || quad->textures[0] != left_arrow_texture)) ||
         quad->vertices[0].color.a <= 0.01f) return;
+    if (capture_arrow_centers) {
+        float center_x = 0.0f;
+        for (size_t index = 0; index < 4; index++)
+            center_x += quad->vertices[index].x * 0.25f;
+        size_t side = center_x < WM_FRAME_WIDTH * 0.5f ? 0 : 1;
+        arrow_centers[side] += center_x;
+        arrow_center_counts[side]++;
+    }
     last_arrow_event = draw_event;
     drawn.quads++;
     for (size_t index = 0; index < 4; index++) {
@@ -129,6 +144,72 @@ static float height(ArrowSample sample) {
     return sample.bottom - sample.top;
 }
 
+static void begin_arrow_center_capture(void) {
+    capture_arrow_centers = true;
+    memset(arrow_centers, 0, sizeof(arrow_centers));
+    memset(arrow_center_counts, 0, sizeof(arrow_center_counts));
+}
+
+static void end_arrow_center_capture(float centers[2]) {
+    capture_arrow_centers = false;
+    for (size_t side = 0; side < 2; side++) {
+        assert(arrow_center_counts[side] > 0);
+        centers[side] = arrow_centers[side] / (float)arrow_center_counts[side];
+    }
+}
+
+static void check_board_return_arrows(WmPlatform *platform, const char *assets,
+                                      WmResourceScene *grid, WmTextureCache *textures,
+                                      WmFontCache *fonts) {
+    WmBoardScene *board = wm_board_scene_create(platform, assets, textures, fonts);
+    assert(board);
+    WmMenu menu;
+    wm_menu_init(&menu);
+    menu.page = 1;
+    wm_resource_scene_restart(grid);
+    float seconds = 3.0f;
+    const WmResourceSceneFrame grid_frame = {.hover = {WM_HIT_NONE, -1}};
+    for (unsigned cycle = 0; cycle < 3; cycle++) {
+        WmResourceSceneFrame frame = grid_frame;
+        frame.elapsed_seconds = seconds;
+        begin_arrow_center_capture();
+        wm_resource_scene_draw(grid, &menu, &frame);
+        float before[2];
+        end_arrow_center_capture(before);
+
+        assert(wm_menu_open_screen(&menu, WM_SCREEN_BOARD));
+        assert(wm_menu_switch_screen_at_black(&menu, WM_SCREEN_BOARD));
+        wm_board_scene_set_grid_page(board, menu.page);
+        assert(wm_board_scene_open(board, (WmBoardDate){2026, 9, 25}));
+        wm_board_scene_advance(board, 40.0f + (float)(cycle * 17));
+        assert(wm_board_scene_back(board));
+        wm_board_scene_advance(board, 39.0f);
+        seconds += (79.0f + (float)(cycle * 17)) / 60.0f;
+        begin_arrow_center_capture();
+        wm_board_scene_set_menu_elapsed_seconds(board, seconds);
+        wm_board_scene_draw_footer(board);
+        float departing[2];
+        end_arrow_center_capture(departing);
+
+        wm_board_scene_advance(board, 1.0f);
+        seconds += 1.0f / 60.0f;
+        assert(wm_board_scene_phase(board) == WM_BOARD_CLOSED);
+        assert(wm_menu_switch_screen_at_black(&menu, WM_SCREEN_GRID));
+        frame.elapsed_seconds = seconds;
+        begin_arrow_center_capture();
+        wm_resource_scene_draw(grid, &menu, &frame);
+        float returned[2];
+        end_arrow_center_capture(returned);
+        for (size_t side = 0; side < 2; side++) {
+            assert(isfinite(before[side]));
+            /* One grid tick may advance the loop, but returning from Board
+             * must not replace its current phase with a different clock. */
+            assert(fabsf(departing[side] - returned[side]) < 0.6f);
+        }
+    }
+    wm_board_scene_destroy(board);
+}
+
 int main(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     WmPlatform *platform = (WmPlatform *)1;
@@ -145,6 +226,8 @@ int main(int argc, char **argv) {
     assert(textures && fonts);
     assert(wm_texture_cache_resolve(textures,
         "textures/cmnBtn/my_arw_a.png", &right_arrow_texture));
+    assert(wm_texture_cache_resolve(textures,
+        "textures/cmnBtn/my_arw_b.png", &left_arrow_texture));
     WmResourceScene *scene = wm_resource_scene_create(
         platform, assets, &menu, textures, fonts);
     assert(scene);
@@ -199,6 +282,8 @@ int main(int argc, char **argv) {
     assert(grab_pointer_event > last_arrow_event);
     wm_channel_drag_destroy(drag);
     wm_pointer_destroy(pointer);
+
+    check_board_return_arrows(platform, assets, scene, textures, fonts);
 
     wm_resource_scene_destroy(scene);
     wm_font_cache_destroy(fonts);

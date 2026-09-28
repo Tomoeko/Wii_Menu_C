@@ -28,11 +28,6 @@ typedef struct WmBoardCalendarHit {
     unsigned day_index; /* Index in the visible five or six week sheet. */
 } WmBoardCalendarHit;
 
-typedef struct WmBoardCalendarDayPresentation {
-    unsigned day_index;
-    float focus_frame;
-} WmBoardCalendarDayPresentation;
-
 typedef enum WmBoardCalendarOutcome {
     WM_CALENDAR_OUTCOME_NONE,
     WM_CALENDAR_OUTCOME_BACK,
@@ -60,10 +55,6 @@ WmBoardCalendarOutcome wm_board_calendar_take_outcome(WmBoardCalendar *calendar,
 void wm_board_calendar_draw(WmBoardCalendar *calendar);
 WmBoardCalendarHit wm_board_calendar_hit(WmBoardCalendar *calendar,
                                          int x, int y);
-/* Returns back-to-front day layers outside month scrolling. */
-bool wm_board_calendar_day_presentation(
-    const WmBoardCalendar *calendar, unsigned layer,
-    WmBoardCalendarDayPresentation *presentation);
 void wm_board_calendar_hover(WmBoardCalendar *calendar,
                              WmBoardCalendarHit hit);
 bool wm_board_calendar_activate(WmBoardCalendar *calendar,

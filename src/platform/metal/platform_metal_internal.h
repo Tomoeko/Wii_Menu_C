@@ -120,6 +120,7 @@ struct WmPlatform {
     NSMutableArray *textures;
     NSMutableArray<NSNumber *> *free_texture_handles;
     NSMutableIndexSet *retired_texture_handles;
+    bool warned_tev_encoding;
     id<MTLBuffer> vertex_buffers[WM_IN_FLIGHT_FRAMES];
     id<MTLCommandBuffer> in_flight[WM_IN_FLIGHT_FRAMES];
     NSUInteger buffer_sizes[WM_IN_FLIGHT_FRAMES];

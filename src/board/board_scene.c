@@ -296,6 +296,7 @@ bool wm_board_scene_open(WmBoardScene *board, WmBoardDate date) {
     board->phase = WM_BOARD_ENTER;
     board->phase_frame = 0.0f;
     board->age = 0.0f;
+    board->menu_arrow_clock_set = false;
     board->card_arrival_count = 0;
     board->pending_posted_memo = SIZE_MAX;
     board->hover = (WmBoardHit){WM_BOARD_CONTROL_NONE, SIZE_MAX};

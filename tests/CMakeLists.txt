@@ -60,6 +60,7 @@ wm_add_test(wii-menu-board-text
 wm_add_test(wii-menu-board-scene
     SOURCES board/board_scene_test.c
     LIBRARIES wii_menu_core m
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/board"
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
 )
 wm_add_test(wii-menu-board-address
@@ -85,6 +86,7 @@ wm_add_test(wii-menu-board-compose-order
 wm_add_test(wii-menu-board-calendar-arrow
     SOURCES board/board_calendar_arrow_test.c
     LIBRARIES wii_menu_core m
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/board"
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
 )
 wm_add_test(wii-menu-board-reader-scroll

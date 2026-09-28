@@ -1,5 +1,6 @@
 #include "wii_menu/board/board_calendar.h"
 #include "wii_menu/render/texture_cache.h"
+#include "board_calendar_internal.h"
 
 #include <assert.h>
 #include <math.h>
@@ -109,6 +110,50 @@ static bool nearly_equal(float left, float right) {
     return fabsf(left - right) < 0.02f;
 }
 
+static void test_day_order_without_assets(void) {
+    WmBoardCalendar calendar = {.phase = WM_CALENDAR_IDLE,
+                                .age = 50.0f,
+                                .cell_count = 3,
+                                .day_order_count = 3};
+    for (unsigned index = 0; index < calendar.cell_count; index++) {
+        calendar.day_order[index] = index;
+    }
+    wm_board_calendar_hover(&calendar,
+        (WmBoardCalendarHit){WM_CALENDAR_CONTROL_DAY, 1});
+    wm_board_calendar_advance(&calendar, 3.0f);
+
+    static const unsigned expected[] = {0, 2, 1};
+    for (unsigned layer = 0; layer < 3; layer++) {
+        WmBoardCalendarDayPresentation pose;
+        assert(wm_board_calendar_day_presentation(&calendar, layer, &pose));
+        assert(pose.day_index == expected[layer]);
+        assert(pose.focus_frame == (layer == 2 ? 3.0f : 0.0f));
+    }
+    calendar.phase = WM_CALENDAR_SCROLL_NEXT;
+    WmBoardCalendarDayPresentation pose;
+    assert(!wm_board_calendar_day_presentation(&calendar, 0, &pose));
+}
+
+static void test_hit_draw_stability(WmBoardCalendar *calendar) {
+    static const unsigned indices[] = {0, 17, 34};
+    for (size_t sample = 0;
+         sample < sizeof(indices) / sizeof(indices[0]); sample++) {
+        unsigned index = indices[sample];
+        int x = 158 + (int)(index % 7) * 54;
+        int y = 91 + (int)(index / 7) * 48;
+        WmBoardCalendarHit hit = wm_board_calendar_hit(calendar, x, y);
+        assert(hit.control == WM_CALENDAR_CONTROL_DAY && hit.day_index == index);
+        wm_board_calendar_hover(calendar, hit);
+        wm_board_calendar_advance(calendar, 3.0f);
+        WmBoardCalendarHit before = wm_board_calendar_hit(calendar, x, y);
+        wm_board_calendar_draw(calendar);
+        wm_board_calendar_draw(calendar);
+        WmBoardCalendarHit after = wm_board_calendar_hit(calendar, x, y);
+        assert(before.control == after.control &&
+               before.day_index == after.day_index);
+    }
+}
+
 static void test_day_hover_continuity(WmBoardCalendar *calendar) {
     /* Every tile should keep one hit owner while the pointer moves inside it
      * and the six-frame focus clip grows. A changed hit would replay the
@@ -143,6 +188,7 @@ static void test_day_hover_continuity(WmBoardCalendar *calendar) {
 }
 
 int main(int argc, char **argv) {
+    test_day_order_without_assets();
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char path[1024];
     int length = snprintf(path, sizeof(path),
@@ -179,6 +225,7 @@ int main(int argc, char **argv) {
     draw_arrows(calendar, middle);
     wm_board_calendar_advance(calendar, 5.0f);
     draw_arrows(calendar, settled);
+    test_hit_draw_stability(calendar);
     test_day_hover_continuity(calendar);
     assert(entering[0].x < middle[0].x &&
            middle[0].x < settled[0].x);

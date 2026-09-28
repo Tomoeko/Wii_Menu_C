@@ -1,5 +1,6 @@
 #include "audio_internal.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -156,13 +157,19 @@ WmAudioClip *wm_audio_load_clip(WmAudio *audio, const char *name,
             if (loop_flag != WM_JSON_INVALID &&
                 manifest->tokens[loop_flag].type == WM_JSON_BOOLEAN &&
                 manifest->source[manifest->tokens[loop_flag].start] == 't' &&
-                loop_start >= 0.0f && loop_end > loop_start) {
-                uint32_t first = (uint32_t)lroundf(loop_start * clip->pcm.sample_rate);
-                uint32_t end = (uint32_t)lroundf(loop_end * clip->pcm.sample_rate);
-                if (first < end && end <= clip->pcm.frame_count) {
+                loop_start >= 0.0f && loop_end > loop_start &&
+                (double)loop_end * clip->pcm.sample_rate <
+                    (double)clip->pcm.frame_count + 1.0) {
+                /* Round the same float products as before, but validate the
+                 * rounded values before narrowing to uint32_t. */
+                float first_frame = roundf(loop_start * clip->pcm.sample_rate);
+                float end_frame = roundf(loop_end * clip->pcm.sample_rate);
+                if (isfinite(first_frame) && isfinite(end_frame) &&
+                    first_frame >= 0.0f && first_frame < end_frame &&
+                    (double)end_frame <= clip->pcm.frame_count) {
                     clip->pcm.looping = true;
-                    clip->pcm.loop_start = first;
-                    clip->pcm.loop_end = end;
+                    clip->pcm.loop_start = (uint32_t)first_frame;
+                    clip->pcm.loop_end = (uint32_t)end_frame;
                 }
             }
             size_t symbol = wm_json_member(manifest, entry, "sourceSymbol");
@@ -181,7 +188,10 @@ WmAudioClip *wm_audio_load_clip(WmAudio *audio, const char *name,
             }
         }
     }
-    if (!isfinite(clip->gain) || clip->gain < 0.0f)
+    /* Leave headroom when the maximum voice count is mixed at up to 2x gain. */
+    const float maximum_gain = FLT_MAX / (WM_AUDIO_MAX_VOICES * 4.0f);
+    if (!isfinite(clip->gain) || clip->gain < 0.0f ||
+        clip->gain > maximum_gain)
         clip->gain = 1.0f;
     return clip;
 }

@@ -18,7 +18,7 @@ Include a header by its full module path, for example
 | `render/` | Shared geometry, images, texture caching, material preparation, and fallback UI |
 | `resources/` | Resource format decoding, independent of graphics APIs |
 | `scenes/` | Grid, channel preview, health, HOME, options, settings, storage, and SD scenes |
-| `support/` | JSON tokenization, value conversion, and checked file replacement |
+| `support/` | JSON tokenization, value conversion, checked regular-file reads, and atomic file replacement |
 
 `src/app/main.c` coordinates the frame loop. Private input, event dispatch,
 update, and transition modules route scenes and the Board;
@@ -26,7 +26,8 @@ update, and transition modules route scenes and the Board;
 and teardown, and `frame_render` owns draw order and the retained HOME target.
 The Board's private `board_model` owns memo
 copies and ordering, `board_text` owns strict text validation and bounded Memo
-edits, and `board_keyboard_prediction` owns candidate matching and reset.
+edits, `board_keyboard_prediction` owns candidate matching and reset, and
+`board_calendar_present` owns calendar posing and draw order.
 Board editors and the Options, Preview, Settings, Storage, SD, HOME, and
 resource scenes keep their presentation in private modules beside state and
 interaction code. The shared
@@ -46,8 +47,9 @@ devices live in
 also have separate source files under `src/audio/`.
 
 Private helpers stay with their owning implementations. Geometry, image
-decoding, and texture source validation belong to rendering; atomic file
-replacement belongs to `support/` and is shared by persistence and exporters.
+decoding, and texture source validation belong to rendering; checked
+regular-file reads and atomic replacement belong to `support/` and are shared
+by persistence and exporters.
 They are not installed public interfaces.
 
 ## Build and tests

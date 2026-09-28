@@ -64,6 +64,8 @@ struct WmBoardScene {
     WmBoardPhase phase;
     float phase_frame;
     float age;
+    float menu_elapsed_seconds;
+    bool menu_arrow_clock_set;
     float pin_age;
     BoardCardArrival card_arrivals[WM_BOARD_MAX_PRESENTED_MEMOS];
     size_t card_arrival_count;

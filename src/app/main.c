@@ -146,6 +146,10 @@ int main(int argc, char **argv) {
             elapsed = 0.1f;
         previous = frame_start;
         bool health_frame = wm_app_advance_before_events(&app, frame_start, elapsed);
+        if (board_scene && menu.screen == WM_SCREEN_BOARD && !menu.home_open) {
+            wm_board_scene_set_menu_elapsed_seconds(
+                board_scene, (float)(frame_start - flow.started) / 1000000000.0f);
+        }
         wm_app_poll_events(&app, frame_start, health_frame, &running);
         if (!running)
             break;

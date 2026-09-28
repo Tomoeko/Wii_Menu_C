@@ -5,15 +5,12 @@
 #include "wii_menu/support/json.h"
 
 #include "../support/atomic_file.h"
+#include "../support/regular_file.h"
 
-#include <errno.h>
-#include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 struct WmBoardContactStore {
     char *path;
@@ -25,72 +22,8 @@ struct WmBoardContactStore {
     StoredContact slots[WM_BOARD_CONTACT_CAPACITY];
 };
 
-typedef enum FileReadStatus {
-    FILE_READ_OK,
-    FILE_READ_MISSING,
-    FILE_READ_ERROR
-} FileReadStatus;
-
 static void set_error(char *error, size_t capacity, const char *message) {
     if (error && capacity) snprintf(error, capacity, "%s", message);
-}
-
-static FileReadStatus read_regular_file(const char *path, size_t limit,
-                                        char **contents, size_t *length) {
-    *contents = NULL;
-    *length = 0;
-    struct stat named;
-    if (lstat(path, &named) != 0)
-        return errno == ENOENT ? FILE_READ_MISSING : FILE_READ_ERROR;
-    if (!S_ISREG(named.st_mode)) return FILE_READ_ERROR;
-    int flags = O_RDONLY;
-#ifdef O_NOFOLLOW
-    flags |= O_NOFOLLOW;
-#endif
-#ifdef O_CLOEXEC
-    flags |= O_CLOEXEC;
-#endif
-    int descriptor = open(path, flags);
-    if (descriptor < 0) return FILE_READ_ERROR;
-    struct stat opened;
-    bool valid = fstat(descriptor, &opened) == 0 &&
-                 S_ISREG(opened.st_mode) &&
-                 opened.st_dev == named.st_dev &&
-                 opened.st_ino == named.st_ino &&
-                 opened.st_size > 0 &&
-                 (uint64_t)opened.st_size <= limit;
-    if (!valid) {
-        close(descriptor);
-        return FILE_READ_ERROR;
-    }
-    size_t size = (size_t)opened.st_size;
-    char *bytes = malloc(size + 1);
-    if (!bytes) {
-        close(descriptor);
-        return FILE_READ_ERROR;
-    }
-    size_t offset = 0;
-    while (offset < size) {
-        ssize_t count = read(descriptor, bytes + offset, size - offset);
-        if (count < 0 && errno == EINTR) continue;
-        if (count <= 0) break;
-        offset += (size_t)count;
-    }
-    char extra;
-    ssize_t after;
-    do {
-        after = read(descriptor, &extra, 1);
-    } while (after < 0 && errno == EINTR);
-    valid = offset == size && after == 0;
-    if (close(descriptor) != 0) valid = false;
-    if (!valid) {
-        free(bytes);
-        return FILE_READ_ERROR;
-    }
-    bytes[size] = '\0';
-    *contents = bytes;
-    *length = size;
-    return FILE_READ_OK;
 }
 
 void wm_board_contact_store_destroy(WmBoardContactStore *store) {
@@ -123,14 +56,14 @@ WmBoardContactStore *wm_board_contact_store_open(
     }
     char *contents;
     size_t length;
-    FileReadStatus read_status = read_regular_file(
+    WmRegularFileStatus read_status = wm_regular_file_read(
         path, CONTACT_MAX_JSON_BYTES, &contents, &length);
-    if (read_status == FILE_READ_MISSING) {
+    if (read_status == WM_REGULAR_FILE_MISSING) {
         if (status) *status = WM_BOARD_CONTACT_STORE_MISSING;
         set_error(error, error_capacity, "");
         return store;
     }
-    if (read_status != FILE_READ_OK) {
+    if (read_status != WM_REGULAR_FILE_OK) {
         set_error(error, error_capacity, "Invalid Address Book file");
         wm_board_contact_store_destroy(store);
         return NULL;
@@ -198,10 +131,10 @@ bool wm_board_contact_store_get(const WmBoardContactStore *store,
 static bool baseline_unchanged(const WmBoardContactStore *store) {
     char *contents;
     size_t length;
-    FileReadStatus status = read_regular_file(
+    WmRegularFileStatus status = wm_regular_file_read(
         store->path, CONTACT_MAX_JSON_BYTES, &contents, &length);
-    if (status == FILE_READ_MISSING) return !store->had_file;
-    if (status != FILE_READ_OK) return false;
+    if (status == WM_REGULAR_FILE_MISSING) return !store->had_file;
+    if (status != WM_REGULAR_FILE_OK) return false;
     bool equal = store->had_file && length == store->baseline_length &&
                  memcmp(contents, store->baseline, length) == 0;
     free(contents);

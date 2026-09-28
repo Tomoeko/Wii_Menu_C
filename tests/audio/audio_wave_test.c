@@ -4,9 +4,11 @@
 #include "wii_menu/resources/resource_rsar.h"
 
 #include <assert.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <unistd.h>
 
 int main(void)
@@ -40,7 +42,29 @@ int main(void)
     assert(result.loop_end == source.loop_end);
     assert(memcmp(result.samples, samples, sizeof(samples)) == 0);
     wm_audio_pcm_free(&result);
-    remove(path);
+
+    /* Force the temporary write to fail after opening. The previous WAV
+     * must still be readable, even when the final flush fails. */
+    struct sigaction ignored = {0};
+    struct sigaction previous_signal;
+    struct rlimit previous_limit;
+    assert(getrlimit(RLIMIT_FSIZE, &previous_limit) == 0);
+    assert(previous_limit.rlim_max >= 1);
+    ignored.sa_handler = SIG_IGN;
+    assert(sigemptyset(&ignored.sa_mask) == 0);
+    assert(sigaction(SIGXFSZ, &ignored, &previous_signal) == 0);
+    struct rlimit limited = previous_limit;
+    limited.rlim_cur = 1;
+    assert(setrlimit(RLIMIT_FSIZE, &limited) == 0);
+    assert(!wm_audio_wav_write(path, &source, error, sizeof(error)));
+    assert(setrlimit(RLIMIT_FSIZE, &previous_limit) == 0);
+    assert(sigaction(SIGXFSZ, &previous_signal, NULL) == 0);
+
+    assert(wm_audio_wav_read(path, &result, error, sizeof(error)));
+    assert(result.frame_count == source.frame_count);
+    assert(memcmp(result.samples, samples, sizeof(samples)) == 0);
+    wm_audio_pcm_free(&result);
+    assert(remove(path) == 0);
 
     uint8_t truncated[32] = {0};
     WmRsar archive;

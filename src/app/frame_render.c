@@ -52,6 +52,8 @@ static void draw_home_underlay(const WmAppRenderer *renderer,
                                                 grid_frame,
                                                 frame->home_underlay_elapsed);
         }
+        wm_board_scene_set_menu_elapsed_seconds(renderer->board_scene,
+                                                frame->home_underlay_elapsed);
         wm_board_scene_draw_footer(renderer->board_scene);
         if (renderer->resource_scene &&
             wm_board_scene_sd_visible(renderer->board_scene)) {
@@ -170,6 +172,7 @@ static void draw_board(WmAppRenderer *renderer, const WmAppRenderFrame *frame) {
         wm_resource_scene_draw_grid_overlay(renderer->resource_scene, frame->menu,
                                             grid_frame, scene_seconds);
     }
+    wm_board_scene_set_menu_elapsed_seconds(renderer->board_scene, scene_seconds);
     wm_board_scene_draw_footer(renderer->board_scene);
     if (renderer->resource_scene && wm_board_scene_sd_visible(renderer->board_scene)) {
         wm_resource_scene_draw_sd_button(renderer->resource_scene, scene_seconds);

@@ -632,210 +632,220 @@ static bool replace_keyboard_suffix(WmBoardCompose *compose,
     return true;
 }
 
-static bool activate_control(WmBoardCompose *compose,
-                             WmBoardComposeControl control, bool reverse) {
-    if (!compose) return false;
-    if (!compose->repeating_keytop)
-        wm_board_compose_release_control(compose);
-    if (control >= WM_COMPOSE_CONTROL_KEY_FIRST &&
-        control <= WM_COMPOSE_CONTROL_KEY_LAST &&
-        (compose->phase == WM_COMPOSE_EDIT ||
-         compose->address_keyboard_open)) {
-        WmBoardKeyboardControl key = (WmBoardKeyboardControl)(
-            control - WM_COMPOSE_CONTROL_KEY_FIRST + 1);
-        char character[5];
-        WmBoardKeyboardAction action = wm_board_keyboard_activate(
-            compose->keyboard, key, reverse, character);
-        if (!compose->repeating_keytop) compose->key_cue_count = 0;
-        switch (action) {
-            case WM_KEYBOARD_ACTION_HANDLED:
-                queue_key_cue(compose, "WIPL_SE_SK_SWITCHING_02");
-                return true;
-            case WM_KEYBOARD_ACTION_INSERT: {
-                compose->inserting_symbol =
-                    key >= WM_KEYBOARD_SYMBOL_FIRST &&
-                    key <= WM_KEYBOARD_SYMBOL_LAST;
-                compose->inserting_phone =
-                    key >= WM_KEYBOARD_PHONE_FIRST &&
-                    key <= WM_KEYBOARD_PHONE_LAST;
-                bool phone_space = compose->inserting_phone &&
-                                   character[0] == ' ';
-                bool inserted = wm_board_compose_insert_text(compose,
-                                                               character);
-                compose->inserting_symbol = false;
-                compose->inserting_phone = false;
-                if (!inserted) {
-                    wm_board_keyboard_clear_phone_pending(compose->keyboard);
-                    queue_key_cue(compose, "WIPL_SE_CHAR_DELETE_ERROR");
-                    return true;
-                }
-                if (compose->key_cue_count == 0 ||
-                    (compose->key_cue_count == 1 &&
-                     strcmp(compose->key_cues[0], "WIPL_SE_LINE_SCROLL") == 0))
-                    queue_key_cue(compose,
-                                  key == WM_KEYBOARD_SPACE ||
-                                  key == WM_KEYBOARD_RETURN ||
-                                  phone_space
-                                      ? "WIPL_SE_CHAR_DECIDE" :
-                                        "WIPL_SE_CHAR_INPUT");
-                return true;
-            }
-            case WM_KEYBOARD_ACTION_REPLACE_LAST:
-                if (compose->address_keyboard_open) {
-                    bool replaced = wm_board_address_backspace(compose->address)
-                        && wm_board_address_insert_text(compose->address,
-                                                         character);
-                    queue_key_cue(compose, replaced ? "WIPL_SE_CHAR_INPUT" :
-                                                "WIPL_SE_CHAR_DELETE_ERROR");
-                    return true;
-                }
-                if (!board_compose_draft_replace_last_byte(
-                        &compose->draft, character[0])) {
-                    wm_board_keyboard_clear_phone_pending(compose->keyboard);
-                    queue_key_cue(compose, "WIPL_SE_CHAR_DELETE_ERROR");
-                    return true;
-                }
-                compose->keyboard_age = 0.0f;
-                wm_board_keyboard_text_changed(compose->keyboard, true);
-                compose->scroll.lines = memo_line_count(compose);
-                board_compose_scroll_refresh(&compose->scroll, compose->phase);
-                compose->scroll.follow_caret_pending = true;
-                follow_memo_caret(compose);
-                queue_key_cue(compose, "WIPL_SE_CHAR_INPUT");
-                return true;
-            case WM_KEYBOARD_ACTION_DELETE:
-                queue_key_cue(compose,
-                    wm_board_compose_backspace(compose)
-                        ? "WIPL_SE_CHAR_DELETE" :
-                          "WIPL_SE_CHAR_DELETE_ERROR");
-                return true;
-            case WM_KEYBOARD_ACTION_CLOSE_BACK:
-            case WM_KEYBOARD_ACTION_CLOSE_OK:
-                if (compose->address_keyboard_open)
-                    return close_address_keyboard(compose,
-                        action == WM_KEYBOARD_ACTION_CLOSE_OK);
-                if (!wm_board_compose_finish_edit(compose)) return false;
-                compose->key_cues[0] = action == WM_KEYBOARD_ACTION_CLOSE_OK
-                    ? "WIPL_SE_SK_DECIDE_CLOSE" :
-                      "WIPL_SE_SK_CANCEL_CLOSE";
-                return true;
-            case WM_KEYBOARD_ACTION_SYMBOL_OPEN:
-                queue_key_cue(compose, "WIPL_SE_SYMBOL_PAGE_OPEN");
-                return true;
-            case WM_KEYBOARD_ACTION_SYMBOL_CLOSE:
-                queue_key_cue(compose, "WIPL_SE_CHAR_DECIDE");
-                return true;
-            case WM_KEYBOARD_ACTION_SYMBOL_PAGE:
-                queue_key_cue(compose, "WSD_SELECT");
-                return true;
-            case WM_KEYBOARD_ACTION_LAYOUT_QWERTY:
-                queue_key_cue(compose, "WIPL_SE_SK_SWITCHING_01");
-                return true;
-            case WM_KEYBOARD_ACTION_LAYOUT_PHONE:
-                queue_key_cue(compose, "WIPL_SE_SK_SWITCH_TO_KETAI");
-                return true;
-            case WM_KEYBOARD_ACTION_PHONE_MODE:
-                queue_key_cue(compose, "WIPL_SE_SK_SWITCHING_02");
-                return true;
-            case WM_KEYBOARD_ACTION_DICTIONARY_OPEN:
-                queue_key_cue(compose, "WIPL_SE_SYMBOL_PAGE_OPEN");
-                return true;
-            case WM_KEYBOARD_ACTION_DICTIONARY_CLOSE:
-                queue_key_cue(compose, "WIPL_SE_CHAR_DECIDE");
-                return true;
-            case WM_KEYBOARD_ACTION_DICTIONARY_LANGUAGE:
-                queue_key_cue(compose, "WIPL_SE_SK_SWITCHING_02");
-                return true;
-            case WM_KEYBOARD_ACTION_PREDICTION_TOGGLE:
-                queue_key_cue(compose,
-                    wm_board_keyboard_prediction_enabled(compose->keyboard)
-                        ? "WIPL_SE_SK_PREDICT_ON" :
-                          "WIPL_SE_SK_PREDICT_OFF");
-                return true;
-            case WM_KEYBOARD_ACTION_CANDIDATE_PAGE:
-                queue_key_cue(compose, "WIPL_SE_LINE_SCROLL");
-                return true;
-            case WM_KEYBOARD_ACTION_PHONE_BOUNDARY: {
-                WmBoardKeyboardComposition composition;
-                if (compose->address_keyboard_open ||
-                    !wm_board_keyboard_composition(compose->keyboard,
-                                                    &composition) ||
-                    composition.prefix_bytes > compose->draft.caret_bytes ||
-                    !composition.selected_candidate) {
-                    queue_key_cue(compose, "WIPL_SE_CHAR_DELETE_ERROR");
-                    return true;
-                }
-                char selected[WM_KEYBOARD_CANDIDATE_UTF8_CAPACITY];
-                size_t selected_bytes =
-                    strlen(composition.selected_candidate);
-                size_t base = compose->draft.text_bytes - composition.prefix_bytes;
-                if (selected_bytes == 0 ||
-                    selected_bytes >= sizeof(selected) ||
-                    selected_bytes >= BOARD_COMPOSE_MAX_TEXT_BYTES - base) {
-                    queue_key_cue(compose, "WIPL_SE_CHAR_DELETE_ERROR");
-                    return true;
-                }
-                memcpy(selected, composition.selected_candidate,
-                       selected_bytes + 1);
-                if (!replace_keyboard_suffix(compose,
-                                             composition.prefix_bytes,
-                                             selected, false)) {
-                    queue_key_cue(compose, "WIPL_SE_CHAR_DELETE_ERROR");
-                    return true;
-                }
-                wm_board_keyboard_finish_composition(compose->keyboard);
-                WmBoardKeyboardAction next = wm_board_keyboard_activate(
-                    compose->keyboard, key, reverse, character);
-                const char *first = wm_board_keyboard_candidate_text(
-                    compose->keyboard);
-                bool inserted = next == WM_KEYBOARD_ACTION_PREDICT_PHONE &&
-                    first && first[0] &&
-                    replace_keyboard_suffix(compose,
-                        wm_board_keyboard_candidate_prefix_bytes(
-                            compose->keyboard), first, true);
-                if (!inserted)
-                    wm_board_keyboard_clear_phone_pending(compose->keyboard);
-                queue_key_cue(compose, inserted
-                    ? "WIPL_SE_CHAR_DECIDE" : "WIPL_SE_CHAR_DELETE_ERROR");
-                return true;
-            }
-            case WM_KEYBOARD_ACTION_ACCEPT_CANDIDATE:
-            case WM_KEYBOARD_ACTION_PREDICT_PHONE: {
-                char replacement[WM_KEYBOARD_CANDIDATE_UTF8_CAPACITY];
-                const char *selected =
-                    wm_board_keyboard_candidate_text(compose->keyboard);
-                if (!selected || strlen(selected) >= sizeof(replacement)) {
-                    queue_key_cue(compose, "WIPL_SE_CHAR_DELETE_ERROR");
-                    return true;
-                }
-                memcpy(replacement, selected, strlen(selected) + 1);
-                bool predicted = action == WM_KEYBOARD_ACTION_PREDICT_PHONE;
-                bool inserted = replace_keyboard_suffix(compose,
-                    wm_board_keyboard_candidate_prefix_bytes(
-                        compose->keyboard), replacement, predicted);
-                if (inserted && !predicted)
-                    wm_board_keyboard_finish_composition(compose->keyboard);
-                queue_key_cue(compose, inserted
-                    ? predicted ? "WIPL_SE_CHAR_INPUT" :
-                                  "WIPL_SE_CHAR_DECIDE"
-                    : "WIPL_SE_CHAR_DELETE_ERROR");
-                return true;
-            }
-            case WM_KEYBOARD_ACTION_NONE:
-                return false;
-        }
-    }
-    if (compose->network_phase != COMPOSE_NETWORK_CLOSED)
-        return select_network_dialog(compose, control);
-    if (control == WM_COMPOSE_CONTROL_BACK) return wm_board_compose_back(compose);
-    if (compose->phase == WM_COMPOSE_MEMO &&
-        wm_board_address_dialog_active(compose->address)) {
-        if (control != WM_COMPOSE_CONTROL_ADDRESS_DIALOG_OK ||
-            !wm_board_address_dialog_accept(compose->address)) return false;
-        wm_board_compose_hover(compose, WM_COMPOSE_CONTROL_NONE);
-        queue_key_cue(compose, "WIPL_SE_DECIDE");
+static bool keyboard_insert_character(WmBoardCompose *compose,
+                                      WmBoardKeyboardControl key,
+                                      const char character[5]) {
+    compose->inserting_symbol =
+        key >= WM_KEYBOARD_SYMBOL_FIRST &&
+        key <= WM_KEYBOARD_SYMBOL_LAST;
+    compose->inserting_phone =
+        key >= WM_KEYBOARD_PHONE_FIRST &&
+        key <= WM_KEYBOARD_PHONE_LAST;
+    bool phone_space = compose->inserting_phone &&
+                       character[0] == ' ';
+    bool inserted = wm_board_compose_insert_text(compose,
+                                                   character);
+    compose->inserting_symbol = false;
+    compose->inserting_phone = false;
+    if (!inserted) {
+        wm_board_keyboard_clear_phone_pending(compose->keyboard);
+        queue_key_cue(compose, "WIPL_SE_CHAR_DELETE_ERROR");
         return true;
     }
+    if (compose->key_cue_count == 0 ||
+        (compose->key_cue_count == 1 &&
+         strcmp(compose->key_cues[0], "WIPL_SE_LINE_SCROLL") == 0))
+        queue_key_cue(compose,
+                      key == WM_KEYBOARD_SPACE ||
+                      key == WM_KEYBOARD_RETURN ||
+                      phone_space
+                          ? "WIPL_SE_CHAR_DECIDE" :
+                            "WIPL_SE_CHAR_INPUT");
+    return true;
+}
+
+static bool keyboard_replace_last(WmBoardCompose *compose,
+                                  const char character[5]) {
+    if (compose->address_keyboard_open) {
+        bool replaced = wm_board_address_backspace(compose->address)
+            && wm_board_address_insert_text(compose->address,
+                                             character);
+        queue_key_cue(compose, replaced ? "WIPL_SE_CHAR_INPUT" :
+                                    "WIPL_SE_CHAR_DELETE_ERROR");
+        return true;
+    }
+    if (!board_compose_draft_replace_last_byte(
+            &compose->draft, character[0])) {
+        wm_board_keyboard_clear_phone_pending(compose->keyboard);
+        queue_key_cue(compose, "WIPL_SE_CHAR_DELETE_ERROR");
+        return true;
+    }
+    compose->keyboard_age = 0.0f;
+    wm_board_keyboard_text_changed(compose->keyboard, true);
+    compose->scroll.lines = memo_line_count(compose);
+    board_compose_scroll_refresh(&compose->scroll, compose->phase);
+    compose->scroll.follow_caret_pending = true;
+    follow_memo_caret(compose);
+    queue_key_cue(compose, "WIPL_SE_CHAR_INPUT");
+    return true;
+}
+
+static bool keyboard_phone_boundary(WmBoardCompose *compose,
+                                    WmBoardKeyboardControl key,
+                                    bool reverse, char character[5]) {
+    WmBoardKeyboardComposition composition;
+    if (compose->address_keyboard_open ||
+        !wm_board_keyboard_composition(compose->keyboard,
+                                        &composition) ||
+        composition.prefix_bytes > compose->draft.caret_bytes ||
+        !composition.selected_candidate) {
+        queue_key_cue(compose, "WIPL_SE_CHAR_DELETE_ERROR");
+        return true;
+    }
+    char selected[WM_KEYBOARD_CANDIDATE_UTF8_CAPACITY];
+    size_t selected_bytes =
+        strlen(composition.selected_candidate);
+    size_t base = compose->draft.text_bytes - composition.prefix_bytes;
+    if (selected_bytes == 0 ||
+        selected_bytes >= sizeof(selected) ||
+        selected_bytes >= BOARD_COMPOSE_MAX_TEXT_BYTES - base) {
+        queue_key_cue(compose, "WIPL_SE_CHAR_DELETE_ERROR");
+        return true;
+    }
+    memcpy(selected, composition.selected_candidate,
+           selected_bytes + 1);
+    if (!replace_keyboard_suffix(compose,
+                                 composition.prefix_bytes,
+                                 selected, false)) {
+        queue_key_cue(compose, "WIPL_SE_CHAR_DELETE_ERROR");
+        return true;
+    }
+    wm_board_keyboard_finish_composition(compose->keyboard);
+    WmBoardKeyboardAction next = wm_board_keyboard_activate(
+        compose->keyboard, key, reverse, character);
+    const char *first = wm_board_keyboard_candidate_text(
+        compose->keyboard);
+    bool inserted = next == WM_KEYBOARD_ACTION_PREDICT_PHONE &&
+        first && first[0] &&
+        replace_keyboard_suffix(compose,
+            wm_board_keyboard_candidate_prefix_bytes(
+                compose->keyboard), first, true);
+    if (!inserted)
+        wm_board_keyboard_clear_phone_pending(compose->keyboard);
+    queue_key_cue(compose, inserted
+        ? "WIPL_SE_CHAR_DECIDE" : "WIPL_SE_CHAR_DELETE_ERROR");
+    return true;
+}
+
+static bool keyboard_accept_candidate(WmBoardCompose *compose,
+                                      bool predicted) {
+    char replacement[WM_KEYBOARD_CANDIDATE_UTF8_CAPACITY];
+    const char *selected =
+        wm_board_keyboard_candidate_text(compose->keyboard);
+    if (!selected || strlen(selected) >= sizeof(replacement)) {
+        queue_key_cue(compose, "WIPL_SE_CHAR_DELETE_ERROR");
+        return true;
+    }
+    memcpy(replacement, selected, strlen(selected) + 1);
+    bool inserted = replace_keyboard_suffix(compose,
+        wm_board_keyboard_candidate_prefix_bytes(
+            compose->keyboard), replacement, predicted);
+    if (inserted && !predicted)
+        wm_board_keyboard_finish_composition(compose->keyboard);
+    queue_key_cue(compose, inserted
+        ? predicted ? "WIPL_SE_CHAR_INPUT" :
+                      "WIPL_SE_CHAR_DECIDE"
+        : "WIPL_SE_CHAR_DELETE_ERROR");
+    return true;
+}
+
+static bool activate_keyboard_control(WmBoardCompose *compose,
+                                      WmBoardComposeControl control,
+                                      bool reverse, bool *handled) {
+    *handled = true;
+    WmBoardKeyboardControl key = (WmBoardKeyboardControl)(
+        control - WM_COMPOSE_CONTROL_KEY_FIRST + 1);
+    char character[5];
+    WmBoardKeyboardAction action = wm_board_keyboard_activate(
+        compose->keyboard, key, reverse, character);
+    if (!compose->repeating_keytop) compose->key_cue_count = 0;
+    switch (action) {
+        case WM_KEYBOARD_ACTION_HANDLED:
+            queue_key_cue(compose, "WIPL_SE_SK_SWITCHING_02");
+            return true;
+        case WM_KEYBOARD_ACTION_INSERT:
+            return keyboard_insert_character(compose, key, character);
+        case WM_KEYBOARD_ACTION_REPLACE_LAST:
+            return keyboard_replace_last(compose, character);
+        case WM_KEYBOARD_ACTION_DELETE:
+            queue_key_cue(compose,
+                wm_board_compose_backspace(compose)
+                    ? "WIPL_SE_CHAR_DELETE" :
+                      "WIPL_SE_CHAR_DELETE_ERROR");
+            return true;
+        case WM_KEYBOARD_ACTION_CLOSE_BACK:
+        case WM_KEYBOARD_ACTION_CLOSE_OK:
+            if (compose->address_keyboard_open)
+                return close_address_keyboard(compose,
+                    action == WM_KEYBOARD_ACTION_CLOSE_OK);
+            if (!wm_board_compose_finish_edit(compose)) return false;
+            compose->key_cues[0] = action == WM_KEYBOARD_ACTION_CLOSE_OK
+                ? "WIPL_SE_SK_DECIDE_CLOSE" :
+                  "WIPL_SE_SK_CANCEL_CLOSE";
+            return true;
+        case WM_KEYBOARD_ACTION_SYMBOL_OPEN:
+            queue_key_cue(compose, "WIPL_SE_SYMBOL_PAGE_OPEN");
+            return true;
+        case WM_KEYBOARD_ACTION_SYMBOL_CLOSE:
+            queue_key_cue(compose, "WIPL_SE_CHAR_DECIDE");
+            return true;
+        case WM_KEYBOARD_ACTION_SYMBOL_PAGE:
+            queue_key_cue(compose, "WSD_SELECT");
+            return true;
+        case WM_KEYBOARD_ACTION_LAYOUT_QWERTY:
+            queue_key_cue(compose, "WIPL_SE_SK_SWITCHING_01");
+            return true;
+        case WM_KEYBOARD_ACTION_LAYOUT_PHONE:
+            queue_key_cue(compose, "WIPL_SE_SK_SWITCH_TO_KETAI");
+            return true;
+        case WM_KEYBOARD_ACTION_PHONE_MODE:
+            queue_key_cue(compose, "WIPL_SE_SK_SWITCHING_02");
+            return true;
+        case WM_KEYBOARD_ACTION_DICTIONARY_OPEN:
+            queue_key_cue(compose, "WIPL_SE_SYMBOL_PAGE_OPEN");
+            return true;
+        case WM_KEYBOARD_ACTION_DICTIONARY_CLOSE:
+            queue_key_cue(compose, "WIPL_SE_CHAR_DECIDE");
+            return true;
+        case WM_KEYBOARD_ACTION_DICTIONARY_LANGUAGE:
+            queue_key_cue(compose, "WIPL_SE_SK_SWITCHING_02");
+            return true;
+        case WM_KEYBOARD_ACTION_PREDICTION_TOGGLE:
+            queue_key_cue(compose,
+                wm_board_keyboard_prediction_enabled(compose->keyboard)
+                    ? "WIPL_SE_SK_PREDICT_ON" :
+                      "WIPL_SE_SK_PREDICT_OFF");
+            return true;
+        case WM_KEYBOARD_ACTION_CANDIDATE_PAGE:
+            queue_key_cue(compose, "WIPL_SE_LINE_SCROLL");
+            return true;
+        case WM_KEYBOARD_ACTION_PHONE_BOUNDARY:
+            return keyboard_phone_boundary(compose, key, reverse,
+                                           character);
+        case WM_KEYBOARD_ACTION_ACCEPT_CANDIDATE:
+        case WM_KEYBOARD_ACTION_PREDICT_PHONE:
+            return keyboard_accept_candidate(compose,
+                action == WM_KEYBOARD_ACTION_PREDICT_PHONE);
+        case WM_KEYBOARD_ACTION_NONE:
+            return false;
+    }
+    /* Preserve the dispatcher fallthrough for an unknown action. */
+    *handled = false;
+    return false;
+}
+
+static bool activate_address_control(WmBoardCompose *compose,
+                                     WmBoardComposeControl control) {
     if (compose->phase == WM_COMPOSE_ADDRESS) {
         if (wm_board_address_dialog_active(compose->address)) {
             if (control == WM_COMPOSE_CONTROL_ADDRESS_DIALOG_YES ||
@@ -954,6 +964,11 @@ static bool activate_control(WmBoardCompose *compose,
         }
         return turned;
     }
+    return false;
+}
+
+static bool activate_selector_control(WmBoardCompose *compose,
+                                      WmBoardComposeControl control) {
     if (compose->phase == WM_COMPOSE_SELECTOR) {
         if (control == WM_COMPOSE_CONTROL_MEMO) {
             compose->phase = WM_COMPOSE_ENTER_MEMO;
@@ -979,6 +994,11 @@ static bool activate_control(WmBoardCompose *compose,
             return true;
         }
     }
+    return false;
+}
+
+static bool activate_pointer_caret(WmBoardCompose *compose,
+                                   WmBoardComposeControl control) {
     if (compose->phase == WM_COMPOSE_EDIT &&
         control == WM_COMPOSE_CONTROL_EDIT && compose->draft.pointer_caret_valid) {
         WmBoardKeyboardComposition composition;
@@ -1009,6 +1029,11 @@ static bool activate_control(WmBoardCompose *compose,
         queue_key_cue(compose, "WIPL_SE_CHAR_CURSOR");
         return true;
     }
+    return false;
+}
+
+static bool activate_memo_control(WmBoardCompose *compose,
+                                  WmBoardComposeControl control) {
     if (compose->phase == WM_COMPOSE_MEMO) {
         if (control == WM_COMPOSE_CONTROL_MII) {
             if (!wm_board_address_show_memo_no_mii(compose->address))
@@ -1045,6 +1070,11 @@ static bool activate_control(WmBoardCompose *compose,
             return true;
         }
     }
+    return false;
+}
+
+static bool activate_scroll_control(WmBoardCompose *compose,
+                                    WmBoardComposeControl control) {
     if (compose->phase == WM_COMPOSE_EDIT &&
         (control == WM_COMPOSE_CONTROL_SCROLL_UP ||
          control == WM_COMPOSE_CONTROL_SCROLL_DOWN)) {
@@ -1079,6 +1109,47 @@ static bool activate_control(WmBoardCompose *compose,
         return true;
     }
     return false;
+}
+
+static bool activate_control(WmBoardCompose *compose,
+                             WmBoardComposeControl control, bool reverse) {
+    if (!compose) return false;
+    if (!compose->repeating_keytop)
+        wm_board_compose_release_control(compose);
+    if (control >= WM_COMPOSE_CONTROL_KEY_FIRST &&
+        control <= WM_COMPOSE_CONTROL_KEY_LAST &&
+        (compose->phase == WM_COMPOSE_EDIT ||
+         compose->address_keyboard_open)) {
+        bool handled;
+        bool activated = activate_keyboard_control(compose, control,
+                                                   reverse, &handled);
+        if (handled) return activated;
+    }
+    if (compose->network_phase != COMPOSE_NETWORK_CLOSED)
+        return select_network_dialog(compose, control);
+    if (control == WM_COMPOSE_CONTROL_BACK) return wm_board_compose_back(compose);
+    if (compose->phase == WM_COMPOSE_MEMO &&
+        wm_board_address_dialog_active(compose->address)) {
+        if (control != WM_COMPOSE_CONTROL_ADDRESS_DIALOG_OK ||
+            !wm_board_address_dialog_accept(compose->address)) return false;
+        wm_board_compose_hover(compose, WM_COMPOSE_CONTROL_NONE);
+        queue_key_cue(compose, "WIPL_SE_DECIDE");
+        return true;
+    }
+    if (compose->phase == WM_COMPOSE_ADDRESS)
+        return activate_address_control(compose, control);
+    if (compose->phase == WM_COMPOSE_SELECTOR)
+        return activate_selector_control(compose, control);
+    if (compose->phase == WM_COMPOSE_EDIT &&
+        control == WM_COMPOSE_CONTROL_EDIT &&
+        compose->draft.pointer_caret_valid)
+        return activate_pointer_caret(compose, control);
+    if (compose->phase == WM_COMPOSE_MEMO &&
+        (control == WM_COMPOSE_CONTROL_MII ||
+         control == WM_COMPOSE_CONTROL_EDIT ||
+         control == WM_COMPOSE_CONTROL_POST))
+        return activate_memo_control(compose, control);
+    return activate_scroll_control(compose, control);
 }
 
 bool wm_board_compose_activate(WmBoardCompose *compose,

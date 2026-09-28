@@ -2,6 +2,7 @@
 
 #include "wii_menu/board/board_scene.h"
 #include "wii_menu/board/board_calendar.h"
+#include "board_calendar_internal.h"
 #include "wii_menu/board/board_compose.h"
 #include "wii_menu/board/board_erase.h"
 #include "wii_menu/persistence/board_store.h"
@@ -1732,6 +1733,15 @@ static void test_board_store(int argc, char **argv) {
     assert(actual.read);
     assert(wm_board_scene_open(loaded, input.date));
     assert(wm_board_scene_today_unread_count(loaded) == 0);
+
+    char linked_path[256];
+    length = snprintf(linked_path, sizeof(linked_path), "%s/linked.json", directory);
+    assert(length > 0 && length < (int)sizeof(linked_path));
+    assert(symlink(path, linked_path) == 0);
+    assert(wm_board_store_load(linked_path, loaded, error, sizeof(error)) ==
+           WM_BOARD_STORE_ERROR);
+    assert(wm_board_scene_memo_count(loaded) == 1);
+    assert(unlink(linked_path) == 0);
 
     FILE *file = fopen(path, "wb");
     assert(file);

@@ -288,6 +288,8 @@ void wm_board_scene_draw_parked_memos(WmBoardScene *board,
                                        WmBoardDate today,
                                        const float camera[12]);
 void wm_board_scene_draw_body(WmBoardScene *board);
+/* Align the shared footer-arrow loop with the grid's scene clock. */
+void wm_board_scene_set_menu_elapsed_seconds(WmBoardScene *board, float seconds);
 void wm_board_scene_draw_footer(WmBoardScene *board);
 /* Read a footer button's WAD world anchor after draw_footer or hit has posed
  * it. Page-arrow visual anchors remain available during posted-Memo phases. */

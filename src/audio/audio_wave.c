@@ -1,5 +1,7 @@
 #include "wii_menu/audio/audio_wave.h"
 
+#include "../support/atomic_file.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -64,11 +66,12 @@ bool wm_audio_wav_write(const char *path, const WmAudioPcm *audio,
         set_error(error, error_capacity, "WAV output is too large.");
         return false;
     }
-    FILE *file = fopen(path, "wb");
-    if (!file) {
+    WmAtomicFile output;
+    if (wm_atomic_file_open(&output, path) != WM_ATOMIC_FILE_OK) {
         set_error(error, error_capacity, "Could not create WAV output.");
         return false;
     }
+    FILE *file = output.stream;
     uint8_t header[44] = {0};
     memcpy(header, "RIFF", 4);
     put32(header + 4, (uint32_t)(36 + payload + extra));
@@ -104,9 +107,12 @@ bool wm_audio_wav_write(const char *path, const WmAudioPcm *audio,
         put32(loop + 56, audio->loop_end - 1); /* RIFF end is inclusive. */
         valid = write_bytes(file, loop, sizeof(loop));
     }
-    if (fclose(file) != 0) valid = false;
+    if (valid) {
+        valid = wm_atomic_file_commit(&output, path);
+    } else {
+        wm_atomic_file_discard(&output);
+    }
     if (!valid) {
-        remove(path);
         set_error(error, error_capacity, "Could not write WAV output.");
     }
     return valid;

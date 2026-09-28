@@ -30,6 +30,9 @@ wm_enable_warnings(wm-prepare ERROR)
 
 add_executable(wm-layout-export layout/export.c)
 target_link_libraries(wm-layout-export PRIVATE wii_menu_core)
+target_include_directories(wm-layout-export PRIVATE
+    "${PROJECT_SOURCE_DIR}/src/support"
+)
 
 add_executable(wm-keyboard-dictionary-export keyboard_dictionary/export.c)
 target_link_libraries(wm-keyboard-dictionary-export PRIVATE wii_menu_core)
@@ -56,6 +59,9 @@ target_link_libraries(wm-restart-export PRIVATE wii_menu_core)
 
 add_executable(wm-audio-export audio/export.c)
 target_link_libraries(wm-audio-export PRIVATE wii_menu_core m)
+target_include_directories(wm-audio-export PRIVATE
+    "${PROJECT_SOURCE_DIR}/src/support"
+)
 wm_enable_warnings(wm-audio-export CONVERSION ERROR)
 
 add_executable(wm-shared-font-export fonts/shared_font_export.c)

@@ -16,6 +16,7 @@ add_library(wii_menu_core STATIC
     board/board_address.c
     board/board_address_present.c
     board/board_calendar.c
+    board/board_calendar_present.c
     board/board_compose.c
     board/board_compose_draft.c
     board/board_compose_scroll.c
@@ -96,6 +97,7 @@ add_library(wii_menu_core STATIC
 
     support/atomic_file.c
     support/json.c
+    support/regular_file.c
 )
 target_include_directories(wii_menu_core PUBLIC "${PROJECT_SOURCE_DIR}/include")
 wm_enable_warnings(wii_menu_core CONVERSION)

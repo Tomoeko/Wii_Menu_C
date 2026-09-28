@@ -3,6 +3,7 @@
 #include "wii_menu/audio/audio.h"
 #include "wii_menu/audio/audio_wave.h"
 
+#include "audio_internal.h"
 #include "audio_platform.h"
 
 #include <assert.h>
@@ -362,6 +363,40 @@ static void test_manifest_loop_metadata(const TestAssets *assets)
     wm_audio_destroy(audio);
 }
 
+static void test_untrusted_manifest_numbers(const TestAssets *assets)
+{
+    int16_t samples[1024] = {0};
+    WmAudioPcm pcm = {
+        .samples = samples,
+        .sample_rate = 32000,
+        .frame_count = 1024,
+        .channels = 1
+    };
+    char error[160] = {0};
+    assert(wm_audio_wav_write(assets->constant_wave, &pcm,
+                              error, sizeof(error)));
+
+    /* In float arithmetic, these seconds become 2^32 and 2^32 + 512
+     * frames. Narrowing first would create a false 0..512 loop. */
+    write_text(assets->sequence_manifest,
+        "{\"drag\": {\"gain\": 1, \"loop\": true, "
+        "\"loopStart\": 134217.734375, \"loopEnd\": 134217.75}}");
+    WmAudio *audio = wm_audio_create(assets->root);
+    assert(audio);
+    WmAudioClip *clip = wm_audio_load_clip(audio, "drag", "audio");
+    assert(clip && !clip->pcm.looping);
+    wm_audio_destroy(audio);
+
+    write_text(assets->sequence_manifest,
+        "{\"drag\": {\"gain\": 3e38, \"loop\": true, "
+        "\"loopStart\": 1e30, \"loopEnd\": 2e30}}");
+    audio = wm_audio_create(assets->root);
+    assert(audio);
+    clip = wm_audio_load_clip(audio, "drag", "audio");
+    assert(clip && !clip->pcm.looping && clip->gain == 1.0f);
+    wm_audio_destroy(audio);
+}
+
 int main(void)
 {
     TestAssets assets = create_assets();
@@ -376,6 +411,7 @@ int main(void)
     test_regrab_during_release(&assets);
     test_repeated_voice_retirement(&assets);
     test_manifest_loop_metadata(&assets);
+    test_untrusted_manifest_numbers(&assets);
     destroy_assets(&assets);
     puts("held audio runtime tests passed");
     return 0;

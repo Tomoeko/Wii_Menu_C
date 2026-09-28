@@ -5,15 +5,14 @@
 #include "wii_menu/support/json.h"
 
 #include "../support/atomic_file.h"
+#include "../support/regular_file.h"
 
-#include <errno.h>
 #include <inttypes.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
 enum {
     STORE_MAX_MEMOS = 4096,
@@ -212,21 +211,22 @@ WmBoardStoreStatus wm_board_store_load(const char *path, WmBoardScene *board,
         set_error(error, error_capacity, "Invalid Board store input");
         return WM_BOARD_STORE_ERROR;
     }
-    struct stat status;
-    if (stat(path, &status) != 0) {
-        if (errno == ENOENT) {
-            set_error(error, error_capacity, "");
-            return WM_BOARD_STORE_MISSING;
-        }
-        set_error(error, error_capacity, "Could not access Board store");
-        return WM_BOARD_STORE_ERROR;
+    char *contents;
+    size_t length;
+    WmRegularFileStatus status = wm_regular_file_read(
+        path, STORE_MAX_JSON_BYTES, &contents, &length);
+    if (status == WM_REGULAR_FILE_MISSING) {
+        set_error(error, error_capacity, "");
+        return WM_BOARD_STORE_MISSING;
     }
-    if (!S_ISREG(status.st_mode)) {
-        set_error(error, error_capacity, "Board store is not a regular file");
+    if (status != WM_REGULAR_FILE_OK) {
+        set_error(error, error_capacity, "Invalid Board store file");
         return WM_BOARD_STORE_ERROR;
     }
     WmJson json;
-    if (!wm_json_load(&json, path, STORE_MAX_JSON_BYTES)) {
+    bool parsed = wm_json_parse(&json, contents, length);
+    free(contents);
+    if (!parsed) {
         set_error(error, error_capacity, "Invalid or oversized Board JSON");
         return WM_BOARD_STORE_ERROR;
     }

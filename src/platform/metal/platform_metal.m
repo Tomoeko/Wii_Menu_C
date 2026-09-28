@@ -394,11 +394,35 @@ void wm_platform_draw_vertices(WmPlatform *platform,
     wm_queue_quad(state, &batch, vertices);
 }
 
+static bool wm_metal_tev_supported(WmMetalState *state,
+                                   const WmMaterialQuad *quad)
+{
+    if (quad->tev_stage_count == 0 || quad->tev_stage_count > 6) {
+        return false;
+    }
+    bool invalid = quad->has_alpha_compare &&
+        ((quad->alpha_compare[0] & 15) > 7 ||
+         (quad->alpha_compare[0] >> 4) > 7 ||
+         quad->alpha_compare[1] > 3);
+    for (unsigned stage = 0; stage < quad->tev_stage_count; ++stage) {
+        const uint8_t *bytes = quad->tev_stages[stage];
+        invalid = invalid || (bytes[8] & 15) > 7 ||
+                  (bytes[8] >> 4) > 7 || (bytes[9] & 15) > 7 ||
+                  (bytes[9] >> 4) > 7;
+    }
+    if (invalid && !state->warned_tev_encoding) {
+        fprintf(stderr, "Metal: invalid TEV selector encoding uses the "
+                        "simple material fallback.\n");
+        state->warned_tev_encoding = true;
+    }
+    return !invalid;
+}
+
 void wm_platform_draw_material_quad(WmPlatform *platform,
                                     const WmMaterialQuad *quad)
 {
     WmMetalState *state = wm_state(platform);
-    if (!state || !quad) {
+    if (!state || !quad || quad->texture_count > WM_MATERIAL_TEXTURES) {
         return;
     }
 
@@ -418,7 +442,7 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
     }
 
     WmBatchState batch = {0};
-    batch.kind = quad->tev_stage_count > 0 && quad->tev_stage_count <= 6
+    batch.kind = wm_metal_tev_supported(state, quad)
         ? WM_BATCH_TEV : WM_BATCH_MATERIAL;
     for (unsigned index = 0; index < WM_MATERIAL_TEXTURES; ++index) {
         batch.textures[index] = wm_resolve_texture(state, quad->textures[index]);
@@ -556,7 +580,7 @@ static MTLScissorRect wm_batch_scissor(const WmBatchState *batch,
 void wm_platform_end(WmPlatform *platform)
 {
     WmMetalState *state = wm_state(platform);
-    if (!state || !state->window.isVisible) {
+    if (!state || (!state->render_target_handle && !state->window.isVisible)) {
         return;
     }
 

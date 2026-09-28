@@ -5,6 +5,8 @@
 #include "wii_menu/resources/resource_rsar.h"
 #include "wii_menu/resources/resource_u8.h"
 
+#include "atomic_file.h"
+
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -194,8 +196,10 @@ static bool export_held_manifest(const WmRsar *archive,
     }
     char path[4096];
     if (!combine_path(path, output, "", "audio-held.json")) return false;
-    FILE *file = fopen(path, "wb");
-    if (!file) return false;
+    WmAtomicFile temporary;
+    if (wm_atomic_file_open(&temporary, path) != WM_ATOMIC_FILE_OK)
+        return false;
+    FILE *file = temporary.stream;
     bool valid = fputs("{\n"
                        "  \"schema\": 1,\n"
                        "  \"sampleRate\": 32000,\n"
@@ -212,8 +216,10 @@ static bool export_held_manifest(const WmRsar *archive,
                                     index == 0);
     }
     if (valid) valid = fputs("\n  }\n}\n", file) >= 0;
-    if (fclose(file) != 0) valid = false;
-    if (!valid) remove(path);
+    if (valid)
+        valid = wm_atomic_file_commit(&temporary, path);
+    else
+        wm_atomic_file_discard(&temporary);
     return valid;
 }
 
@@ -226,8 +232,10 @@ static bool export_sequences(const WmRsar *archive,
     char manifest_path[4096];
     if (!combine_path(manifest_path, output, "", "audio-sequence.json"))
         return false;
-    FILE *manifest = fopen(manifest_path, "wb");
-    if (!manifest) return false;
+    WmAtomicFile temporary;
+    if (wm_atomic_file_open(&temporary, manifest_path) != WM_ATOMIC_FILE_OK)
+        return false;
+    FILE *manifest = temporary.stream;
     bool valid = fputs("{\n", manifest) >= 0;
     size_t rendered = 0, skipped = 0, aliases = 0;
     for (size_t index = 0;
@@ -293,8 +301,10 @@ static bool export_sequences(const WmRsar *archive,
         wm_audio_pcm_free(&pcm);
     }
     if (valid) valid = fputs("\n}\n", manifest) >= 0;
-    if (fclose(manifest) != 0) valid = false;
-    if (!valid) remove(manifest_path);
+    if (valid)
+        valid = wm_atomic_file_commit(&temporary, manifest_path);
+    else
+        wm_atomic_file_discard(&temporary);
     if (!valid) return false;
     printf("Exported %zu sequenced sounds and %zu aliases; %zu unsupported.\n",
            rendered, aliases, skipped);
@@ -414,14 +424,15 @@ int main(int argc, char **argv)
         free(executable);
         return 1;
     }
-    FILE *manifest = fopen(manifest_path, "wb");
-    if (!manifest) {
+    WmAtomicFile temporary;
+    if (wm_atomic_file_open(&temporary, manifest_path) != WM_ATOMIC_FILE_OK) {
         fprintf(stderr, "Could not create local audio manifest.\n");
         wm_u8_free(&container);
         free(source);
         free(executable);
         return 1;
     }
+    FILE *manifest = temporary.stream;
     bool valid = fputs("{\n", manifest) >= 0;
     size_t exported = 0;
     for (size_t index = 0;
@@ -468,8 +479,10 @@ int main(int argc, char **argv)
     if (valid) valid = export_speaker_samples(&container, argv[3],
                                                manifest, &exported);
     if (valid) valid = fputs("\n}\n", manifest) >= 0;
-    if (fclose(manifest) != 0) valid = false;
-    if (!valid) remove(manifest_path);
+    if (valid)
+        valid = wm_atomic_file_commit(&temporary, manifest_path);
+    else
+        wm_atomic_file_discard(&temporary);
     if (!valid) {
         wm_u8_free(&container);
         free(source);
