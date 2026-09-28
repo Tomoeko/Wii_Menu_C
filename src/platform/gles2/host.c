@@ -30,7 +30,7 @@ static void wm_report_egl_error(const char *operation) {
 }
 
 static bool wm_choose_config(EGLDisplay display, EGLConfig *config) {
-    static const EGLint rgba8888[] = {EGL_SURFACE_TYPE,
+    EGLint rgba8888[] = {EGL_SURFACE_TYPE,
                                       EGL_WINDOW_BIT,
                                       EGL_RENDERABLE_TYPE,
                                       EGL_OPENGL_ES2_BIT,
@@ -43,7 +43,7 @@ static bool wm_choose_config(EGLDisplay display, EGLConfig *config) {
                                       EGL_ALPHA_SIZE,
                                       8,
                                       EGL_NONE};
-    static const EGLint rgb565[] = {EGL_SURFACE_TYPE,
+    EGLint rgb565[] = {EGL_SURFACE_TYPE,
                                     EGL_WINDOW_BIT,
                                     EGL_RENDERABLE_TYPE,
                                     EGL_OPENGL_ES2_BIT,
@@ -56,13 +56,20 @@ static bool wm_choose_config(EGLDisplay display, EGLConfig *config) {
                                     EGL_ALPHA_SIZE,
                                     0,
                                     EGL_NONE};
-    EGLint count = 0;
-
-    if (eglChooseConfig(display, rgba8888, config, 1, &count) && count > 0) {
-        return true;
+    EGLint *formats[] = {rgba8888, rgb565};
+    for (size_t index = 0; index < sizeof(formats) / sizeof(formats[0]); index++) {
+        /* Prefer retained window pixels without requiring this EGL capability. */
+        const EGLint surface_types[] = {
+            EGL_WINDOW_BIT | EGL_SWAP_BEHAVIOR_PRESERVED_BIT, EGL_WINDOW_BIT
+        };
+        for (size_t choice = 0; choice < 2; choice++) {
+            EGLint count = 0;
+            formats[index][1] = surface_types[choice];
+            if (eglChooseConfig(display, formats[index], config, 1, &count) && count > 0)
+                return true;
+        }
     }
-    count = 0;
-    return eglChooseConfig(display, rgb565, config, 1, &count) && count > 0;
+    return false;
 }
 
 WmGles2Host *wm_gles2_host_create(const char *title, int width, int height) {
@@ -216,6 +223,19 @@ bool wm_gles2_host_make_current(WmGles2Host *host) {
     eglMakeCurrent(host->egl_display, host->egl_surface, host->egl_surface,
                    host->egl_context);
     return eglGetCurrentContext() == host->egl_context;
+}
+
+bool wm_gles2_host_preserve_back_buffer(WmGles2Host *host)
+{
+    if (!eglSurfaceAttrib(host->egl_display, host->egl_surface,
+                          EGL_SWAP_BEHAVIOR, EGL_BUFFER_PRESERVED)) {
+        eglGetError();
+        return false;
+    }
+    EGLint behavior = EGL_BUFFER_DESTROYED;
+    return eglQuerySurface(host->egl_display, host->egl_surface,
+                            EGL_SWAP_BEHAVIOR, &behavior) &&
+        behavior == EGL_BUFFER_PRESERVED;
 }
 
 void wm_gles2_host_destroy(WmGles2Host *host) {
@@ -388,10 +408,11 @@ void wm_gles2_host_surface_size(WmGles2Host *host, int *width, int *height) {
     *height = surface_height;
 }
 
-void wm_gles2_host_present(WmGles2Host *host) {
-    if (!eglSwapBuffers(host->egl_display, host->egl_surface) &&
-        !host->swap_failure_reported) {
+bool wm_gles2_host_present(WmGles2Host *host) {
+    if (eglSwapBuffers(host->egl_display, host->egl_surface)) return true;
+    if (!host->swap_failure_reported) {
         wm_report_egl_error("frame presentation");
         host->swap_failure_reported = true;
     }
+    return false;
 }

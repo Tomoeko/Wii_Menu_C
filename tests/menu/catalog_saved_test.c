@@ -1,4 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
+#if defined(__APPLE__)
+#define _DARWIN_C_SOURCE 1
+#endif
 
 #include "wii_menu/menu/menu.h"
 #include "wii_menu/persistence/saved_layout.h"
@@ -7,16 +10,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <unistd.h>
 
 int main(void) {
-    char directory[128];
-    int directory_length = snprintf(directory, sizeof(directory),
-                                    "build/catalog-test-%ld", (long)getpid());
-    assert(directory_length > 0 &&
-           (size_t)directory_length < sizeof(directory));
-    assert(mkdir(directory, 0700) == 0);
+    char directory[] = "/tmp/wii-menu-catalog-XXXXXX";
+    assert(mkdtemp(directory) != NULL);
 
     char path[256];
     int length = snprintf(path, sizeof(path), "%s/channels.json", directory);

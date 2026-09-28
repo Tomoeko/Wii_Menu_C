@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -138,6 +139,11 @@ int main(int argc, char **argv) {
                         .flow = &flow};
     const uint64_t frame_period = 1000000000ULL / 60ULL;
     uint64_t next_frame_deadline = previous + frame_period;
+    const bool profile_frames = getenv("WM_PROFILE_FRAMES") != NULL;
+    uint64_t profile_frame_count = 0;
+    uint64_t profile_frame_total = 0;
+    uint64_t profile_draw_total = 0;
+    uint64_t profile_draw_max = 0;
 
     while (running) {
         uint64_t frame_start = monotonic_nanoseconds();
@@ -233,11 +239,38 @@ int main(int argc, char **argv) {
             .preview_started = flow.preview_started,
             .home_underlay_elapsed = flow.home_underlay_elapsed,
             .home_underlay_preview_elapsed = flow.home_underlay_preview_elapsed};
+        uint64_t draw_start = profile_frames ? monotonic_nanoseconds() : 0;
         wm_app_renderer_draw(&renderer, &render_frame);
 
         /* Follow a fixed deadline so sleep overshoot does not accumulate and
          * slow every 28-frame zoom by roughly one millisecond per frame. */
         uint64_t frame_end = monotonic_nanoseconds();
+        if (profile_frames) {
+            uint64_t draw_time = frame_end - draw_start;
+            profile_frame_count++;
+            profile_frame_total += frame_end - frame_start;
+            profile_draw_total += draw_time;
+            if (draw_time > profile_draw_max) profile_draw_max = draw_time;
+            if (profile_frame_count == 120) {
+                WmTextureCacheStats textures =
+                    wm_texture_cache_stats(scene_textures);
+                fprintf(stderr,
+                        "Frame timing: screen=%d, frame=%.2f ms, draw=%.2f ms, "
+                        "max draw=%.2f ms, textures=%zu/%zu MiB, "
+                        "evictions=%llu (120 frames)\n",
+                        (int)menu.screen,
+                        (double)profile_frame_total / 120000000.0,
+                        (double)profile_draw_total / 120000000.0,
+                        (double)profile_draw_max / 1000000.0,
+                        textures.resident_bytes / (1024u * 1024u),
+                        textures.budget_bytes / (1024u * 1024u),
+                        (unsigned long long)textures.evictions);
+                profile_frame_count = 0;
+                profile_frame_total = 0;
+                profile_draw_total = 0;
+                profile_draw_max = 0;
+            }
+        }
         if (frame_end < next_frame_deadline)
             sleep_nanoseconds(next_frame_deadline - frame_end);
         uint64_t wake_time = monotonic_nanoseconds();

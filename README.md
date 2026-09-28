@@ -15,8 +15,11 @@ cmake -S . -B build -DWM_BACKEND=metal
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 
-# Linux: configure with -DWM_BACKEND=gles2 and install system X11, EGL,
-# and OpenGL ES 2.0 development headers.
+# Ubuntu (X11, EGL, and OpenGL ES development headers)
+sudo apt install build-essential cmake libx11-dev libegl-dev libgles-dev
+cmake -S . -B build-gles2 -DWM_BACKEND=gles2 -DCMAKE_BUILD_TYPE=Release
+cmake --build build-gles2 --parallel
+ctest --test-dir build-gles2 --output-on-failure
 ```
 
 Use `-DWM_BUILD_APP=OFF` to build the portable core, preparation tools, and
@@ -52,8 +55,11 @@ For a fresh asset installation:
 ./build/wii-menu.app/Contents/MacOS/wii-menu --assets .local/native-assets
 
 # Linux
-./build/wii-menu --assets .local/native-assets
+./build-gles2/wii-menu --assets .local/native-assets
 ```
+
+On Linux, use `./build-gles2/wm-prepare` if the GLES2 build directory is
+your only build. An ALSA-compatible default output device is needed for audio.
 
 Omit `--nand` to prepare only the System Menu. For an unsupported key index,
 use `--common-key-file FILE` and `--common-key-index N` to supply an override.

@@ -15,41 +15,42 @@ static uint64_t monotonic_nanoseconds(void)
     return (uint64_t)time.tv_sec * 1000000000u + (uint64_t)time.tv_nsec;
 }
 
-static WmAudioVoice *voice_by_kind(WmAudio *audio, WmVoiceKind kind)
+static WmAudioVoiceControl *voice_by_kind(WmAudio *audio, WmVoiceKind kind)
 {
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
-        WmAudioVoice *voice = &audio->voices[index];
+        WmAudioVoiceControl *voice = &audio->controls[index];
         if (voice->active && voice->kind == kind) return voice;
     }
     return NULL;
 }
 
-static WmAudioVoice *new_voice(WmAudio *audio, const WmAudioClip *clip,
+static WmAudioVoiceControl *new_voice(WmAudio *audio, const WmAudioClip *clip,
                                WmVoiceKind kind)
 {
     size_t clip_index = (size_t)(clip - audio->clips);
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
-        WmAudioVoice *voice = &audio->voices[index];
+        WmAudioVoiceControl *voice = &audio->controls[index];
         if (voice->active) continue;
-        *voice = (WmAudioVoice){
+        uint64_t generation = voice->generation + 1;
+        if (!generation) generation = 1;
+        *voice = (WmAudioVoiceControl){
             .clip_index = clip_index,
             .kind = kind,
+            .generation = generation,
             .step = (double)clip->pcm.sample_rate / WM_AUDIO_RATE,
             .gain = clip->gain,
             .pan_left = 1.0f,
             .pan_right = 1.0f,
             .pitch = 1.0f,
-            .held_cursor = WM_AUDIO_HELD_BLOCK,
             .active = true,
             .paused = audio->menu_paused && kind != WM_VOICE_HOME
         };
-        if (clip->held_profile) wm_audio_held_start(&voice->held_state);
         return voice;
     }
     return NULL;
 }
 
-static void fade_voice(WmAudioVoice *voice, size_t frames)
+static void fade_voice(WmAudioVoiceControl *voice, size_t frames)
 {
     if (!voice || !voice->active) return;
     if (!frames) {
@@ -57,7 +58,7 @@ static void fade_voice(WmAudioVoice *voice, size_t frames)
         return;
     }
     voice->fade_frames = frames;
-    voice->fade_step = -voice->gain / (float)frames;
+    voice->releasing = true;
     voice->paused = false;
 }
 
@@ -70,6 +71,7 @@ WmAudio *wm_audio_create(const char *assets_directory)
     if (!audio) return NULL;
     strcpy(audio->assets, assets_directory);
     audio->master_volume = 1.0f;
+    audio->mixer_volume = 1.0f;
     audio->active_preview = -1;
     if (pthread_mutex_init(&audio->mutex, NULL) != 0) {
         free(audio);
@@ -143,7 +145,7 @@ bool wm_audio_play_panned(WmAudio *audio, const char *name, float pan)
                        strncmp(name, "HOME_SPEAKER_", 13) == 0
                            ? WM_VOICE_HOME : WM_VOICE_EFFECT;
     pthread_mutex_lock(&audio->mutex);
-    WmAudioVoice *voice = audio->muted ? NULL : new_voice(audio, clip, kind);
+    WmAudioVoiceControl *voice = audio->muted ? NULL : new_voice(audio, clip, kind);
     if (voice) {
         voice->pan = pan;
         voice->pan_left = pan > 0.0f ? 1.0f - pan : 1.0f;
@@ -161,7 +163,7 @@ bool wm_audio_start_loop(WmAudio *audio, const char *name)
     size_t clip_index = (size_t)(clip - audio->clips);
     pthread_mutex_lock(&audio->mutex);
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
-        WmAudioVoice *voice = &audio->voices[index];
+        WmAudioVoiceControl *voice = &audio->controls[index];
         if (voice->active && !voice->releasing && voice->clip_index == clip_index) {
             pthread_mutex_unlock(&audio->mutex);
             return true;
@@ -172,7 +174,7 @@ bool wm_audio_start_loop(WmAudio *audio, const char *name)
     return started;
 }
 
-static void set_loop_controls(WmAudioVoice *voice, const WmAudioClip *clip,
+static void set_loop_controls(WmAudioVoiceControl *voice, const WmAudioClip *clip,
                               float gain, float pan, float pitch)
 {
     voice->gain = clip->gain * fminf(fmaxf(gain, 0.0f), 2.0f);
@@ -192,9 +194,9 @@ bool wm_audio_hold_loop(WmAudio *audio, const char *name,
     if (!clip || !clip->pcm.looping) return false;
     size_t clip_index = (size_t)(clip - audio->clips);
     pthread_mutex_lock(&audio->mutex);
-    WmAudioVoice *held = NULL;
+    WmAudioVoiceControl *held = NULL;
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
-        WmAudioVoice *voice = &audio->voices[index];
+        WmAudioVoiceControl *voice = &audio->controls[index];
         if (voice->active && !voice->releasing && voice->clip_index == clip_index) {
             held = voice;
             break;
@@ -211,12 +213,11 @@ void wm_audio_stop_loop(WmAudio *audio, const char *name)
     if (!audio || !wm_audio_safe_name(name)) return;
     pthread_mutex_lock(&audio->mutex);
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
-        WmAudioVoice *voice = &audio->voices[index];
+        WmAudioVoiceControl *voice = &audio->controls[index];
         if (!voice->active || voice->releasing ||
             strcmp(audio->clips[voice->clip_index].name, name) != 0) continue;
         if (audio->clips[voice->clip_index].held_profile) {
             voice->releasing = true;
-            wm_audio_held_release(&voice->held_state);
         } else {
             fade_voice(voice, 0);
         }
@@ -231,7 +232,7 @@ void wm_audio_set_loop(WmAudio *audio, const char *name,
         !isfinite(pan) || !isfinite(pitch)) return;
     pthread_mutex_lock(&audio->mutex);
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
-        WmAudioVoice *voice = &audio->voices[index];
+        WmAudioVoiceControl *voice = &audio->controls[index];
         if (!voice->active || voice->releasing ||
             strcmp(audio->clips[voice->clip_index].name, name) != 0) continue;
         const WmAudioClip *clip = &audio->clips[voice->clip_index];
@@ -263,7 +264,7 @@ void wm_audio_reset_all(WmAudio *audio)
     if (!audio) return;
     pthread_mutex_lock(&audio->mutex);
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++)
-        audio->voices[index].active = false;
+        audio->controls[index].active = false;
     audio->background_started = false;
     audio->background_paused = false;
     audio->menu_paused = false;
@@ -275,7 +276,7 @@ void wm_audio_reset_all(WmAudio *audio)
 static void set_paused(WmAudio *audio, WmVoiceKind kind, bool paused)
 {
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
-        WmAudioVoice *voice = &audio->voices[index];
+        WmAudioVoiceControl *voice = &audio->controls[index];
         if (voice->active && voice->kind == kind) voice->paused = paused;
     }
 }

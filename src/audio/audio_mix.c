@@ -66,8 +66,8 @@ void wm_audio_mix(void *context, float *interleaved, size_t frames) {
     if (!audio || !interleaved || frames > SIZE_MAX / (2 * sizeof(float)))
         return;
     memset(interleaved, 0, frames * 2 * sizeof(float));
-    if (pthread_mutex_trylock(&audio->mutex) != 0)
-        return;
+    wm_audio_refresh_controls(audio);
+    bool finished = false;
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
         WmAudioVoice *voice = &audio->voices[index];
         if (!voice->active || voice->paused)
@@ -75,6 +75,7 @@ void wm_audio_mix(void *context, float *interleaved, size_t frames) {
         const WmAudioClip *clip = &audio->clips[voice->clip_index];
         if (clip->held_profile) {
             mix_held_voice(audio, voice, clip, interleaved, frames);
+            finished |= !voice->active;
             continue;
         }
         uint32_t end = clip->pcm.looping ? clip->pcm.loop_end : clip->pcm.frame_count;
@@ -110,13 +111,14 @@ void wm_audio_mix(void *context, float *interleaved, size_t frames) {
                 }
             }
         }
+        finished |= !voice->active;
     }
     for (size_t frame = 0; frame < frames * 2; frame++) {
-        interleaved[frame] *= audio->muted ? 0.0f : audio->master_volume;
+        interleaved[frame] *= audio->mixer_muted ? 0.0f : audio->mixer_volume;
         if (interleaved[frame] > 1.0f)
             interleaved[frame] = 1.0f;
         if (interleaved[frame] < -1.0f)
             interleaved[frame] = -1.0f;
     }
-    pthread_mutex_unlock(&audio->mutex);
+    if (finished) wm_audio_retire_finished(audio);
 }

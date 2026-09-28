@@ -31,9 +31,27 @@ typedef struct WmAudioClip {
     bool missing;
 } WmAudioClip;
 
-typedef struct WmAudioVoice {
+/* The UI owns requested controls under mutex. Playback cursors, envelopes,
+ * and the last applied controls belong exclusively to the audio callback. */
+typedef struct WmAudioVoiceControl {
     size_t clip_index;
     WmVoiceKind kind;
+    uint64_t generation;
+    double step;
+    float gain;
+    float pan_left;
+    float pan_right;
+    float pan;
+    float pitch;
+    size_t fade_frames;
+    bool active;
+    bool paused;
+    bool releasing;
+} WmAudioVoiceControl;
+
+typedef struct WmAudioVoice {
+    WmAudioVoiceControl applied;
+    size_t clip_index;
     double frame;
     double step;
     float gain;
@@ -49,7 +67,6 @@ typedef struct WmAudioVoice {
     unsigned held_phase;
     bool held_primed;
     bool held_has_next;
-    bool releasing;
     float fade_step;
     size_t fade_frames;
     bool active;
@@ -60,6 +77,7 @@ struct WmAudio {
     char assets[4096];
     WmAudioClip clips[WM_AUDIO_MAX_CLIPS];
     size_t clip_count;
+    WmAudioVoiceControl controls[WM_AUDIO_MAX_VOICES];
     WmAudioVoice voices[WM_AUDIO_MAX_VOICES];
     pthread_mutex_t mutex;
     WmAudioDevice *device;
@@ -75,6 +93,8 @@ struct WmAudio {
     bool background_paused;
     float master_volume;
     bool muted;
+    float mixer_volume;
+    bool mixer_muted;
     int active_preview;
 };
 
@@ -87,5 +107,9 @@ void wm_audio_load_held_profiles(WmAudio *audio);
 WmAudioClip *wm_audio_load_clip(WmAudio *audio, const char *name,
                                 const char *directory);
 void wm_audio_mix(void *context, float *interleaved, size_t frames);
+/* Neither operation waits for the UI thread. A busy control lock delays an
+ * update until a later callback while current playback continues. */
+void wm_audio_refresh_controls(WmAudio *audio);
+void wm_audio_retire_finished(WmAudio *audio);
 
 #endif

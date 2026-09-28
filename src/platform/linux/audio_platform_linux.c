@@ -9,6 +9,15 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+enum {
+    /* snd_pcm_access_t: MMAP variants occupy 0-2. */
+    WM_ALSA_ACCESS_RW_INTERLEAVED = 3,
+    /* Software GLES2 can hold a frame for tens of milliseconds. Retain a
+     * modest queue so the audio thread can ride through those stalls. */
+    WM_ALSA_BUFFER_MICROSECONDS = 80000
+};
 
 /* ALSA is loaded from the host audio system at runtime. This keeps the C
  * build independent of distribution headers and optional audio packages. */
@@ -26,7 +35,6 @@ struct WmAudioDevice {
     long (*pcm_writei)(void *, const void *, unsigned long);
     int (*pcm_recover)(void *, int, int);
     int (*pcm_format_value)(const char *);
-    int (*pcm_access_value)(const char *);
 };
 
 static bool load_symbol(void *library, const char *name,
@@ -51,11 +59,18 @@ static void *output_thread(void *context)
                                                buffer + position * 2,
                                                512 - position);
             if (written < 0) {
-                if (device->pcm_recover(device->pcm, (int)written, 1) < 0)
+                if (device->pcm_recover(device->pcm, (int)written, 1) < 0) {
                     atomic_store(&device->running, false);
-                break;
+                    break;
+                }
+                /* Recovery restarts the stream; keep the unwritten samples. */
+                continue;
             }
-            if (!written) break;
+            if (written == 0) {
+                const struct timespec pause = {.tv_nsec = 1000000};
+                nanosleep(&pause, NULL);
+                continue;
+            }
             position += (unsigned long)written;
         }
     }
@@ -82,14 +97,11 @@ WmAudioDevice *wm_audio_device_open(WmAudioRender render, void *context)
         !load_symbol(device->library, "snd_pcm_format_value",
                      &device->pcm_format_value,
                      sizeof(device->pcm_format_value)) ||
-        !load_symbol(device->library, "snd_pcm_access_value",
-                     &device->pcm_access_value,
-                     sizeof(device->pcm_access_value)) ||
         device->pcm_open(&device->pcm, "default", 0, 0) < 0 ||
         device->pcm_set_params(device->pcm,
                                device->pcm_format_value("FLOAT_LE"),
-                               device->pcm_access_value("RW_INTERLEAVED"),
-                               2, 48000, 1, 20000) < 0) {
+                               WM_ALSA_ACCESS_RW_INTERLEAVED,
+                               2, 48000, 1, WM_ALSA_BUFFER_MICROSECONDS) < 0) {
         wm_audio_device_close(device);
         return NULL;
     }

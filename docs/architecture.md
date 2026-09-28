@@ -41,7 +41,14 @@ the common contract in `include/wii_menu/platform/platform.h`. The adapters
 consume shared logical draw data and geometry; API objects and GPU calls stay
 inside their respective backends. The GLES2 private `host` module owns X11/EGL
 window and event handling, while its `shaders` module owns shader sources,
-program compilation, and the TEV cache. The Metal adapter separates
+program compilation, and the TEV cache. The private `render/frame_damage` module
+owns two fixed-capacity command lists and computes changed pixel regions without
+API types. GLES2's `retained_frame` replays intersecting commands in their original
+order into an EGL-preserved window buffer. Resize, texture replacement, captured
+scene changes, and failed presentation invalidate the retained contents. Command
+storage overflow materializes the recorded draws before returning to direct
+rendering; no per-frame allocation or readback is needed. This path is enabled
+by default only on supported Mesa software renderers. The Metal adapter separates
 window/events, GPU submission, and shader sources. Apple and Linux audio
 devices live in
 `src/platform/apple/` and `src/platform/linux/`, behind the private
@@ -50,6 +57,12 @@ also have separate source files under `src/audio/`. Private sequence modules
 load the driver tables and extract the held drag source; the scheduler retains
 event ordering and voice ownership. A shared material-blend helper validates
 blend factors before either graphics backend changes draw state.
+
+The audio callback owns playback cursors and envelopes. `audio_control` adopts
+UI control snapshots through a nonblocking lock and identifies reused voice
+slots by generation. A busy UI update delays control changes without stopping
+the current audio stream. Asset decoding remains on the UI thread, and decoded
+clips stay immutable until the audio device has been closed.
 
 Private helpers stay with their owning implementations. Geometry, image
 decoding, and texture source validation belong to rendering. The texture cache

@@ -5,6 +5,7 @@ add_library(wii_menu_core STATIC
 
     audio/audio.c
     audio/audio_assets.c
+    audio/audio_control.c
     audio/audio_held.c
     audio/audio_mix.c
     audio/audio_sequence.c
@@ -59,6 +60,7 @@ add_library(wii_menu_core STATIC
     persistence/board_store.c
     persistence/saved_layout.c
 
+    render/frame_damage.c
     render/image.c
     render/material_blend.c
     render/material_prepare.c

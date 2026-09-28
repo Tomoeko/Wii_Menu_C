@@ -13,6 +13,27 @@ wm_add_test(wii-menu-scene-fader
     LIBRARIES wii_menu_core m
 )
 
+# Retained rendering.
+wm_add_test(wii-menu-frame-damage
+    SOURCES render/frame_damage_test.c
+    LIBRARIES wii_menu_core m
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/render"
+)
+if(WM_BUILD_APP AND WM_BACKEND STREQUAL "gles2")
+    find_package(X11 REQUIRED)
+    wm_add_test(wii-menu-gles2-retained
+        SOURCES render/gles2_retained_test.c
+            "${PROJECT_SOURCE_DIR}/src/platform/gles2/platform_gles2.c"
+            "${PROJECT_SOURCE_DIR}/src/platform/gles2/retained_frame.c"
+            "${PROJECT_SOURCE_DIR}/src/platform/gles2/host.c"
+            "${PROJECT_SOURCE_DIR}/src/platform/gles2/shaders.c"
+        LIBRARIES wii_menu_core X11::X11 ${EGL_LIBRARY} ${GLES2_LIBRARY} m
+        INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/render"
+    )
+    target_link_options(wii-menu-gles2-retained-test PRIVATE "-Wl,--wrap=eglSwapBuffers")
+    set_tests_properties(wii-menu-gles2-retained PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 60)
+endif()
+
 # Audio.
 wm_add_test(wii-menu-audio-held
     SOURCES audio/audio_held_test.c
@@ -36,6 +57,7 @@ wm_add_test(wii-menu-audio-restart
     LIBRARIES wii_menu_core m
     INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/audio"
 )
+set_tests_properties(wii-menu-audio-restart PROPERTIES TIMEOUT 10)
 wm_add_test(wii-menu-audio-sequence
     SOURCES audio/audio_sequence_test.c
     LIBRARIES wii_menu_core m

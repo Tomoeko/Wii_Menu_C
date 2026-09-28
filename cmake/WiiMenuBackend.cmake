@@ -31,6 +31,7 @@ elseif(WM_BACKEND STREQUAL "gles2")
     find_library(GLES2_LIBRARY GLESv2 REQUIRED)
     target_sources(wii-menu PRIVATE
         platform/gles2/platform_gles2.c
+        platform/gles2/retained_frame.c
         platform/gles2/host.c
         platform/gles2/shaders.c
         platform/linux/audio_platform_linux.c

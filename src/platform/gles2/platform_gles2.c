@@ -4,6 +4,7 @@
 #include "host.h"
 #include "material_blend.h"
 #include "shaders.h"
+#include "retained_frame.h"
 
 #include <GLES2/gl2.h>
 
@@ -60,6 +61,7 @@ struct WmPlatform {
     GLuint render_texture;
     GLuint render_framebuffer;
     bool rendering_target;
+    WmGles2RetainedFrame retained;
     GLint projection_location;
     GLint texture_location;
     GLint material_frame_location;
@@ -215,6 +217,11 @@ static bool wm_initialize_graphics(WmPlatform *platform)
     glEnable(GL_BLEND);
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
                         GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    wm_gles2_retained_initialize(&platform->retained);
+    if (platform->retained.allowed &&
+        !wm_gles2_host_preserve_back_buffer(platform->host)) {
+        wm_gles2_retained_destroy(&platform->retained);
+    }
     return glGetError() == GL_NO_ERROR;
 }
 
@@ -277,6 +284,7 @@ void wm_platform_destroy(WmPlatform *platform)
         }
     }
     wm_gles2_host_destroy(platform->host);
+    wm_gles2_retained_destroy(&platform->retained);
     while (platform->tev_programs) {
         WmTevProgram *next = platform->tev_programs->next;
         free(platform->tev_programs);
@@ -302,12 +310,39 @@ void wm_platform_begin(WmPlatform *platform, WmColor clear_color)
     int width = 0;
     int height = 0;
     wm_gles2_host_surface_size(platform->host, &width, &height);
+    if (platform->framebuffer_width != width || platform->framebuffer_height != height)
+        wm_frame_damage_invalidate(platform->retained.commands);
     platform->framebuffer_width = width;
     platform->framebuffer_height = height;
     platform->presentation = wm_viewport_fit(width, height);
     WmViewport content = platform->presentation;
+    glDisable(GL_SCISSOR_TEST);
+    platform->scissor_enabled = false;
     glViewport(content.x, height - content.y - content.height,
                content.width, content.height);
+    if (wm_gles2_retained_begin(&platform->retained, content.width,
+                                 content.height, clear_color)) {
+        /* Retain the content pixels in EGL's original back buffer. Clear only
+         * the letterbox bars, keeping the original rasterization and precision. */
+        glEnable(GL_SCISSOR_TEST);
+        glClearColor(0, 0, 0, 1);
+        const WmViewport bars[] = {
+            {0, 0, width, content.y},
+            {0, content.y + content.height, width,
+             height - content.y - content.height},
+            {0, content.y, content.x, content.height},
+            {content.x + content.width, content.y,
+             width - content.x - content.width, content.height}
+        };
+        for (size_t index = 0; index < sizeof(bars) / sizeof(bars[0]); index++) {
+            WmViewport bar = bars[index];
+            if (bar.width <= 0 || bar.height <= 0) continue;
+            glScissor(bar.x, height - bar.y - bar.height, bar.width, bar.height);
+            glClear(GL_COLOR_BUFFER_BIT);
+        }
+        glDisable(GL_SCISSOR_TEST);
+        return;
+    }
     glDisable(GL_SCISSOR_TEST);
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -332,13 +367,23 @@ static int wm_clamp_clip_edge(float coordinate, float scale, int limit,
 void wm_platform_set_clip(WmPlatform *platform, const WmClipRect *rect)
 {
     if (!platform) return;
-    if (!rect) {
+    WmGles2RetainedFrame *retained = &platform->retained;
+    bool cached = retained->active && !platform->rendering_target;
+    if (cached && retained->recording) {
+        retained->clip = rect ? *rect
+            : (WmClipRect){0, 0, WM_FRAME_WIDTH, WM_FRAME_HEIGHT};
+        return;
+    }
+    bool region_active = cached && retained->region_active;
+    if (!rect && !region_active) {
         if (!platform->scissor_enabled) return;
         wm_flush(platform);
         glDisable(GL_SCISSOR_TEST);
         platform->scissor_enabled = false;
         return;
     }
+    WmClipRect full = {0, 0, WM_FRAME_WIDTH, WM_FRAME_HEIGHT};
+    if (!rect) rect = &full;
     WmViewport content = platform->presentation;
     float scale_x = (float)content.width / WM_FRAME_WIDTH;
     float scale_y = (float)content.height / WM_FRAME_HEIGHT;
@@ -352,6 +397,15 @@ void wm_platform_set_clip(WmPlatform *platform, const WmClipRect *rect)
                                  content.height, true);
     if (x1 < x0) x1 = x0;
     if (y1 < y0) y1 = y0;
+    if (region_active) {
+        WmViewport region = retained->region;
+        if (x0 < region.x) x0 = region.x;
+        if (y0 < region.y) y0 = region.y;
+        if (x1 > region.x + region.width) x1 = region.x + region.width;
+        if (y1 > region.y + region.height) y1 = region.y + region.height;
+        if (x1 < x0) x1 = x0;
+        if (y1 < y0) y1 = y0;
+    }
     int scissor_x = content.x + x0;
     int scissor_y = platform->framebuffer_height - content.y - y1;
     int scissor_width = x1 - x0;
@@ -394,6 +448,12 @@ void wm_platform_draw_vertices(WmPlatform *platform,
                                const WmDrawVertex corners[4], uint32_t texture_handle)
 {
     if (platform == NULL || corners == NULL) return;
+
+    if (!platform->rendering_target && platform->retained.recording) {
+        if (wm_frame_damage_quad(platform->retained.commands, corners,
+                                  texture_handle, &platform->retained.clip)) return;
+        wm_gles2_retained_materialize(&platform->retained, platform, wm_flush);
+    }
 
     GLuint texture = texture_handle != 0 ? (GLuint)texture_handle : platform->white_texture;
     if (platform->quad_count != 0 &&
@@ -481,6 +541,11 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
     if (!platform || !quad || quad->texture_count > WM_MATERIAL_TEXTURES) return;
     WmMaterialBlend blend;
     if (!wm_material_blend_resolve(quad, &blend)) return;
+    if (!platform->rendering_target && platform->retained.recording) {
+        if (wm_frame_damage_material(platform->retained.commands, quad,
+                                      &platform->retained.clip)) return;
+        wm_gles2_retained_materialize(&platform->retained, platform, wm_flush);
+    }
     wm_flush(platform);
 
     bool tev = wm_tev_supported(platform, quad);
@@ -614,7 +679,9 @@ void wm_platform_end(WmPlatform *platform)
         platform->rendering_target = false;
         return;
     }
-    wm_gles2_host_present(platform->host);
+    wm_gles2_retained_render(&platform->retained, platform, wm_flush);
+    if (!wm_gles2_host_present(platform->host))
+        wm_frame_damage_invalidate(platform->retained.commands);
 }
 
 void wm_platform_set_fade_alpha(WmPlatform *platform, float alpha)
@@ -659,6 +726,8 @@ bool wm_platform_begin_target(WmPlatform *platform, uint32_t texture,
 {
     if (!platform || texture == 0 || texture != platform->render_texture ||
         platform->render_framebuffer == 0) return false;
+    wm_gles2_retained_materialize(&platform->retained, platform, wm_flush);
+    wm_frame_damage_invalidate(platform->retained.commands);
     platform->quad_count = 0;
     platform->rendering_target = true;
     platform->framebuffer_width = WM_FRAME_WIDTH;
@@ -687,6 +756,7 @@ uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
         return 0;
     }
     wm_flush(platform);
+    wm_frame_damage_invalidate(platform->retained.commands);
     return (uint32_t)wm_upload_texture(width, height, rgba);
 }
 
@@ -695,6 +765,8 @@ void wm_platform_destroy_texture(WmPlatform *platform, uint32_t texture)
     if (platform == NULL || texture == 0 || texture == platform->white_texture) {
         return;
     }
+    wm_gles2_retained_materialize(&platform->retained, platform, wm_flush);
+    wm_frame_damage_invalidate(platform->retained.commands);
     wm_flush(platform);
     GLuint name = (GLuint)texture;
     if (name == platform->render_texture) {

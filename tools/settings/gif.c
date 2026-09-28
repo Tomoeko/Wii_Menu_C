@@ -63,7 +63,8 @@ static bool collect_blocks(GifReader *reader, uint8_t **bytes,
             return true;
         }
         if (!take(reader, block_size, &block) ||
-            used > GIF_MAX_COMPRESSED_BYTES - block_size) break;
+            used > (size_t)GIF_MAX_COMPRESSED_BYTES - (size_t)block_size)
+            break;
         uint8_t *grown = realloc(output, used + block_size);
         if (!grown) break;
         output = grown;

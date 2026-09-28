@@ -4,6 +4,7 @@
 #include "wii_menu/menu/menu_restart.h"
 
 #include "audio_platform.h"
+#include "audio_internal.h"
 
 #include <assert.h>
 #include <math.h>
@@ -206,6 +207,39 @@ int main(void) {
     device->render(device->context, panned_samples, 1);
     assert(panned_samples[0] == 0.0f);
     assert(fabsf(panned_samples[1] - click_sample) < 0.00001f);
+
+    /* Contended UI controls may delay their application, but must not stop
+     * playback or block the callback. Keep the lock on this test thread so
+     * a blocking callback fails the test timeout instead of hiding the bug. */
+    wm_audio_reset_all(audio);
+    assert(wm_audio_play(audio, "click"));
+    assert(fabsf(render_first_sample() - click_sample) < 0.00001f);
+    wm_audio_set_volume(audio, 0.5f);
+    assert(pthread_mutex_lock(&audio->mutex) == 0);
+    assert(fabsf(render_first_sample() - click_sample) < 0.00001f);
+    assert(pthread_mutex_unlock(&audio->mutex) == 0);
+    assert(fabsf(render_first_sample() - click_sample * 0.5f) < 0.00001f);
+
+    /* Completion of an old playback snapshot cannot retire a replacement
+     * queued in the same slot while control synchronization is delayed. */
+    wm_audio_reset_all(audio);
+    assert(wm_audio_play(audio, "click"));
+    assert(pthread_mutex_lock(&audio->mutex) == 0);
+    float completed_samples[512 * 2];
+    device->render(device->context, completed_samples, 512);
+    assert(completed_samples[0] > 0.0f);
+    assert(completed_samples[511 * 2] == 0.0f);
+    assert(pthread_mutex_unlock(&audio->mutex) == 0);
+    assert(fabsf(render_first_sample() - click_sample * 0.5f) < 0.00001f);
+
+    /* Reapplying an unchanged control snapshot preserves fade progress. */
+    assert(pthread_mutex_lock(&audio->mutex) == 0);
+    audio->controls[0].releasing = true;
+    audio->controls[0].fade_frames = 32;
+    assert(pthread_mutex_unlock(&audio->mutex) == 0);
+    assert(fabsf(render_first_sample() - click_sample * 0.5f) < 0.00001f);
+    assert(fabsf(render_first_sample() - click_sample * 0.25f) < 0.00001f);
+    assert(render_first_sample() == 0.0f);
 
     wm_audio_destroy(audio);
     assert(unlink(click_path) == 0);

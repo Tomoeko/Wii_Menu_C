@@ -1,3 +1,8 @@
+#define _POSIX_C_SOURCE 200809L
+#if defined(__APPLE__)
+#define _DARWIN_C_SOURCE 1
+#endif
+
 #include "wii_menu/scenes/resource_scene.h"
 #include "wii_menu/board/board_scene.h"
 #include "wii_menu/layout/layout_runtime.h"
