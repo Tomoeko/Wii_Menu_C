@@ -2,10 +2,8 @@
 
 #include <stddef.h>
 
-/* Match the HTML preparation tool's public retail constants, checked there
- * against Dolphin IOSC::LoadDefaultEntries at revision
- * ee018d00e60b9eb727489908a8daec5c537f44a8. The XOR representation is cosmetic,
- * not encryption or a security boundary. These are not console credentials. */
+/* The XOR representation of these retail constants is cosmetic, not
+ * encryption or a security boundary. These are not console credentials. */
 static const uint8_t obscured_retail_keys[2][16] = {
     {
         0x4c, 0x43, 0x8d, 0x85, 0xf9, 0x22, 0x34, 0x43,

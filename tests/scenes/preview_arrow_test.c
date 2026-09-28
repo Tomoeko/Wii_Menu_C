@@ -59,12 +59,24 @@ static PreviewButtonTrace preview_button;
 typedef struct BannerFadeTrace {
     bool active;
     bool photo;
+    bool capture_only;
     uint32_t texture;
+    unsigned texture_quads;
+    float max_texture_alpha;
     unsigned quads;
     float alpha;
 } BannerFadeTrace;
 
 static BannerFadeTrace banner_fade;
+
+typedef struct PreviewCaptureTrace {
+    bool active;
+    uint32_t texture;
+    unsigned targets;
+    unsigned draws;
+} PreviewCaptureTrace;
+
+static PreviewCaptureTrace capture_trace;
 
 typedef struct LabelColorTrace {
     bool active;
@@ -106,7 +118,10 @@ void wm_platform_draw_vertices(WmPlatform *platform,
                                const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
-    (void)texture;
+    if (capture_trace.active && !trace.in_target &&
+        texture == capture_trace.texture) {
+        capture_trace.draws++;
+    }
     trace.event++;
     if (label_colors.active && label_colors.current_label >= 0) {
         const int label = label_colors.current_label;
@@ -155,13 +170,16 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
                 quad->registers[1][3];
         arrow_feedback.quads++;
     }
-    if (banner_fade.active) {
+    if (banner_fade.active && (!banner_fade.capture_only || trace.in_target)) {
         for (size_t index = 0; index < quad->texture_count; index++) {
             if (quad->textures[index] != banner_fade.texture) continue;
             float left = quad->vertices[0].x;
             float top = quad->vertices[0].y;
             float width = quad->vertices[1].x - left;
             float height = quad->vertices[2].y - top;
+            banner_fade.texture_quads++;
+            banner_fade.max_texture_alpha = fmaxf(
+                banner_fade.max_texture_alpha, quad->vertices[0].color.a);
             bool target = banner_fade.photo
                 ? fabsf(left) < 0.01f && fabsf(top - 26.0f) < 0.01f &&
                   fabsf(width - 640.0f) < 0.01f &&
@@ -213,8 +231,11 @@ uint32_t wm_platform_create_render_texture(WmPlatform *platform) {
 bool wm_platform_begin_target(WmPlatform *platform, uint32_t texture,
                               WmColor clear_color) {
     (void)platform;
-    (void)texture;
     (void)clear_color;
+    if (capture_trace.active) {
+        capture_trace.texture = texture;
+        capture_trace.targets++;
+    }
     trace.in_target = true;
     return true;
 }
@@ -477,8 +498,8 @@ static void check_preview_arrow_feedback(const char *assets)
     assert(wm_menu_select(&menu, 0));
     wm_menu_tick(&menu, 28.0f / 60.0f);
 
-    /* The maintained HTML resolver retains a hovered common arrow for four
-     * source units beyond its moving hit pane. A click still needs the exact
+    /* Retain a hovered common arrow for four source units beyond its moving
+     * hit pane. A click still needs the exact
      * pane, so a nearby press cannot activate a page change. */
     char arrow_path[1024];
     int arrow_length = snprintf(arrow_path, sizeof(arrow_path),
@@ -514,8 +535,8 @@ static void check_preview_arrow_feedback(const char *assets)
                                   WM_HIT_PREVIEW_PREVIOUS, button_texture);
     assert(sampled.material_alpha[0] > 0.99f);
 
-    /* HTML's commonArrowDefinitions plays source 10700–10730 on click,
-     * independently of the held 10600–10615 hover clip. The banner swaps
+    /* Click plays source frames 10700–10730 independently of the held
+     * 10600–10615 hover clip. The banner swaps
      * after 20 frames; the pressed art continues for ten more frames. */
     assert(wm_menu_change_preview(&menu, -1));
     sampled = draw_arrow_feedback(scene, &menu, 8.0f / 60.0f,
@@ -591,7 +612,7 @@ static void check_preview_arrow_feedback(const char *assets)
     wm_menu_tick(&menu, 15.0f / 60.0f);
     assert(menu.transition == WM_TRANSITION_NONE);
     /* The next accepted click may arrive before a settled frame renders.
-     * HTML starts a fresh press clip for it without restarting held focus. */
+     * Start a fresh press clip without restarting held focus. */
     assert(wm_menu_change_preview(&menu, 1));
     sampled = draw_arrow_feedback(scene, &menu, 28.0f / 60.0f,
                                   WM_HIT_PREVIEW_NEXT, right_button_texture);
@@ -658,7 +679,7 @@ static void check_preview_arrow_entry_and_idle(const char *assets)
     assert(wm_preview_scene_hit(scene, &menu, x, y).type ==
            WM_HIT_PREVIEW_PREVIOUS);
 
-    /* HTML's arrow entry clock is independent of its per-banner clock.
+    /* The arrow entry clock is independent of the per-banner clock.
      * A channel change must not move settled arrows back offscreen. */
     assert(wm_menu_change_preview(&menu, -1));
     assert(wm_preview_scene_draw(scene, &menu, 10.0f / 60.0f,
@@ -925,6 +946,128 @@ static void check_preview_banner_fades(const char *assets) {
     puts("Photo and Shop preview fades match source opacity at five frames.");
 }
 
+static void check_preview_capture_reentry(const char *assets) {
+    static const char *const ids[] = {
+        "0001000248415941", "0001000248414241"
+    };
+    static const char *const probe_textures[] = {
+        "channel-layouts/0001000248415941/banner/textures/plate1.png",
+        "channel-layouts/0001000248414241/banner/textures/logo_pic02.png"
+    };
+    static const float first_alpha[] = {0.0f, 0.5f};
+    WmPlatform *platform = (WmPlatform *)1;
+    WmMenu menu;
+    wm_menu_init(&menu);
+
+    for (size_t index = 0; index < 2; index++) {
+        char path[1024];
+        int length = snprintf(path, sizeof(path),
+                              "%s/channel-layouts/%s/banner/banner.json",
+                              assets, ids[index]);
+        assert(length > 0 && length < (int)sizeof(path));
+        FILE *resource = fopen(path, "rb");
+        if (!resource) {
+            puts("Preview capture reentry skipped: channel layouts unavailable.");
+            return;
+        }
+        fclose(resource);
+        WmChannel *channel = &menu.slots[index + 1];
+        channel->occupied = true;
+        snprintf(channel->id, sizeof(channel->id), "%s", ids[index]);
+        snprintf(channel->banner_layout, sizeof(channel->banner_layout),
+                 "channel-layouts/%s/banner/banner.json", ids[index]);
+    }
+
+    WmTextureCache *textures = wm_texture_cache_create(
+        platform, assets, 128u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(
+        platform, assets, 16u * 1024u * 1024u);
+    assert(textures && fonts);
+    WmPreviewScene *preview = wm_preview_scene_create(
+        platform, assets, &menu, textures, fonts);
+    WmResourceScene *grid = wm_resource_scene_create(
+        platform, assets, &menu, textures, fonts);
+    assert(preview && grid);
+    uint32_t probe[2];
+    for (size_t index = 0; index < 2; index++) {
+        assert(wm_texture_cache_resolve(textures, probe_textures[index],
+                                        &probe[index]));
+    }
+
+    float clock_seconds = 2.0f;
+    for (size_t index = 0; index < 2; index++) {
+        if (menu.screen == WM_SCREEN_PREVIEW) {
+            wm_menu_tick(&menu, 23.0f / 60.0f);
+            assert(wm_preview_scene_draw_layers(preview, &menu, 1.5f, NULL));
+            assert(wm_menu_back(&menu));
+            wm_menu_tick(&menu, 28.0f / 60.0f);
+        }
+        int slot = (int)index + 1;
+        assert(wm_menu_select(&menu, slot));
+        wm_menu_tick(&menu, 28.0f / 60.0f);
+        assert(wm_preview_scene_draw_layers(preview, &menu, 0.0f, NULL));
+        assert(wm_preview_scene_draw_layers(preview, &menu, 1.0f, NULL));
+
+        assert(wm_menu_back(&menu));
+        wm_menu_tick(&menu, 8.0f / 60.0f);
+        WmResourceSceneFrame frame = {
+            .elapsed_seconds = clock_seconds,
+            .preview_elapsed_seconds = 1.0f,
+            .preview_scene = preview
+        };
+        banner_fade = (BannerFadeTrace){
+            .active = true,
+            .capture_only = true,
+            .photo = index == 0,
+            .texture = probe[index]
+        };
+        capture_trace = (PreviewCaptureTrace){.active = true};
+        wm_resource_scene_draw(grid, &menu, &frame);
+        banner_fade.active = false;
+        capture_trace.active = false;
+        assert(banner_fade.texture_quads > 0);
+        assert(banner_fade.max_texture_alpha > first_alpha[index] + 0.25f);
+        assert(capture_trace.targets == 1);
+        assert(capture_trace.draws == 1);
+
+        wm_menu_tick(&menu, 20.0f / 60.0f);
+        assert(menu.screen == WM_SCREEN_GRID &&
+               menu.transition == WM_TRANSITION_NONE);
+        clock_seconds += 1.0f / 60.0f;
+        frame.elapsed_seconds = clock_seconds;
+        frame.hover = (WmHit){WM_HIT_CHANNEL, slot};
+        wm_resource_scene_draw(grid, &menu, &frame);
+
+        assert(wm_menu_select(&menu, slot));
+        wm_menu_tick(&menu, 8.0f / 60.0f);
+        clock_seconds += 1.0f / 60.0f;
+        frame.elapsed_seconds = clock_seconds;
+        frame.preview_elapsed_seconds = 0.0f;
+        frame.hover = (WmHit){WM_HIT_NONE, -1};
+        banner_fade = (BannerFadeTrace){
+            .active = true,
+            .capture_only = true,
+            .photo = index == 0,
+            .texture = probe[index]
+        };
+        capture_trace = (PreviewCaptureTrace){.active = true};
+        wm_resource_scene_draw(grid, &menu, &frame);
+        banner_fade.active = false;
+        capture_trace.active = false;
+        assert(banner_fade.quads == (index == 0 ? 0u : 1u));
+        assert(fabsf(banner_fade.alpha - first_alpha[index]) < 0.015f);
+        assert(capture_trace.targets == 1);
+        assert(capture_trace.draws == 1);
+        clock_seconds += 1.0f;
+    }
+
+    wm_resource_scene_destroy(grid);
+    wm_preview_scene_destroy(preview);
+    wm_font_cache_destroy(fonts);
+    wm_texture_cache_destroy(textures);
+    puts("Photo and Shop recapture frame zero after returning to the grid.");
+}
+
 static bool label_pane(void *context, const WmLayoutPaneView *pane) {
     (void)context;
     label_colors.current_label = -1;
@@ -1021,6 +1164,7 @@ int main(int argc, char **argv) {
     check_preview_arrow_entry_and_idle(assets);
     check_preview_back_focus_on_click(assets);
     check_preview_banner_fades(assets);
+    check_preview_capture_reentry(assets);
     check_preview_label_colors(assets);
     check_rendered_message_windows(assets);
     puts("Preview arrows retain source size and draw after the zoom border.");

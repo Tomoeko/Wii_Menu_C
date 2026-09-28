@@ -169,10 +169,20 @@ wm_add_test(wii-menu-board-contact-store
 wm_add_test(wii-menu-atomic-file
     SOURCES persistence/atomic_file_test.c
     LIBRARIES wii_menu_core
-    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/persistence"
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/support"
 )
 
 # Render.
+wm_add_test(wii-menu-image-atomic
+    SOURCES render/image_atomic_test.c
+    LIBRARIES wii_menu_core
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/render"
+)
+wm_add_test(wii-menu-texture-source
+    SOURCES render/texture_source_test.c
+    LIBRARIES wii_menu_core
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/render"
+)
 wm_add_test(wii-menu-viewport
     SOURCES render/viewport_test.c
     LIBRARIES wii_menu_core
@@ -186,6 +196,10 @@ wm_add_test(wii-menu-render-geometry
 # Resources.
 wm_add_test(wii-menu-resource
     SOURCES resources/resource_formats_test.c
+    LIBRARIES wii_menu_core
+)
+wm_add_test(wii-menu-rsar
+    SOURCES resources/resource_rsar_test.c
     LIBRARIES wii_menu_core
 )
 wm_add_test(wii-menu-bmg
@@ -304,6 +318,7 @@ wm_add_test(wii-menu-prepare-update
         tools/prepare_update_test.c
         "${PROJECT_SOURCE_DIR}/tools/preparation/prepare_fs.c"
         "${PROJECT_SOURCE_DIR}/tools/preparation/prepare_recovery.c"
+        "${PROJECT_SOURCE_DIR}/tools/preparation/prepare_update.c"
         "${PROJECT_SOURCE_DIR}/src/support/json.c"
         "${PROJECT_SOURCE_DIR}/tools/wad/crypto.c"
     INCLUDE_DIRECTORIES

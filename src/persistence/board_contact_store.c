@@ -1,10 +1,10 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include "wii_menu/persistence/board_contact_store.h"
+#include "board_contact_format.h"
 
 #include "wii_menu/support/json.h"
 
-#include "atomic_file.h"
+#include "../support/atomic_file.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -15,22 +15,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-enum {
-    CONTACT_MAX_JSON_BYTES = 512 * 1024,
-    CONTACT_MAX_OUTPUT_BYTES = CONTACT_MAX_JSON_BYTES,
-    CONTACT_ADDRESS_BYTES = 400,
-    CONTACT_NICKNAME_BYTES = 44
-};
-
-typedef struct StoredContact {
-    bool occupied;
-    bool wii;
-    bool confirmed;
-    char address[CONTACT_ADDRESS_BYTES];
-    char nickname[CONTACT_NICKNAME_BYTES];
-    char *source_json;
-} StoredContact;
-
 struct WmBoardContactStore {
     char *path;
     char *baseline;
@@ -40,12 +24,6 @@ struct WmBoardContactStore {
     size_t occupied;
     StoredContact slots[WM_BOARD_CONTACT_CAPACITY];
 };
-
-typedef struct JsonBuffer {
-    char *data;
-    size_t length;
-    size_t capacity;
-} JsonBuffer;
 
 typedef enum FileReadStatus {
     FILE_READ_OK,
@@ -115,129 +93,6 @@ static FileReadStatus read_regular_file(const char *path, size_t limit,
     return FILE_READ_OK;
 }
 
-static bool utf8_next(const unsigned char *text, size_t length,
-                      size_t *offset, uint32_t *codepoint, size_t *units) {
-    if (*offset >= length) return false;
-    unsigned first = text[*offset];
-    size_t count = first < 0x80 ? 1 :
-                   first >= 0xC2 && first <= 0xDF ? 2 :
-                   first >= 0xE0 && first <= 0xEF ? 3 :
-                   first >= 0xF0 && first <= 0xF4 ? 4 : 0;
-    if (count == 0 || count > length - *offset) return false;
-    uint32_t value = first & (count == 1 ? 0x7Fu :
-                              count == 2 ? 0x1Fu :
-                              count == 3 ? 0x0Fu : 0x07u);
-    for (size_t index = 1; index < count; index++) {
-        unsigned next = text[*offset + index];
-        if ((next & 0xC0u) != 0x80u) return false;
-        value = (value << 6) | (next & 0x3Fu);
-    }
-    if ((count == 2 && value < 0x80u) ||
-        (count == 3 && value < 0x800u) ||
-        (count == 4 && value < 0x10000u) ||
-        value > 0x10FFFFu || (value >= 0xD800u && value <= 0xDFFFu)) {
-        return false;
-    }
-    *offset += count;
-    if (codepoint) *codepoint = value;
-    if (units) *units = count == 4 ? 2 : 1;
-    return true;
-}
-
-static bool unicode_space(uint32_t codepoint) {
-    return codepoint == 0x20u ||
-           (codepoint >= 0x09u && codepoint <= 0x0Du) ||
-           codepoint == 0xA0u || codepoint == 0x1680u ||
-           (codepoint >= 0x2000u && codepoint <= 0x200Au) ||
-           codepoint == 0x2028u || codepoint == 0x2029u ||
-           codepoint == 0x202Fu || codepoint == 0x205Fu ||
-           codepoint == 0x3000u || codepoint == 0xFEFFu;
-}
-
-static bool valid_nickname(const char *text) {
-    if (!text) return false;
-    size_t length = strnlen(text, CONTACT_NICKNAME_BYTES);
-    if (length == CONTACT_NICKNAME_BYTES) return false;
-    size_t offset = 0, units = 0;
-    bool nonspace = false;
-    while (offset < length) {
-        uint32_t codepoint;
-        size_t character_units;
-        if (!utf8_next((const unsigned char *)text, length, &offset,
-                       &codepoint, &character_units)) return false;
-        if (codepoint == 0 || codepoint == '\r' || codepoint == '\n')
-            return false;
-        if (!unicode_space(codepoint)) nonspace = true;
-        units += character_units;
-        if (units > 10) return false;
-    }
-    return nonspace;
-}
-
-/* Persisted HTML contacts intentionally admit older e-mail records. New
- * registration is checked by AddressEdit's stricter source predicate. */
-static bool valid_stored_address(bool wii, const char *text) {
-    if (!text) return false;
-    size_t length = strnlen(text, CONTACT_ADDRESS_BYTES);
-    if (length == CONTACT_ADDRESS_BYTES) return false;
-    if (wii) {
-        if (length != 16) return false;
-        for (size_t index = 0; index < length; index++) {
-            if (text[index] < '0' || text[index] > '9') return false;
-        }
-        return true;
-    }
-    size_t offset = 0, units = 0, at = SIZE_MAX;
-    while (offset < length) {
-        uint32_t codepoint;
-        size_t character_units;
-        size_t start = offset;
-        if (!utf8_next((const unsigned char *)text, length, &offset,
-                       &codepoint, &character_units) ||
-            codepoint == 0 || unicode_space(codepoint)) return false;
-        if (codepoint == '@') {
-            if (at != SIZE_MAX) return false;
-            at = start;
-        }
-        units += character_units;
-        if (units > 99) return false;
-    }
-    return at != SIZE_MAX && at > 0 && at + 1 < length;
-}
-
-static bool parse_contact(const WmJson *json, size_t token,
-                          StoredContact *contact) {
-    if (token >= json->count) return false;
-    const WmJsonToken *item = &json->tokens[token];
-    if (item->type == WM_JSON_NULL) return true;
-    if (item->type != WM_JSON_OBJECT) return false;
-    char kind[8];
-    if (!wm_json_copy_text(json, wm_json_member(json, token, "kind"),
-                     kind, sizeof(kind)) ||
-        (strcmp(kind, "wii") != 0 && strcmp(kind, "email") != 0) ||
-        !wm_json_copy_text(json, wm_json_member(json, token, "address"),
-                     contact->address, sizeof(contact->address)) ||
-        !wm_json_copy_text(json, wm_json_member(json, token, "nickname"),
-                     contact->nickname, sizeof(contact->nickname))) return false;
-    contact->wii = strcmp(kind, "wii") == 0;
-    if (!valid_stored_address(contact->wii, contact->address) ||
-        !valid_nickname(contact->nickname)) return false;
-    size_t confirmed = wm_json_member(json, token, "confirmed");
-    contact->confirmed = true;
-    if (confirmed != WM_JSON_INVALID) {
-        if (confirmed >= json->count ||
-            json->tokens[confirmed].type != WM_JSON_BOOLEAN) return false;
-        contact->confirmed = json->source[json->tokens[confirmed].start] == 't';
-    }
-    size_t raw_length = item->end - item->start;
-    contact->source_json = malloc(raw_length + 1);
-    if (!contact->source_json) return false;
-    memcpy(contact->source_json, json->source + item->start, raw_length);
-    contact->source_json[raw_length] = '\0';
-    contact->occupied = true;
-    return true;
-}
-
 void wm_board_contact_store_destroy(WmBoardContactStore *store) {
     if (!store) return;
     for (size_t slot = 0; slot < store->length; slot++)
@@ -289,17 +144,13 @@ WmBoardContactStore *wm_board_contact_store_open(
         return NULL;
     }
     bool valid = json.tokens[0].type == WM_JSON_ARRAY &&
-                 json.tokens[0].children <= WM_BOARD_CONTACT_CAPACITY;
-    size_t offset = 0;
-    while (valid && offset < json.length) {
-        if (!utf8_next((const unsigned char *)json.source, json.length,
-                       &offset, NULL, NULL)) valid = false;
-    }
+                 json.tokens[0].children <= WM_BOARD_CONTACT_CAPACITY &&
+                 contact_json_utf8_valid(json.source, json.length);
     if (valid) {
         store->length = json.tokens[0].children;
         for (size_t slot = 0; slot < store->length; slot++) {
             size_t token = wm_json_index(&json, 0, slot);
-            if (!parse_contact(&json, token, &store->slots[slot])) {
+            if (!contact_parse(&json, token, &store->slots[slot])) {
                 valid = false;
                 break;
             }
@@ -344,61 +195,6 @@ bool wm_board_contact_store_get(const WmBoardContactStore *store,
     return true;
 }
 
-static bool append_bytes(JsonBuffer *buffer, const char *bytes, size_t count) {
-    if (count > CONTACT_MAX_OUTPUT_BYTES - buffer->length) return false;
-    size_t needed = buffer->length + count + 1;
-    if (needed > buffer->capacity) {
-        size_t capacity = buffer->capacity ? buffer->capacity : 1024;
-        while (capacity < needed) {
-            if (capacity > (CONTACT_MAX_OUTPUT_BYTES + 1) / 2)
-                capacity = CONTACT_MAX_OUTPUT_BYTES + 1;
-            else capacity *= 2;
-        }
-        char *data = realloc(buffer->data, capacity);
-        if (!data) return false;
-        buffer->data = data;
-        buffer->capacity = capacity;
-    }
-    memcpy(buffer->data + buffer->length, bytes, count);
-    buffer->length += count;
-    buffer->data[buffer->length] = '\0';
-    return true;
-}
-
-static bool append_text(JsonBuffer *buffer, const char *text) {
-    return append_bytes(buffer, text, strlen(text));
-}
-
-static bool append_json_string(JsonBuffer *buffer, const char *text) {
-    if (!append_text(buffer, "\"")) return false;
-    static const char hex[] = "0123456789abcdef";
-    for (const unsigned char *byte = (const unsigned char *)text;
-         *byte; byte++) {
-        if (*byte == '"' || *byte == '\\') {
-            char escape[2] = {'\\', (char)*byte};
-            if (!append_bytes(buffer, escape, sizeof(escape))) return false;
-        } else if (*byte < 0x20u) {
-            char escape[6] = {'\\', 'u', '0', '0',
-                              hex[*byte >> 4], hex[*byte & 15u]};
-            if (!append_bytes(buffer, escape, sizeof(escape))) return false;
-        } else if (!append_bytes(buffer, (const char *)byte, 1)) {
-            return false;
-        }
-    }
-    return append_text(buffer, "\"");
-}
-
-static bool serialize_contact(JsonBuffer *buffer,
-                              WmBoardContact contact) {
-    return append_text(buffer, "{\"kind\":") &&
-           append_json_string(buffer, contact.wii ? "wii" : "email") &&
-           append_text(buffer, ",\"address\":") &&
-           append_json_string(buffer, contact.address) &&
-           append_text(buffer, ",\"nickname\":") &&
-           append_json_string(buffer, contact.nickname) &&
-           append_text(buffer, "}");
-}
-
 static bool baseline_unchanged(const WmBoardContactStore *store) {
     char *contents;
     size_t length;
@@ -415,37 +211,27 @@ static bool baseline_unchanged(const WmBoardContactStore *store) {
 static bool write_replaced_slot(WmBoardContactStore *store, size_t slot,
                                 const char *replacement,
                                 char *error, size_t error_capacity) {
-    JsonBuffer output = {0};
-    bool serialized = append_text(&output, "[\n");
-    size_t length = slot == store->length ? store->length + 1 : store->length;
-    for (size_t index = 0; serialized && index < length; index++) {
-        if (index) serialized = append_text(&output, ",\n");
-        serialized = serialized && append_text(&output, "  ");
-        const char *entry = index == slot ? replacement :
-                            store->slots[index].occupied
-                                ? store->slots[index].source_json : "null";
-        serialized = serialized && append_text(&output, entry);
-    }
-    serialized = serialized && append_text(&output, "\n]\n");
-    if (!serialized) {
+    char *output = NULL;
+    size_t output_length = 0;
+    if (!contact_build_array(store->slots, store->length, slot,
+                             replacement, &output, &output_length)) {
         set_error(error, error_capacity, "Address Book is too large");
-        free(output.data);
         return false;
     }
     if (!baseline_unchanged(store)) {
         set_error(error, error_capacity,
                   "Address Book changed; reload before saving");
-        free(output.data);
+        free(output);
         return false;
     }
-    if (!wm_atomic_file_replace(store->path, output.data, output.length)) {
+    if (!wm_atomic_file_replace(store->path, output, output_length)) {
         set_error(error, error_capacity, "Could not save Address Book");
-        free(output.data);
+        free(output);
         return false;
     }
     free(store->baseline);
-    store->baseline = output.data;
-    store->baseline_length = output.length;
+    store->baseline = output;
+    store->baseline_length = output_length;
     store->had_file = true;
     set_error(error, error_capacity, "");
     return true;
@@ -455,39 +241,30 @@ bool wm_board_contact_store_rename(WmBoardContactStore *store, size_t slot,
                                    const char *nickname, char *error,
                                    size_t error_capacity) {
     if (!store || slot >= store->length ||
-        !store->slots[slot].occupied || !valid_nickname(nickname)) {
+        !store->slots[slot].occupied || !contact_nickname_valid(nickname)) {
         set_error(error, error_capacity, "Invalid Address Book nickname");
         return false;
     }
-    WmJson source;
     const char *original = store->slots[slot].source_json;
-    if (!wm_json_parse(&source, original, strlen(original))) {
+    char *changed = NULL;
+    ContactRewriteStatus rewrite = contact_rewrite_nickname(
+        original, nickname, &changed);
+    if (rewrite == CONTACT_REWRITE_INVALID_SOURCE) {
         set_error(error, error_capacity, "Invalid Address Book contact");
         return false;
     }
-    size_t field = wm_json_member(&source, 0, "nickname");
-    JsonBuffer changed = {0};
-    bool valid = field != WM_JSON_INVALID &&
-                 source.tokens[field].type == WM_JSON_STRING;
-    if (valid) {
-        size_t first_quote = source.tokens[field].start - 1;
-        size_t after_quote = source.tokens[field].end + 1;
-        valid = append_bytes(&changed, original, first_quote) &&
-                append_json_string(&changed, nickname) &&
-                append_text(&changed, original + after_quote);
+    if (rewrite != CONTACT_REWRITE_OK) {
+        set_error(error, error_capacity,
+                  "Could not update Address Book nickname");
+        return false;
     }
-    wm_json_free(&source);
-    if (!valid || !write_replaced_slot(store, slot, changed.data,
-                                       error, error_capacity)) {
-        if (!valid)
-            set_error(error, error_capacity,
-                      "Could not update Address Book nickname");
-        free(changed.data);
+    if (!write_replaced_slot(store, slot, changed, error, error_capacity)) {
+        free(changed);
         return false;
     }
     StoredContact *contact = &store->slots[slot];
     free(contact->source_json);
-    contact->source_json = changed.data;
+    contact->source_json = changed;
     snprintf(contact->nickname, sizeof(contact->nickname), "%s", nickname);
     return true;
 }
@@ -510,8 +287,8 @@ bool wm_board_contact_store_register(WmBoardContactStore *store,
                                      WmBoardContact contact, size_t *slot,
                                      char *error, size_t error_capacity) {
     if (!store || !contact.address || !contact.nickname ||
-        !valid_stored_address(contact.wii, contact.address) ||
-        !valid_nickname(contact.nickname)) {
+        !contact_stored_address_valid(contact.wii, contact.address) ||
+        !contact_nickname_valid(contact.nickname)) {
         set_error(error, error_capacity, "Invalid Address Book contact");
         return false;
     }
@@ -534,15 +311,14 @@ bool wm_board_contact_store_register(WmBoardContactStore *store,
         set_error(error, error_capacity, "Address Book is full");
         return false;
     }
-    JsonBuffer canonical = {0};
-    if (!serialize_contact(&canonical, contact)) {
+    char *canonical = NULL;
+    if (!contact_serialize(contact, &canonical)) {
         set_error(error, error_capacity, "Address Book is too large");
-        free(canonical.data);
         return false;
     }
-    if (!write_replaced_slot(store, target, canonical.data,
+    if (!write_replaced_slot(store, target, canonical,
                              error, error_capacity)) {
-        free(canonical.data);
+        free(canonical);
         return false;
     }
     StoredContact *saved = &store->slots[target];
@@ -552,7 +328,7 @@ bool wm_board_contact_store_register(WmBoardContactStore *store,
     snprintf(saved->address, sizeof(saved->address), "%s", contact.address);
     snprintf(saved->nickname, sizeof(saved->nickname), "%s",
              contact.nickname);
-    saved->source_json = canonical.data;
+    saved->source_json = canonical;
     if (target == store->length) store->length++;
     store->occupied++;
     if (slot) *slot = target;

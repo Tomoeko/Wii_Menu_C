@@ -140,8 +140,8 @@ static bool render_original_loop_wave(const WmRsar *archive,
         wm_audio_pcm_free(&wave);
         return false;
     }
-    /* The HTML drag reader uses the original looping sample and applies
-     * archive gain at playback. Bake that same gain for a unity-gain manifest. */
+    /* The drag cue uses a looping sample. Bake archive gain into its PCM
+     * so the manifest can play it at unity gain. */
     float gain = (float)sound->volume / 127.0f;
     size_t sample_count = (size_t)wave.frame_count * wave.channels;
     for (size_t index = 0; index < sample_count; index++) {

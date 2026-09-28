@@ -554,6 +554,10 @@ static void draw_resource_scene(WmResourceScene *scene, const WmMenu *menu,
                 scene, menu, frame->preview_scene, presentation.zoom_slot, capture_date,
                 presentation.zoom_out ? frame->preview_elapsed_seconds : 0.0f);
         captured = scene->capture_valid;
+        /* BACK keeps its advancing capture for this draw, but that late pose
+         * must not become the cached frame for the next SELECT zoom. */
+        if (presentation.zoom_out)
+            scene->capture_valid = false;
     }
     if (owns_frame)
         wm_platform_begin(scene->platform, (WmColor){0.92f, 0.92f, 0.92f, 1.0f});
@@ -691,7 +695,7 @@ static void draw_resource_scene(WmResourceScene *scene, const WmMenu *menu,
     }
     /* G_Bbs hover also keys Picture_00. Apply the mail-number group after
      * hover so its frame-zero pose keeps the spare envelope hidden when the
-     * Board has no messages, matching messageBadgePose in the HTML port. */
+     * Board has no messages. */
     footer_clips[footer_clip_count++] =
         (WmLayoutClip){.animation = "my_IplTop_e",
                        .frame = scene->message_badge_count

@@ -16,13 +16,10 @@ Inputs audited on 2026-09-26:
 | Menu executable `00000098.app` | USA 4.3 | `47b9c1bb0ba1890256fb368b1b3272e33ea2467feadf39d20ce469d6de6e6c43` |
 | Extracted `sound/IplSound.brsar` | USA 4.3 | `78c62ce1df5198bd4bb87284c6a8943ff5bb6fca7de7805080271d534d52bd78` |
 
-The HTML implementation reference was revision
-`89227eff4557fc9f0c216d566da544429b52fbf5`, including its `docs/audio-cues.md`.
-Its retained audio references identify Dolphin recordings, rather than console
-recordings, and do not establish the DSP backend or ROM identities. The C
-baseline was `0129b91`; the changes described below were tested in the working
-tree based on that commit. Source and current-build capture ranges are absent,
-so the reported parity gap remains unverified.
+The reported comparison was against Dolphin rather than a console recording;
+its DSP backend and ROM identities were not retained. The C baseline for this
+investigation was `0129b91`. No aligned C-versus-Dolphin capture ranges were
+retained, and native console fidelity remains unverified.
 
 Private inputs and generated lookup tables stay in ignored storage. Temporary
 Binary Ninja analysis used a private slice of the executable and temporary
@@ -68,8 +65,9 @@ the supplied executable's PPC instructions. Its branch at `0x8136B9AC` skips
 the pitch update below 30; above that threshold the pitch is distance divided
 by 30. The volume and pan calculations at `0x8136B948` onward use distance and
 the logical projection half-width. The 304-unit half-width and the envelope
-and volume-ramp addresses below follow the HTML project's retained executable
-analysis. They have not all been independently re-traced in this investigation.
+and volume-ramp addresses below have not all been independently re-traced in
+this investigation; treat them as provisional until verified against the
+specified executable.
 
 | Driver behavior | USA 4.3 addresses |
 | --- | --- |
@@ -173,7 +171,7 @@ approximation.
 | Direct WSD sounds | The 11 direct sound identifiers examined use instant ADSR, unity pitch, centered pan, and no auxiliary send. Ignored WSD parameters did not explain this report for the supplied archive. |
 | Channel banners | BNS is supported. WAV and AIFF banner variants remain unsupported. Decoder agreement alone does not verify final banner volume, timing, or filtering. |
 | Remote-speaker cues | Exported remote-speaker PCM plays through host output as a local substitute. The physical remote transport, codec, and speaker response are not reproduced. |
-| HOME and startup | HOME pause timing still differs from the HTML entrance-completion behavior. Externally supplied captured background audio with an `includesStartupWave` marker is not distinguished from a separate startup cue. These are separate event/asset issues. |
+| HOME and startup | HOME pause timing has not been checked against native entrance completion. Externally supplied captured background audio with an `includesStartupWave` marker is not distinguished from a separate startup cue. These are separate event/asset issues. |
 | Other versions | Held extraction accepts the audited drag structure and USA 4.3 driver tables. Unsupported sources fail visibly; another region/version requires new evidence. |
 
 Generic parser omissions are not evidence that every omitted effect is active.

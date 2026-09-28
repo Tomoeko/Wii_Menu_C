@@ -111,8 +111,7 @@ typedef struct WmStorageSnapshot {
     bool locked;
 } WmStorageSnapshot;
 
-/* Source category test for Channel Management. Non-native local IDs are
- * allowed as in the HTML demonstration fixture; the Disc Channel is excluded. */
+/* Channel Management accepts local IDs; the Disc Channel is excluded. */
 bool wm_storage_manageable_channel(const char *id, bool has_icon);
 
 WmStorageScene *wm_storage_scene_create(WmPlatform *platform,
@@ -123,9 +122,9 @@ WmStorageScene *wm_storage_scene_create(WmPlatform *platform,
 void wm_storage_scene_destroy(WmStorageScene *scene);
 
 /* Input records are copied. Channel media filter non-manageable system titles
- * and sort native Wii title IDs as the HTML controller does. The 240-record
- * bound mirrors its local fixture. A ready Wii Save Data medium defaults to
- * its synthetic dummy save; GameCube Slot B defaults to absent. */
+ * and sort Wii title IDs. At most 240 records are accepted. A ready Wii Save
+ * Data medium defaults to a synthetic dummy save; GameCube Slot B defaults
+ * to absent. */
 bool wm_storage_scene_set_medium(WmStorageScene *scene, WmStorageTab tab,
                                   WmStorageMediumStatus status,
                                   const WmStorageRecord *records,
@@ -140,8 +139,8 @@ bool wm_storage_scene_activate(WmStorageScene *scene, WmStorageHit hit);
 bool wm_storage_scene_back(WmStorageScene *scene);
 
 /* A confirmed action reports its record and requested operation. The scene
- * makes no NAND, SD, or save-file changes; the HTML fixture also leaves its
- * record list intact. The caller handles any explicit local persistence. */
+ * makes no NAND, SD, or save-file changes. The caller handles any explicit
+ * local persistence. */
 WmStorageAction wm_storage_scene_take_action(WmStorageScene *scene,
                                               WmStorageOperation *operation,
                                               WmStorageRecord *record);

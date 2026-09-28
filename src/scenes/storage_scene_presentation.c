@@ -61,8 +61,8 @@ static void add_tab_focus(StoragePose *pose, const char *stem,
                           const StorageFocus *focus, const char *in_suffix,
                           const char *out_suffix, const char *group) {
     if (!focus->active) return;
-    /* Both authored tab clips grow from scale 1.0 to 1.1. The native Out
-     * controller plays its resource backwards, as the HTML port records. */
+    /* Both tab clips grow from scale 1.0 to 1.1. Reverse the exit clip so
+     * the focused tab shrinks back to its resting scale. */
     float frame = focus->entering
         ? endpoint(focus->frame, 7.0f)
         : endpoint(6.0f - focus->frame, 7.0f);
@@ -294,9 +294,8 @@ void wm_storage_pose_detail(WmStorageScene *scene) {
     wm_layout_pose(scene->detail, pose.clips, pose.count);
     if (scene->kind == WM_STORAGE_CHANNELS &&
         scene->phase == WM_STORAGE_DETAIL_IN) {
-        /* ChanAppEdit moves its window from the selected box after the mask
-         * scale starts. The source's first layout calculation still draws the
-         * previous invisible window, then translation catches up by update 14. */
+        /* Keep the window invisible while the mask starts scaling, then
+         * translate it from the selected box over the next 12 frames. */
         float motion = fminf(1.0f,
                              fmaxf(0.0f, scene->phase_frame - 2.0f) / 12.0f);
         wm_layout_set_pane_translation(
@@ -376,9 +375,8 @@ void wm_storage_pose_back(WmStorageScene *scene) {
     add_clip(&pose, "it_Button_a", "WiiLost", "G_Wii", 15.0f);
     add_clip(&pose, "it_Button_a", "AlphOut", "G_FocusBtnA", 0.0f);
     if (scene->kind == WM_STORAGE_CHANNELS) {
-        /* Channels keeps the independent Back button alive while its dialog
-         * enters and exits. The authored alpha clips run alongside those
-         * 26- and 46-frame transitions, then hold their endpoint. */
+        /* Keep the independent Back button active while the dialog enters
+         * and exits. Its alpha clips follow the transitions, then hold. */
         const char *fade = NULL;
         float fade_frame = 0.0f;
         if (scene->phase == WM_STORAGE_DIALOG_IN) {
@@ -426,9 +424,8 @@ static bool collect_anchor(void *context, const WmLayoutPaneView *pane) {
     };
     memcpy(anchors->matrices[index], identity,
            sizeof(anchors->matrices[index]));
-    /* The source controller copies only anchor XY into N_All, then the box
-     * layout's own IPL root scale projects that local X. Passing the entire
-     * anchor matrix directly as a parent compresses the 16:9 grid. */
+    /* Copy only anchor XY into N_All. The box layout's IPL root scale
+     * projects X; using the entire parent matrix compresses the 16:9 grid. */
     anchors->matrices[index][3] = pane->matrix[3] * (832.0f / 608.0f);
     anchors->matrices[index][7] = pane->matrix[7];
     anchors->found[index] = true;
@@ -540,9 +537,8 @@ static void draw_channel_icon(WmStorageScene *scene, int slot,
         0.0f, icon_scale, 0.0f, anchor[7],
         0.0f, 0.0f, 1.0f, 0.0f
     };
-    /* The independent thumbnail grows with the box's Focus clip. Its draw
-     * window stays at the authored cell bounds, so hover never enlarges the
-     * clipped region or exposes artwork outside the rounded border. */
+    /* The independent thumbnail grows with box focus. Keep clipping at the
+     * cell bounds so hover cannot expose art outside the rounded border. */
     const float screen_scale = (float)WM_FRAME_WIDTH / 832.0f;
     const float center_x = WM_FRAME_WIDTH * 0.5f + anchor[3] * screen_scale;
     const float center_y = WM_FRAME_HEIGHT * 0.5f - anchor[7];

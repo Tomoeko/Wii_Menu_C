@@ -121,8 +121,8 @@ bool wm_options_scene_text_editing(const WmOptionsScene *scene);
 bool wm_options_scene_type_ascii(WmOptionsScene *scene, char character);
 bool wm_options_scene_backspace(WmOptionsScene *scene);
 
-/* Draw inside an already begun platform frame. Order matches the HTML scene:
- * setup background, opaque Back bars, then option objects and headings. */
+/* Draw inside an already begun platform frame: setup background, opaque Back
+ * bars, then option objects and headings. */
 bool wm_options_scene_draw(WmOptionsScene *scene);
 
 /* Storage replaces the Options Back layer but retains its selected heading.

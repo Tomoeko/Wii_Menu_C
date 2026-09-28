@@ -111,8 +111,7 @@ int main(int argc, char **argv) {
     assert(!visible(layout, "Push_JPN"));
     assert(wm_health_scene_accept(health));
     assert(!wm_health_scene_accept(health));
-    /* Samples from the maintained HTML controller with the same WAD track.
-     * The warning fades continuously to black before the grid is handed off. */
+    /* The warning fades continuously to black before the grid is handed off. */
     static const struct {
         float frame;
         float alpha;

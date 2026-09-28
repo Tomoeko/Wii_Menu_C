@@ -748,8 +748,8 @@ static void test_connection_settings_split_rows(const char *assets) {
             }
         }
         assert(split_row);
-        /* Source Connect_set_top places Connection N in the left field and
-         * the bridge's default None in the right field. */
+        /* Each row shows Connection N at left and the unconfigured type
+         * None at right. */
         assert(count_glyphs_in_box(135.0f, 350.0f,
                                    top + 25.0f, top + 65.0f) == 11);
         assert(count_glyphs_in_box(370.0f, 505.0f,
@@ -819,7 +819,7 @@ static void test_empty_connection_choice_page(const char *assets) {
         wm_font_cache_begin_frame(fonts);
         assert(wm_settings_scene_draw(scene));
 
-        /* Connect_select.html has three nested tabs and two Btn_List rows. */
+        /* The connection type page has three nested tabs and two list rows. */
         const float header_x[4] = {40.0f, 72.0f, 104.0f, 136.0f};
         for (unsigned index = 0; index < 4; index++) {
             WmQuad quad = {0};
@@ -915,7 +915,7 @@ static void test_initial_connection_mode_pages(const char *assets) {
     wm_texture_cache_begin_frame(textures);
     wm_font_cache_begin_frame(fonts);
     assert(wm_settings_scene_draw(scene));
-    /* Wi_Fi_set_top.html: two full rows, two small rows and the AOSS icon. */
+    /* Wireless choices show two full rows, two small rows and an AOSS icon. */
     assert(count_drawn_texture(art[0], NULL) == 2);
     assert(count_drawn_texture(art[1], NULL) == 2);
     for (unsigned row = 0; row < 2; row++) {
@@ -1037,8 +1037,8 @@ static void test_offline_access_point_search(const char *assets) {
     assert(wm_settings_scene_hit(scene, 460, 405) ==
            WM_SETTINGS_CONTROL_NONE);
 
-    /* The maintained local bridge returns funcResult 2 on its one-second
-     * poll for native AP search function 2. No host scan runs in C. */
+    /* After 60 frames, the local search reports no access point; it does
+     * not run a host network scan. */
     wm_settings_scene_advance(scene, 39.0f);
     assert(wm_settings_scene_snapshot(scene).detail == 7);
     wm_settings_scene_advance(scene, 1.0f);
@@ -1140,7 +1140,7 @@ static void test_offline_usb_connector_pages(const char *assets) {
            WM_SETTINGS_CONTROL_BACK);
     assert(wm_settings_scene_hit(scene, 460, 405) ==
            WM_SETTINGS_CONTROL_NONE);
-    /* Common0202 polls the bridge's dummy function 30 result after 1 s. */
+    /* The local USB registration attempt fails after 60 frames. */
     wm_settings_scene_advance(scene, 39.0f);
     assert(wm_settings_scene_snapshot(scene).detail == 10);
     wm_settings_scene_advance(scene, 1.0f);
@@ -1157,7 +1157,7 @@ static void test_offline_usb_connector_pages(const char *assets) {
            WM_SETTINGS_CONTROL_BACK);
     assert(wm_settings_scene_hit(scene, 460, 405) ==
            WM_SETTINGS_CONTROL_NEXT);
-    /* Visible left Yes retries the wait, despite the swapped source IDs. */
+    /* The visible left Yes retries the wait despite swapped pane IDs. */
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_BACK));
     assert(wm_settings_scene_snapshot(scene).detail == 10);
     wm_settings_scene_advance(scene, 59.0f);
@@ -1207,7 +1207,7 @@ static void test_user_agreements_button_order(const char *assets) {
     wm_font_cache_begin_frame(fonts);
     assert(wm_settings_scene_draw(scene));
     assert(count_drawn_texture(footer, NULL) == 2);
-    /* Extracted ENG Internet/EULA_index.html: Yes is UnderL, No is UnderR. */
+    /* The EULA footer places Yes on the left and No on the right. */
     assert(count_glyphs_in_box(120.0f, 230.0f, 390.0f, 425.0f) == 3);
     assert(count_glyphs_in_box(430.0f, 520.0f, 390.0f, 425.0f) == 2);
     assert(wm_settings_scene_hit(scene, 180, 405) ==
@@ -1278,8 +1278,8 @@ static void test_resolution_source_default(const char *assets) {
 
     assert(wm_settings_scene_back(scene));
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_3));
-    /* The extracted Progressive_set controller writes the selected value
-     * before Back, so reopening retains Standard TV (480i). */
+    /* Row selection commits the value before Back; reopening retains
+     * Standard TV (480i). */
     assert(wm_settings_scene_snapshot(scene).selection == 1);
     wm_settings_scene_destroy(scene);
     wm_font_cache_destroy(fonts);
@@ -1420,7 +1420,7 @@ static void test_screen_language_artwork(const char *assets) {
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
 
-    /* The source Display_index first row is Screen Position in English. */
+    /* The first Screen row is Screen Position in English. */
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_3));
     wm_settings_scene_advance(scene, 20.0f);
     drawn_quad_count = 0;
@@ -1612,8 +1612,8 @@ static void test_index_source_badges_and_scroll(const char *assets) {
     assert(count_drawn_texture(page_on, &selected_badge) == 1);
     assert(selected_badge.x == 456.0f && selected_badge.y == 376.0f);
     assert(count_drawn_texture(page_off, NULL) == 2);
-    /* The extracted index title box begins at y=27. The local outline face
-     * puts its first ink pixels just below that box, as the source does. */
+    /* The title box begins at y=27; the outline font's first ink pixels
+     * should fall just below its top edge. */
     float title_ink_top = INFINITY;
     for (size_t index = 0; index < drawn_quad_count; index++) {
         const WmQuad *quad = &drawn_quads[index];
@@ -1624,7 +1624,7 @@ static void test_index_source_badges_and_scroll(const char *assets) {
         title_ink_top = fminf(title_ink_top, quad->y);
     }
     assert(title_ink_top >= 27.0f && title_ink_top <= 34.0f);
-    /* The index HTML uses List.css's 24 px bold numerals in 40×32 badges. */
+    /* Page numerals fit within their 40×32 badges. */
     for (unsigned badge = 0; badge < 3; badge++) {
         float left = 456.0f + 48.0f * badge;
         size_t glyphs = 0;
@@ -2202,8 +2202,8 @@ static void test_console_information_placeholders(const char *assets) {
         if (dim && quad->y >= 250.0f && quad->y < 326.0f)
             unavailable_lan_glyphs++;
     }
-    /* Both source labels and both local dummy addresses must be visible.
-     * The LAN label and address use the extracted page's #333 tint. */
+    /* Both labels and local placeholder addresses remain visible. The LAN
+     * label and address use the dimmed tint. */
     assert(wireless_glyphs >= 20);
     assert(unavailable_lan_glyphs >= 30);
 
@@ -2255,8 +2255,8 @@ static void test_update_initial_footer(const char *assets) {
         if (quad->x < 304.0f) left_glyphs++;
         else right_glyphs++;
     }
-    /* The extracted first update page labels its left WAD footer Yes and
-     * its right WAD footer No. The outline glyph counts are 3 and 2. */
+    /* The update prompt places Yes at left and No at right; their outline
+     * glyph counts are 3 and 2. */
     assert(left_glyphs == 3);
     assert(right_glyphs == 2);
 
@@ -2402,7 +2402,7 @@ static void test_connect24_onoff_immediate_state(const char *assets) {
     wm_font_cache_begin_frame(fonts);
     assert(wm_settings_scene_draw(scene));
     assert(count_drawn_texture(choice_left, &selected) == 1);
-    assert(selected.y == 216.0f); /* Off is the bridge default. */
+    assert(selected.y == 216.0f); /* Off is the local default. */
 
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
     assert(wm_settings_scene_snapshot(scene).selection == 0);
@@ -2486,7 +2486,7 @@ static void test_sensor_position_source_mapping(const char *assets) {
     assert(count_drawn_texture(row, NULL) == 2);
     assert(count_drawn_texture(choice_left, &marker) == 1);
     assert(count_drawn_texture(choice_right, NULL) == 1);
-    assert(marker.y == 216.0f); /* The bridge starts at Below TV. */
+    assert(marker.y == 216.0f); /* Below TV is the local default. */
 
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
     assert(wm_settings_scene_snapshot(scene).selection == 0);
@@ -2723,8 +2723,8 @@ static void test_display_two_row_back_retains_choice(
     assert(count_drawn_texture(marker_left, &marker) == 1);
     assert(marker.y == 216.0f);
 
-    /* Both extracted controllers write the value during row selection.
-     * Back cancels the page navigation without restoring that local value. */
+    /* Row selection commits the value; Back leaves the page without
+     * restoring the previous local value. */
     assert(wm_settings_scene_back(scene));
     wm_settings_scene_advance(scene, 20.0f);
     assert(wm_settings_scene_activate(scene, detail_control));

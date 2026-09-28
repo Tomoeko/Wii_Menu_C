@@ -2,12 +2,29 @@
 #define WM_CHANNEL_EXPORT_INTERNAL_H
 
 #include "wii_menu/persistence/saved_layout.h"
+#include "wii_menu/resources/resource_u8.h"
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
-enum { WM_PATH_CAP = 4096 };
+enum { WM_PATH_CAP = 4096, WM_MAX_CONTENT = 64 * 1024 * 1024 };
+
+static inline uint16_t wm_be16(const uint8_t *bytes)
+{
+    return (uint16_t)(((uint16_t)bytes[0] << 8) | bytes[1]);
+}
+
+static inline uint32_t wm_be32(const uint8_t *bytes)
+{
+    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
+           ((uint32_t)bytes[2] << 8) | bytes[3];
+}
+
+static inline bool wm_fits(size_t size, size_t offset, size_t length)
+{
+    return offset <= size && length <= size - offset;
+}
 
 typedef struct WmChannelExport {
     char id[17];
@@ -54,7 +71,16 @@ extern const char *const wm_languages[10];
 
 bool wm_output_parent(const char *path);
 bool wm_output_target_safe(const char *path);
+bool wm_output_write_file(const char *path, const void *data, size_t size);
 bool wm_write_manifest(const char *output, const char *language,
                        WmChannelList *channels, const WmSavedLayout *saved_layout);
+bool wm_export_channel_audio(const WmU8Entry *entry, const char *output,
+                             WmChannelExport *channel);
+bool wm_export_resource(const WmU8Entry *entry, const char *output,
+                        const char *channel_id, const char *kind,
+                        const char *source_file, WmLayoutPath **layout_paths,
+                        size_t *layout_count,
+                        char default_layout[WM_PATH_CAP], unsigned *texture_count,
+                        unsigned *animation_count);
 
 #endif

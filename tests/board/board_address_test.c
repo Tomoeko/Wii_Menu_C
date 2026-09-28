@@ -454,8 +454,7 @@ int main(int argc, char **argv) {
     assert(wm_board_address_dialog_accept(book));
     wm_board_address_advance(book, 38.0f);
     assert(!wm_board_address_dialog_active(book));
-    /* Synthetic structural fixtures from the maintained HTML validation
-     * tests, checked there against the original USA 4.3 function. */
+    /* Synthetic structural fixtures for contact-number validation. */
     static const char *const valid_numbers[] = {
         "7053433507880718", "8742285515623182", "8179332609414415",
         "0860984825562383", "3675735668494095", "9868184080303375"

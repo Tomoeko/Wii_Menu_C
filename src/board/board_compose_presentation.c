@@ -688,8 +688,8 @@ void board_compose_pose_footer(WmBoardCompose *compose) {
     }
     if ((compose->phase == WM_COMPOSE_BACK_MEMO && compose->frame < 20.0f) ||
         compose->phase == WM_COMPOSE_BACK_SELECTOR) {
-        /* HTML's Memo Back press is committed when its 20-frame first
-         * stage ends. The following MailOut stage restores the neutral
+        /* Memo Back commits its press when the 20-frame first stage ends.
+         * The following MailOut stage restores the neutral
          * button pose while the selector returns. Holding frame 3020
          * retains its 1.1-scale press track until the entire exit ends. */
         append_clip(clips, &count, "my_IplTop_e", "G_CalExit",

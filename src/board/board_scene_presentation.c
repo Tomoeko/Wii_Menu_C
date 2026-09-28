@@ -403,8 +403,8 @@ void board_scene_pose_reader(WmBoardScene *board) {
     size_t extra = wm_board_reader_scroll_clips(&board->reader_scroll, clips + 2, 6);
     wm_layout_pose(board->reader, clips, 2 + extra);
     /* The source text panes contain visible runs of placeholder 'i' glyphs.
-     * The HTML reader clears every authored text pane before filling the two
-     * reader labels; leaving these defaults overlays the posted Memo. */
+     * Clear them before filling the reader labels so they do not overlay
+     * the posted Memo. */
     wm_layout_set_pose_text(board->reader, "T_2l_TextBox", "");
     wm_layout_set_pose_text(board->reader, "T_TouchLetter", "");
     wm_layout_set_pose_text(board->reader, "T_Nigaoe", "");

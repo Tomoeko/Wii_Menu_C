@@ -41,7 +41,7 @@ _Static_assert(sizeof(WmMaterialParams) == 16 * sizeof(float),
                "The C and Metal material layouts must match.");
 
 /* Four stage bytes per word keep the fragment parameter block compact while
- * preserving the raw BRLYT encoding used by the HTML renderer. */
+ * preserving the raw BRLYT encoding. */
 typedef struct WmTevParams {
     float registers[3][4];
     float konst_colors[4][4];

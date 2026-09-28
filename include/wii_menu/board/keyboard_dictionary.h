@@ -7,8 +7,8 @@
 
 /* OEM eZTNintendo*.znd contains BE offsets to NUL-terminated UTF-16BE
  * words. This reader yields ordered words only; it does not implement Zi8's
- * candidate-generation algorithm. Words outside the HTML fallback loader's
- * 64 UTF-16-unit/control-character limits are omitted. */
+ * candidate-generation algorithm. Words exceeding 64 UTF-16 units or
+ * containing unsupported control characters are omitted. */
 typedef struct WmKeyboardWordList {
     char **words;
     size_t count;

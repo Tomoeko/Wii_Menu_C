@@ -175,7 +175,7 @@ int main(void) {
     wm_audio_sync(audio, &menu);
     assert(fabsf(render_first_sample() - starting_sample) < 0.00001f);
 
-    /* HTML rejects a one-shot requested while muted. It must not become
+    /* Reject a one-shot requested while muted. It must not become
      * audible later when the user restores volume. Background and loops are
      * deliberately different: they retain playback position while muted. */
     wm_audio_reset_all(audio);

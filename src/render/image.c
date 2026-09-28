@@ -1,5 +1,8 @@
 #include "wii_menu/render/image.h"
 
+#include "../support/atomic_file.h"
+#include "image_internal.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,7 +30,8 @@ static bool image_size(uint32_t width, uint32_t height, size_t *size) {
     return true;
 }
 
-bool wm_image_read(const char *path, WmImage *image) {
+bool wm_image_read_bounded(const char *path, size_t maximum_bytes,
+                           WmImage *image) {
     if (!path || !image) return false;
     memset(image, 0, sizeof(*image));
     FILE *file = fopen(path, "rb");
@@ -39,7 +43,8 @@ bool wm_image_read(const char *path, WmImage *image) {
     if (valid) {
         image->width = read_u32(header + 8);
         image->height = read_u32(header + 12);
-        valid = image_size(image->width, image->height, &size);
+        valid = image_size(image->width, image->height, &size) &&
+                size <= maximum_bytes;
     }
     if (valid) {
         image->pixels = malloc(size);
@@ -51,6 +56,10 @@ bool wm_image_read(const char *path, WmImage *image) {
     return valid;
 }
 
+bool wm_image_read(const char *path, WmImage *image) {
+    return wm_image_read_bounded(path, SIZE_MAX, image);
+}
+
 bool wm_image_write(const char *path, const WmImage *image) {
     if (!path || !image || !image->pixels) return false;
     size_t size;
@@ -59,13 +68,16 @@ bool wm_image_write(const char *path, const WmImage *image) {
     write_u32(header + 4, 1);
     write_u32(header + 8, image->width);
     write_u32(header + 12, image->height);
-    FILE *file = fopen(path, "wb");
-    if (!file) return false;
-    bool success = fwrite(header, 1, sizeof(header), file) == sizeof(header) &&
-                   fwrite(image->pixels, 1, size, file) == size;
-    if (fclose(file) != 0) success = false;
-    if (!success) remove(path);
-    return success;
+    WmAtomicFile output;
+    if (wm_atomic_file_open(&output, path) != WM_ATOMIC_FILE_OK) return false;
+    bool success = fwrite(header, 1, sizeof(header), output.stream) ==
+                       sizeof(header) &&
+                   fwrite(image->pixels, 1, size, output.stream) == size;
+    if (!success) {
+        wm_atomic_file_discard(&output);
+        return false;
+    }
+    return wm_atomic_file_commit(&output, path);
 }
 
 void wm_image_free(WmImage *image) {

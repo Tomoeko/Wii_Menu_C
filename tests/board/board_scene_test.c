@@ -1461,8 +1461,8 @@ static void test_child_return_retires_footer_focus(int argc, char **argv) {
         assert(wm_board_scene_back(board));
         wm_board_scene_advance(board, 50.0f);
         assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
-        /* HTML neutralBoardFocus() resolves the button to its source neutral
-         * pose before opening either child. The WAD focus visual must not
+        /* Resolve the button to its neutral pose before opening either
+         * child. The WAD focus visual must not
          * return at its enlarged frame-6 scale. */
         float returned_scale = 0.0f;
         (void)wm_board_scene_hit(board, 320, 200);

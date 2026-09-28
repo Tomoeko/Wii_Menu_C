@@ -25,8 +25,7 @@ typedef struct AddressGeometry {
     bool wrap_turn;
 } AddressGeometry;
 
-/* Address::draw, recovered in the HTML reference from USA 4.3. These are
- * sheet counts and offsets, not a texture approximation of the book. */
+/* Address Book sheet counts and offsets for the page geometry. */
 static AddressGeometry geometry(const WmBoardAddress *address) {
     unsigned page = address->page;
     AddressGeometry result = {.right_count = ADDRESS_PAGE_COUNT - page,
@@ -70,9 +69,8 @@ static AddressGeometry geometry(const WmBoardAddress *address) {
     return result;
 }
 
-/* The original keyboard's type 12 filter keeps ASCII digits; type 7 keeps
- * entered text for validation after OK. Both fields count UTF-16 units like
- * the HTML controller's maxLength field, while retaining UTF-8 for fonts. */
+/* Keyboard type 12 keeps ASCII digits; type 7 validates entered text after
+ * OK. Both fields count UTF-16 units while retaining UTF-8 for fonts. */
 static void format_address(const WmBoardAddress *address, bool shorten, char *output,
                            size_t capacity) {
     if (!address || !output || capacity == 0)

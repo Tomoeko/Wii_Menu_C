@@ -8,6 +8,7 @@ wm_enable_warnings(wm-wad-extract ERROR)
 add_executable(wm-nand-extract
     wad/crypto.c
     nand/reader.c
+    nand/reader_discovery.c
     nand/reader_extract.c
     nand/extract.c
 )
@@ -17,6 +18,7 @@ add_executable(wm-prepare
     preparation/prepare.c
     preparation/prepare_fs.c
     preparation/prepare_recovery.c
+    preparation/prepare_update.c
     wad/crypto.c
     "${PROJECT_SOURCE_DIR}/src/support/json.c"
 )
@@ -61,11 +63,15 @@ target_link_libraries(wm-shared-font-export PRIVATE wii_menu_core m)
 
 add_executable(wm-channel-export
     channels/export.c
+    channels/export_resource.c
     channels/export_manifest.c
     channels/md5.c
     wad/crypto.c
 )
 target_link_libraries(wm-channel-export PRIVATE wii_menu_core m)
+target_include_directories(wm-channel-export PRIVATE
+    "${PROJECT_SOURCE_DIR}/src/support"
+)
 wm_enable_warnings(wm-channel-export ERROR)
 
 # Preparing assets invokes these tools next to the wm-prepare executable.

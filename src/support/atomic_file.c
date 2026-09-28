@@ -53,14 +53,15 @@ bool wm_atomic_file_commit(WmAtomicFile *file, const char *path) {
     return success;
 }
 
-bool wm_atomic_file_replace(const char *path, const char *data, size_t length) {
+bool wm_atomic_file_replace(const char *path, const void *data, size_t length) {
     WmAtomicFile file;
     if (wm_atomic_file_open(&file, path) != WM_ATOMIC_FILE_OK) return false;
     size_t offset = 0;
+    const unsigned char *bytes = data;
     /* This path writes directly to the descriptor; the stream remains empty. */
     int descriptor = fileno(file.stream);
     while (offset < length) {
-        ssize_t count = write(descriptor, data + offset, length - offset);
+        ssize_t count = write(descriptor, bytes + offset, length - offset);
         if (count < 0 && errno == EINTR) continue;
         if (count <= 0) {
             wm_atomic_file_discard(&file);

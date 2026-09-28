@@ -2,12 +2,11 @@
 
 ## Purpose
 
-Port the Wii Menu presentation and local interactions from the maintained
-`Wii_Menu_HTML` project into readable, portable C. Keep the menu's behavior,
-resource interpretation, animation timing, draw order, and ownership explicit.
-Use the HTML project as an implementation reference; distinguish its behavior
-from independently verified native Wii behavior. Console hardware and retired
-network services need clearly named local substitutes.
+Implement Wii Menu presentation and local interactions in readable, portable
+C. Keep resource interpretation, animation timing, draw order, and ownership
+explicit. Distinguish behavior verified in the C build from independently
+verified native Wii behavior. Console hardware and retired network services
+need clearly named local substitutes.
 
 The minimum graphics target is OpenGL ES 2.0. A separate Metal backend is also
 required. Both backends should consume the same platform-independent scene and
@@ -34,7 +33,7 @@ rendering decisions so that visual and input behavior do not diverge.
   traversal and draw ordering; avoid copying whole scene implementations.
 - Keep authored source and bundled shaders readable. Do not commit extracted
   Nintendo resources, private WADs, NAND data, keys, captures, or user state.
-  Do not copy generated assets from the HTML repository into this one.
+  Do not copy generated assets from external projects into this one.
 
 ## Graphics compatibility and performance
 
@@ -55,13 +54,12 @@ rendering decisions so that visual and input behavior do not diverge.
 
 ## Fidelity and evidence
 
-The HTML repository contains useful layouts, controllers, conversion tools,
-tests, and research notes. Original WAD resources, verified binary analysis,
-and retained native captures are the fidelity oracles. Record the input
-region/version, content hashes, aspect ratio, frame range, and comparison
-method for fidelity claims. Browser parity and native parity are separate
-claims. Do not infer exact native output from successful parsing or a passing
-unit test.
+Original WAD resources, verified binary analysis, and retained native captures
+are the fidelity oracles. Record the input region/version, content hashes,
+aspect ratio, frame range, and comparison method for fidelity claims. C tests
+establish implementation behavior; they do not by themselves establish native
+fidelity. Keep native fidelity explicitly unverified when no native capture or
+independently validated trace is available.
 
 Preserve resource identifiers exactly where they are lookup keys, even if they
 contain original spelling errors. Keep the 4:3 and 16:9 logical projections,
@@ -85,5 +83,5 @@ resource variants and simulated console services visible in documentation.
 
 Keep user-facing build and status instructions in `README.md`. Describe only
 features that are implemented and verified in this repository.
-Use `PARITY.md` to track reported HTML comparison gaps and record source-frame
-and current-build verification before marking one complete.
+Use `PARITY.md` to track reported fidelity gaps. Record source provenance,
+sampled frames, and current-build verification before marking one complete.

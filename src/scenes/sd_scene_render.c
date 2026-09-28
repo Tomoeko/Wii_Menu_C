@@ -481,7 +481,7 @@ void wm_sd_scene_draw(WmSdScene *scene) {
     wm_layout_pose(scene->grid, &grid_clip, 1);
     SdTraversal traversal = {.page = scene->page};
     /* The incoming page label follows N_Clock2, whose visible bit is clear
-     * in the authored grid. HTML's sourceAnchorMatrices also visits it. */
+     * in the authored grid. Visit its transform to position the label. */
     wm_layout_visit_all_transforms(scene->grid, true, WM_LAYOUT_IPL, NULL,
                                    collect_page_anchor, &traversal);
     WmLayoutDrawOptions options = {.wide = true,

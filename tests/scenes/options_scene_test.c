@@ -225,8 +225,8 @@ static void test_leaf_handoffs(WmOptionsScene *scene) {
     assert(wm_options_scene_take_action(scene) ==
            WM_OPTIONS_ACTION_NONE);
     assert(wm_options_scene_take_settings_category(scene) == 0);
-    /* Sensor Bar has a native C category screen. Back first returns to the
-     * Settings index, then leaves the Settings stack. */
+    /* Back first returns from Sensor Bar to the Settings index, then leaves
+     * the Settings stack. */
     assert(wm_options_scene_back(scene));
     assert(wm_options_scene_snapshot(scene).page ==
            WM_OPTIONS_PAGE_SYSTEM_SETTINGS);
@@ -296,9 +296,8 @@ static void test_entry_and_selection_samples(WmOptionsScene *scene) {
     wm_options_scene_reset(scene);
     assert(wm_options_scene_open(scene));
 
-    /* The HTML controller first plays the 16-frame Back-bar clip, then the
-     * two 16-frame option clips. The exported USA 4.3 tile art must not flash
-     * in while the footer is still entering. */
+    /* The 16-frame Back bar enters before the two 16-frame option clips.
+     * Tile art must remain hidden while the footer is entering. */
     rendered_back_button_width(scene);
     assert(back_button_width == 0.0f);
     assert(left_tile_alpha == 0.0f && right_tile_alpha == 0.0f);
@@ -372,8 +371,8 @@ static void test_back_focus_during_selection(WmOptionsScene *scene) {
     assert(wm_options_scene_hover(scene, WM_OPTIONS_CONTROL_DATA));
     wm_options_scene_advance(scene, 2.0f);
     float before = rendered_back_button_width(scene);
-    /* The maintained HTML controller commits each active focus sample before
-     * FoucusFlash. The USA 4.3 Back rollout keeps N_Button_00 enlarged here. */
+    /* Preserve the sampled Back focus when the selection flash begins.
+     * N_Button_00 remains enlarged during its rollout. */
     assert(before > neutral * 1.05f);
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_DATA));
     float after = rendered_back_button_width(scene);
@@ -447,7 +446,7 @@ static void test_user_agreements_click_cues(WmOptionsScene *scene) {
         scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3));
     wm_options_scene_advance(scene, 20.0f);
 
-    /* Source EULA_index.html: left Yes sets se 3; right No sets se 4. */
+    /* The EULA's left Yes uses Decide; right No uses Cancel. */
     assert(strcmp(wm_options_scene_click_cue(
         scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_DECIDE") == 0);
     assert(strcmp(wm_options_scene_click_cue(
@@ -478,7 +477,7 @@ static void test_internet_connection_click_cues(WmOptionsScene *scene) {
     assert(wm_options_scene_activate(
         scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
 
-    /* Connect_set_top.html uses Decide on a slot and Cancel on Back. */
+    /* Connection slots use Decide; Back uses Cancel. */
     assert(strcmp(wm_options_scene_click_cue(
         scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
         "WIPL_SE_DECIDE") == 0);
@@ -487,7 +486,7 @@ static void test_internet_connection_click_cues(WmOptionsScene *scene) {
     assert(wm_options_scene_activate(
         scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
 
-    /* Connect_select.html uses the same cues for Wireless and Wired. */
+    /* Wireless and Wired use Decide; Back uses Cancel. */
     assert(strcmp(wm_options_scene_click_cue(
         scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
         "WIPL_SE_DECIDE") == 0);
@@ -499,21 +498,21 @@ static void test_internet_connection_click_cues(WmOptionsScene *scene) {
     assert(wm_options_scene_activate(
         scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
 
-    /* Wi_Fi_set_top.html uses Decide on Search and Cancel on Back. */
+    /* Search uses Decide; Back uses Cancel. */
     assert(strcmp(wm_options_scene_click_cue(
         scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
         "WIPL_SE_DECIDE") == 0);
     assert(wm_options_scene_activate(
         scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
     wm_options_scene_advance(scene, 60.0f);
-    /* Common0103.html's No Access Point OK uses source se 3. */
+    /* The No Access Point OK action uses Decide. */
     assert(strcmp(wm_options_scene_click_cue(
         scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
         "WIPL_SE_DECIDE") == 0);
     assert(wm_options_scene_activate(
         scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
 
-    /* Wi_Fi_set_top.html opens the USB Connector instructions with Decide. */
+    /* Opening the USB Connector instructions uses Decide. */
     assert(strcmp(wm_options_scene_click_cue(
         scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2),
         "WIPL_SE_DECIDE") == 0);
@@ -530,7 +529,7 @@ static void test_internet_connection_click_cues(WmOptionsScene *scene) {
         scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_CANCEL") == 0);
     wm_options_scene_advance(scene, 60.0f);
 
-    /* Common0204.html uses Decide for Yes and Cancel for No. */
+    /* The USB retry prompt uses Decide for Yes and Cancel for No. */
     assert(strcmp(wm_options_scene_click_cue(
         scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_DECIDE") == 0);
     assert(strcmp(wm_options_scene_click_cue(
@@ -547,7 +546,7 @@ static void test_internet_connection_click_cues(WmOptionsScene *scene) {
     assert(wm_options_scene_activate(
         scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2));
 
-    /* Common0101.html exposes one OK footer, assigned source se 3. */
+    /* The single OK footer uses Decide. */
     assert(strcmp(wm_options_scene_click_cue(
         scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
         "WIPL_SE_DECIDE") == 0);

@@ -17,13 +17,13 @@ WmPointer *wm_pointer_create(WmPlatform *platform, const char *assets_directory,
 void wm_pointer_destroy(WmPointer *pointer);
 
 /* Input and output use the shared 640 x 456 framebuffer. Source P1 geometry
- * supplies the hand and shadow offsets from the hotspot. There is no extra
- * hand-tip correction or motion interpolation in the HTML reference. */
+ * supplies the hand and shadow offsets from the hotspot. No additional
+ * hand-tip correction or motion interpolation is applied. */
 void wm_pointer_move(WmPointer *pointer, float x, float y);
 void wm_pointer_hide(WmPointer *pointer);
 void wm_pointer_set_grabbed(WmPointer *pointer, bool grabbed);
-/* The HTML drawPointer contract uses Cat only in its channel grab/drag
- * phases or while the Board is dragging a memo. Drop/cancel use Def. */
+/* Use Cat only during channel grab/drag or while dragging a Board memo.
+ * Drop/cancel use Def. */
 bool wm_pointer_grabbed_for_state(WmChannelDragPhase channel_phase,
                                   bool dragging_memo);
 

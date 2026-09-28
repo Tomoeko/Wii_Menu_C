@@ -22,6 +22,6 @@ typedef struct WmAtomicFile {
 WmAtomicFileStatus wm_atomic_file_open(WmAtomicFile *file, const char *path);
 bool wm_atomic_file_commit(WmAtomicFile *file, const char *path);
 void wm_atomic_file_discard(WmAtomicFile *file);
-bool wm_atomic_file_replace(const char *path, const char *data, size_t length);
+bool wm_atomic_file_replace(const char *path, const void *data, size_t length);
 
 #endif

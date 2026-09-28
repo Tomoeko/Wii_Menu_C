@@ -65,8 +65,7 @@ static void reset_local_values(WmSettingsScene *scene) {
     scene->sensor_position = 0;
     scene->screen_position = 16;
     scene->widescreen_choice = 1; /* 16:9 */
-    /* The maintained HTML Settings dummy starts with DTV and progressive
-     * output enabled, so Progressive_set selects its first (480p) row. */
+    /* The local display defaults to 480p, the first resolution row. */
     scene->resolution_choice = 0; /* EDTV or HDTV (480p) */
     scene->burn_in_choice = 0;
     scene->sensitivity = 3;
@@ -75,8 +74,7 @@ static void reset_local_values(WmSettingsScene *scene) {
     scene->standby_enabled = false;
     scene->slot_light = 0;
     scene->internet_agreement = false;
-    /* The HTML bridge starts at country code 49. The first US list begins
-     * at code 8, so code 49 is entry 41 (Trinidad and Tobago). */
+    /* Country code 49 is entry 41 of the first list, which begins at 8. */
     scene->country_choice = 41;
     memset(scene->nickname, 0, sizeof(scene->nickname));
     memcpy(scene->nickname, "Wii", 4);
@@ -147,8 +145,8 @@ static WmSettingsControl category_hit(const WmSettingsScene *scene,
     bool sensitivity_meter = scene->active_category == 6 &&
                              scene->detail == 2 &&
                              !scene->sensitivity_instructions;
-    /* The source meter page has no footer buttons. Clicking its instruction
-     * line substitutes for the Wii Remote A press on a pointer-only host. */
+    /* The meter has no footer; its instruction line accepts a pointer click
+     * in place of the Wii Remote A press. */
     if (sensitivity_meter && within(local_x, y, 24, 344, 560, 95))
         return WM_SETTINGS_CONTROL_NEXT;
     if (within(local_x, y, 28, 371, 272, 72) &&
@@ -438,8 +436,7 @@ void wm_settings_scene_advance(WmSettingsScene *scene, float frames) {
         }
         if (scene->active_category == SETTINGS_INTERNET &&
             scene->detail == INTERNET_ACCESS_POINT_SEARCH) {
-            /* The maintained local bridge returns funcResult 2 for the
-             * source's unavailable AP scan after its 1000 ms poll. */
+            /* The local search reports no access point after 60 frames. */
             scene->connection_search_frames += frames;
             if (scene->connection_search_frames >= 60.0f) {
                 WmSettingsScene before = *scene;
@@ -451,8 +448,8 @@ void wm_settings_scene_advance(WmSettingsScene *scene, float frames) {
         }
         if (scene->active_category == SETTINGS_INTERNET &&
             scene->detail == INTERNET_USB_REGISTRATION) {
-            /* The maintained local bridge gives USB registration function
-             * 30 a dummy result of 2 on the source page's one-second poll. */
+            /* The local USB registration attempt reports failure after
+             * 60 frames; no connector service is available. */
             scene->connection_search_frames += frames;
             if (scene->connection_search_frames >= 60.0f) {
                 WmSettingsScene before = *scene;
@@ -640,15 +637,15 @@ static bool activate_extended_category(WmSettingsScene *scene,
         if (scene->detail == 3 &&
             (control == WM_SETTINGS_CONTROL_BACK ||
              control == WM_SETTINGS_CONTROL_NEXT)) {
-            /* EULA_index.html places Yes on the left and No on the right. */
+            /* The left action accepts; the right action declines. */
             scene->internet_agreement =
                 control == WM_SETTINGS_CONTROL_BACK;
             return back_control(scene);
         }
         if (scene->detail == INTERNET_USB_EXISTING_CONNECTOR &&
             control == WM_SETTINGS_CONTROL_BACK) {
-            /* Common0204's left Yes retries registration. Its stylesheet
-             * swaps UnderL/UnderR names; the visible footer is decisive. */
+            /* The visible left Yes retries registration. The footer pane
+             * names are swapped, so use their displayed positions. */
             scene->detail = INTERNET_USB_REGISTRATION;
             scene->connection_search_frames = 0.0f;
             scene->hover = WM_SETTINGS_CONTROL_NONE;
@@ -659,8 +656,7 @@ static bool activate_extended_category(WmSettingsScene *scene,
             return back_control(scene);
         if (scene->detail == INTERNET_WIRED_PROMPT &&
             control == WM_SETTINGS_CONTROL_NEXT) {
-            /* The source starts a network test here. This local menu has no
-             * network service, so return to mode choices without success. */
+            /* No network test service is available; return to mode choices. */
             scene->detail = INTERNET_CONNECTION_SELECT;
         } else if (scene->detail == INTERNET_NO_ACCESS_POINT &&
                    control == WM_SETTINGS_CONTROL_NEXT) {
@@ -671,8 +667,8 @@ static bool activate_extended_category(WmSettingsScene *scene,
             scene->connection_search_frames = 0.0f;
         } else if (scene->detail == INTERNET_USB_EXISTING_CONNECTOR &&
                    control == WM_SETTINGS_CONTROL_NEXT) {
-            /* Common0204's No would open Common0203 and claim setup
-             * complete. No connector exists in this local C runtime. */
+            /* No connector exists locally; decline and return to wireless
+             * choices instead of claiming setup completed. */
             scene->detail = INTERNET_WIRELESS_CHOICES;
         } else if (!scene->detail && item < 3) {
             scene->detail = item + 1;
@@ -702,8 +698,7 @@ static bool activate_extended_category(WmSettingsScene *scene,
                    (scene->detail == 3 ? 3u : 2u)) {
             scene->selection = item;
             if (scene->detail == 1) {
-                /* ONOFF_set.html writes nwc24 on row selection. Its Back and
-                 * Confirm links both return to the index for that value. */
+                /* Row selection commits the value; Back and Confirm keep it. */
                 scene->connect24_enabled = item == 0;
             }
         } else if (scene->detail && control == WM_SETTINGS_CONTROL_NEXT) {
@@ -733,7 +728,7 @@ static bool activate_extended_category(WmSettingsScene *scene,
         } else return false;
     } else if (category == SETTINGS_UPDATE) {
         if (!scene->detail) {
-            /* Update_index.html puts Yes on the left and No on the right. */
+            /* The left action opens the offline explanation; the right exits. */
             if (control == WM_SETTINGS_CONTROL_BACK)
                 scene->detail = 1;
             else if (control == WM_SETTINGS_CONTROL_NEXT)
@@ -747,8 +742,8 @@ static bool activate_extended_category(WmSettingsScene *scene,
         } else return false;
     } else if (category == SETTINGS_FORMAT) {
         if (scene->detail == 2 && control == WM_SETTINGS_CONTROL_BACK) {
-            /* The source's last left button is Format. Only local volatile
-             * settings are reset here; no NAND or channel files are touched. */
+            /* The final left action resets local volatile settings only;
+             * it never modifies NAND or channel files. */
             reset_local_values(scene);
             scene->local_format_complete = true;
             scene->detail = 3;
@@ -910,8 +905,7 @@ static bool activate_control(WmSettingsScene *scene,
         }
         if (scene->active_category == 6 && scene->detail == 1) {
             if (item >= 2) return false;
-            /* The extracted page uses 1 for Above TV (first row), 0 for
-             * Below TV (second row), and writes that value on selection. */
+            /* Above TV maps to 1, Below TV to 0; selection commits the value. */
             scene->selection = item;
             scene->sensor_position = item == 0 ? 1 : 0;
             return true;
@@ -926,20 +920,19 @@ static bool activate_control(WmSettingsScene *scene,
         }
         if (scene->active_category == 3 && scene->detail == 1) {
             if (item >= 2) return false;
-            /* HTML's left arrow adds 2 to dis_pos; right subtracts 2. */
+            /* Left moves the position by +2; right moves it by -2. */
             int position = (int)scene->selection + (item ? -2 : 2);
             if (position < 0) position = 0;
             if (position > 32) position = 32;
             scene->selection = (unsigned)position;
-            /* Position_set.html writes dis_pos on every arrow press. Back
-             * retains that local value in the maintained Settings bridge. */
+            /* Each arrow press commits the position; Back retains it. */
             scene->screen_position = scene->selection;
             return true;
         }
         if (scene->active_category == 3 && scene->detail == 2) {
             if (item >= 2) return false;
-            /* Wide_set.html writes dis_wide on row selection. This local
-             * choice does not change the host window's output projection. */
+            /* Selection commits the local widescreen choice; it does not
+             * change the host window's output projection. */
             scene->selection = item;
             scene->widescreen_choice = item;
             return true;
@@ -947,8 +940,7 @@ static bool activate_control(WmSettingsScene *scene,
         if (scene->active_category == 3 &&
             (scene->detail == 3 || scene->detail == 4)) {
             if (item >= 2) return false;
-            /* Progressive_set.html and Yakituki_set.html write their local
-             * values on row selection, so Back retains the selected row. */
+            /* Selection commits either local value, so Back retains the row. */
             scene->selection = item;
             if (scene->detail == 3)
                 scene->resolution_choice = item;
@@ -990,8 +982,8 @@ static bool activate_control(WmSettingsScene *scene,
                sizeof(scene->edit_nickname));
     if (category == SETTINGS_COUNTRY) {
         scene->edit_country_choice = scene->country_choice;
-        /* US_Country_flame.html always loads US_Country_select01.html, even
-         * when the saved choice belongs to a later list page. */
+        /* Always open the first country list page, even if the saved choice
+         * belongs to a later page. */
         scene->country_page = 0;
     }
     if (category == SETTINGS_FORMAT)
@@ -1005,7 +997,7 @@ bool wm_settings_scene_activate(WmSettingsScene *scene,
     if (!scene) return false;
     WmSettingsScene before = *scene;
     bool activated = activate_control(scene, control);
-    /* Each Language choice navigates to its localized source document. */
+    /* Changing Language selects its localized settings page. */
     bool page_changed = before.page != scene->page ||
                         before.active_category != scene->active_category ||
                         before.detail != scene->detail ||

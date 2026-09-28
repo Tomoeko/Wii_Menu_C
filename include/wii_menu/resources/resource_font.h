@@ -115,7 +115,7 @@ void wm_font_emit_line(const WmFont *font, const char *text,
                         const WmFontDrawOptions *options);
 
 /* Cache a pane layout while its text, pane geometry and font size are stable.
- * This preserves the HTML port's wrapping and 3 x 3 alignment calculations. */
+ * Reuse the same wrapping and 3 x 3 alignment calculations. */
 WmFontTextLayout *wm_font_layout_pane(const WmFont *font, const char *text,
                                       const WmFontPane *pane);
 size_t wm_font_text_layout_line_count(const WmFontTextLayout *layout);

@@ -53,11 +53,22 @@ static bool table_item(const WmRsar *archive, size_t table, size_t base,
     return read_reference(archive, table + 4 + (size_t)index * 8, base, item);
 }
 
-static bool checked_sum(size_t left, uint32_t right, size_t *result)
+static bool checked_sum(size_t left, size_t right, size_t *result)
 {
-    if ((size_t)right > SIZE_MAX - left) return false;
+    if (right > SIZE_MAX - left) return false;
     *result = left + right;
     return true;
+}
+
+static bool checked_block_offset(const WmRsar *archive, size_t base,
+                                 uint32_t relative, size_t header_size,
+                                 size_t *result)
+{
+    /* Add the block header in size_t, before validating the full offset.
+     * Adding it to a uint32_t relative field can wrap back into the file. */
+    if ((size_t)relative > SIZE_MAX - header_size) return false;
+    return checked_sum(base, (size_t)relative + header_size, result) &&
+           fits(archive, *result, 4);
 }
 
 bool wm_rsar_open(const uint8_t *data, size_t size, WmRsar *archive,
@@ -366,7 +377,7 @@ bool wm_rsar_decode_direct_wave(const WmRsar *archive,
     size_t data, wsd, note_table, note, wave_table, info;
     if (!file_locations(archive, sound->file_index, &header, &wave_base) ||
         !read_u32(archive, header + 16, &data_relative) ||
-        !checked_sum(header, data_relative + 8u, &data) ||
+        !checked_block_offset(archive, header, data_relative, 8, &data) ||
         !read_u32(archive, sound->extra, &sound_index) ||
         !table_item(archive, data, data, sound_index, &wsd) ||
         !read_reference(archive, wsd + 16, data, &note_table) ||
@@ -374,6 +385,7 @@ bool wm_rsar_decode_direct_wave(const WmRsar *archive,
         !read_u32(archive, note, &note_index) ||
         !read_u32(archive, header + 24, &wave_relative) ||
         !checked_sum(header, wave_relative, &wave_table) ||
+        !fits(archive, wave_table, 12) ||
         note_index > (SIZE_MAX - wave_table - 12) / 4 ||
         !read_u32(archive, wave_table + 12 + (size_t)note_index * 4,
                   &wave_relative) ||
@@ -441,7 +453,7 @@ bool wm_rsar_decode_bank_wave(const WmRsar *archive, uint32_t bank_index,
     uint32_t relative;
     if (!bank_locations(archive, bank_index, &header, &wave_base) ||
         !read_u32(archive, header + 24, &relative) ||
-        !checked_sum(header, relative + 8u, &table) ||
+        !checked_block_offset(archive, header, relative, 8, &table) ||
         wave_index > (SIZE_MAX - table - 4) / 8 ||
         !read_reference(archive, table + 4 + (size_t)wave_index * 8,
                         table, &info)) {
@@ -462,7 +474,7 @@ bool wm_rsar_get_instrument(const WmRsar *archive, uint32_t bank_index,
     uint32_t relative;
     if (!bank_locations(archive, bank_index, &header, &wave) ||
         !read_u32(archive, header + 16, &relative) ||
-        !checked_sum(header, relative + 8u, &bank_base) ||
+        !checked_block_offset(archive, header, relative, 8, &bank_base) ||
         program > (SIZE_MAX - bank_base - 4) / 8) return false;
     reference = bank_base + 4 + (size_t)program * 8;
     for (unsigned dimension = 0; dimension < 3; dimension++) {

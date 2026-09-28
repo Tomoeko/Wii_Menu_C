@@ -14,20 +14,22 @@ Include a header by its full module path, for example
 | `input/` | Pointer state, hit testing, arrows, and channel dragging |
 | `layout/` | Layout runtime, pane traversal, and presentation |
 | `menu/` | Menu state, channel catalog, and restart behavior |
-| `persistence/` | Saved channel layout, board records, and checked file replacement |
+| `persistence/` | Saved channel layout and board records |
 | `render/` | Shared geometry, images, texture caching, material preparation, and fallback UI |
 | `resources/` | Resource format decoding, independent of graphics APIs |
 | `scenes/` | Grid, channel preview, health, HOME, options, settings, storage, and SD scenes |
-| `support/` | JSON tokenization and value conversion |
+| `support/` | JSON tokenization, value conversion, and checked file replacement |
 
-`src/app/main.c` coordinates the frame loop. Private input and update modules
-route scenes and the Board, `menu_pointer` owns pointer-specific behavior,
-`app_resources` owns startup and teardown, and `frame_render` owns draw order
-and the retained HOME target. The Board's private `board_model` owns memo
+`src/app/main.c` coordinates the frame loop. Private input, event dispatch,
+update, and transition modules route scenes and the Board;
+`menu_pointer` owns pointer-specific behavior, `app_resources` owns startup
+and teardown, and `frame_render` owns draw order and the retained HOME target.
+The Board's private `board_model` owns memo
 copies and ordering, `board_text` owns strict text validation and bounded Memo
-edits, and `keyboard_text` handles prediction matching. Board editors and the
-Settings, Storage, SD, HOME, and resource scenes keep their presentation in
-private modules beside their state and interaction code. The shared
+edits, and `board_keyboard_prediction` owns candidate matching and reset.
+Board editors and the Options, Preview, Settings, Storage, SD, HOME, and
+resource scenes keep their presentation in private modules beside state and
+interaction code. The shared
 `scenes/scene_assets` helper checks layout paths and preserves each scene's
 missing-asset diagnostics.
 
@@ -43,9 +45,10 @@ devices live in
 `src/audio/audio_platform.h` interface. Sequence parsing and PCM rendering
 also have separate source files under `src/audio/`.
 
-Private helpers stay with their owning implementations. The geometry helper
-belongs to rendering, and file replacement belongs to persistence. They are
-not installed public interfaces.
+Private helpers stay with their owning implementations. Geometry, image
+decoding, and texture source validation belong to rendering; atomic file
+replacement belongs to `support/` and is shared by persistence and exporters.
+They are not installed public interfaces.
 
 ## Build and tests
 
@@ -65,9 +68,9 @@ Release builds. Commands to build, prepare assets, and run tests are in
 Preparation commands keep their existing executable names. Source folders
 under `tools/` distinguish preparation orchestration, WAD and NAND readers,
 and the layout, channel, audio, font, settings, keyboard, and restart exporters.
-Private preparation modules separate filesystem staging and recovery from the
-plan/update command; channel manifest publication and NAND extraction also
-have focused source files.
+Private preparation modules separate filesystem staging and recovery from
+update orchestration. Channel resource export, channel manifest publication,
+NAND reader discovery, and NAND extraction also have focused source files.
 
 [The whole-tree refactor audit](refactor-audit.md) records current module
 boundaries without treating file size or source moves as fidelity evidence.

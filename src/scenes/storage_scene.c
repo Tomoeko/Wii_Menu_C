@@ -61,8 +61,8 @@ static int channel_record_order(const WmStorageRecord *first,
 }
 
 static void sort_wii_channels(WmStorageRecord *records, size_t count) {
-    /* Native ES enumeration sorts title IDs. An insertion sort retains the
-     * input order of authored local records, as the HTML stable sort does. */
+    /* Sort 16-digit title IDs first while preserving the input order of
+     * other local records with a stable insertion sort. */
     for (size_t index = 1; index < count; index++) {
         WmStorageRecord record = records[index];
         size_t position = index;

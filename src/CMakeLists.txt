@@ -22,6 +22,7 @@ add_library(wii_menu_core STATIC
     board/board_compose_presentation.c
     board/board_erase.c
     board/board_keyboard.c
+    board/board_keyboard_prediction.c
     board/board_keyboard_presentation.c
     board/board_reader_scroll.c
     board/board_model.c
@@ -37,6 +38,7 @@ add_library(wii_menu_core STATIC
 
     input/arrow_interaction.c
     input/channel_drag.c
+    input/channel_drag_present.c
     input/pointer.c
     input/source_hit.c
 
@@ -49,14 +51,15 @@ add_library(wii_menu_core STATIC
     menu/menu.c
     menu/menu_restart.c
 
-    persistence/atomic_file.c
     persistence/board_contact_store.c
+    persistence/board_contact_format.c
     persistence/board_store.c
     persistence/saved_layout.c
 
     render/image.c
     render/material_prepare.c
     render/texture_cache.c
+    render/texture_source.c
     render/ui.c
     render/viewport.c
 
@@ -64,6 +67,7 @@ add_library(wii_menu_core STATIC
     resources/resource_audio.c
     resources/resource_bmg.c
     resources/resource_font.c
+    resources/resource_font_text.c
     resources/resource_layout.c
     resources/resource_layout_brlan.c
     resources/resource_layout_brlyt.c
@@ -75,7 +79,9 @@ add_library(wii_menu_core STATIC
     scenes/home_overlay.c
     scenes/home_overlay_present.c
     scenes/options_scene.c
+    scenes/options_scene_present.c
     scenes/preview_scene.c
+    scenes/preview_scene_present.c
     scenes/resource_scene.c
     scenes/resource_scene_interactions.c
     scenes/resource_scene_render.c
@@ -88,6 +94,7 @@ add_library(wii_menu_core STATIC
     scenes/storage_scene.c
     scenes/storage_scene_presentation.c
 
+    support/atomic_file.c
     support/json.c
 )
 target_include_directories(wii_menu_core PUBLIC "${PROJECT_SOURCE_DIR}/include")
@@ -104,6 +111,8 @@ if(WM_BUILD_APP)
         app/app_resources.c
         app/board_input.c
         app/board_update.c
+        app/event_dispatch.c
+        app/frame_transitions.c
         app/scene_updates.c
         app/scene_input.c
         app/menu_pointer.c

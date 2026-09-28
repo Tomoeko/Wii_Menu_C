@@ -21,7 +21,7 @@ typedef enum WmBoardContactStoreStatus {
     WM_BOARD_CONTACT_STORE_ERROR
 } WmBoardContactStoreStatus;
 
-/* Read the maintained HTML Address Book's JSON slot array from a local file.
+/* Read the local Address Book's JSON slot array from a file.
  * An absent path starts an empty book. Malformed files are never overwritten.
  * The caller owns the returned store; no source WAD or console identity is
  * stored here. */

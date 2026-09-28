@@ -12,8 +12,8 @@ cmake -S . -B build
 cmake --build build --target wm-wad-extract
 ```
 
-Retail ticket indices `0` and `1` have built-in defaults, matching the HTML
-importer. No separate common-key file is needed for these inputs. An optional
+Retail ticket indices `0` and `1` have built-in defaults. No separate
+common-key file is needed for these inputs. An optional
 `--common-key-file FILE` override accepts exactly 16 raw bytes or 32
 hexadecimal digits; keep that file in ignored local storage. Use
 `--common-key-index N` to require an explicit ticket index. Unsupported

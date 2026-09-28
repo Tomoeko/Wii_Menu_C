@@ -23,13 +23,11 @@ and deletion operate on whole Unicode characters. The symbol panel is modal:
 the underlying Memo scroll arrows and physical text input are inactive until
 it closes.
 
-The 16:9 source geometry was checked against the maintained HTML scene in a
-1280 × 720 browser viewport and a 1920 × 1080 Metal content area. The first
-number key, first letter key, and Back button occupy matching positions after
-the 1.5× scale. The source keytop, toolbar, prediction strip, and Memo body
-share the HTML scene's draw order. On-screen QWERTY typing, Shift, and OK were
-also checked in the Metal build. This is browser geometry parity evidence;
-it is not a native Wii capture comparison.
+The C scene uses the prepared 16:9 layout geometry for key hit areas and
+draws the keytop, toolbar, prediction strip, and Memo body in an explicit
+order. Resource-backed render tests check the relevant C geometry and draw
+commands. A 1920 × 1080 Metal check exercised on-screen QWERTY typing, Shift,
+and OK. No aligned native Wii capture comparison has been made.
 
 The C keyboard also exposes the telephone layout, its four Latin modes,
 forward and reverse multi-tap, and the QWERTY and telephone dictionary
@@ -48,9 +46,9 @@ local phone digit prediction. Preparation reads the OEM word containers from
 the user's WAD into ignored local assets. At startup the keyboard adds their
 validated UTF-16BE words after the built-in fallback list; complete words
 from the current draft take priority. Missing or invalid OEM containers leave
-the built-in vocabulary available. This matches the maintained HTML project's
-embedded word-list fallback, not Zi8's candidate-generation algorithm. A
-predictive run starts at newly typed text, ends on a delimiter or explicit
+the built-in vocabulary available. This local fallback does not implement
+Zi8's candidate-generation algorithm. A predictive run starts at newly typed
+text, ends on a delimiter or explicit
 completion, and does not recompose text that was already present when the
 dictionary was enabled. Phone digit matching recognizes common accented Latin
 letters. When there is no completion, the typed run remains a selectable
@@ -65,7 +63,7 @@ the twenty authored text panes, though this local word-list provider returns
 at most twenty completions. Resource-backed tests cover the arrow boundaries,
 focus continuity, movement lockout, source text-area clip, learned words,
 accented phone typing, and prepared OEM loading. Synthetic parser tests cover
-malformed offsets, UTF-16 termination and surrogates, and the HTML word filter.
+malformed offsets, UTF-16 termination and surrogates, and C word filtering.
 
 Keyboard layout, phone mode, dictionary state, and language survive a Memo
 keyboard reset in the current session. Clicking visible text in an unposted
@@ -76,14 +74,13 @@ caret selections stay silent, and typing sounds remain intact when a key also
 starts scrolling. Insertion, deletion, phone multi-tap, and completion retain
 text after the caret. Text can also be selected while the keyboard is open. If a completion
 is pending, the first text click commits it and a fresh click moves the caret.
-The top toolbar strip now remains visible during its downward entrance, using
-the same smooth progress and opacity as the bottom toolbar. This corrects the
-requested behavior; the current HTML scene still suppresses the top strip
-during entrance. Focused render-command and editing tests cover these flows.
-Native Zi8 working-memory behavior and durable keyboard preferences remain
-open C parity work. A live 1920 × 1080 Metal check showed
+The top toolbar strip remains visible during its downward entrance, using
+the same smooth progress and opacity as the bottom toolbar. Focused
+render-command and editing tests cover these flows. Native Zi8 working-memory
+behavior and durable keyboard preferences remain unverified. A live
+1920 × 1080 Metal check showed
 the More panel on page 1/10, page 2/10 after the next arrow, `[` inserted
 into Memo text, and Close returning to QWERTY; it predates the dictionary and
 telephone changes. Keyboard text, glyphs, hover phases, and candidate
-presentation still need aligned frame and pixel comparisons against HTML and
-native captures, including 4:3.
+presentation still need aligned frame and pixel comparisons with native
+captures, including 4:3; native fidelity remains unverified.

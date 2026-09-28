@@ -228,8 +228,8 @@ static void test_grid_sd_button_anchor(int argc, char **argv) {
     WmLayout *button = wm_layout_load_json(path, error, sizeof(error));
     assert(button);
     assert(wm_layout_pose(button, NULL, 0));
-    /* HTML display.sdX is -245 for 16:9. The shared 640-wide raster maps
-     * that source position to 131.54, at Y=400 for the -172 footer anchor. */
+    /* The 16:9 SD offset is -245. The shared 640-wide raster maps that
+     * position to 131.54, at Y=400 for the -172 footer anchor. */
     const float parent[12] = {
         1, 0, 0, -245,
         0, 1, 0, -172,
@@ -682,7 +682,7 @@ static void test_footer_balloon_handoff(int argc, char **argv) {
     unsigned with_back = render_probe.visible_glyphs;
     assert(with_back > without_balloon);
 
-    /* HTML retains the old bubble during its six-frame leave while Help
+    /* Retain the old bubble during its six-frame leave while Help
      * starts a fresh 17-frame wait. Neither button's label may pop. */
     wm_sd_scene_hover(scene, (WmSdHit){WM_SD_CONTROL_HELP, 0});
     for (unsigned frame = 1; frame <= 6; frame++) {

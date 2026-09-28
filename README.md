@@ -2,7 +2,8 @@
 
 Disclaimer: This project heavily utilizes Codex/ChatGPT.
 
-This is a port of [Wii_Menu_HTML](https://github.com/Tomoeko/Wii_Menu_HTML).
+This is a first-party C implementation of Wii Menu presentation and local
+interactions.
 The current renderer targets OpenGL ES 2.0; Apple builds use a separate Metal
 adapter.
 
@@ -38,8 +39,8 @@ repository's review conventions and validation approach.
 ## Prepare and run
 
 Keep your WAD and optional BootMii NAND dump in ignored `.local/` storage.
-Preparation selects the built-in retail common key from the WAD ticket,
-matching the HTML importer; a separate common-key file is not required.
+Preparation selects the built-in retail common key from the WAD ticket; a
+separate common-key file is not required.
 For a fresh asset installation:
 
 ```sh

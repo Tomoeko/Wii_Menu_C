@@ -301,9 +301,9 @@ static bool scan_track(const WmRsarSequence *sequence, WmSequenceTimeline *timel
                 break;
             }
         } else if (command == 0xa0) {
-            /* The HTML export uses the center of native randomized pitch
-             * range for these cues. The five bytes include target and bounds;
-             * random modulation is intentionally left centered here too. */
+            /* Use the center of the encoded randomized-pitch range for these
+             * cues. The five bytes include target and bounds; random
+             * modulation is intentionally omitted. */
             if (!has_bytes(sequence, offset, 5) || sequence->data[offset] != 0xc4) {
                 valid = false;
                 break;

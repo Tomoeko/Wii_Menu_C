@@ -6,10 +6,9 @@ then fits the complete surface into the fixed 640×456 framebuffer. In 4:3
 mode the document remains at x=16. The original `BG_16x9.tpl` side artwork
 now fills the entire framebuffer beneath the document controls in both aspect
 ratios, and stays fixed during page scrolls. Its rows have no horizontal
-variation, so extending them adds no horizontal image distortion. This follows
-the requested continuous Settings backdrop; the HTML reference still draws
-its 112-pixel panels only at the widescreen edges and separately rasterizes
-the center document. Settings input uses the inverse of the draw projection.
+variation, so extending them adds no horizontal image distortion. This
+implements the requested continuous Settings backdrop. Settings input uses
+the inverse of the draw projection.
 Local asset preparation reads the source USA 4.3 WAD's `html/US2/iplsetting.ash` and
 `html/BG_16x9.tpl`. `wm-settings-export` decodes selected GIFs and PNGs and the
 side-panel TPL with first-party C decoders, then writes RGBA resources into the
@@ -37,9 +36,9 @@ progression. The index page scroll uses the original 41-frame WAD curve and
 moves foreground controls across the framebuffer above the fixed backdrop.
 After a page turn, the stationary pointer is tested against
 the newly displayed controls so an arrow beneath it acquires focus immediately.
-The title, shared rows, and footer baselines follow the source HTML positions
-to within about two pixels in the 608×456 document comparison; font raster
-and frame-aligned native pixels still need verification.
+The C scene places the title, shared rows, and footer using the extracted
+document coordinates. Font raster and frame-aligned native pixels still need
+verification; native visual fidelity remains unverified.
 The Date detail uses the USA English stylesheet's Month x=88, Day x=224, and
 Year x=400 controls and the WAD's original 72×72 up/down artwork. These
 positions also drive input; the shared `US/COM` stylesheet places them
@@ -58,7 +57,7 @@ The C state machine and WAD `SceenChange_b` page transition remain separate
 from this raster preparation. The renderer receives ordinary backend-neutral
 quads, so the same scene runs through GLES2 and Metal.
 
-This is a visual improvement, not yet a 1:1 Settings port. The first-party
+This is a visual improvement, not yet a native-fidelity claim. The first-party
 `wm-outline-font-export` tool now extracts the original collection into an
 ignored local `fonts/settings-latin.ttc` file. Settings reads its proportional
 face and draws the English and Latin-1 labels from bounded TrueType `cmap`,
@@ -79,18 +78,18 @@ coverage pass for 24- and 26-pixel labels whose source CSS requests bold. It
 does not run font hint programs, apply kerning or script shaping, or emulate
 Opera's exact bold weight, antialiasing and line layout. Other source languages may
 need a broader Unicode atlas and their exact family selection. These gaps
-prevent a pixel-level font parity claim. No outline bytes are committed.
-Detail pages retain authored C approximations of HTML layout and local
-substitute actions. They do not include the HTML project's complete original
-navigation engine, keyboard, Internet form flow, or every category icon.
+prevent a native pixel-level font claim. No outline bytes are committed.
+Detail pages retain authored C approximations of the prepared layout data and
+local substitute actions. The Internet form flow and some category icons are
+not implemented.
 The Sensitivity page has no live sensor-bar dot display, and its bottom-line
 click and keyboard labels are local host substitutes for Wii Remote input.
 The current crossfade draws direct C commands instead of first composing and
 RGB565-quantizing a complete document raster, so edge and text pixels may
 differ. The current wide switch is selected by the app's 16:9 presentation;
 the in-Settings 4:3 choice does not reconfigure the host window. Frame-aligned
-comparisons against the HTML implementation and native capture are still
-needed for visual parity.
+comparison with a native capture is still needed before claiming visual
+fidelity.
 
 `wii-menu-settings-gif` and `wii-menu-settings-png` test first-party image
 decoding and malformed streams.

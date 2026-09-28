@@ -4,7 +4,7 @@
 
 #include "wii_menu/support/json.h"
 
-#include "atomic_file.h"
+#include "../support/atomic_file.h"
 
 #include <errno.h>
 #include <inttypes.h>

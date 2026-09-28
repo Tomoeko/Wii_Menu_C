@@ -7,8 +7,8 @@
 #include <string.h>
 
 enum {
-    /* Calibrated against the source HTML's rendered title, footer and badge
-     * ink bounds using the WAD's proportional outline font. */
+    /* Text origins place the proportional outline font inside the title,
+     * footer and page badge bounds. */
     SETTINGS_TITLE_TEXT_TOP = 28,
     SETTINGS_FOOTER_TEXT_TOP = 391,
     SETTINGS_PAGE_BADGE_TEXT_TOP = 376
@@ -235,8 +235,8 @@ static SlideSample scroll_sample(WmSettingsScene *scene) {
     wm_layout_visit_all_transforms(scene->scroll_layout, false,
                                     WM_LAYOUT_LOCAL, NULL,
                                     slide_pane, &sample);
-    /* The authored pane travels 477 layout units by frame 25. Its movement
-     * controls a full 608-pixel HTML-raster page shift in this C projection. */
+    /* Map the pane's 477-unit travel by frame 25 to the full 608-pixel
+     * page shift in this projection. */
     sample.progress = sample.translation_found
         ? clampf(fabsf(sample.progress) / 477.0f, 0.0f, 1.0f)
         : 0.0f;
@@ -438,7 +438,7 @@ static void draw_surface_background(WmSettingsScene *scene, float alpha) {
     if (draw_image_raw(scene, "textures/settings_html/side-panel.png",
                        0.0f, 0.0f, WM_FRAME_WIDTH, WM_FRAME_HEIGHT,
                        (WmColor){1, 1, 1, alpha})) return;
-    /* Retain the source GIF as a fallback for older local preparations. Its
+    /* Retain the prepared GIF as a fallback for older local data. Its
      * rows also have no horizontal variation, before RGB565 quantization. */
     if (draw_image_raw(scene, "textures/settings_html/background.png",
                        0.0f, 0.0f, WM_FRAME_WIDTH, WM_FRAME_HEIGHT,
@@ -652,9 +652,8 @@ static void draw_category_footer(WmSettingsScene *scene,
         "textures/settings_html/footer-button-focus.png";
     const char *red_focus =
         "textures/settings_html/footer-button-red-focus.png";
-    /* The extracted Format pages use a red rollover on the action that
-     * advances formatting: right on the first two pages, left on the last
-     * confirmation page. Their other footer uses the ordinary rollover. */
+    /* The action that advances Format uses red focus: right on the first
+     * two pages, left on the final confirmation page. */
     bool format_action = scene->active_category == SETTINGS_FORMAT &&
                          scene->detail <= 2;
     const char *left_focus = format_action && scene->detail == 2
@@ -896,10 +895,8 @@ static void draw_country_screen(WmSettingsScene *scene) {
 }
 
 static void draw_console_information(WmSettingsScene *scene) {
-    /* The maintained HTML bridge supplies local dummy MAC values. The
-     * extracted MAC_address.html page dims the LAN address when no adapter
-     * is available; displaying a host or console identifier here would be
-     * both inaccurate and unnecessary. */
+    /* Show local placeholders instead of host or console identifiers, and
+     * dim the LAN address while no adapter service is available. */
     const WmColor available = {1.0f, 1.0f, 1.0f, 1.0f};
     const WmColor unavailable = {0.2f, 0.2f, 0.2f, 1.0f};
     const char *const placeholder = "00-00-00-00-00-00";
@@ -1227,9 +1224,8 @@ static void draw_connection_rows(WmSettingsScene *scene) {
         float top = 72.0f + item * 96.0f;
         float focus = wm_settings_focus_opacity(
             scene, (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 + item));
-        /* Connect_set_top.html uses a split 400×76 background, with separate
-         * Connection and type fields. The local bridge starts each profile
-         * unconfigured, so its type field reads None. */
+        /* Split each 400×76 row into Connection and type fields. Local
+         * profiles start unconfigured, so the type field reads None. */
         if (!draw_image(scene,
                         "textures/settings_html/connection-split-row.png",
                         16.0f + 104.0f, top + 10.0f, 400.0f, 76.0f,
@@ -1505,7 +1501,7 @@ bool wm_settings_scene_draw(WmSettingsScene *scene) {
         draw_category_page(scene);
     } else if (scrolling) {
         /* Only foreground content travels; the full-width backdrop stays
-         * fixed beneath both pages throughout the source scroll curve. */
+         * fixed beneath both pages throughout the scroll. */
         float page_width = scene->wide ? (float)SETTINGS_WIDE_WIDTH : 608.0f;
         SlideSample sample = scroll_sample(scene);
         float movement = sample.progress * page_width;

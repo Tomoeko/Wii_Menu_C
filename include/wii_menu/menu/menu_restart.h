@@ -21,8 +21,7 @@ typedef struct WmMenuRestartClock {
     float animation_frame;
 } WmMenuRestartClock;
 
-/* The two waits are HTML's USA v4.3 capture fixture. On hardware the
- * original waits for services rather than these exact numbers of updates. */
+/* Local restart uses fixed waits in place of console service readiness. */
 bool wm_menu_restart_start(WmMenuRestartClock *clock);
 bool wm_menu_restart_advance(WmMenuRestartClock *clock, float frames);
 bool wm_menu_restart_active(const WmMenuRestartClock *clock);

@@ -232,7 +232,7 @@ static void test_window_frames(void) {
     assert(near(capture.width[10], 43) && near(capture.height[10], 25));
     assert(near(capture.x[2], 46) && near(capture.y[2], 0));
     assert(near(capture.width[2], 4) && near(capture.height[2], 25));
-    /* Fixed oracle values from the HTML renderer's windowQuads fixture. */
+    /* Fixed expected values for window-pane geometry. */
     assert(near(capture.uv[1][1][0], 11.5f));        /* flip 0 */
     assert(near(capture.uv[2][0][0], 1));            /* flip 1 */
     assert(near(capture.uv[2][2][1], 5));

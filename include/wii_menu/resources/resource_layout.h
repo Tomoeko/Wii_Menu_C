@@ -34,7 +34,7 @@ bool wm_brlyt_to_json(const uint8_t *data, size_t size,
                       char **json, size_t *json_size,
                       char *error, size_t error_size);
 
-/* Adds the optional source provenance field used by prepared HTML assets. */
+/* Add the optional source provenance field to a prepared layout. */
 bool wm_brlyt_to_json_with_source(
     const uint8_t *data, size_t size,
     const char *name, const char *package, const char *source,

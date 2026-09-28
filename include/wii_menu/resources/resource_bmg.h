@@ -7,8 +7,8 @@
 typedef struct WmBmg WmBmg;
 
 /* Parse a big-endian UTF-16 BMG into owned UTF-8 message strings. Control
- * packets remain in the owned source bytes and are omitted from plain text,
- * matching the HTML reference's message lookup. Input is borrowed. */
+ * packets remain in the owned source bytes and are omitted from plain-text
+ * lookups. Input is borrowed. */
 WmBmg *wm_bmg_parse(const uint8_t *data, size_t size,
                     char *error, size_t error_capacity);
 

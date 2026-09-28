@@ -1,16 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include "wii_menu/render/image.h"
-#include "wii_menu/audio/audio_wave.h"
-#include "wii_menu/resources/resource_audio.h"
-#include "wii_menu/resources/resource_ash.h"
-#include "wii_menu/resources/resource_layout.h"
-#include "wii_menu/resources/resource_tpl.h"
-#include "wii_menu/resources/resource_u8.h"
-#include "wii_menu/persistence/saved_layout.h"
-
 #include "export_internal.h"
-#include "md5.h"
+#include "atomic_file.h"
 #include "../wad/crypto.h"
 
 #include <dirent.h>
@@ -25,7 +16,6 @@
 #include <sys/stat.h>
 
 enum {
-    WM_MAX_CONTENT = 64 * 1024 * 1024,
     WM_MAX_CHANNELS = 2048,
     WM_MAX_TMD_CONTENTS = 4096
 };
@@ -49,17 +39,6 @@ const char *const wm_languages[10] = {
     "JPN", "ENG", "GER", "FRA", "SPA", "ITA", "NED", "CHN", "CHT", "KOR"
 };
 
-static uint16_t wm_be16(const uint8_t *bytes)
-{
-    return (uint16_t)(((uint16_t)bytes[0] << 8) | bytes[1]);
-}
-
-static uint32_t wm_be32(const uint8_t *bytes)
-{
-    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
-           ((uint32_t)bytes[2] << 8) | bytes[3];
-}
-
 static uint64_t wm_be64(const uint8_t *bytes)
 {
     return ((uint64_t)wm_be32(bytes) << 32) | wm_be32(bytes + 4);
@@ -71,11 +50,6 @@ static void wm_format_sha1(const uint8_t digest[20], char result[41])
         snprintf(result + index * 2, 3, "%02x", digest[index]);
     }
     result[40] = '\0';
-}
-
-static bool wm_fits(size_t size, size_t offset, size_t length)
-{
-    return offset <= size && length <= size - offset;
 }
 
 static bool wm_hex8(const char *value)
@@ -165,54 +139,10 @@ static uint8_t *wm_read_file(const char *path, size_t maximum, size_t *size)
     return data;
 }
 
-static bool wm_write_file(const char *path, const void *data, size_t size)
+bool wm_output_write_file(const char *path, const void *data, size_t size)
 {
     if (!wm_output_parent(path) || !wm_output_target_safe(path)) return false;
-    FILE *stream = fopen(path, "wb");
-    if (!stream) return false;
-    bool valid = fwrite(data, 1, size, stream) == size;
-    if (fclose(stream) != 0) valid = false;
-    if (!valid) remove(path);
-    return valid;
-}
-
-static bool wm_ends_with(const char *path, const char *extension)
-{
-    size_t path_size = strlen(path);
-    size_t extension_size = strlen(extension);
-    return path_size >= extension_size &&
-           strcmp(path + path_size - extension_size, extension) == 0;
-}
-
-static bool wm_stem(const char *path, const char *extension,
-                    char stem[128], char basename[128])
-{
-    if (!wm_ends_with(path, extension)) return false;
-    const char *name = strrchr(path, '/');
-    name = name ? name + 1 : path;
-    size_t length = strlen(name);
-    size_t suffix = strlen(extension);
-    if (length <= suffix || length >= 128) return false;
-    for (size_t index = 0; index < length - suffix; ++index) {
-        char c = name[index];
-        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-              (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.' ||
-              c == '+')) {
-            return false;
-        }
-    }
-    memcpy(stem, name, length - suffix);
-    stem[length - suffix] = '\0';
-    memcpy(basename, name, length + 1);
-    return true;
-}
-
-static char *wm_copy(const char *source)
-{
-    size_t length = strlen(source) + 1;
-    char *copy = malloc(length);
-    if (copy) memcpy(copy, source, length);
-    return copy;
+    return wm_atomic_file_replace(path, data, size);
 }
 
 static bool wm_append_channel(WmChannelList *list,
@@ -393,352 +323,6 @@ static bool wm_validated_content(const char *path, const WmTmdContent *record,
     *data = bytes;
     *size = (size_t)record->size;
     return true;
-}
-
-static bool wm_lz77_decode(const uint8_t *data, size_t size,
-                            uint8_t **output, size_t *output_size)
-{
-    *output = NULL;
-    *output_size = 0;
-    if (size < 4 || data[0] != 0x10) return false;
-    size_t length = (size_t)data[1] | ((size_t)data[2] << 8) |
-                    ((size_t)data[3] << 16);
-    if (length > WM_MAX_CONTENT) return false;
-    if (length == 0) {
-        for (size_t index = 4; index < size; ++index) {
-            if (data[index] != 0) return false;
-        }
-    }
-    uint8_t *decoded = malloc(length ? length : 1);
-    if (!decoded) return false;
-    size_t source = 4;
-    size_t produced = 0;
-    while (produced < length) {
-        if (source >= size) break;
-        uint8_t flags = data[source++];
-        for (int bit = 7; bit >= 0 && produced < length; --bit) {
-            if ((flags & (1u << bit)) == 0) {
-                if (source >= size) goto fail;
-                decoded[produced++] = data[source++];
-            } else {
-                if (!wm_fits(size, source, 2)) goto fail;
-                uint16_t word = wm_be16(data + source);
-                source += 2;
-                size_t count = (word >> 12) + 3;
-                size_t distance = (word & 0x0fff) + 1;
-                if (distance > produced) goto fail;
-                for (size_t index = 0; index < count && produced < length;
-                     ++index) {
-                    decoded[produced] = decoded[produced - distance];
-                    produced++;
-                }
-            }
-        }
-    }
-    if (produced != length) goto fail;
-    *output = decoded;
-    *output_size = length;
-    return true;
-fail:
-    free(decoded);
-    return false;
-}
-
-static bool wm_unwrap_resource(const uint8_t *data, size_t size,
-                               uint8_t **output, size_t *output_size)
-{
-    uint8_t *current = malloc(size ? size : 1);
-    if (!current) return false;
-    memcpy(current, data, size);
-    for (unsigned layer = 0; layer < 4; ++layer) {
-        if (size >= 4 && memcmp(current, "IMD5", 4) == 0) {
-            if (size < 32) break;
-            size_t length = wm_be32(current + 4);
-            if (!wm_fits(size, 32, length)) break;
-            WmMd5 md5;
-            uint8_t digest[16];
-            wm_md5_init(&md5);
-            wm_md5_update(&md5, current + 32, length);
-            wm_md5_final(&md5, digest);
-            if (memcmp(digest, current + 16, 16) != 0) break;
-            memmove(current, current + 32, length);
-            size = length;
-        } else if (size >= 4 && memcmp(current, "LZ77", 4) == 0) {
-            uint8_t *decoded = NULL;
-            size_t decoded_size = 0;
-            if (!wm_lz77_decode(current + 4, size - 4,
-                                &decoded, &decoded_size)) break;
-            free(current);
-            current = decoded;
-            size = decoded_size;
-        } else if (size >= 4 && memcmp(current, "ASH0", 4) == 0) {
-            uint8_t *decoded = NULL;
-            size_t decoded_size = 0;
-            char error[160];
-            if (!wm_ash_decode(current, size, &decoded, &decoded_size,
-                                error, sizeof(error))) break;
-            free(current);
-            current = decoded;
-            size = decoded_size;
-        } else if (size > 0 && current[0] == 0x10) {
-            uint8_t *decoded = NULL;
-            size_t decoded_size = 0;
-            if (!wm_lz77_decode(current, size, &decoded, &decoded_size)) break;
-            free(current);
-            current = decoded;
-            size = decoded_size;
-        } else {
-            *output = current;
-            *output_size = size;
-            return true;
-        }
-    }
-    free(current);
-    return false;
-}
-
-static bool wm_export_channel_audio(const WmU8Entry *entry,
-                                    const char *output,
-                                    WmChannelExport *channel)
-{
-    if (!entry) return true;
-    uint8_t *decoded = NULL;
-    size_t decoded_size = 0;
-    WmAudioPcm pcm = {0};
-    char error[160] = {0};
-    if (!wm_unwrap_resource(entry->data, entry->size,
-                            &decoded, &decoded_size)) {
-        fprintf(stderr, "Could not unwrap channel sound resource.\n");
-        return false;
-    }
-    bool valid = wm_bns_decode(decoded, decoded_size, &pcm,
-                               error, sizeof(error));
-    if (!valid) {
-        fprintf(stderr, "Channel sound decode: %s\n", error);
-        free(decoded);
-        return false;
-    }
-    char directory[WM_PATH_CAP], destination[WM_PATH_CAP];
-    int first = snprintf(directory, sizeof(directory),
-                         "%s/channel-audio", output);
-    int second = snprintf(destination, sizeof(destination),
-                          "%s/%s.wav", directory, channel->id);
-    valid = first > 0 && first < (int)sizeof(directory) &&
-            second > 0 && second < (int)sizeof(destination) &&
-            wm_make_directories(directory) &&
-            wm_audio_wav_write(destination, &pcm, error, sizeof(error));
-    if (!valid) {
-        fprintf(stderr, "Could not export channel sound: %s\n", error);
-    } else {
-        channel->has_audio = true;
-        channel->audio_rate = pcm.sample_rate;
-        channel->audio_frames = pcm.frame_count;
-        channel->audio_channels = pcm.channels;
-        channel->audio_looping = pcm.looping;
-        channel->audio_loop_start = pcm.loop_start;
-        channel->audio_loop_end = pcm.loop_end;
-    }
-    wm_audio_pcm_free(&pcm);
-    free(decoded);
-    return valid;
-}
-
-static int wm_compare_layouts(const void *left, const void *right)
-{
-    const WmLayoutPath *a = left;
-    const WmLayoutPath *b = right;
-    return strcmp(a->name, b->name);
-}
-
-static bool wm_export_resource(const WmU8Entry *entry, const char *output,
-                               const char *channel_id, const char *kind,
-                               const char *source_file,
-                               WmLayoutPath **layout_paths,
-                               size_t *layout_count,
-                               char default_layout[WM_PATH_CAP],
-                               unsigned *texture_count,
-                               unsigned *animation_count)
-{
-    uint8_t *decoded = NULL;
-    size_t decoded_size = 0;
-    if (!wm_unwrap_resource(entry->data, entry->size,
-                            &decoded, &decoded_size)) {
-        fprintf(stderr, "Could not validate a channel resource envelope.\n");
-        return false;
-    }
-    WmU8Archive archive = {0};
-    char error[160] = {0};
-    if (!wm_u8_parse(decoded, decoded_size, &archive, error, sizeof(error))) {
-        fprintf(stderr, "Channel resource archive: %s\n", error);
-        free(decoded);
-        return false;
-    }
-    WmResourceTexture *textures = calloc(archive.count + 1, sizeof(*textures));
-    WmResourceAnimation *animations = calloc(archive.count + 1,
-                                              sizeof(*animations));
-    WmLayoutPath *layouts = calloc(archive.count + 1, sizeof(*layouts));
-    if (!textures || !animations || !layouts) {
-        free(textures);
-        free(animations);
-        free(layouts);
-        wm_u8_free(&archive);
-        free(decoded);
-        return false;
-    }
-    size_t textures_found = 0;
-    size_t animations_found = 0;
-    size_t layouts_found = 0;
-    bool valid = true;
-    char relative[WM_PATH_CAP];
-    char destination[WM_PATH_CAP];
-    char source[WM_PATH_CAP];
-    for (size_t index = 0; index < archive.count && valid; ++index) {
-        const WmU8Entry *item = &archive.entries[index];
-        char stem[128];
-        char basename[128];
-        if (wm_stem(item->path, ".brlan", stem, basename)) {
-            animations[animations_found].name = wm_copy(stem);
-            if (!animations[animations_found].name) {
-                valid = false;
-                break;
-            }
-            animations[animations_found].data = item->data;
-            animations[animations_found].size = item->size;
-            animations_found++;
-        } else if (wm_stem(item->path, ".tpl", stem, basename)) {
-            for (size_t previous = 0; previous < textures_found; ++previous) {
-                if (strcmp(textures[previous].name, basename) == 0) {
-                    fprintf(stderr, "Ambiguous channel texture basename.\n");
-                    valid = false;
-                }
-            }
-            if (!valid) break;
-            WmTpl tpl = {0};
-            if (!wm_tpl_decode(item->data, item->size, &tpl,
-                                error, sizeof(error))) {
-                fprintf(stderr, "Channel TPL decode: %s\n", error);
-                valid = false;
-                break;
-            }
-            for (size_t image = 0; image < tpl.count && valid; ++image) {
-                int length = snprintf(relative, sizeof(relative),
-                    image == 0
-                        ? "channel-layouts/%s/%s/textures/%s.wmra"
-                        : "channel-layouts/%s/%s/textures/%s-%zu.wmra",
-                    channel_id, kind, stem, image);
-                int full = snprintf(destination, sizeof(destination),
-                                    "%s/%s", output, relative);
-                WmImage converted = {
-                    tpl.images[image].width,
-                    tpl.images[image].height,
-                    tpl.images[image].rgba
-                };
-                if (length < 0 || length >= (int)sizeof(relative) ||
-                    full < 0 || full >= (int)sizeof(destination) ||
-                    !wm_output_parent(destination) ||
-                    !wm_output_target_safe(destination) ||
-                    !wm_image_write(destination, &converted)) {
-                    valid = false;
-                }
-            }
-            if (valid && tpl.count > 0) {
-                int url_size = snprintf(relative, sizeof(relative),
-                    "channel-layouts/%s/%s/textures/%s.png",
-                    channel_id, kind, stem);
-                int source_size = snprintf(source, sizeof(source),
-                    "%s/meta/%s.bin/%s", source_file, kind, item->path);
-                if (url_size < 0 || url_size >= (int)sizeof(relative) ||
-                    source_size < 0 || source_size >= (int)sizeof(source)) {
-                    valid = false;
-                } else {
-                    char *name = wm_copy(basename);
-                    char *url = wm_copy(relative);
-                    char *origin = wm_copy(source);
-                    if (!name || !url || !origin) {
-                        free(name);
-                        free(url);
-                        free(origin);
-                        valid = false;
-                    } else {
-                        textures[textures_found++] = (WmResourceTexture){
-                            name, url, tpl.images[0].width,
-                            tpl.images[0].height, tpl.images[0].format, origin
-                        };
-                        (*texture_count)++;
-                    }
-                }
-            }
-            wm_tpl_free(&tpl);
-        }
-    }
-    for (size_t index = 0; index < archive.count && valid; ++index) {
-        const WmU8Entry *item = &archive.entries[index];
-        char stem[128];
-        char basename[128];
-        if (!wm_stem(item->path, ".brlyt", stem, basename)) continue;
-        for (size_t previous = 0; previous < layouts_found; ++previous) {
-            if (strcmp(layouts[previous].name, stem) == 0) {
-                fprintf(stderr, "Ambiguous channel layout basename.\n");
-                valid = false;
-            }
-        }
-        if (!valid) break;
-        char package[128];
-        int package_size = snprintf(package, sizeof(package),
-                                    "channel-%s-%s", channel_id, kind);
-        int source_size = snprintf(source, sizeof(source),
-            "%s/meta/%s.bin/%s", source_file, kind, item->path);
-        char *json = NULL;
-        size_t json_size = 0;
-        if (package_size < 0 || package_size >= (int)sizeof(package) ||
-            source_size < 0 || source_size >= (int)sizeof(source) ||
-            !wm_brlyt_to_json_with_source(item->data, item->size,
-                stem, package, source, textures, textures_found,
-                animations, animations_found, &json, &json_size,
-                error, sizeof(error))) {
-            fprintf(stderr, "Channel BRLYT export: %s\n", error);
-            valid = false;
-            free(json);
-            break;
-        }
-        int path_size = snprintf(relative, sizeof(relative),
-                                  "channel-layouts/%s/%s/%s.json",
-                                  channel_id, kind, stem);
-        int full = snprintf(destination, sizeof(destination),
-                            "%s/%s", output, relative);
-        if (path_size < 0 || path_size >= (int)sizeof(relative) ||
-            full < 0 || full >= (int)sizeof(destination) ||
-            !wm_write_file(destination, json, json_size)) {
-            valid = false;
-        }
-        free(json);
-        if (!valid) break;
-        strcpy(layouts[layouts_found].name, stem);
-        strcpy(layouts[layouts_found].path, relative);
-        layouts_found++;
-        if (strcmp(stem, kind) == 0) strcpy(default_layout, relative);
-    }
-    if (valid) {
-        qsort(layouts, layouts_found, sizeof(*layouts), wm_compare_layouts);
-        *layout_paths = layouts;
-        *layout_count = layouts_found;
-        *animation_count = (unsigned)animations_found;
-    } else {
-        free(layouts);
-    }
-    for (size_t index = 0; index < textures_found; ++index) {
-        free((char *)textures[index].name);
-        free((char *)textures[index].url);
-        free((char *)textures[index].source);
-    }
-    for (size_t index = 0; index < animations_found; ++index) {
-        free((char *)animations[index].name);
-    }
-    free(textures);
-    free(animations);
-    wm_u8_free(&archive);
-    free(decoded);
-    return valid;
 }
 
 static void wm_free_channels(WmChannelList *channels)
@@ -989,7 +573,7 @@ static bool wm_copy_saved_layout(const char *root, const char *output,
         remove(destination);
         return true;
     }
-    bool valid = wm_write_file(destination, data, size);
+    bool valid = wm_output_write_file(destination, data, size);
     if (valid) *present = true;
     free(data);
     return valid;

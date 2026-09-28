@@ -5,8 +5,7 @@
 #include "wii_menu/render/ui.h"
 
 /* Pane bounds in the fixed 640 x 456 logical framebuffer. These are the
- * axis-aligned bounds of the four transformed source pane corners, matching
- * the HTML renderer's control geometry. */
+ * axis-aligned bounds of the four transformed source pane corners. */
 typedef struct WmSourceRect {
     float x;
     float y;

@@ -47,6 +47,12 @@ typedef struct WmNandReader {
     uint32_t generation;
 } WmNandReader;
 
+static inline uint32_t wm_nand_be32(const uint8_t *bytes)
+{
+    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
+           ((uint32_t)bytes[2] << 8) | bytes[3];
+}
+
 void wm_nand_set_error(char *error, size_t capacity, const char *message);
 bool wm_nand_open_reader(WmNandReader *reader, const char *source_path,
                          const char *keys_path, char *error, size_t error_capacity);

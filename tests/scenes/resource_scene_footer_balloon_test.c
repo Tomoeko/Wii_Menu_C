@@ -165,8 +165,7 @@ int main(int argc, char **argv) {
     assert(appearance.cue);
     BalloonSample held = sample(scene, &menu, 23, settings);
     assert(held.quads > 0 && !held.cue);
-    /* Home footer anchors and margin clamping from the maintained HTML
-     * controller, projected to the WAD's 640 by 456 framebuffer. */
+    /* Home footer anchors and margin clamping in the 640 by 456 framebuffer. */
     expect_footer_position(held, 120.0f, false, 333.0f);
 
     wm_resource_scene_dismiss_balloon(scene);
@@ -237,6 +236,6 @@ int main(int argc, char **argv) {
     wm_resource_scene_destroy(scene);
     wm_texture_cache_destroy(textures);
     wm_font_cache_destroy(fonts);
-    puts("Home footer and channel bubbles match HTML timing.");
+    puts("Home footer and channel bubble timing verified.");
     return 0;
 }

@@ -240,6 +240,27 @@ static void test_prepared_oem_runtime(const char *assets) {
     wm_board_keyboard_text_changed(keyboard, false);
     assert(wm_board_keyboard_composition(keyboard, &composition));
     assert(composition.prefix_bytes == 1);
+
+    strcpy(context, "zebracorn ");
+    wm_board_keyboard_set_text_context(keyboard, context);
+    strcat(context, "zeb");
+    wm_board_keyboard_text_changed(keyboard, false);
+    assert(wm_board_keyboard_composition(keyboard, &composition));
+    assert(strcmp(composition.preview_candidate, "zebracorn") == 0);
+    wm_board_keyboard_reset(keyboard);
+    context[0] = '\0';
+    wm_board_keyboard_set_text_context(keyboard, context);
+    strcpy(context, "zeb");
+    wm_board_keyboard_text_changed(keyboard, false);
+    assert(wm_board_keyboard_composition(keyboard, &composition));
+    assert(strcmp(composition.preview_candidate, "zeb") == 0);
+    context[0] = '\0';
+    wm_board_keyboard_set_text_context(keyboard, context);
+    strcpy(context, "tes");
+    wm_board_keyboard_text_changed(keyboard, false);
+    assert(wm_board_keyboard_composition(keyboard, &composition));
+    assert(strcmp(composition.preview_candidate, "tessellate") == 0);
+
     wm_board_keyboard_destroy(keyboard);
     wm_font_cache_destroy(fonts);
     wm_texture_cache_destroy(textures);

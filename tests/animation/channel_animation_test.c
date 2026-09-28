@@ -7,8 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* These are synthetic layouts. The expected timing follows the HTML source
- * schedules, not a claim about independently verified console behavior. */
+/* Synthetic layouts check the implemented channel timing rules. They do
+ * not establish independently verified console behavior. */
 #define PHOTO_ID "0001000148415941"
 #define FORECAST_ID "0001000148414645"
 #define NEWS_ID "0001000148414745"

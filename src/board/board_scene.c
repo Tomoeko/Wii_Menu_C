@@ -659,8 +659,8 @@ bool wm_board_scene_pointer_down(WmBoardScene *board, WmBoardHit hit,
 
 bool wm_board_scene_pointer_move(WmBoardScene *board, int x, int y) {
     if (!board || !board->dragging) return false;
-    /* HTML centeredPoint uses 832 logical X units. Converting the 640-pixel
-     * raster delta back through its 832/608 IPL root gives 608/640. */
+    /* The board uses 832 logical X units. Converting the 640-pixel raster
+     * delta back through its 832/608 IPL root gives 608/640. */
     board->drag_delta_x = ((float)x - (float)board->drag_start_x) *
                           (608.0f / (float)WM_FRAME_WIDTH);
     board->drag_delta_y = (float)board->drag_start_y - (float)y;

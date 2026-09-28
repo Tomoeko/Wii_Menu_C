@@ -333,7 +333,7 @@ int main(int argc, char **argv) {
                                   error, sizeof(error)) ||
         !wm_u8_parse(decoded, decoded_size, &settings,
                      error, sizeof(error))) {
-        fprintf(stderr, "Settings HTML archive: %s\n", error);
+        fprintf(stderr, "Settings resource archive: %s\n", error);
         wm_u8_free(&outer);
         free(input);
         free(decoded);

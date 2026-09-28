@@ -49,7 +49,7 @@ typedef struct WmSequenceTimeline {
     bool has_wait_for_end;
 } WmSequenceTimeline;
 
-/* Parse only source commands used by the HTML sequence renderer. Unsupported
+/* Parse only commands handled by the local sequence renderer. Unsupported
  * commands fail visibly instead of silently replacing a sound. */
 bool wm_sequence_parse(const WmRsarSequence *sequence,
                        WmSequenceTimeline *timeline,

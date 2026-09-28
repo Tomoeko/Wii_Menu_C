@@ -16,6 +16,7 @@ enum {
 
 typedef struct CapturedFont {
     int count;
+    size_t byte_indices[8];
     float first_left;
     float first_top;
     float first_alpha;
@@ -97,6 +98,10 @@ static bool sheet_provider(void *context, size_t sheet, uint32_t *texture) {
 
 static void capture_quad(void *context, const WmFontQuad *quad) {
     CapturedFont *capture = context;
+    if ((size_t)capture->count <
+        sizeof(capture->byte_indices) / sizeof(capture->byte_indices[0])) {
+        capture->byte_indices[capture->count] = quad->byte_index;
+    }
     if (!capture->count) {
         capture->first_left = quad->vertices[0].position[0];
         capture->first_top = quad->vertices[0].position[1];
@@ -183,6 +188,11 @@ int main(void) {
     pane.size[0] = 7;
     layout = wm_font_layout_pane(font, "AA\303\251A\nA", &pane);
     assert(layout && wm_font_text_layout_line_count(layout) == 3);
+    CapturedFont indexed = {0};
+    wm_font_emit_pane(layout, NULL, 1, sheet_provider, capture_quad, &indexed);
+    const size_t glyph_bytes[] = {0, 1, 2, 4, 6};
+    assert(indexed.count == 5);
+    assert(memcmp(indexed.byte_indices, glyph_bytes, sizeof(glyph_bytes)) == 0);
     const size_t boundaries[] = {0, 1, 2, 4, 5, 6, 7};
     for (size_t index = 0; index < sizeof(boundaries) / sizeof(boundaries[0]);
          index++) {

@@ -58,8 +58,8 @@ typedef enum WmHomeReconnectMode {
 
 /* Local WPAD substitute. No physical connection or private identifier is read.
  * Automatic fixtures connect players in the supplied order after delay_frames,
- * then interval_frames between later players. The default matches the HTML
- * fixture: automatic player one after 180 updates. */
+ * then interval_frames between later players. The default connects player
+ * one after 180 updates. */
 typedef struct WmHomeReconnectFixture {
     WmHomeReconnectMode mode;
     unsigned players[4];
