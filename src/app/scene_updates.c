@@ -8,6 +8,9 @@ void wm_app_settings_advance(WmAppSettingsUpdate *update, float frames) {
     if (update->options) {
         if (!wm_scene_fader_active(&update->fade->clock))
             wm_options_scene_advance(update->options, frames);
+        const char *repeat_cue =
+            wm_options_scene_take_repeat_cue(update->options);
+        if (repeat_cue) wm_audio_play(update->audio, repeat_cue);
 
         WmOptionsAction action = wm_options_scene_take_action(update->options);
         if (action == WM_OPTIONS_ACTION_EXITED &&

@@ -82,6 +82,38 @@ provide supporting structural references. They use a different SDK and do not
 override the supplied executable's tables or ramp arithmetic. This repository
 uses first-party C and does not bundle those implementations.
 
+## Settings directional cues
+
+The original USA 4.3 Settings resources request sound ID 1 for the horizontal
+index-page arrows and the vertical Country-list scroll arrows. Calendar
+date/time value arrows request exceptional sound ID 5 on every adjustment,
+including held repeats. The source Screen-position value arrows also use the
+choice-change cue. These are two different controls despite similar arrow
+artwork. The executable's sound dispatcher at `0x813F9834` maps ID 1 to
+`WIPL_SE_BT_PUSH` (`0x813F98D4`) and ID 5 to `WIPL_SE_CHOICE_CHG`
+(`0x813F9924`). ID 2 maps to `WIPL_SE_BT_TARGETTING` for targeting.
+
+The audio exporter already produces these sequences as
+`audio/WIPL_SE_BT_PUSH.wav`, `audio/WIPL_SE_CHOICE_CHG.wav`, and
+`audio/WIPL_SE_BT_TARGETTING.wav` from the user's local sound archive; no
+sound file is bundled. The C scene now uses the source symbols for Settings
+arrow presses and held Calendar repeats. Its prior generic `page`, `confirm`,
+and `click` routes selected other sounds in these contexts. This mapping was
+checked against the original resource control handlers, the executable's
+dispatch table, and the local export manifest. It has not been validated by
+an aligned Dolphin or console audio capture.
+
+The same resource handlers request ID 3 for Settings OK and Confirm actions
+and ID 4 for No and Cancel actions. Paired prompts with a left Yes (or the
+final Format action) use ID 3 on the left and ID 4 on the right. The
+executable maps those IDs to `WIPL_SE_DECIDE` and `WIPL_SE_CANCEL`. Country
+list rows instead request exceptional ID 5 (`WIPL_SE_CHOICE_CHG`) when a
+country is selected, while their scroll arrows request ID 1. The C Settings
+scene now owns these cue choices. Previously, most right footer actions fell
+through to the unrelated `page` cue (`WSD_SELECT`), and Country choices used
+the generic `confirm` cue. This is a resource-and-dispatch mapping, not a
+claim of sample-aligned output fidelity.
+
 ## Checks completed
 
 - Independent vgmstream decoding matched all 886,661 compared PCM values

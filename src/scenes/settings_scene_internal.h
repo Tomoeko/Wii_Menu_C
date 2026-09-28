@@ -92,6 +92,7 @@ struct WmSettingsScene {
     unsigned edit_country_choice;
     bool local_format_complete;
     WmSettingsControl held_control;
+    bool repeat_cue_pending;
     float hold_elapsed;
     float next_repeat;
     int direction;

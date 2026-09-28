@@ -359,6 +359,12 @@ void wm_options_scene_advance(WmOptionsScene *scene, float frames) {
     }
 }
 
+const char *wm_options_scene_take_repeat_cue(WmOptionsScene *scene) {
+    if (!scene || !scene->settings ||
+        !wm_settings_scene_take_repeat_cue(scene->settings)) return NULL;
+    return "WIPL_SE_CHOICE_CHG";
+}
+
 WmOptionsControl options_scene_control_from_settings(
     WmSettingsControl control) {
     switch (control) {
@@ -405,81 +411,14 @@ bool wm_options_scene_update_question(const WmOptionsScene *scene) {
     return wm_settings_scene_update_question(scene->settings);
 }
 
+static WmSettingsControl settings_control(WmOptionsControl control);
+
 const char *wm_options_scene_click_cue(const WmOptionsScene *scene,
                                         WmOptionsControl control) {
     if (!scene || control == WM_OPTIONS_CONTROL_NONE) return NULL;
     if (scene->page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS && scene->settings) {
-        if (wm_settings_scene_update_question(scene->settings)) {
-            if (control == WM_OPTIONS_CONTROL_BACK) return "WIPL_SE_DECIDE";
-            if (control == WM_OPTIONS_CONTROL_SETTINGS_NEXT)
-                return "WIPL_SE_CANCEL";
-        }
-        WmSettingsSnapshot settings = wm_settings_scene_snapshot(scene->settings);
-        if (settings.category == 7 && settings.detail == 3) {
-            /* Left Yes uses Decide; right No uses Cancel. */
-            if (control == WM_OPTIONS_CONTROL_BACK) return "WIPL_SE_DECIDE";
-            if (control == WM_OPTIONS_CONTROL_SETTINGS_NEXT)
-                return "WIPL_SE_CANCEL";
-        }
-        if (settings.category == 7 && settings.detail == 11) {
-            /* Left Yes uses Decide; right No uses Cancel. */
-            if (control == WM_OPTIONS_CONTROL_BACK) return "WIPL_SE_DECIDE";
-            if (control == WM_OPTIONS_CONTROL_SETTINGS_NEXT)
-                return "WIPL_SE_CANCEL";
-        }
-        if (settings.category == 7 &&
-            (settings.detail == 1 || settings.detail == 4 ||
-             settings.detail == 5 || settings.detail == 6 ||
-             settings.detail == 8 || settings.detail == 9 ||
-             settings.detail == 10)) {
-            /* Rows and OK use Decide; Back uses Cancel. Sample the cue before
-             * activation changes the detail page. */
-            if (control == WM_OPTIONS_CONTROL_BACK)
-                return "WIPL_SE_CANCEL";
-            if ((settings.detail == 6 || settings.detail == 8 ||
-                 settings.detail == 9) &&
-                control == WM_OPTIONS_CONTROL_SETTINGS_NEXT)
-                return "WIPL_SE_DECIDE";
-            if (control >= WM_OPTIONS_CONTROL_SETTINGS_ITEM_1 &&
-                control <= WM_OPTIONS_CONTROL_SETTINGS_ITEM_6)
-                return "WIPL_SE_DECIDE";
-        }
-        if (settings.category == 6 && settings.detail == 1) {
-            if (control == WM_OPTIONS_CONTROL_BACK) return "WIPL_SE_CANCEL";
-            if (control == WM_OPTIONS_CONTROL_SETTINGS_NEXT)
-                return "WIPL_SE_DECIDE";
-            if (control == WM_OPTIONS_CONTROL_SETTINGS_ITEM_1 ||
-                control == WM_OPTIONS_CONTROL_SETTINGS_ITEM_2)
-                return "WIPL_SE_CHOICE_CHG";
-        }
-        if (settings.category == 3 && settings.detail == 1) {
-            if (control == WM_OPTIONS_CONTROL_BACK) return "WIPL_SE_CANCEL";
-            if (control == WM_OPTIONS_CONTROL_SETTINGS_NEXT)
-                return "WIPL_SE_DECIDE";
-            if (control == WM_OPTIONS_CONTROL_SETTINGS_ITEM_1)
-                return settings.selection >= 32
-                    ? "WIPL_SE_CHAR_DELETE_ERROR" : "WIPL_SE_CHOICE_CHG";
-            if (control == WM_OPTIONS_CONTROL_SETTINGS_ITEM_2)
-                return settings.selection == 0
-                    ? "WIPL_SE_CHAR_DELETE_ERROR" : "WIPL_SE_CHOICE_CHG";
-        }
-        if (settings.category == 3 && settings.detail >= 2 &&
-            settings.detail <= 4) {
-            if (control == WM_OPTIONS_CONTROL_BACK) return "WIPL_SE_CANCEL";
-            if (control == WM_OPTIONS_CONTROL_SETTINGS_NEXT)
-                return "WIPL_SE_DECIDE";
-            if (control == WM_OPTIONS_CONTROL_SETTINGS_ITEM_1 ||
-                control == WM_OPTIONS_CONTROL_SETTINGS_ITEM_2)
-                return "WIPL_SE_CHOICE_CHG";
-        }
-        if (settings.category == 4 && settings.detail == 0) {
-            if (control == WM_OPTIONS_CONTROL_BACK) return "WIPL_SE_CANCEL";
-            if (control == WM_OPTIONS_CONTROL_SETTINGS_NEXT)
-                return "WIPL_SE_DECIDE";
-            if (control >= WM_OPTIONS_CONTROL_SETTINGS_ITEM_1 &&
-                control <= WM_OPTIONS_CONTROL_SETTINGS_ITEM_3)
-                return "WIPL_SE_OUTPUT_MODE_SELECT";
-        }
+        return wm_settings_scene_click_cue(scene->settings,
+                                            settings_control(control));
     }
     if (control == WM_OPTIONS_CONTROL_BACK) return "WIPL_SE_CANCEL";
     if (control == WM_OPTIONS_CONTROL_SETTINGS_PREVIOUS ||
@@ -585,7 +524,7 @@ const char *wm_options_scene_hover_cue(const WmOptionsScene *scene,
         scene->settings &&
         wm_settings_scene_directional_control(scene->settings,
                                                 settings_control(control))) {
-        return "WIPL_SE_BOARD_FOCUS";
+        return "WIPL_SE_BT_TARGETTING";
     }
     return "buttonHover";
 }

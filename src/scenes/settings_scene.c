@@ -331,6 +331,7 @@ bool wm_settings_scene_open(WmSettingsScene *scene) {
     scene->selection = 0;
     scene->sensitivity_instructions = false;
     scene->held_control = WM_SETTINGS_CONTROL_NONE;
+    scene->repeat_cue_pending = false;
     scene->exit_pending = false;
     scene->direction = 0;
     scene->page_crossfade = false;
@@ -372,6 +373,7 @@ void wm_settings_scene_reset(WmSettingsScene *scene) {
     scene->selection = 0;
     scene->sensitivity_instructions = false;
     scene->held_control = WM_SETTINGS_CONTROL_NONE;
+    scene->repeat_cue_pending = false;
     scene->direction = 0;
     scene->page_crossfade = false;
     scene->page_frame = 20.0f;
@@ -404,6 +406,7 @@ void wm_settings_scene_advance(WmSettingsScene *scene, float frames) {
                 scene->held_control = WM_SETTINGS_CONTROL_NONE;
                 break;
             }
+            scene->repeat_cue_pending = true;
             scene->next_repeat += 9.0f;
         }
         if (scene->next_repeat <= scene->hold_elapsed)
@@ -443,6 +446,13 @@ void wm_settings_scene_advance(WmSettingsScene *scene, float frames) {
             }
         }
     }
+}
+
+bool wm_settings_scene_take_repeat_cue(WmSettingsScene *scene) {
+    if (!scene) return false;
+    bool pending = scene->repeat_cue_pending;
+    scene->repeat_cue_pending = false;
+    return pending;
 }
 
 WmSettingsSnapshot wm_settings_scene_snapshot(const WmSettingsScene *scene) {
@@ -615,6 +625,7 @@ bool wm_settings_scene_pointer_down(WmSettingsScene *scene,
     if (!date_arrow && !time_arrow) return false;
     if (!wm_settings_scene_activate(scene, control)) return false;
     scene->held_control = control;
+    scene->repeat_cue_pending = false;
     scene->hold_elapsed = 0.0f;
     scene->next_repeat = 24.0f;
     return true;

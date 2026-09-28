@@ -94,11 +94,13 @@ void wm_app_options_pointer_event(WmAppSceneInput *input, WmOptionsScene *scene,
         input->options_pressed = event->button == WM_POINTER_LEFT
                                      ? wm_options_scene_hit(scene, event->x, event->y)
                                      : WM_OPTIONS_CONTROL_NONE;
+        const char *held_cue = wm_options_scene_click_cue(
+            scene, input->options_pressed);
         input->options_held_arrow =
             event->button == WM_POINTER_LEFT &&
             wm_options_scene_pointer_down(scene, input->options_pressed);
-        if (input->options_held_arrow)
-            wm_audio_play(audio, "click");
+        if (input->options_held_arrow && held_cue)
+            wm_audio_play(audio, held_cue);
     } else if (event->type == WM_EVENT_POINTER_UP) {
         if (input->options_held_arrow) {
             wm_options_scene_pointer_up(scene);
