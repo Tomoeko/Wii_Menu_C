@@ -6,6 +6,8 @@
 
 enum {
     WM_TPL_MAX_IMAGES = 4096,
+    /* A TPL may reuse one encoded image for many table entries. Bound the
+     * combined RGBA output before allocating any decoded images. */
     WM_TPL_MAX_RGBA_BYTES = 256 * 1024 * 1024
 };
 
@@ -327,6 +329,23 @@ bool wm_tpl_decode(const uint8_t *data, size_t size, WmTpl *tpl,
         !wm_range_fits(size, table, count * 8)) {
         wm_error(error, error_size, "Invalid TPL texture table.");
         return false;
+    }
+
+    uint64_t total_rgba_bytes = 0;
+    for (size_t index = 0; index < count; index++) {
+        size_t image_header = wm_read_be32(data + table + index * 8);
+        if (!wm_range_fits(size, image_header, 12)) {
+            wm_error(error, error_size, "Truncated TPL image header.");
+            return false;
+        }
+        uint64_t height = wm_read_be16(data + image_header);
+        uint64_t width = wm_read_be16(data + image_header + 2);
+        uint64_t image_bytes = width * height * 4;
+        if (image_bytes > WM_TPL_MAX_RGBA_BYTES - total_rgba_bytes) {
+            wm_error(error, error_size, "TPL decoded images exceed the memory limit.");
+            return false;
+        }
+        total_rgba_bytes += image_bytes;
     }
 
     tpl->images = calloc(count, sizeof(*tpl->images));

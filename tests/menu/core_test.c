@@ -2,6 +2,9 @@
 #include "wii_menu/support/json.h"
 
 #include <assert.h>
+#include <errno.h>
+#include <limits.h>
+#include <stdio.h>
 #include <string.h>
 
 static void finish_transition(WmMenu *menu) {
@@ -34,8 +37,29 @@ static void test_json_text(void) {
     assert(!wm_json_parse(&json, escaped_nul, sizeof(escaped_nul)));
 }
 
+static void test_json_integer_bounds(void) {
+    char source[256];
+    int written = snprintf(source, sizeof(source),
+                           "[%d,%d,99999999999999999999,"
+                           "-99999999999999999999]",
+                           INT_MAX, INT_MIN);
+    assert(written > 0 && (size_t)written < sizeof(source));
+    WmJson json;
+    assert(wm_json_parse(&json, source, (size_t)written));
+    int value = 0;
+    errno = ERANGE;
+    assert(wm_json_integer(&json, wm_json_index(&json, 0, 0), &value));
+    assert(value == INT_MAX);
+    assert(wm_json_integer(&json, wm_json_index(&json, 0, 1), &value));
+    assert(value == INT_MIN);
+    assert(!wm_json_integer(&json, wm_json_index(&json, 0, 2), &value));
+    assert(!wm_json_integer(&json, wm_json_index(&json, 0, 3), &value));
+    wm_json_free(&json);
+}
+
 int main(void) {
     test_json_text();
+    test_json_integer_bounds();
     WmJson json;
     assert(wm_json_load(&json, "tests/fixtures/channels.json", 1024 * 1024));
     char escaped[16];

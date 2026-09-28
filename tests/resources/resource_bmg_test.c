@@ -2,9 +2,15 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-enum { FIXTURE_SIZE = 92, INFO_OFFSET = 32, DAT_OFFSET = 64 };
+enum {
+    BMG_HEADER_BYTES = 32,
+    FIXTURE_SIZE = 92,
+    INFO_OFFSET = 32,
+    DAT_OFFSET = 64
+};
 
 static void put_be16(uint8_t *output, unsigned value) {
     output[0] = (uint8_t)(value >> 8);
@@ -88,6 +94,38 @@ static void test_parser(void) {
     assert(!wm_bmg_parse(data, sizeof(data), error, sizeof(error)));
 }
 
+static void test_repeated_message_budget(void) {
+    enum { MESSAGE_COUNT = 65, MESSAGE_UNITS = 349525 };
+    size_t info_size = 16 + MESSAGE_COUNT * 4;
+    size_t dat_size = 8 + MESSAGE_UNITS * 2 + 2;
+    size_t dat_offset = BMG_HEADER_BYTES + info_size;
+    size_t total_size = dat_offset + dat_size;
+    uint8_t *data = calloc(total_size, 1);
+    assert(data);
+
+    memcpy(data, "MESGbmg1", 8);
+    put_be32(data + 8, (unsigned)total_size);
+    put_be32(data + 12, 2);
+    data[16] = 2;
+    memcpy(data + BMG_HEADER_BYTES, "INF1", 4);
+    put_be32(data + BMG_HEADER_BYTES + 4, (unsigned)info_size);
+    put_be16(data + BMG_HEADER_BYTES + 8, MESSAGE_COUNT);
+    put_be16(data + BMG_HEADER_BYTES + 10, 4);
+    memcpy(data + dat_offset, "DAT1", 4);
+    put_be32(data + dat_offset + 4, (unsigned)dat_size);
+    for (size_t index = 0; index < MESSAGE_UNITS; index++) {
+        put_be16(data + dat_offset + 8 + index * 2, 0x0800);
+    }
+
+    /* Each record points to the same DAT1 string. Its decoded UTF-8 text
+     * occupies exactly 1 MiB including the NUL terminator. */
+    char error[160] = {0};
+    WmBmg *bmg = wm_bmg_parse(data, total_size, error, sizeof(error));
+    assert(!bmg);
+    assert(strstr(error, "decoded messages exceed the memory limit") != NULL);
+    free(data);
+}
+
 static void test_local_export(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char path[4096];
@@ -112,6 +150,7 @@ static void test_local_export(int argc, char **argv) {
 
 int main(int argc, char **argv) {
     test_parser();
+    test_repeated_message_budget();
     test_local_export(argc, argv);
     puts("BMG bounds, UTF-16, controls, and local lookup passed.");
     return 0;

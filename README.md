@@ -32,6 +32,8 @@ and synthetic input fixtures live in `tests/fixtures/`.
 See [source organization](docs/architecture.md) for module boundaries and
 the build structure. Preparation utilities are grouped by input or export
 format under `tools/`.
+The [C style and safety guide](docs/c-style-and-safety.md) records the
+repository's review conventions and the next staged module splits.
 
 ## Prepare and run
 

@@ -9,6 +9,9 @@ enum {
     BMG_HEADER_BYTES = 32,
     BMG_MAX_FILE_BYTES = 64 * 1024 * 1024,
     BMG_MAX_MESSAGE_BYTES = 1024 * 1024,
+    /* Message records may reuse one DAT1 offset. Bound their combined
+     * decoded strings, including terminators, before allocating them. */
+    BMG_MAX_TOTAL_TEXT_BYTES = 64 * 1024 * 1024,
     BMG_MAX_SECTIONS = 64,
     BMG_PATH_CAPACITY = 4096
 };
@@ -213,38 +216,58 @@ WmBmg *wm_bmg_parse(const uint8_t *data, size_t size,
         wm_bmg_destroy(bmg);
         return NULL;
     }
-    bmg->texts = calloc(count ? count : 1, sizeof(*bmg->texts));
-    if (!bmg->texts) {
+    size_t *message_lengths = count ? calloc(count, sizeof(*message_lengths)) : NULL;
+    if (count && !message_lengths) {
         set_error(error, error_capacity, "Out of memory parsing BMG.");
         wm_bmg_destroy(bmg);
         return NULL;
+    }
+    size_t total_text_bytes = 0;
+    for (size_t index = 0; index < count; index++) {
+        size_t start = read_be32(info + 8 + index * stride);
+        size_t length = 0;
+        if (!decode_message(strings, dat_size, start, NULL, &length,
+                            error, error_capacity)) {
+            goto invalid_messages;
+        }
+        if (total_text_bytes >= BMG_MAX_TOTAL_TEXT_BYTES ||
+            length >= BMG_MAX_TOTAL_TEXT_BYTES - total_text_bytes) {
+            set_error(error, error_capacity,
+                      "BMG decoded messages exceed the memory limit.");
+            goto invalid_messages;
+        }
+        total_text_bytes += length + 1;
+        message_lengths[index] = length;
+    }
+    bmg->texts = calloc(count ? count : 1, sizeof(*bmg->texts));
+    if (!bmg->texts) {
+        set_error(error, error_capacity, "Out of memory parsing BMG.");
+        goto invalid_messages;
     }
     bmg->count = count;
     bmg->info_offset = info_offset + 8;
     bmg->info_stride = stride;
     for (size_t index = 0; index < count; index++) {
         size_t start = read_be32(info + 8 + index * stride);
-        size_t length = 0;
-        if (!decode_message(strings, dat_size, start, NULL, &length,
-                            error, error_capacity)) {
-            wm_bmg_destroy(bmg);
-            return NULL;
-        }
-        bmg->texts[index] = malloc(length + 1);
+        bmg->texts[index] = malloc(message_lengths[index] + 1);
         if (!bmg->texts[index]) {
             set_error(error, error_capacity, "Out of memory parsing BMG.");
-            wm_bmg_destroy(bmg);
-            return NULL;
+            goto invalid_messages;
         }
         size_t second_length = 0;
         if (!decode_message(strings, dat_size, start, bmg->texts[index],
                             &second_length, error, error_capacity) ||
-            second_length != length) {
-            wm_bmg_destroy(bmg);
-            return NULL;
+            second_length != message_lengths[index]) {
+            goto invalid_messages;
         }
     }
+    free(message_lengths);
     return bmg;
+
+invalid_messages:
+    free(message_lengths);
+    wm_bmg_destroy(bmg);
+    return NULL;
 }
 
 WmBmg *wm_bmg_load_file(const char *path,

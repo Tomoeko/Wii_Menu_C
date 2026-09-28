@@ -191,6 +191,28 @@ static void test_tpl(void)
     assert(!wm_tpl_decode(encoded, size, &tpl, error, sizeof(error)));
 }
 
+static void test_tpl_cumulative_budget(void)
+{
+    /* Both table entries refer to one header. The encoded file is tiny, but
+     * decoding each 8192x8192 entry would allocate 256 MiB of RGBA pixels. */
+    uint8_t encoded[40] = {0};
+    write_be32(encoded, 0x0020af30);
+    write_be32(encoded + 4, 2);
+    write_be32(encoded + 8, 12);
+    write_be32(encoded + 12, 28);
+    write_be32(encoded + 20, 28);
+    write_be16(encoded + 28, 8192);
+    write_be16(encoded + 30, 8192);
+    write_be32(encoded + 32, 0);
+    write_be32(encoded + 36, 40);
+
+    char error[128] = {0};
+    WmTpl tpl = {0};
+    assert(!wm_tpl_decode(encoded, sizeof(encoded), &tpl, error, sizeof(error)));
+    assert(strstr(error, "decoded images exceed the memory limit") != NULL);
+    assert(tpl.images == NULL && tpl.count == 0);
+}
+
 static bool ends_with(const char *value, const char *suffix)
 {
     size_t value_size = strlen(value);
@@ -311,6 +333,7 @@ int main(int argc, char **argv)
     test_u8();
     test_ash();
     test_tpl();
+    test_tpl_cumulative_budget();
     if (argc == 2 && !probe_resource_archive(argv[1])) {
         return 1;
     }

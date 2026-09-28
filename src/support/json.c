@@ -1,6 +1,7 @@
 #include "wii_menu/support/json.h"
 
 #include <ctype.h>
+#include <errno.h>
 #include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -362,8 +363,10 @@ bool wm_json_integer(const WmJson *json, size_t token, int *value) {
     memcpy(buffer, json->source + item->start, length);
     buffer[length] = '\0';
     char *end;
+    errno = 0;
     long number = strtol(buffer, &end, 10);
-    if (*end || number < INT_MIN || number > INT_MAX) return false;
+    if (errno == ERANGE || end == buffer || *end ||
+        number < INT_MIN || number > INT_MAX) return false;
     *value = (int)number;
     return true;
 }

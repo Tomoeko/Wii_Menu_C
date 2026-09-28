@@ -51,6 +51,22 @@ typedef struct WmHomeUnderlay {
     float preview_elapsed_seconds;
 } WmHomeUnderlay;
 
+typedef struct WmHomeEntryContext {
+    WmHomeOverlay *home;
+    WmMenu *menu;
+    WmResourceScene *resource_scene;
+    const WmAppSceneFade *fade;
+    WmChannelDrag *drag;
+    WmBoardScene *board_scene;
+    WmAudio *audio;
+    WmOptionsScene *options_scene;
+    bool *options_held_arrow;
+    uint64_t *opened_at;
+    float *underlay_elapsed;
+    float *underlay_preview_elapsed;
+    bool *underlay_valid;
+} WmHomeEntryContext;
+
 static void home_cue(void *context, const char *symbol) {
     wm_audio_play((WmAudio *)context, symbol);
 }
@@ -76,6 +92,31 @@ static bool open_home(WmHomeOverlay *home, WmMenu *menu,
     wm_resource_scene_release_preview_capture(resource_scene);
     menu->home_open = true;
     *opened_at = now;
+    return true;
+}
+
+static bool try_enter_home(const WmHomeEntryContext *entry, uint64_t now,
+                           uint64_t started, uint64_t preview_started) {
+    if (entry->menu->screen == WM_SCREEN_SETTINGS && entry->options_scene &&
+        wm_options_scene_snapshot(entry->options_scene).locked) {
+        return false;
+    }
+    if (!open_home(entry->home, entry->menu, entry->resource_scene,
+                   entry->fade, entry->drag, now, entry->opened_at)) {
+        return false;
+    }
+
+    wm_board_scene_cancel_pointer(entry->board_scene);
+    wm_audio_stop_loop(entry->audio, "WIPL_SE_BOARD_DRAG");
+    wm_audio_stop_loop(entry->audio, "WIPL_SE_MESSAGE_SCROLL");
+    if (*entry->options_held_arrow) {
+        wm_options_scene_pointer_up(entry->options_scene);
+        *entry->options_held_arrow = false;
+    }
+    *entry->underlay_elapsed = (float)(now - started) / 1000000000.0f;
+    *entry->underlay_preview_elapsed =
+        (float)(now - preview_started) / 1000000000.0f;
+    *entry->underlay_valid = false;
     return true;
 }
 
@@ -676,6 +717,21 @@ int main(int argc, char **argv) {
     float home_underlay_elapsed = 0.0f;
     float home_underlay_preview_elapsed = 0.0f;
     int preview_running_slot = -1;
+    const WmHomeEntryContext home_entry = {
+        .home = home,
+        .menu = &menu,
+        .resource_scene = resource_scene,
+        .fade = &fade,
+        .drag = drag,
+        .board_scene = board_scene,
+        .audio = audio,
+        .options_scene = options_scene,
+        .options_held_arrow = &options_held_arrow,
+        .opened_at = &home_opened_at,
+        .underlay_elapsed = &home_underlay_elapsed,
+        .underlay_preview_elapsed = &home_underlay_preview_elapsed,
+        .underlay_valid = &home_underlay_valid
+    };
     const uint64_t frame_period = 1000000000ULL / 60ULL;
     uint64_t next_frame_deadline = previous + frame_period;
 
@@ -1225,24 +1281,8 @@ int main(int argc, char **argv) {
                 if (event.button == WM_POINTER_LEFT &&
                     pressed.type != WM_HIT_NONE && same_hit(pressed, exact)) {
                     if (exact.type == WM_HIT_HOME) {
-                        if (!(menu.screen == WM_SCREEN_SETTINGS && options_scene &&
-                              wm_options_scene_snapshot(options_scene).locked) &&
-                            open_home(home, &menu, resource_scene, &fade, drag,
-                                      frame_start, &home_opened_at)) {
-                            wm_board_scene_cancel_pointer(board_scene);
-                            wm_audio_stop_loop(audio, "WIPL_SE_BOARD_DRAG");
-                            wm_audio_stop_loop(audio, "WIPL_SE_MESSAGE_SCROLL");
-                            if (options_held_arrow) {
-                                wm_options_scene_pointer_up(options_scene);
-                                options_held_arrow = false;
-                            }
-                            home_underlay_elapsed =
-                                (float)(frame_start - started) / 1000000000.0f;
-                            home_underlay_preview_elapsed =
-                                (float)(frame_start - preview_started) /
-                                1000000000.0f;
-                            home_underlay_valid = false;
-                        }
+                        try_enter_home(&home_entry, frame_start, started,
+                                       preview_started);
                     } else {
                         activate_hit(&menu, audio, resource_scene, board_scene,
                                      options_scene, &fade, exact);
@@ -1292,23 +1332,8 @@ int main(int argc, char **argv) {
                 if (event.key == WM_KEY_HOME ||
                     (!composing && !editing_nickname &&
                      (event.key == 'h' || event.key == 'H'))) {
-                    if (!(menu.screen == WM_SCREEN_SETTINGS && options_scene &&
-                          wm_options_scene_snapshot(options_scene).locked) &&
-                        open_home(home, &menu, resource_scene, &fade, drag,
-                                  frame_start, &home_opened_at)) {
-                        wm_board_scene_cancel_pointer(board_scene);
-                        wm_audio_stop_loop(audio, "WIPL_SE_BOARD_DRAG");
-                        wm_audio_stop_loop(audio, "WIPL_SE_MESSAGE_SCROLL");
-                        if (options_held_arrow) {
-                            wm_options_scene_pointer_up(options_scene);
-                            options_held_arrow = false;
-                        }
-                        home_underlay_elapsed =
-                            (float)(frame_start - started) / 1000000000.0f;
-                        home_underlay_preview_elapsed =
-                            (float)(frame_start - preview_started) /
-                            1000000000.0f;
-                        home_underlay_valid = false;
+                    if (try_enter_home(&home_entry, frame_start, started,
+                                       preview_started)) {
                         hover = (WmHit){WM_HIT_NONE, -1};
                         pressed = hover;
                         keyboard_focus = false;

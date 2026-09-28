@@ -122,6 +122,7 @@ static void wm_enqueue_event(WmPlatform *platform, WmEvent event);
     MTLRenderPassDescriptor *render_pass;
     NSMutableArray *textures;
     NSMutableArray<NSNumber *> *free_texture_handles;
+    NSMutableIndexSet *retired_texture_handles;
     id<MTLBuffer> vertex_buffers[WM_IN_FLIGHT_FRAMES];
     id<MTLCommandBuffer> in_flight[WM_IN_FLIGHT_FRAMES];
     NSUInteger buffer_sizes[WM_IN_FLIGHT_FRAMES];
@@ -146,6 +147,17 @@ static void wm_enqueue_event(WmPlatform *platform, WmEvent event);
 static WmMetalState *wm_state(WmPlatform *platform)
 {
     return platform ? (__bridge WmMetalState *)platform->metal_state : nil;
+}
+
+static void wm_release_retired_textures(WmMetalState *state)
+{
+    NSUInteger handle = state->retired_texture_handles.firstIndex;
+    while (handle != NSNotFound) {
+        [state->textures replaceObjectAtIndex:handle withObject:[NSNull null]];
+        [state->free_texture_handles addObject:@(handle)];
+        handle = [state->retired_texture_handles indexGreaterThanIndex:handle];
+    }
+    [state->retired_texture_handles removeAllIndexes];
 }
 
 static void wm_enqueue_event(WmPlatform *platform, WmEvent event)
@@ -875,6 +887,7 @@ static bool wm_prepare_metal(WmMetalState *state)
     }
     state->textures = [NSMutableArray arrayWithObject:white_texture];
     state->free_texture_handles = [NSMutableArray array];
+    state->retired_texture_handles = [NSMutableIndexSet indexSet];
     return true;
 }
 
@@ -1027,6 +1040,9 @@ void wm_platform_begin(WmPlatform *platform, WmColor clear_color)
     state->render_target_handle = 0;
     state->vertex_count = 0;
     state->batch_count = 0;
+    /* A failed presentation may leave queued draws behind. The new frame
+     * discards those draws before their texture handles become reusable. */
+    wm_release_retired_textures(state);
     state->clip_enabled = false;
     WmQuad background = {
         .x = 0, .y = 0,
@@ -1104,6 +1120,7 @@ static WmVertex wm_vertex(float x, float y, float u, float v, WmColor color)
 static uint32_t wm_resolve_texture(WmMetalState *state, uint32_t handle)
 {
     if ((NSUInteger)handle >= state->textures.count ||
+        [state->retired_texture_handles containsIndex:handle] ||
         [state->textures objectAtIndex:handle] == [NSNull null]) {
         return 0;
     }
@@ -1502,6 +1519,7 @@ void wm_platform_end(WmPlatform *platform)
         [encoder endEncoding];
         if (drawable) [commands presentDrawable:drawable];
         [commands commit];
+        wm_release_retired_textures(state);
         state->in_flight[slot] = commands;
         state->frame_number++;
     }
@@ -1544,6 +1562,9 @@ bool wm_platform_begin_target(WmPlatform *platform, uint32_t texture,
 {
     WmMetalState *state = wm_state(platform);
     if (!state || texture == 0 || (NSUInteger)texture >= state->textures.count) {
+        return false;
+    }
+    if ([state->retired_texture_handles containsIndex:texture]) {
         return false;
     }
     id entry = [state->textures objectAtIndex:texture];
@@ -1591,10 +1612,12 @@ void wm_platform_destroy_texture(WmPlatform *platform, uint32_t texture)
     if (!state || texture == 0 || (NSUInteger)texture >= state->textures.count) {
         return;
     }
-    if ([state->textures objectAtIndex:texture] == [NSNull null]) {
+    if ([state->retired_texture_handles containsIndex:texture] ||
+        [state->textures objectAtIndex:texture] == [NSNull null]) {
         return;
     }
     if (state->render_target_handle == texture) state->render_target_handle = 0;
-    [state->textures replaceObjectAtIndex:texture withObject:[NSNull null]];
-    [state->free_texture_handles addObject:@(texture)];
+    /* Batches keep numeric handles until wm_platform_end encodes them. Keep
+     * this object in its slot so earlier draws still use the original image. */
+    [state->retired_texture_handles addIndex:texture];
 }

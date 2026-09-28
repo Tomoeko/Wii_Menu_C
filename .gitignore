@@ -40,6 +40,7 @@ common-key*
 
 # Build products and intermediate files.
 /build/
+/build-*/
 /cmake-build-*/
 /out/
 /DerivedData/
