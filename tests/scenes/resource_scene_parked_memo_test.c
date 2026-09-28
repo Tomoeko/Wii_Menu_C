@@ -4,9 +4,11 @@
 #include "wii_menu/scenes/resource_scene.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 
 static uint32_t next_texture = 1;
 static uint32_t memo_texture;
@@ -107,6 +109,12 @@ static float quad_width(const WmMaterialVertex vertices[4]) {
 
 int main(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    struct stat assets_info;
+    if (stat(assets, &assets_info) != 0) {
+        assert(errno == ENOENT || errno == ENOTDIR);
+        puts("Parked Memo render test skipped: local assets absent.");
+        return 0;
+    }
     WmPlatform *platform = (WmPlatform *)1;
     WmMenu menu;
     wm_menu_init(&menu);

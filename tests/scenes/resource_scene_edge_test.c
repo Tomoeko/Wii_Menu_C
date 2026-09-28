@@ -1,8 +1,10 @@
 #include "wii_menu/scenes/resource_scene.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <math.h>
 #include <stdio.h>
+#include <sys/stat.h>
 
 static uint32_t next_texture = 1;
 static uint32_t empty_channel_textures[4];
@@ -150,6 +152,12 @@ static void draw_edge(WmResourceScene *scene, const WmMenu *menu,
 
 int main(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    struct stat assets_info;
+    if (stat(assets, &assets_info) != 0) {
+        assert(errno == ENOENT || errno == ENOTDIR);
+        puts("Grid edge source art test skipped: local assets absent.");
+        return 0;
+    }
     WmPlatform *platform = (WmPlatform *)1;
     WmMenu menu;
     wm_menu_init(&menu);
