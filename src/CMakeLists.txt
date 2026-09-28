@@ -8,6 +8,8 @@ add_library(wii_menu_core STATIC
     audio/audio_held.c
     audio/audio_mix.c
     audio/audio_sequence.c
+    audio/audio_sequence_driver.c
+    audio/audio_sequence_held.c
     audio/audio_sequence_render.c
     audio/audio_sequence_parse.c
     audio/audio_wave.c
@@ -58,6 +60,7 @@ add_library(wii_menu_core STATIC
     persistence/saved_layout.c
 
     render/image.c
+    render/material_blend.c
     render/material_prepare.c
     render/texture_cache.c
     render/texture_source.c
@@ -91,6 +94,7 @@ add_library(wii_menu_core STATIC
     scenes/sd_scene.c
     scenes/sd_scene_render.c
     scenes/settings_scene.c
+    scenes/settings_scene_category_input.c
     scenes/settings_scene_render.c
     scenes/storage_scene.c
     scenes/storage_scene_presentation.c

@@ -33,6 +33,8 @@ resource scenes keep their presentation in private modules beside state and
 interaction code. The shared
 `scenes/scene_assets` helper checks layout paths and preserves each scene's
 missing-asset diagnostics.
+Settings category activation and Back handling have a private input module;
+the scene keeps category selection, transitions, and lifetime state.
 
 `src/platform/gles2/` and `src/platform/metal/` implement
 the common contract in `include/wii_menu/platform/platform.h`. The adapters
@@ -44,11 +46,16 @@ window/events, GPU submission, and shader sources. Apple and Linux audio
 devices live in
 `src/platform/apple/` and `src/platform/linux/`, behind the private
 `src/audio/audio_platform.h` interface. Sequence parsing and PCM rendering
-also have separate source files under `src/audio/`.
+also have separate source files under `src/audio/`. Private sequence modules
+load the driver tables and extract the held drag source; the scheduler retains
+event ordering and voice ownership. A shared material-blend helper validates
+blend factors before either graphics backend changes draw state.
 
 Private helpers stay with their owning implementations. Geometry, image
-decoding, and texture source validation belong to rendering; checked
-regular-file reads and atomic replacement belong to `support/` and are shared
+decoding, and texture source validation belong to rendering. The texture cache
+keeps an open asset-root directory, then reads each image header and payload
+from one regular-file descriptor. Checked regular-file reads and atomic
+replacement belong to `support/` and are shared
 by persistence and exporters.
 They are not installed public interfaces.
 
@@ -73,6 +80,10 @@ and the layout, channel, audio, font, settings, keyboard, and restart exporters.
 Private preparation modules separate filesystem staging and recovery from
 update orchestration. Channel resource export, channel manifest publication,
 NAND reader discovery, and NAND extraction also have focused source files.
+Exporters share a private directory helper that rejects pre-existing symlinks
+for the selected output root and child directories. Ancestors of the selected
+root may be symlinks. The checks do not protect a later path-based write from
+a concurrent directory replacement.
 
 [The whole-tree refactor audit](refactor-audit.md) records current module
 boundaries without treating file size or source moves as fidelity evidence.

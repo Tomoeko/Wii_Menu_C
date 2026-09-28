@@ -15,98 +15,6 @@ static void set_error(char *error, size_t capacity, const char *message)
     if (error && capacity) snprintf(error, capacity, "%s", message);
 }
 
-static bool has_bytes(const WmRsarSequence *sequence, size_t offset,
-                      size_t length)
-{
-    return sequence && sequence->data && offset <= sequence->size &&
-           length <= sequence->size - offset;
-}
-
-static uint16_t big_u16(const uint8_t *data)
-{
-    return (uint16_t)(((uint16_t)data[0] << 8) | data[1]);
-}
-
-static uint32_t big_u32(const uint8_t *data)
-{
-    return ((uint32_t)data[0] << 24) | ((uint32_t)data[1] << 16) |
-           ((uint32_t)data[2] << 8) | data[3];
-}
-
-static bool dol_range(const uint8_t *dol, size_t dol_size, uint32_t address,
-                      size_t count, const uint8_t **bytes)
-{
-    if (!dol || dol_size < 0x100 || count > UINT32_MAX ||
-        address > UINT32_MAX - count) return false;
-    for (size_t section = 0; section < 18; section++) {
-        uint32_t file_offset = big_u32(dol + section * 4);
-        uint32_t start = big_u32(dol + 0x48 + section * 4);
-        uint32_t size = big_u32(dol + 0x90 + section * 4);
-        if (!size || file_offset < 0x100 ||
-            file_offset > dol_size || size > dol_size - file_offset) continue;
-        if (address >= start && address - start <= size &&
-            count <= size - (address - start)) {
-            *bytes = dol + file_offset + (address - start);
-            return true;
-        }
-    }
-    return false;
-}
-
-static float big_float(const uint8_t *data)
-{
-    uint32_t bits = big_u32(data);
-    float number;
-    memcpy(&number, &bits, sizeof(number));
-    return number;
-}
-
-static bool load_tables(const uint8_t *dol, size_t dol_size,
-                        SequenceTables *tables)
-{
-    const uint8_t *bytes;
-    if (!dol_range(dol, dol_size, 0x8161e3f0u, sizeof(tables->attack),
-                   &bytes)) return false;
-    for (size_t index = 0; index < 128; index++) {
-        tables->attack[index] = big_float(bytes + index * 4);
-        if (!isfinite(tables->attack[index])) return false;
-    }
-    if (!dol_range(dol, dol_size, 0x8161e2f0u,
-                   sizeof(tables->sustain), &bytes)) return false;
-    for (size_t index = 0; index < 128; index++) {
-        tables->sustain[index] = (int16_t)big_u16(bytes + index * 2);
-    }
-    if (!dol_range(dol, dol_size, 0x8161ead8u,
-                   sizeof(tables->decibels), &bytes)) return false;
-    for (size_t index = 0; index < 965; index++) {
-        tables->decibels[index] = big_float(bytes + index * 4);
-        if (!isfinite(tables->decibels[index])) return false;
-    }
-    if (!dol_range(dol, dol_size, 0x8161f9ecu,
-                   sizeof(tables->pan), &bytes)) return false;
-    for (size_t index = 0; index < 257; index++) {
-        tables->pan[index] = big_float(bytes + index * 4);
-        if (!isfinite(tables->pan[index])) return false;
-    }
-    if (!dol_range(dol, dol_size, 0x81685da0u,
-                   sizeof(tables->reverb_frames), &bytes)) return false;
-    for (size_t index = 0; index < 8; index++) {
-        tables->reverb_frames[index] = big_u32(bytes + index * 4);
-        if (!tables->reverb_frames[index] ||
-            tables->reverb_frames[index] > WM_SEQUENCE_RATE) return false;
-    }
-    if (!dol_range(dol, dol_size, 0x8160f048u,
-                   sizeof(tables->reverb_preset), &bytes)) return false;
-    for (size_t index = 0; index < 6; index++) {
-        tables->reverb_preset[index] = big_float(bytes + index * 4);
-        if (!isfinite(tables->reverb_preset[index])) return false;
-    }
-    return tables->reverb_preset[0] == 0 &&
-           tables->reverb_preset[1] > 0 &&
-           tables->reverb_preset[1] <= 10 &&
-           tables->reverb_preset[4] == 0;
-}
-
 static void release_waves(SequenceWave *waves, size_t count)
 {
     for (size_t index = 0; index < count; index++) {
@@ -266,71 +174,6 @@ static float note_gain(uint8_t velocity, uint8_t instrument_volume)
     float velocity_ratio = (float)velocity / 127.0f;
     float instrument_ratio = (float)instrument_volume / 127.0f;
     return (velocity_ratio * velocity_ratio) * instrument_ratio;
-}
-
-bool wm_sequence_extract_held(const WmRsar *archive, const WmRsarSound *sound,
-                              const uint8_t *system_menu_dol, size_t dol_size,
-                              WmAudioHeldProfile *profile,
-                              WmAudioHeldTables *tables, WmAudioPcm *output,
-                              char *error, size_t error_capacity)
-{
-    set_error(error, error_capacity, "");
-    if (!profile || !tables || !output) return false;
-    *output = (WmAudioPcm){0};
-    *profile = (WmAudioHeldProfile){0};
-    *tables = (WmAudioHeldTables){0};
-    WmRsarSequence sequence;
-    WmRsarInstrument instrument;
-    SequenceTables driver;
-    static const uint8_t drag_commands[] = {
-        0x81, 0x0a, 0x3c, 0x7f, 0x00, 0xff
-    };
-    if (!sound || sound->volume > 127 ||
-        !wm_rsar_get_sequence(archive, sound, &sequence,
-                              error, error_capacity) ||
-        !has_bytes(&sequence, sequence.start_offset, sizeof(drag_commands)) ||
-        memcmp(sequence.data + sequence.start_offset, drag_commands,
-                sizeof(drag_commands)) != 0 ||
-        sequence.bank_index != 1 ||
-        !wm_rsar_get_instrument(archive, sequence.bank_index, 10, 60, 127,
-                                &instrument, error, error_capacity) ||
-        instrument.wave_index != 13 || instrument.root_key != 60 ||
-        instrument.pitch != 1.0f || instrument.volume != 127 ||
-        instrument.pan != 64 || instrument.envelope[0] != 104 ||
-        instrument.envelope[1] != 127 || instrument.envelope[2] != 127 ||
-        instrument.envelope[3] != 125 ||
-        !load_tables(system_menu_dol, dol_size, &driver) ||
-        !wm_rsar_decode_bank_wave(archive, sequence.bank_index,
-                                  instrument.wave_index, output,
-                                  error, error_capacity)) {
-        set_error(error, error_capacity, "Unsupported held drag source or driver.");
-        return false;
-    }
-    if (output->channels != 1 || output->sample_rate != WM_AUDIO_HELD_RATE ||
-        !output->looping || output->loop_start >= output->loop_end ||
-        output->loop_end > output->frame_count) {
-        wm_audio_pcm_free(output);
-        set_error(error, error_capacity, "Held drag requires a looping mono 32 kHz wave.");
-        return false;
-    }
-    *profile = (WmAudioHeldProfile){
-        .attack_multiplier = driver.attack[instrument.envelope[0]],
-        .decay_rate = wm_sequence_release_rate(instrument.envelope[1]),
-        .sustain_level = driver.sustain[instrument.envelope[2]],
-        .release_rate = wm_sequence_release_rate(instrument.envelope[3]),
-        .volume = note_gain(127, instrument.volume),
-        .pan = ((float)instrument.pan - 64.0f) / 63.0f
-    };
-    memcpy(tables->decibels, driver.decibels, sizeof(tables->decibels));
-    memcpy(tables->pan, driver.pan, sizeof(tables->pan));
-    if (!wm_audio_held_tables_valid(tables) ||
-        !isfinite(profile->attack_multiplier) ||
-        profile->attack_multiplier < 0.0f || profile->attack_multiplier >= 1.0f) {
-        wm_audio_pcm_free(output);
-        set_error(error, error_capacity, "Invalid held drag lookup values.");
-        return false;
-    }
-    return true;
 }
 
 static bool dispatch_event(SequencePlayer *player, size_t index)
@@ -575,7 +418,7 @@ bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
         return true;
     }
     set_error(error, error_capacity, "");
-    if (!load_tables(system_menu_dol, dol_size, &tables)) {
+    if (!wm_sequence_driver_load_tables(system_menu_dol, dol_size, &tables)) {
         wm_sequence_timeline_free(&timeline);
         set_error(error, error_capacity,
                   "Matching USA 4.3 System Menu audio tables are unavailable.");

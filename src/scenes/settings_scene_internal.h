@@ -107,6 +107,13 @@ struct WmSettingsScene {
 
 extern const unsigned wm_settings_country_page_start[10];
 
+/* Category input owns the local settings transitions. The scene module owns
+ * lifecycle and applies the page crossfade after a successful activation. */
+void settings_scene_reset_local_values(WmSettingsScene *scene);
+bool settings_scene_back_control(WmSettingsScene *scene);
+bool settings_scene_activate_category(WmSettingsScene *scene,
+                                      WmSettingsControl control);
+
 /* Presentation values also appear in state snapshots for input/UI clients. */
 float wm_settings_focus_opacity(const WmSettingsScene *scene,
                                 WmSettingsControl control);

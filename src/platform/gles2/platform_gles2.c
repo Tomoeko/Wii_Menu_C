@@ -2,6 +2,7 @@
 #include "wii_menu/render/viewport.h"
 #include "geometry.h"
 #include "host.h"
+#include "material_blend.h"
 #include "shaders.h"
 
 #include <GLES2/gl2.h>
@@ -478,6 +479,8 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
                                     const WmMaterialQuad *quad)
 {
     if (!platform || !quad || quad->texture_count > WM_MATERIAL_TEXTURES) return;
+    WmMaterialBlend blend;
+    if (!wm_material_blend_resolve(quad, &blend)) return;
     wm_flush(platform);
 
     bool tev = wm_tev_supported(platform, quad);
@@ -532,14 +535,11 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
         GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
         GL_DST_ALPHA, GL_ONE_MINUS_DST_ALPHA
     };
-    if (quad->has_blend_mode && quad->blend_mode[0] == 0) {
+    if (!blend.enabled) {
         glDisable(GL_BLEND);
     } else {
-        unsigned source = quad->has_blend_mode ? quad->blend_mode[1] : 4;
-        unsigned destination = quad->has_blend_mode ? quad->blend_mode[2] : 5;
-        if (source >= 8 || destination >= 8) return;
         glEnable(GL_BLEND);
-        glBlendFuncSeparate(factors[source], factors[destination],
+        glBlendFuncSeparate(factors[blend.source], factors[blend.destination],
                             GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     }
 

@@ -1,5 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "export_directory.h"
+
 #include "wii_menu/fonts/outline_font.h"
 #include "wii_menu/resources/resource_u8.h"
 
@@ -8,7 +10,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <unistd.h>
 
 enum {
@@ -38,13 +39,6 @@ static uint8_t *read_file(const char *path, size_t *size) {
     fclose(file);
     *size = (size_t)length;
     return bytes;
-}
-
-static bool ensure_directory(const char *path) {
-    if (mkdir(path, 0700) == 0) return true;
-    if (errno != EEXIST) return false;
-    struct stat metadata;
-    return lstat(path, &metadata) == 0 && S_ISDIR(metadata.st_mode);
 }
 
 static bool valid_latin_face(const WmU8Entry *entry) {
@@ -134,7 +128,8 @@ int main(int argc, char **argv) {
     bool valid = directory_length > 0 &&
                  (size_t)directory_length < sizeof(directory) &&
                  path_length > 0 && (size_t)path_length < sizeof(path) &&
-                 ensure_directory(argv[2]) && ensure_directory(directory);
+                 wm_export_directory_root(argv[2], 0700) &&
+                 wm_export_directory_child(argv[2], "fonts", 0700);
     if (valid) valid = write_new_file(path, entry->data, entry->size);
     wm_u8_free(&archive);
     free(source);

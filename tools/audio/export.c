@@ -6,12 +6,11 @@
 #include "wii_menu/resources/resource_u8.h"
 
 #include "atomic_file.h"
+#include "export_directory.h"
 
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
 typedef struct SoundName {
     const char *name;
@@ -60,14 +59,6 @@ static const SoundName speaker_sounds[] = {
     {"HOME_SPEAKER_CONNECT4", "connect4.bwav"},
     {"HOME_SPEAKER_VOLUME", "volume.bwav"}
 };
-
-static bool make_directory(const char *path)
-{
-    if (mkdir(path, 0755) == 0) return true;
-    if (errno != EEXIST) return false;
-    struct stat info;
-    return stat(path, &info) == 0 && S_ISDIR(info.st_mode);
-}
 
 static bool combine_path(char path[4096], const char *root,
                          const char *middle, const char *name)
@@ -408,9 +399,9 @@ int main(int argc, char **argv)
         return 1;
     }
     char audio_directory[4096];
-    if (!make_directory(argv[3]) ||
+    if (!wm_export_directory_root(argv[3], 0755) ||
         !combine_path(audio_directory, argv[3], "", "audio") ||
-        !make_directory(audio_directory)) {
+        !wm_export_directory_child(argv[3], "audio", 0755)) {
         fprintf(stderr, "Could not create local audio directory.\n");
         wm_u8_free(&container);
         free(source);

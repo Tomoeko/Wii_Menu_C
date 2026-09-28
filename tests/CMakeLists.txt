@@ -175,6 +175,11 @@ wm_add_test(wii-menu-atomic-file
 )
 
 # Render.
+wm_add_test(wii-menu-material-blend
+    SOURCES render/material_blend_test.c
+    LIBRARIES wii_menu_core
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/render"
+)
 wm_add_test(wii-menu-image-atomic
     SOURCES render/image_atomic_test.c
     LIBRARIES wii_menu_core
@@ -306,6 +311,11 @@ wm_add_test(wii-menu-preview-arrow
 )
 
 # Tools.
+wm_add_test(wii-menu-export-directory
+    SOURCES tools/export_directory_test.c
+    LIBRARIES wm-export-directory wii_menu_core
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/support"
+)
 wm_add_test(wii-menu-channel-manifest
     SOURCES
         tools/channel_manifest_test.c

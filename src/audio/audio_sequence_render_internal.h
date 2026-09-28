@@ -1,23 +1,14 @@
 #ifndef WII_MENU_AUDIO_SEQUENCE_RENDER_INTERNAL_H
 #define WII_MENU_AUDIO_SEQUENCE_RENDER_INTERNAL_H
 
+#include "audio_sequence_driver_internal.h"
 #include "wii_menu/audio/audio_sequence.h"
 
 enum {
-    WM_SEQUENCE_RATE = 32000,
     WM_SEQUENCE_BLOCK = 96,
     WM_SEQUENCE_MAX_VOICES = 128,
     WM_SEQUENCE_MAX_WAVES = 256
 };
-
-typedef struct SequenceTables {
-    float attack[128];
-    int16_t sustain[128];
-    float decibels[965];
-    float pan[257];
-    uint32_t reverb_frames[8];
-    float reverb_preset[6];
-} SequenceTables;
 
 typedef struct SequenceWave {
     uint32_t index;
@@ -111,7 +102,6 @@ typedef struct SequenceReverb {
 
 /* The scheduler owns event order and voice lifetime. This module owns
  * per-sample voice output and the optional auxiliary return delay network. */
-float wm_sequence_release_rate(uint8_t value);
 void wm_sequence_voice_render(SequencePlayer *player, SequenceVoice *voice);
 bool wm_sequence_reverb_initialize(SequenceReverb *reverb,
                                    const SequenceTables *tables,

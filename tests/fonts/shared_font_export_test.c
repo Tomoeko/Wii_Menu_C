@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 enum {
@@ -142,14 +143,47 @@ int main(void) {
                                    error, sizeof(error)));
     assert(strstr(error, "wbf1") != NULL);
     make_archive(archive);
+
+    char directory[1152];
+    length = snprintf(directory, sizeof(directory), "%s/fonts", root);
+    assert(length > 0 && (size_t)length < sizeof(directory));
+    char outside[1152];
+    length = snprintf(outside, sizeof(outside), "%s-outside", root);
+    assert(length > 0 && (size_t)length < sizeof(outside));
+    assert(mkdir(outside, 0700) == 0);
+    char *outside_canonical = realpath(outside, NULL);
+    assert(outside_canonical);
+    assert(symlink(outside_canonical, directory) == 0);
+    free(outside_canonical);
+    assert(!wm_shared_font_export(archive, sizeof(archive), root,
+                                  error, sizeof(error)));
+    assert(unlink(directory) == 0);
+    assert(rmdir(outside) == 0);
+
+    char linked_root[1152], linked_slash[1152], linked_dot[1152];
+    length = snprintf(linked_root, sizeof(linked_root), "%s-linked", root);
+    assert(length > 0 && (size_t)length < sizeof(linked_root));
+    length = snprintf(linked_slash, sizeof(linked_slash), "%s/", linked_root);
+    assert(length > 0 && (size_t)length < sizeof(linked_slash));
+    length = snprintf(linked_dot, sizeof(linked_dot), "%s/.", linked_root);
+    assert(length > 0 && (size_t)length < sizeof(linked_dot));
+    char *root_canonical = realpath(root, NULL);
+    assert(root_canonical);
+    assert(symlink(root_canonical, linked_root) == 0);
+    free(root_canonical);
+    assert(!wm_shared_font_export(archive, sizeof(archive), linked_root,
+                                  error, sizeof(error)));
+    assert(!wm_shared_font_export(archive, sizeof(archive), linked_slash,
+                                  error, sizeof(error)));
+    assert(!wm_shared_font_export(archive, sizeof(archive), linked_dot,
+                                  error, sizeof(error)));
+    assert(unlink(linked_root) == 0);
+
     if (!wm_shared_font_export(archive, sizeof(archive), root,
                                error, sizeof(error))) {
         fprintf(stderr, "valid fixture export failed: %s\n", error);
         return 1;
     }
-    char directory[1152];
-    length = snprintf(directory, sizeof(directory), "%s/fonts", root);
-    assert(length > 0 && (size_t)length < sizeof(directory));
     static const char *const aliases[] = {
         "wbf1.brfna", "RevoIpl_RodinNTLGPro_DB_32_I4.brfnt",
         "WiiBitmapFontType1.brfnt", "wbf2.brfna",

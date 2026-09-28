@@ -1,15 +1,16 @@
+#include "atomic_file.h"
+#include "export_directory.h"
+
 #include "wii_menu/render/image.h"
 #include "wii_menu/resources/resource_layout.h"
 #include "wii_menu/resources/resource_tpl.h"
 #include "wii_menu/resources/resource_u8.h"
 
-#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
 enum { PATH_CAPACITY = 4096, MAX_EXECUTABLE_SIZE = 32 * 1024 * 1024 };
 
@@ -112,17 +113,11 @@ static bool find_archive(const uint8_t *data, size_t size,
     return false;
 }
 
-static bool ensure_directory(const char *path) {
-    if (mkdir(path, 0755) == 0) return true;
-    if (errno != EEXIST) return false;
-    struct stat status;
-    return stat(path, &status) == 0 && S_ISDIR(status.st_mode);
-}
-
 static bool subdirectory(const char *output, const char *name) {
     char path[PATH_CAPACITY];
     int length = snprintf(path, sizeof(path), "%s/%s", output, name);
-    return length > 0 && length < (int)sizeof(path) && ensure_directory(path);
+    return length > 0 && length < (int)sizeof(path) &&
+           wm_export_directory_child(output, name, 0755);
 }
 
 static bool export_texture(const WmU8Entry *member, const char *output,
@@ -186,12 +181,7 @@ static bool write_json(const char *output, const char *json, size_t size) {
     int length = snprintf(path, sizeof(path),
                           "%s/layouts/restart/my_BackToWiiMenu.json", output);
     if (length <= 0 || length >= (int)sizeof(path)) return false;
-    FILE *file = fopen(path, "wb");
-    if (!file) return false;
-    bool valid = fwrite(json, 1, size, file) == size;
-    if (fclose(file) != 0) valid = false;
-    if (!valid) remove(path);
-    return valid;
+    return wm_atomic_file_replace(path, json, size);
 }
 
 int main(int argc, char **argv) {
@@ -211,7 +201,7 @@ int main(int argc, char **argv) {
         free(data);
         return 1;
     }
-    bool valid = ensure_directory(argv[2]) &&
+    bool valid = wm_export_directory_root(argv[2], 0755) &&
                  subdirectory(argv[2], "layouts") &&
                  subdirectory(argv[2], "textures") &&
                  subdirectory(argv[2], "layouts/restart") &&

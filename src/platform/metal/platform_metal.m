@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "geometry.h"
+#include "material_blend.h"
 #include "shaders.h"
 #include "wii_menu/render/viewport.h"
 
@@ -425,6 +426,10 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
     if (!state || !quad || quad->texture_count > WM_MATERIAL_TEXTURES) {
         return;
     }
+    WmMaterialBlend blend;
+    if (!wm_material_blend_resolve(quad, &blend)) {
+        return;
+    }
 
     if (quad->tev_stage_count > 6 && !state->warned_tev_limit) {
         fprintf(stderr, "Metal: materials with over six TEV stages use the "
@@ -449,16 +454,9 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
         batch.wrap_s[index] = quad->wrap_s[index] < 3 ? quad->wrap_s[index] : 0;
         batch.wrap_t[index] = quad->wrap_t[index] < 3 ? quad->wrap_t[index] : 0;
     }
-    batch.blend_key = WM_BLEND_DEFAULT;
-    if (quad->has_blend_mode) {
-        if (quad->blend_mode[0] == 0) {
-            batch.blend_key = WM_BLEND_DISABLED;
-        } else {
-            uint8_t source = quad->blend_mode[1] < 8 ? quad->blend_mode[1] : 4;
-            uint8_t destination = quad->blend_mode[2] < 8 ? quad->blend_mode[2] : 5;
-            batch.blend_key = source * 8 + destination;
-        }
-    }
+    batch.blend_key = blend.enabled
+        ? (uint8_t)(blend.source * 8 + blend.destination)
+        : WM_BLEND_DISABLED;
     uint32_t comparisons = quad->has_alpha_compare
         ? quad->alpha_compare[0] : 0x77u;
     uint32_t operation = quad->has_alpha_compare

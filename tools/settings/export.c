@@ -1,16 +1,16 @@
 #include "gif.h"
 #include "png.h"
 
+#include "export_directory.h"
+
 #include "wii_menu/render/image.h"
 #include "wii_menu/resources/resource_ash.h"
 #include "wii_menu/resources/resource_tpl.h"
 #include "wii_menu/resources/resource_u8.h"
 
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
 enum { SETTINGS_EXPORT_PATH_CAPACITY = 4096 };
 enum { SETTINGS_MAX_IMAGE_SOURCE = 16 * 1024 * 1024 };
@@ -101,13 +101,6 @@ static uint8_t *read_file(const char *path, size_t *size) {
     }
     *size = (size_t)length;
     return bytes;
-}
-
-static bool make_directory(const char *path) {
-    if (mkdir(path, 0700) == 0) return true;
-    if (errno != EEXIST) return false;
-    struct stat metadata;
-    return stat(path, &metadata) == 0 && S_ISDIR(metadata.st_mode);
 }
 
 static bool output_path(char *path, size_t capacity,
@@ -347,8 +340,9 @@ int main(int argc, char **argv) {
     valid = length > 0 && (size_t)length < sizeof(textures) &&
             settings_length > 0 &&
             (size_t)settings_length < sizeof(directory) &&
-            make_directory(argv[2]) && make_directory(textures) &&
-            make_directory(directory) &&
+            wm_export_directory_root(argv[2], 0700) &&
+            wm_export_directory_child(argv[2], "textures", 0700) &&
+            wm_export_directory_child(argv[2], "textures/settings_html", 0700) &&
             export_artwork(&settings, argv[2]) &&
             export_side_panel(&outer, argv[2]);
     wm_u8_free(&settings);

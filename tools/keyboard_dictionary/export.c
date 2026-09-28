@@ -1,16 +1,17 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "atomic_file.h"
+#include "export_directory.h"
+
 #include "wii_menu/board/keyboard_dictionary.h"
 #include "wii_menu/resources/resource_u8.h"
 
 #include <dirent.h>
-#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
 enum { EXPORT_PATH_CAPACITY = 4096, EXPORT_MAX_APP_BYTES = 16 * 1024 * 1024 };
 
@@ -64,20 +65,8 @@ static uint8_t *read_file(const char *path, size_t *size) {
     return bytes;
 }
 
-static bool ensure_directory(const char *path) {
-    if (mkdir(path, 0700) == 0) return true;
-    struct stat status;
-    return errno == EEXIST && stat(path, &status) == 0 &&
-           S_ISDIR(status.st_mode);
-}
-
 static bool write_file(const char *path, const uint8_t *data, size_t size) {
-    FILE *file = fopen(path, "wb");
-    if (!file) return false;
-    bool okay = fwrite(data, 1, size, file) == size;
-    if (fclose(file) != 0) okay = false;
-    if (!okay) remove(path);
-    return okay;
+    return wm_atomic_file_replace(path, data, size);
 }
 
 static bool find_oem_archive(const uint8_t *app, size_t size,
@@ -175,7 +164,7 @@ int main(int argc, char **argv) {
     if (okay && system_found && oem_found) {
         char destination[EXPORT_PATH_CAPACITY];
         okay = join(destination, argv[2], "keyboard-dictionary") &&
-               ensure_directory(destination);
+               wm_export_directory_child(argv[2], "keyboard-dictionary", 0700);
         for (unsigned language = 0; language < 3 && okay; language++) {
             char path[EXPORT_PATH_CAPACITY];
             okay = join(path, destination, oem_names[language]) &&

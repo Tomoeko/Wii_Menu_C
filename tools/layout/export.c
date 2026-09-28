@@ -1,4 +1,5 @@
 #include "atomic_file.h"
+#include "export_directory.h"
 
 #include "wii_menu/render/image.h"
 #include "wii_menu/resources/resource_ash.h"
@@ -7,13 +8,11 @@
 #include "wii_menu/resources/resource_tpl.h"
 #include "wii_menu/resources/resource_u8.h"
 
-#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
 enum { WM_EXPORT_PATH_CAPACITY = 4096 };
 
@@ -87,35 +86,20 @@ static bool write_path(char output[WM_EXPORT_PATH_CAPACITY],
     return length >= 0 && length < WM_EXPORT_PATH_CAPACITY;
 }
 
-static bool ensure_directory(const char *path)
-{
-    if (mkdir(path, 0755) == 0) {
-        return true;
-    }
-    if (errno != EEXIST) {
-        return false;
-    }
-    struct stat status;
-    return stat(path, &status) == 0 && S_ISDIR(status.st_mode);
-}
-
 static bool ensure_package_directories(const char *output, const char *package)
 {
-    char path[WM_EXPORT_PATH_CAPACITY];
-    if (!ensure_directory(output) ||
-        !write_path(path, output, "layouts", "") ||
-        !ensure_directory(path)) {
+    char relative[160];
+    int length = snprintf(relative, sizeof(relative), "layouts/%s", package);
+    if (length < 0 || length >= (int)sizeof(relative) ||
+        !wm_export_directory_root(output, 0755) ||
+        !wm_export_directory_child(output, "layouts", 0755) ||
+        !wm_export_directory_child(output, "textures", 0755) ||
+        !wm_export_directory_child(output, relative, 0755)) {
         return false;
     }
-    if (!write_path(path, output, "textures", "") ||
-        !ensure_directory(path)) {
-        return false;
-    }
-    if (!write_path(path, output, "layouts", package) ||
-        !ensure_directory(path)) {
-        return false;
-    }
-    return write_path(path, output, "textures", package) && ensure_directory(path);
+    length = snprintf(relative, sizeof(relative), "textures/%s", package);
+    return length >= 0 && length < (int)sizeof(relative) &&
+           wm_export_directory_child(output, relative, 0755);
 }
 
 static uint8_t *read_file(const char *path, size_t *size)
@@ -431,9 +415,9 @@ static bool export_fonts(const WmU8Archive *outer, const char *output,
         return false;
     }
     char directory[WM_EXPORT_PATH_CAPACITY];
-    bool valid = ensure_directory(output) &&
+    bool valid = wm_export_directory_root(output, 0755) &&
                  write_path(directory, output, "fonts", "") &&
-                 ensure_directory(directory);
+                 wm_export_directory_child(output, "fonts", 0755);
     for (size_t index = 0; index < archive.count && valid; index++) {
         const WmU8Entry *item = &archive.entries[index];
         char stem[128];
@@ -480,11 +464,11 @@ static bool export_messages(const WmU8Archive *outer, const char *output,
     int sub_length = snprintf(subdirectory, sizeof(subdirectory),
                               "messages/%s", language);
     bool valid = sub_length >= 0 && sub_length < (int)sizeof(subdirectory) &&
-                 ensure_directory(output) &&
+                 wm_export_directory_root(output, 0755) &&
                  write_path(path, output, "messages", "") &&
-                 ensure_directory(path) &&
+                 wm_export_directory_child(output, "messages", 0755) &&
                  write_path(path, output, subdirectory, "") &&
-                 ensure_directory(path) &&
+                 wm_export_directory_child(output, subdirectory, 0755) &&
                  write_path(path, output, subdirectory, "ipl_common.bmg") &&
                  wm_atomic_file_replace(path, entry->data, entry->size);
     if (!valid) {

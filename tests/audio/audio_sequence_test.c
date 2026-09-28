@@ -1,5 +1,6 @@
 #include "wii_menu/audio/audio_sequence.h"
 
+#include "audio_sequence_driver_internal.h"
 #include "audio_sequence_render_internal.h"
 
 #include <assert.h>
@@ -205,6 +206,91 @@ static void synthetic_reverb_impulse(void)
     wm_sequence_reverb_free(&reverb);
 }
 
+static void put_big_u32(uint8_t *bytes, uint32_t value)
+{
+    bytes[0] = (uint8_t)(value >> 24);
+    bytes[1] = (uint8_t)(value >> 16);
+    bytes[2] = (uint8_t)(value >> 8);
+    bytes[3] = (uint8_t)value;
+}
+
+static void put_big_float(uint8_t *bytes, float value)
+{
+    uint32_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    put_big_u32(bytes, bits);
+}
+
+static void driver_table_loading(void)
+{
+    enum {
+        DOL_HEADER_SIZE = 0x100,
+        ATTACK_SIZE = 128 * 4,
+        SUSTAIN_SIZE = 128 * 2,
+        DECIBEL_SIZE = 965 * 4,
+        PAN_SIZE = 257 * 4,
+        REVERB_SIZE = 8 * 4,
+        PRESET_SIZE = 6 * 4
+    };
+    const uint32_t addresses[] = {
+        0x8161e3f0u,
+        0x8161e2f0u,
+        0x8161ead8u,
+        0x8161f9ecu,
+        0x81685da0u,
+        0x8160f048u
+    };
+    const size_t lengths[] = {
+        ATTACK_SIZE, SUSTAIN_SIZE, DECIBEL_SIZE, PAN_SIZE,
+        REVERB_SIZE, PRESET_SIZE
+    };
+    uint8_t dol[DOL_HEADER_SIZE + ATTACK_SIZE + SUSTAIN_SIZE +
+                DECIBEL_SIZE + PAN_SIZE + REVERB_SIZE + PRESET_SIZE] = {0};
+    size_t offsets[6];
+    size_t next = DOL_HEADER_SIZE;
+    for (size_t section = 0; section < 6; section++) {
+        offsets[section] = next;
+        put_big_u32(dol + section * 4, (uint32_t)next);
+        put_big_u32(dol + 0x48 + section * 4, addresses[section]);
+        put_big_u32(dol + 0x90 + section * 4, (uint32_t)lengths[section]);
+        next += lengths[section];
+    }
+    assert(next == sizeof(dol));
+    for (size_t index = 0; index < 128; index++) {
+        put_big_float(dol + offsets[0] + index * 4, 0.5f);
+        dol[offsets[1] + index * 2] = 0xfc;
+        dol[offsets[1] + index * 2 + 1] = 0x78;
+    }
+    for (size_t index = 0; index < 965; index++) {
+        put_big_float(dol + offsets[2] + index * 4, 0.75f);
+    }
+    for (size_t index = 0; index < 257; index++) {
+        put_big_float(dol + offsets[3] + index * 4, 0.25f);
+    }
+    for (size_t index = 0; index < 8; index++) {
+        put_big_u32(dol + offsets[4] + index * 4, 96);
+    }
+    put_big_float(dol + offsets[5] + 4, 2.0f);
+
+    SequenceTables tables = {0};
+    assert(wm_sequence_driver_load_tables(dol, sizeof(dol), &tables));
+    assert(tables.attack[104] == 0.5f);
+    assert(tables.sustain[127] == -904);
+    assert(tables.decibels[904] == 0.75f);
+    assert(tables.pan[128] == 0.25f);
+    assert(tables.reverb_frames[7] == 96);
+    assert(tables.reverb_preset[1] == 2.0f);
+    assert(wm_sequence_release_rate(127) == 65535.0f);
+    assert(wm_sequence_release_rate(126) == 24.0f);
+
+    assert(!wm_sequence_driver_load_tables(dol, sizeof(dol) - 1, &tables));
+    put_big_u32(dol + offsets[0], 0x7f800000u);
+    assert(!wm_sequence_driver_load_tables(dol, sizeof(dol), &tables));
+    put_big_float(dol + offsets[0], 0.5f);
+    put_big_u32(dol + 0x90 + 4 * 4, 0);
+    assert(!wm_sequence_driver_load_tables(dol, sizeof(dol), &tables));
+}
+
 int main(void)
 {
     independent_track_clocks();
@@ -213,6 +299,7 @@ int main(void)
     variable_counted_phrase();
     synthetic_voice_pcm();
     synthetic_reverb_impulse();
-    puts("Sequence parsing and synthetic PCM fixtures passed.");
+    driver_table_loading();
+    puts("Sequence parsing, driver tables, and synthetic PCM fixtures passed.");
     return 0;
 }

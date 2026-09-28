@@ -9,11 +9,13 @@
 #include "image_internal.h"
 #include "texture_source.h"
 
+#include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 enum { WM_MAX_TEXTURE_SOURCES = 8192 };
 
@@ -34,7 +36,7 @@ typedef struct WmTextureEntry {
 
 struct WmTextureCache {
     WmPlatform *platform;
-    char *raw_root;
+    int raw_root_directory;
     WmTextureEntry *entries;
     size_t entry_count;
     size_t entry_capacity;
@@ -142,22 +144,23 @@ WmTextureCache *wm_texture_cache_create(WmPlatform *platform,
     if (!platform || !raw_root || !raw_root[0] || budget_bytes == 0) {
         return NULL;
     }
-    char *canonical = realpath(raw_root, NULL);
-    if (!canonical) {
+    int root_directory = open(raw_root, O_RDONLY | O_CLOEXEC | O_DIRECTORY);
+    if (root_directory < 0) {
         return NULL;
     }
     struct stat information;
-    if (stat(canonical, &information) != 0 || !S_ISDIR(information.st_mode)) {
-        free(canonical);
+    if (fstat(root_directory, &information) != 0 ||
+        !S_ISDIR(information.st_mode)) {
+        close(root_directory);
         return NULL;
     }
     WmTextureCache *cache = calloc(1, sizeof(*cache));
     if (!cache) {
-        free(canonical);
+        close(root_directory);
         return NULL;
     }
     cache->platform = platform;
-    cache->raw_root = canonical;
+    cache->raw_root_directory = root_directory;
     cache->budget_bytes = budget_bytes;
     cache->frame = 1;
     return cache;
@@ -176,7 +179,7 @@ void wm_texture_cache_destroy(WmTextureCache *cache)
         free(entry->url);
     }
     free(cache->entries);
-    free(cache->raw_root);
+    close(cache->raw_root_directory);
     free(cache);
 }
 
@@ -242,30 +245,32 @@ bool wm_texture_cache_resolve(WmTextureCache *cache,
         return false;
     }
 
-    char *path = wm_texture_source_resolve(cache->raw_root, relative_png_url, url_length);
-    if (!path) {
+    FILE *source = wm_texture_source_open(cache->raw_root_directory,
+                                           relative_png_url, url_length);
+    if (!source) {
         entry->state = WM_TEXTURE_FAILED;
         return false;
     }
     size_t declared_bytes;
-    if (!wm_texture_source_declared_bytes(path, &declared_bytes)) {
-        free(path);
+    if (!wm_image_declared_bytes(source, &declared_bytes)) {
+        fclose(source);
         entry->state = WM_TEXTURE_FAILED;
         return false;
     }
     entry->bytes = declared_bytes;
     if (declared_bytes > cache->budget_bytes) {
-        free(path);
+        fclose(source);
         entry->state = WM_TEXTURE_FAILED;
         return false;
     }
     if (!reserve_gpu_bytes(cache, declared_bytes)) {
-        free(path);
+        fclose(source);
         return false;
     }
     WmImage image;
-    bool read_successful = wm_image_read_bounded(path, declared_bytes, &image);
-    free(path);
+    bool read_successful = wm_image_read_bounded_stream(source, declared_bytes,
+                                                        &image);
+    fclose(source);
     if (!read_successful) {
         entry->state = WM_TEXTURE_FAILED;
         return false;

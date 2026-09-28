@@ -30,29 +30,66 @@ static bool image_size(uint32_t width, uint32_t height, size_t *size) {
     return true;
 }
 
-bool wm_image_read_bounded(const char *path, size_t maximum_bytes,
-                           WmImage *image) {
-    if (!path || !image) return false;
-    memset(image, 0, sizeof(*image));
-    FILE *file = fopen(path, "rb");
-    if (!file) return false;
+static bool read_image_header(FILE *stream, uint32_t *width,
+                              uint32_t *height, size_t *size) {
     uint8_t header[WM_IMAGE_HEADER_SIZE];
-    bool valid = fread(header, 1, sizeof(header), file) == sizeof(header) &&
-                 memcmp(header, "WMRA", 4) == 0 && read_u32(header + 4) == 1;
-    size_t size = 0;
-    if (valid) {
-        image->width = read_u32(header + 8);
-        image->height = read_u32(header + 12);
-        valid = image_size(image->width, image->height, &size) &&
-                size <= maximum_bytes;
+    if (fread(header, 1, sizeof(header), stream) != sizeof(header) ||
+        memcmp(header, "WMRA", 4) != 0 || read_u32(header + 4) != 1) {
+        return false;
     }
+    *width = read_u32(header + 8);
+    *height = read_u32(header + 12);
+    return image_size(*width, *height, size);
+}
+
+bool wm_image_declared_bytes(FILE *stream, size_t *bytes) {
+    if (!stream || !bytes) {
+        return false;
+    }
+    *bytes = 0;
+    uint32_t width;
+    uint32_t height;
+    size_t size;
+    if (!read_image_header(stream, &width, &height, &size) ||
+        fseek(stream, 0, SEEK_SET) != 0) {
+        return false;
+    }
+    *bytes = size;
+    return true;
+}
+
+bool wm_image_read_bounded_stream(FILE *stream, size_t maximum_bytes,
+                                  WmImage *image) {
+    if (!stream || !image) {
+        return false;
+    }
+    memset(image, 0, sizeof(*image));
+    size_t size = 0;
+    bool valid = read_image_header(stream, &image->width, &image->height, &size) &&
+                 size <= maximum_bytes;
     if (valid) {
         image->pixels = malloc(size);
-        valid = image->pixels && fread(image->pixels, 1, size, file) == size &&
-                fgetc(file) == EOF && !ferror(file);
+        valid = image->pixels && fread(image->pixels, 1, size, stream) == size &&
+                fgetc(stream) == EOF && !ferror(stream);
     }
-    fclose(file);
-    if (!valid) wm_image_free(image);
+    if (!valid) {
+        wm_image_free(image);
+    }
+    return valid;
+}
+
+bool wm_image_read_bounded(const char *path, size_t maximum_bytes,
+                           WmImage *image) {
+    if (!path || !image) {
+        return false;
+    }
+    memset(image, 0, sizeof(*image));
+    FILE *stream = fopen(path, "rb");
+    if (!stream) {
+        return false;
+    }
+    bool valid = wm_image_read_bounded_stream(stream, maximum_bytes, image);
+    fclose(stream);
     return valid;
 }
 

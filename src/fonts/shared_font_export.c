@@ -5,12 +5,13 @@
 #include "wii_menu/resources/resource_font.h"
 #include "wii_menu/resources/resource_u8.h"
 
+#include "../support/atomic_file.h"
+
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
 enum {
     WM_SHARED_FONT_ARCHIVE_LIMIT = 128 * 1024 * 1024,
@@ -36,10 +37,22 @@ static void set_error(char *error, size_t capacity, const char *message) {
 }
 
 static bool ensure_directory(const char *path) {
-    if (mkdir(path, 0700) == 0) return true;
+    size_t length = strnlen(path, WM_SHARED_FONT_PATH_CAPACITY);
+    if (length == 0 || length == WM_SHARED_FONT_PATH_CAPACITY) return false;
+    char normalized[WM_SHARED_FONT_PATH_CAPACITY];
+    memcpy(normalized, path, length + 1);
+    while (length > 1 && normalized[length - 1] == '/')
+        normalized[--length] = '\0';
+    const char *leaf = strrchr(normalized, '/');
+    leaf = leaf ? leaf + 1 : normalized;
+    if (strcmp(leaf, "..") == 0 ||
+        (strcmp(leaf, ".") == 0 && strcmp(normalized, ".") != 0))
+        return false;
+
+    if (mkdir(normalized, 0700) == 0) return true;
     if (errno != EEXIST) return false;
     struct stat info;
-    return stat(path, &info) == 0 && S_ISDIR(info.st_mode);
+    return lstat(normalized, &info) == 0 && S_ISDIR(info.st_mode);
 }
 
 static bool output_path(char path[WM_SHARED_FONT_PATH_CAPACITY],
@@ -52,24 +65,8 @@ static bool output_path(char path[WM_SHARED_FONT_PATH_CAPACITY],
 static bool write_atomic(const char *directory, const char *name,
                          const uint8_t *data, size_t size) {
     char target[WM_SHARED_FONT_PATH_CAPACITY];
-    char temporary[WM_SHARED_FONT_PATH_CAPACITY];
-    if (!output_path(target, directory, name) ||
-        !output_path(temporary, directory, ".wm-font-export-XXXXXX")) {
-        return false;
-    }
-    int descriptor = mkstemp(temporary);
-    if (descriptor < 0) return false;
-    FILE *file = fdopen(descriptor, "wb");
-    if (!file) {
-        close(descriptor);
-        remove(temporary);
-        return false;
-    }
-    bool complete = fwrite(data, 1, size, file) == size;
-    if (fclose(file) != 0) complete = false;
-    if (complete) complete = rename(temporary, target) == 0;
-    if (!complete) remove(temporary);
-    return complete;
+    return output_path(target, directory, name) &&
+           wm_atomic_file_replace(target, data, size);
 }
 
 bool wm_shared_font_export(const uint8_t *archive_bytes, size_t archive_size,

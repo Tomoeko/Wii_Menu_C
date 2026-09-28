@@ -4,14 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-float wm_sequence_release_rate(uint8_t value)
-{
-    if (value == 127) return 65535;
-    if (value == 126) return 24;
-    if (value < 50) return ((float)(value * 2 + 1) / 128.0f) / 5.0f;
-    return (60.0f / (126.0f - (float)value)) / 5.0f;
-}
-
 static void update_envelope(SequenceVoice *voice,
                             const SequenceTables *tables)
 {
