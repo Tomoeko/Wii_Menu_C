@@ -2,6 +2,7 @@
 #define WII_MENU_OPTIONS_SCENE_H
 
 #include "wii_menu/fonts/font_cache.h"
+#include "wii_menu/board/board_keyboard.h"
 #include "wii_menu/platform/platform.h"
 #include "wii_menu/render/texture_cache.h"
 
@@ -35,7 +36,8 @@ typedef enum WmOptionsControl {
     WM_OPTIONS_CONTROL_SETTINGS_ITEM_3,
     WM_OPTIONS_CONTROL_SETTINGS_ITEM_4,
     WM_OPTIONS_CONTROL_SETTINGS_ITEM_5,
-    WM_OPTIONS_CONTROL_SETTINGS_ITEM_6
+    WM_OPTIONS_CONTROL_SETTINGS_ITEM_6,
+    WM_OPTIONS_CONTROL_SETTINGS_NICKNAME_FIELD
 } WmOptionsControl;
 
 typedef enum WmOptionsPhase {
@@ -117,11 +119,25 @@ bool wm_options_scene_activate(WmOptionsScene *scene,
 bool wm_options_scene_pointer_down(WmOptionsScene *scene,
                                     WmOptionsControl control);
 void wm_options_scene_pointer_up(WmOptionsScene *scene);
-/* Console Nickname is a Settings text field. Consume typed keys while it is
- * active so the menu's single-key shortcuts do not interrupt the edit. */
+/* Console Nickname is a Settings text field. Consume typed keys while its
+ * software keyboard is active so menu shortcuts do not interrupt the edit. */
 bool wm_options_scene_text_editing(const WmOptionsScene *scene);
 bool wm_options_scene_type_ascii(WmOptionsScene *scene, char character);
 bool wm_options_scene_backspace(WmOptionsScene *scene);
+bool wm_options_scene_nickname_keyboard_visible(const WmOptionsScene *scene);
+void wm_options_scene_keyboard_modifiers(WmOptionsScene *scene,
+                                          bool shift_down, bool caps_lock_on);
+bool wm_options_scene_place_nickname_caret(WmOptionsScene *scene, int x);
+WmBoardKeyboardControl wm_options_scene_keyboard_hit(WmOptionsScene *scene,
+                                                     int x, int y);
+bool wm_options_scene_keyboard_place_caret(WmOptionsScene *scene,
+                                            int x, int y);
+void wm_options_scene_keyboard_hover(WmOptionsScene *scene,
+                                     WmBoardKeyboardControl control);
+const char *wm_options_scene_keyboard_activate(WmOptionsScene *scene,
+                                               WmBoardKeyboardControl control);
+const char *wm_options_scene_keyboard_close(WmOptionsScene *scene, bool accept);
+bool wm_options_scene_move_nickname_caret(WmOptionsScene *scene, int direction);
 
 /* Draw inside an already begun platform frame: setup background, opaque Back
  * bars, then option objects and headings. */

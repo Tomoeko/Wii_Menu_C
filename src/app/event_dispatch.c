@@ -206,14 +206,43 @@ void wm_app_poll_events(WmAppRuntime *app, uint64_t frame_start, bool health_fra
             wm_app_board_pointer_leave(&input->board, board_scene,
                                        event.cancel_capture);
             wm_app_options_pointer_leave(&input->scene, options_scene);
+            if (event.cancel_capture) {
+                if (board_scene)
+                    wm_board_scene_keyboard_modifiers(board_scene, false, false);
+                if (options_scene)
+                    wm_options_scene_keyboard_modifiers(options_scene,
+                                                        false, false);
+            }
+        } else if (event.type == WM_EVENT_KEY_MODIFIERS) {
+            bool editor_keyboard =
+                (menu->screen == WM_SCREEN_BOARD && board_scene &&
+                 wm_board_scene_compose_editor_active(board_scene)) ||
+                (menu->screen == WM_SCREEN_SETTINGS && options_scene &&
+                 wm_options_scene_text_editing(options_scene));
+            if (menu->screen == WM_SCREEN_BOARD && board_scene)
+                wm_board_scene_keyboard_modifiers(board_scene,
+                    event.shift_down, event.caps_lock_on);
+            if (menu->screen == WM_SCREEN_SETTINGS && options_scene)
+                wm_options_scene_keyboard_modifiers(options_scene,
+                    event.shift_down, event.caps_lock_on);
+            if (editor_keyboard &&
+                (event.key == WM_KEY_CAPS_LOCK ||
+                 (event.key == WM_KEY_SHIFT && event.shift_down)))
+                wm_audio_play(audio, "WIPL_SE_SK_SWITCHING_02");
         } else if (event.type == WM_EVENT_KEY_DOWN) {
             input->keyboard_focus = true;
+            if (menu->screen == WM_SCREEN_BOARD && board_scene)
+                wm_board_scene_keyboard_modifiers(board_scene,
+                    event.shift_down, event.caps_lock_on);
+            if (menu->screen == WM_SCREEN_SETTINGS && options_scene)
+                wm_options_scene_keyboard_modifiers(options_scene,
+                    event.shift_down, event.caps_lock_on);
             bool composing =
                 menu->screen == WM_SCREEN_BOARD && board_scene &&
                 wm_board_scene_child(board_scene) == WM_BOARD_CHILD_COMPOSE;
-            bool editing_nickname = menu->screen == WM_SCREEN_SETTINGS &&
-                                    wm_options_scene_text_editing(options_scene);
-            if (event.key == WM_KEY_HOME || (!composing && !editing_nickname &&
+            bool nickname_keyboard = menu->screen == WM_SCREEN_SETTINGS &&
+                wm_options_scene_nickname_keyboard_visible(options_scene);
+            if (event.key == WM_KEY_HOME || (!composing && !nickname_keyboard &&
                                              (event.key == 'h' || event.key == 'H'))) {
                 if (wm_app_try_enter_home(app, frame_start)) {
                     input->menu_pointer.hovered = (WmHit){WM_HIT_NONE, -1};
@@ -238,20 +267,34 @@ void wm_app_poll_events(WmAppRuntime *app, uint64_t frame_start, bool health_fra
                 wm_app_board_compose_key(board_scene, audio, event.key)) {
                 continue;
             }
-            if (editing_nickname) {
-                if (event.key == WM_KEY_BACKSPACE) {
-                    wm_options_scene_backspace(options_scene);
+            if (nickname_keyboard) {
+                if (event.key == WM_KEY_ESCAPE || event.key == WM_KEY_ENTER) {
+                    const char *cue = wm_options_scene_keyboard_close(
+                        options_scene, event.key == WM_KEY_ENTER);
+                    if (cue) wm_audio_play(audio, cue);
                     continue;
                 }
-                if (event.key == WM_KEY_ENTER) {
-                    wm_options_scene_activate(options_scene,
-                                              WM_OPTIONS_CONTROL_SETTINGS_NEXT);
+                if (event.key == WM_KEY_BACKSPACE) {
+                    wm_audio_play(audio,
+                        wm_options_scene_backspace(options_scene)
+                            ? "WIPL_SE_CHAR_DELETE" :
+                              "WIPL_SE_CHAR_DELETE_ERROR");
+                    continue;
+                }
+                if (event.key == WM_KEY_LEFT || event.key == WM_KEY_RIGHT) {
+                    wm_options_scene_move_nickname_caret(
+                        options_scene, event.key == WM_KEY_LEFT ? -1 : 1);
                     continue;
                 }
                 if (event.key >= 32 && event.key <= 126) {
-                    wm_options_scene_type_ascii(options_scene, (char)event.key);
+                    wm_audio_play(audio,
+                        wm_options_scene_type_ascii(options_scene,
+                                                     (char)event.key)
+                            ? "WIPL_SE_CHAR_INPUT" :
+                              "WIPL_SE_CHAR_DELETE_ERROR");
                     continue;
                 }
+                continue;
             }
             wm_app_handle_key(menu, audio, resource_scene, board_scene, options_scene,
                               &flow->fade, event.key, &input->focused_slot);

@@ -666,16 +666,24 @@ static void test_channel_back_dialog_fade(const char *assets) {
         assert(wm_storage_scene_activate(scene,
             (WmStorageHit){operations[operation], -1}));
         assert(sample_back_alpha(scene, textures, fonts) > 0.99f);
-        wm_storage_scene_advance(scene, 19.0f + 46.0f);
-        assert(wm_storage_scene_snapshot(scene).phase == WM_STORAGE_DIALOG_IN);
-        for (int frame = 0; frame <= 11; frame++) {
-            float actual = sample_back_alpha(scene, textures, fonts);
-            float expected = source_back_alpha(source, "AlphOut",
-                                                fminf((float)frame, 10.0f));
-            assert(fabsf(actual - expected) < 0.02f);
+        assert(!wm_storage_scene_take_dialog_cue(scene));
+        for (int frame = 1; frame <= 10; frame++) {
             wm_storage_scene_advance(scene, 1.0f);
+            float actual = sample_back_alpha(scene, textures, fonts);
+            float expected = source_back_alpha(source, "AlphOut", (float)frame);
+            assert(fabsf(actual - expected) < 0.02f);
         }
-        wm_storage_scene_advance(scene, 14.0f);
+        wm_storage_scene_advance(scene, 9.0f);
+        assert(wm_storage_scene_snapshot(scene).phase ==
+               WM_STORAGE_DETAIL_BUTTONS_OUT);
+        assert(sample_back_alpha(scene, textures, fonts) == 0.0f);
+        assert(!wm_storage_scene_take_dialog_cue(scene));
+        wm_storage_scene_advance(scene, 46.0f);
+        assert(wm_storage_scene_snapshot(scene).phase == WM_STORAGE_DIALOG_IN);
+        assert(sample_back_alpha(scene, textures, fonts) == 0.0f);
+        assert(wm_storage_scene_take_dialog_cue(scene));
+        assert(!wm_storage_scene_take_dialog_cue(scene));
+        wm_storage_scene_advance(scene, 26.0f);
         assert(wm_storage_scene_snapshot(scene).view == WM_STORAGE_VIEW_DIALOG);
         assert(sample_back_alpha(scene, textures, fonts) == 0.0f);
         assert(wm_storage_scene_activate(scene,

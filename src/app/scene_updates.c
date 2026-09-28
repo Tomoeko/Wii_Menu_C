@@ -60,6 +60,8 @@ void wm_app_settings_advance(WmAppSettingsUpdate *update, float frames) {
          * have queued its balloon cue before returning to Options. */
         if (wm_storage_scene_take_balloon_cue(storage))
             wm_audio_play(update->audio, "balloon");
+        if (wm_storage_scene_take_dialog_cue(storage))
+            wm_audio_play(update->audio, "WIPL_SE_INFO_WINDOW");
     }
 }
 

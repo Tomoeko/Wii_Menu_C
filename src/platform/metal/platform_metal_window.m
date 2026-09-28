@@ -178,7 +178,7 @@ static void wm_enqueue_event(WmPlatform *platform, WmEvent event)
         case 117: key = WM_KEY_BACKSPACE; break;
         case 115: key = WM_KEY_HOME; break;
         default: {
-            NSString *characters = native_event.charactersIgnoringModifiers;
+            NSString *characters = native_event.characters;
             if (characters.length > 0) {
                 unichar character = [characters characterAtIndex:0];
                 if (character < 128) {
@@ -192,12 +192,29 @@ static void wm_enqueue_event(WmPlatform *platform, WmEvent event)
     WmEvent event = {
         .type = WM_EVENT_KEY_DOWN,
         .key = key,
+        .shift_down = (native_event.modifierFlags & NSEventModifierFlagShift) != 0,
+        .caps_lock_on = (native_event.modifierFlags & NSEventModifierFlagCapsLock) != 0,
     };
     if ((native_event.modifierFlags & NSEventModifierFlagCommand) &&
         (key == 'q' || key == 'Q')) {
         event.type = WM_EVENT_QUIT;
     }
     wm_enqueue_event(self.platform, event);
+}
+
+- (void)flagsChanged:(NSEvent *)native_event
+{
+    WmKey key = WM_KEY_UNKNOWN;
+    if (native_event.keyCode == 56 || native_event.keyCode == 60)
+        key = WM_KEY_SHIFT;
+    else if (native_event.keyCode == 57)
+        key = WM_KEY_CAPS_LOCK;
+    wm_enqueue_event(self.platform, (WmEvent){
+        .type = WM_EVENT_KEY_MODIFIERS,
+        .key = key,
+        .shift_down = (native_event.modifierFlags & NSEventModifierFlagShift) != 0,
+        .caps_lock_on = (native_event.modifierFlags & NSEventModifierFlagCapsLock) != 0,
+    });
 }
 
 @end
@@ -219,6 +236,10 @@ static void wm_enqueue_event(WmPlatform *platform, WmEvent event)
     wm_enqueue_event(self.platform, (WmEvent){
         .type = WM_EVENT_POINTER_LEAVE,
         .cancel_capture = true
+    });
+    wm_enqueue_event(self.platform, (WmEvent){
+        .type = WM_EVENT_KEY_MODIFIERS,
+        .caps_lock_on = ([NSEvent modifierFlags] & NSEventModifierFlagCapsLock) != 0,
     });
 }
 

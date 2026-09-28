@@ -273,9 +273,20 @@ static void test_nickname_keyboard(WmOptionsScene *scene) {
     assert(!wm_options_scene_text_editing(scene));
     assert(wm_options_scene_activate(
         scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
+    assert(!wm_options_scene_text_editing(scene));
+    assert(wm_options_scene_place_nickname_caret(scene, 400));
+    assert(wm_options_scene_activate(
+        scene, WM_OPTIONS_CONTROL_SETTINGS_NICKNAME_FIELD));
     assert(wm_options_scene_text_editing(scene));
     assert(wm_options_scene_type_ascii(scene, 'h'));
     assert(wm_options_scene_backspace(scene));
+    assert(wm_options_scene_nickname_keyboard_visible(scene));
+    wm_options_scene_advance(scene, 36.0f);
+    assert(wm_options_scene_keyboard_close(scene, true));
+    wm_options_scene_advance(scene, 16.0f);
+    assert(wm_options_scene_nickname_keyboard_visible(scene));
+    wm_options_scene_advance(scene, 14.0f);
+    assert(!wm_options_scene_nickname_keyboard_visible(scene));
     assert(wm_options_scene_activate(
         scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
     assert(!wm_options_scene_text_editing(scene));

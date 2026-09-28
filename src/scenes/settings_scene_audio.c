@@ -14,7 +14,10 @@ const char *wm_settings_scene_click_cue(const WmSettingsScene *scene,
                                          WmSettingsControl control) {
     if (!scene || scene->phase != WM_SETTINGS_READY ||
         control <= WM_SETTINGS_CONTROL_NONE ||
-        control > WM_SETTINGS_CONTROL_ITEM_6) return NULL;
+        control > WM_SETTINGS_CONTROL_NICKNAME_FIELD) return NULL;
+
+    if (control == WM_SETTINGS_CONTROL_NICKNAME_FIELD)
+        return "WIPL_SE_SK_OPEN";
 
     if (wm_settings_scene_directional_control(scene, control)) {
         if (scene->active_category == SETTINGS_CALENDAR)

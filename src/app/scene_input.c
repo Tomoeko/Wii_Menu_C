@@ -83,6 +83,37 @@ void wm_app_storage_pointer_event(WmAppSceneInput *input, WmStorageScene *scene,
 
 void wm_app_options_pointer_event(WmAppSceneInput *input, WmOptionsScene *scene,
                                   WmAudio *audio, const WmEvent *event) {
+    if (wm_options_scene_nickname_keyboard_visible(scene)) {
+        WmBoardKeyboardControl key = wm_options_scene_keyboard_hit(
+            scene, event->x, event->y);
+        if (event->type == WM_EVENT_POINTER_MOVE) {
+            if (key != input->nickname_key_hovered &&
+                key != WM_KEYBOARD_NONE)
+                wm_audio_play(audio, "WIPL_SE_BT_TARGETTING");
+            input->nickname_key_hovered = key;
+            wm_options_scene_keyboard_hover(scene, key);
+        } else if (event->type == WM_EVENT_POINTER_DOWN) {
+            if (event->button == WM_POINTER_LEFT &&
+                wm_options_scene_keyboard_place_caret(
+                    scene, event->x, event->y)) {
+                input->nickname_key_pressed = WM_KEYBOARD_NONE;
+                return;
+            }
+            input->nickname_key_pressed = event->button == WM_POINTER_LEFT
+                ? key : WM_KEYBOARD_NONE;
+        } else if (event->type == WM_EVENT_POINTER_UP) {
+            if (event->button == WM_POINTER_LEFT &&
+                key != WM_KEYBOARD_NONE &&
+                key == input->nickname_key_pressed) {
+                const char *cue = wm_options_scene_keyboard_activate(scene, key);
+                if (cue) wm_audio_play(audio, cue);
+            }
+            input->nickname_key_pressed = WM_KEYBOARD_NONE;
+        }
+        return;
+    }
+    input->nickname_key_hovered = WM_KEYBOARD_NONE;
+    input->nickname_key_pressed = WM_KEYBOARD_NONE;
     if (event->type == WM_EVENT_POINTER_MOVE) {
         WmOptionsControl next = wm_options_scene_hit(scene, event->x, event->y);
         if (next != input->options_hovered && next != WM_OPTIONS_CONTROL_NONE) {
@@ -94,6 +125,9 @@ void wm_app_options_pointer_event(WmAppSceneInput *input, WmOptionsScene *scene,
         input->options_pressed = event->button == WM_POINTER_LEFT
                                      ? wm_options_scene_hit(scene, event->x, event->y)
                                      : WM_OPTIONS_CONTROL_NONE;
+        if (input->options_pressed ==
+            WM_OPTIONS_CONTROL_SETTINGS_NICKNAME_FIELD)
+            wm_options_scene_place_nickname_caret(scene, event->x);
         const char *held_cue = wm_options_scene_click_cue(
             scene, input->options_pressed);
         input->options_held_arrow =
@@ -121,6 +155,9 @@ void wm_app_options_pointer_event(WmAppSceneInput *input, WmOptionsScene *scene,
 }
 
 void wm_app_options_pointer_leave(WmAppSceneInput *input, WmOptionsScene *options) {
+    input->nickname_key_pressed = WM_KEYBOARD_NONE;
+    input->nickname_key_hovered = WM_KEYBOARD_NONE;
+    wm_options_scene_keyboard_hover(options, WM_KEYBOARD_NONE);
     wm_options_scene_hover(options, WM_OPTIONS_CONTROL_NONE);
     if (input->options_held_arrow) {
         wm_options_scene_pointer_up(options);

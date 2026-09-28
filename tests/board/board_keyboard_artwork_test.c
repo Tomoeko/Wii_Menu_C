@@ -433,6 +433,109 @@ int main(int argc, char **argv) {
            WM_KEYBOARD_DELETE);
     assert(wm_board_keyboard_press_physical(keyboard, "\n") ==
            WM_KEYBOARD_RETURN);
+    assert(wm_board_keyboard_press_physical(keyboard, "`") ==
+           (WmBoardKeyboardControl)(WM_KEYBOARD_CHARACTER_FIRST + 47));
+    for (char printable = 32; printable <= 126; printable++) {
+        char text[2] = {printable, '\0'};
+        (void)wm_board_keyboard_press_physical(keyboard, text);
+    }
+
+    char modified_character[5];
+    WmBoardKeyboardControl q_key = (WmBoardKeyboardControl)(
+        WM_KEYBOARD_CHARACTER_FIRST + 11);
+    wm_board_keyboard_set_physical_modifiers(keyboard, true, false);
+    assert(wm_board_keyboard_activate(keyboard, q_key, false,
+                                      modified_character) ==
+           WM_KEYBOARD_ACTION_INSERT);
+    assert(strcmp(modified_character, "Q") == 0);
+    /* A software key press does not release a physically held Shift. */
+    assert(wm_board_keyboard_activate(keyboard, q_key, false,
+                                      modified_character) ==
+           WM_KEYBOARD_ACTION_INSERT);
+    assert(strcmp(modified_character, "Q") == 0);
+    wm_board_keyboard_set_physical_modifiers(keyboard, false, false);
+    assert(wm_board_keyboard_activate(keyboard, q_key, false,
+                                      modified_character) ==
+           WM_KEYBOARD_ACTION_INSERT);
+    assert(strcmp(modified_character, "q") == 0);
+    wm_board_keyboard_set_physical_modifiers(keyboard, false, true);
+    assert(wm_board_keyboard_activate(keyboard, q_key, false,
+                                      modified_character) ==
+           WM_KEYBOARD_ACTION_INSERT);
+    assert(strcmp(modified_character, "Q") == 0);
+    wm_board_keyboard_set_physical_modifiers(keyboard, false, false);
+
+    wm_board_keyboard_reset(keyboard);
+    assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_CAPS, false,
+                                      modified_character) ==
+           WM_KEYBOARD_ACTION_HANDLED);
+    wm_board_keyboard_advance(keyboard, 20.0f);
+    reset_draw_counts();
+    wm_board_keyboard_draw(keyboard, 1.0f, false);
+    double caps_idle_geometry = material_geometry_sum;
+    wm_board_keyboard_reset(keyboard);
+    wm_board_keyboard_set_physical_modifiers(keyboard, false, true);
+    wm_board_keyboard_advance(keyboard, 20.0f);
+    reset_draw_counts();
+    wm_board_keyboard_draw(keyboard, 1.0f, false);
+    double caps_physical_hover_geometry = material_geometry_sum;
+    assert(fabs(caps_physical_hover_geometry - caps_idle_geometry) > 0.01);
+    wm_board_keyboard_advance(keyboard, 2.0f);
+    reset_draw_counts();
+    wm_board_keyboard_draw(keyboard, 1.0f, false);
+    assert(fabs(material_geometry_sum - caps_physical_hover_geometry) > 0.01);
+    assert(fabs(material_geometry_sum - caps_idle_geometry) > 0.01);
+    wm_board_keyboard_advance(keyboard, 3.0f);
+    reset_draw_counts();
+    wm_board_keyboard_draw(keyboard, 1.0f, false);
+    assert(fabs(material_geometry_sum - caps_idle_geometry) < 0.01);
+    wm_board_keyboard_reset(keyboard);
+    assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_CAPS, false,
+                                      modified_character) ==
+           WM_KEYBOARD_ACTION_HANDLED);
+    wm_board_keyboard_advance(keyboard, 20.0f);
+    wm_board_keyboard_hover(keyboard, WM_KEYBOARD_CAPS);
+    wm_board_keyboard_advance(keyboard, 5.0f);
+    reset_draw_counts();
+    wm_board_keyboard_draw(keyboard, 1.0f, false);
+    assert(fabs(material_geometry_sum - caps_idle_geometry) > 0.01);
+    assert(fabs(material_geometry_sum - caps_physical_hover_geometry) < 0.01);
+
+    wm_board_keyboard_reset(keyboard);
+    assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_SHIFT, false,
+                                      modified_character) ==
+           WM_KEYBOARD_ACTION_HANDLED);
+    wm_board_keyboard_advance(keyboard, 20.0f);
+    reset_draw_counts();
+    wm_board_keyboard_draw(keyboard, 1.0f, false);
+    double shift_idle_geometry = material_geometry_sum;
+    wm_board_keyboard_hover(keyboard, WM_KEYBOARD_SHIFT);
+    wm_board_keyboard_advance(keyboard, 5.0f);
+    reset_draw_counts();
+    wm_board_keyboard_draw(keyboard, 1.0f, false);
+    assert(fabs(material_geometry_sum - shift_idle_geometry) > 0.01);
+    double shift_hover_geometry = material_geometry_sum;
+    wm_board_keyboard_reset(keyboard);
+    wm_board_keyboard_set_physical_modifiers(keyboard, true, false);
+    wm_board_keyboard_advance(keyboard, 20.0f);
+    reset_draw_counts();
+    wm_board_keyboard_draw(keyboard, 1.0f, false);
+    assert(fabs(material_geometry_sum - shift_hover_geometry) < 0.01);
+    wm_board_keyboard_advance(keyboard, 60.0f);
+    reset_draw_counts();
+    wm_board_keyboard_draw(keyboard, 1.0f, false);
+    assert(fabs(material_geometry_sum - shift_hover_geometry) < 0.01);
+    wm_board_keyboard_set_physical_modifiers(keyboard, false, false);
+    wm_board_keyboard_advance(keyboard, 2.0f);
+    reset_draw_counts();
+    wm_board_keyboard_draw(keyboard, 1.0f, false);
+    assert(fabs(material_geometry_sum - normal_geometry) > 0.01);
+    assert(fabs(material_geometry_sum - shift_hover_geometry) > 0.01);
+    wm_board_keyboard_advance(keyboard, 3.0f);
+    reset_draw_counts();
+    wm_board_keyboard_draw(keyboard, 1.0f, false);
+    assert(fabs(material_geometry_sum - normal_geometry) < 0.01);
+    wm_board_keyboard_reset(keyboard);
 
     char character[5];
     assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_PHONE, false,

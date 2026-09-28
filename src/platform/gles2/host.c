@@ -143,6 +143,7 @@ WmGles2Host *wm_gles2_host_create(const char *title, int width, int height) {
     attributes.border_pixel = 0;
     attributes.event_mask = StructureNotifyMask | ExposureMask | PointerMotionMask |
                             ButtonPressMask | ButtonReleaseMask | KeyPressMask |
+                            KeyReleaseMask |
                             EnterWindowMask | LeaveWindowMask | FocusChangeMask;
     host->window = XCreateWindow(host->display, root, 0, 0, (unsigned int)width,
                                  (unsigned int)height, 0, depth, InputOutput, visual,
@@ -286,9 +287,6 @@ static WmKey wm_lookup_key(XKeyEvent *key_event) {
 
     if (count == 1 && (unsigned char)text[0] >= 32 && (unsigned char)text[0] <= 126) {
         unsigned char character = (unsigned char)text[0];
-        if (character >= 'A' && character <= 'Z') {
-            character = (unsigned char)(character - 'A' + 'a');
-        }
         return (WmKey)character;
     }
     return WM_KEY_UNKNOWN;
@@ -336,6 +334,31 @@ bool wm_gles2_host_poll(WmGles2Host *host, WmEvent *event) {
                 event->type = WM_EVENT_POINTER_LEAVE;
                 event->cancel_capture = true;
                 return true;
+            case KeyRelease:
+            case KeyPress: {
+                KeySym symbol = XLookupKeysym(&native_event.xkey, 0);
+                bool pressed = native_event.type == KeyPress;
+                if (symbol == XK_Shift_L || symbol == XK_Shift_R ||
+                    symbol == XK_Caps_Lock) {
+                    event->type = WM_EVENT_KEY_MODIFIERS;
+                    event->key = symbol == XK_Caps_Lock
+                        ? (pressed ? WM_KEY_CAPS_LOCK : WM_KEY_UNKNOWN)
+                        : WM_KEY_SHIFT;
+                    event->shift_down = (native_event.xkey.state & ShiftMask) != 0;
+                    event->caps_lock_on = (native_event.xkey.state & LockMask) != 0;
+                    if (symbol == XK_Caps_Lock && pressed)
+                        event->caps_lock_on = !event->caps_lock_on;
+                    if (symbol == XK_Shift_L || symbol == XK_Shift_R)
+                        event->shift_down = pressed;
+                    return true;
+                }
+                if (!pressed) break;
+                event->type = WM_EVENT_KEY_DOWN;
+                event->key = wm_lookup_key(&native_event.xkey);
+                event->shift_down = (native_event.xkey.state & ShiftMask) != 0;
+                event->caps_lock_on = (native_event.xkey.state & LockMask) != 0;
+                return true;
+            }
             case ButtonPress:
             case ButtonRelease:
                 if (native_event.xbutton.button != Button1 &&
@@ -348,10 +371,6 @@ bool wm_gles2_host_poll(WmGles2Host *host, WmEvent *event) {
                 event->button = (WmPointerButton)native_event.xbutton.button;
                 wm_pointer_event(host, event, native_event.xbutton.x,
                                  native_event.xbutton.y);
-                return true;
-            case KeyPress:
-                event->type = WM_EVENT_KEY_DOWN;
-                event->key = wm_lookup_key(&native_event.xkey);
                 return true;
             default:
                 break;

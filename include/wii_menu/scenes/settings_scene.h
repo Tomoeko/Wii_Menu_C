@@ -2,6 +2,7 @@
 #define WII_MENU_SETTINGS_SCENE_H
 
 #include "wii_menu/fonts/font_cache.h"
+#include "wii_menu/board/board_keyboard.h"
 #include "wii_menu/platform/platform.h"
 #include "wii_menu/render/texture_cache.h"
 
@@ -26,7 +27,8 @@ typedef enum WmSettingsControl {
     WM_SETTINGS_CONTROL_ITEM_3,
     WM_SETTINGS_CONTROL_ITEM_4,
     WM_SETTINGS_CONTROL_ITEM_5,
-    WM_SETTINGS_CONTROL_ITEM_6
+    WM_SETTINGS_CONTROL_ITEM_6,
+    WM_SETTINGS_CONTROL_NICKNAME_FIELD
 } WmSettingsControl;
 
 typedef struct WmSettingsSnapshot {
@@ -120,11 +122,27 @@ bool wm_settings_scene_activate(WmSettingsScene *scene,
 bool wm_settings_scene_pointer_down(WmSettingsScene *scene,
                                     WmSettingsControl control);
 void wm_settings_scene_pointer_up(WmSettingsScene *scene);
-/* The source Nickname input accepts ten characters. Until a native Wii
- * keyboard is ported, this adapter accepts printable ASCII keyboard input. */
+/* The source Nickname input accepts ten characters. Physical keys edit at
+ * the selected caret while the software keyboard is active. */
 bool wm_settings_scene_type_ascii(WmSettingsScene *scene, char character);
 bool wm_settings_scene_backspace(WmSettingsScene *scene);
 bool wm_settings_scene_editing_nickname(const WmSettingsScene *scene);
+bool wm_settings_scene_nickname_keyboard_visible(const WmSettingsScene *scene);
+bool wm_settings_scene_place_nickname_caret(WmSettingsScene *scene, int x);
+WmBoardKeyboardControl wm_settings_scene_keyboard_hit(WmSettingsScene *scene,
+                                                       int x, int y);
+bool wm_settings_scene_keyboard_place_caret(WmSettingsScene *scene,
+                                             int x, int y);
+void wm_settings_scene_keyboard_hover(WmSettingsScene *scene,
+                                       WmBoardKeyboardControl control);
+const char *wm_settings_scene_keyboard_activate(WmSettingsScene *scene,
+                                                 WmBoardKeyboardControl control);
+const char *wm_settings_scene_keyboard_close(WmSettingsScene *scene,
+                                              bool accept);
+bool wm_settings_scene_move_nickname_caret(WmSettingsScene *scene,
+                                            int direction);
+void wm_settings_scene_keyboard_modifiers(WmSettingsScene *scene,
+                                           bool shift_down, bool caps_lock_on);
 
 /* Draw inside a caller-owned platform frame, beneath its pointer. */
 bool wm_settings_scene_draw(WmSettingsScene *scene);

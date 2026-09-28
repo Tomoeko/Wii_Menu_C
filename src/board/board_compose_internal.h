@@ -39,6 +39,8 @@ struct WmBoardCompose {
     float frame;
     float age;
     float keyboard_age;
+    float memo_vertical_x;
+    bool memo_vertical_x_valid;
     BoardComposeDraft draft;
     BoardComposeScroll scroll;
     WmBoardComposeControl hover;

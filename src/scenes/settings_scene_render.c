@@ -421,6 +421,23 @@ static void draw_text(WmSettingsScene *scene, const char *value,
     wm_font_emit_line(font, value, &options);
 }
 
+static void draw_nickname_text(WmSettingsScene *scene) {
+    const WmColor ink = {0.2f, 0.2f, 0.2f, scene->draw_opacity};
+    if (scene->outline_font) {
+        float scale = scene->wide
+            ? (float)WM_FRAME_WIDTH / SETTINGS_WIDE_WIDTH : 1.0f;
+        float offset = scene->wide
+            ? (SETTINGS_SIDE_WIDTH - 16.0f) * scale : 0.0f;
+        if (wm_outline_font_draw_line(scene->outline_font, scene->platform,
+                                      scene->edit_nickname, 36, 320.0f,
+                                      197.0f, WM_FONT_ALIGN_CENTER, scale,
+                                      offset, ink, true)) return;
+    }
+    draw_text(scene, scene->edit_nickname, 320.0f, 197.0f, 36.0f,
+              (WmColor){0.2f, 0.2f, 0.2f, 1.0f},
+              1.0f, WM_FONT_ALIGN_CENTER);
+}
+
 static void draw_black_background(WmSettingsScene *scene) {
     WmQuad black = {
         .x = 0.0f, .y = 0.0f,
@@ -999,11 +1016,18 @@ static void draw_extended_category(WmSettingsScene *scene,
     };
     switch (scene->active_category) {
         case SETTINGS_NICKNAME:
-            draw_rectangle(scene, 16.0f + 80.0f, 185.0f, 448.0f, 70.0f,
-                           (WmColor){0.83f, 0.86f, 0.89f, 1.0f});
-            draw_text(scene, scene->edit_nickname, 320.0f, 202.0f, 30.0f,
-                      (WmColor){0.15f, 0.18f, 0.22f, 1.0f},
-                      1.0f, WM_FONT_ALIGN_CENTER);
+            draw_rectangle(scene, SETTINGS_NICKNAME_FIELD_X,
+                           SETTINGS_NICKNAME_FIELD_Y,
+                           SETTINGS_NICKNAME_FIELD_WIDTH,
+                           SETTINGS_NICKNAME_FIELD_HEIGHT,
+                           (WmColor){1.0f, 1.0f, 1.0f, 1.0f});
+            draw_nickname_text(scene);
+            if (wm_settings_scene_editing_nickname(scene)) {
+                draw_rectangle(scene, settings_scene_nickname_caret_x(scene),
+                               SETTINGS_NICKNAME_FIELD_Y + 3.0f,
+                               1.5f, SETTINGS_NICKNAME_FIELD_HEIGHT - 6.0f,
+                               (WmColor){0.0f, 0.0f, 0.0f, 1.0f});
+            }
             *right_label = "Confirm";
             break;
         case SETTINGS_PARENTAL:
@@ -1490,6 +1514,7 @@ bool wm_settings_scene_draw(WmSettingsScene *scene) {
             draw_page_content(scene, &clip);
         }
         scene->draw_opacity = 1.0f;
+        settings_scene_draw_nickname_keyboard(scene);
         return true;
     }
     scene->draw_opacity = 1.0f;
@@ -1517,5 +1542,6 @@ bool wm_settings_scene_draw(WmSettingsScene *scene) {
                         scene->phase == WM_SETTINGS_READY);
     }
     wm_platform_set_clip(scene->platform, NULL);
+    settings_scene_draw_nickname_keyboard(scene);
     return true;
 }

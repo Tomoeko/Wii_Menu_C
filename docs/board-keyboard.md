@@ -6,8 +6,9 @@ The C scene loads the `fs_VK_ascii_keytop_a`, `fs_VK_toolbar_a`,
 USA v4.3 resources. Its letter and number keys, Shift, Caps, Space, Return,
 Delete, Back, OK, and More use the original pane hit areas. Back and OK both
 keep the draft; they close through the 30-frame keyboard and editor
-transition. The memo's scroll offset eases to its display bounds during that
-descent, including when dismissal interrupts an editor scroll. Enter markers
+transition and use the same key cue as Space. The memo's scroll offset eases to
+its display bounds during that descent, including when dismissal interrupts an
+editor scroll. Enter markers
 remain visible with the unposted draft after the keyboard closes. The Memo
 scroll arrows become interactive after the keyboard
 finishes entering and fade with its exit.
@@ -68,12 +69,16 @@ malformed offsets, UTF-16 termination and surrogates, and C word filtering.
 Keyboard layout, phone mode, dictionary state, and language survive a Memo
 keyboard reset in the current session. Clicking visible text in an unposted
 Memo selects the nearest UTF-8 insertion boundary and opens the keyboard at
-that position. The editor follows the selected caret into its two-line window
-with `WIPL_SE_LINE_SCROLL` whenever following starts page movement. Visible
-caret selections stay silent, and typing sounds remain intact when a key also
-starts scrolling. Insertion, deletion, phone multi-tap, and completion retain
-text after the caret. Text can also be selected while the keyboard is open. If a completion
-is pending, the first text click commits it and a fresh click moves the caret.
+that position. Physical arrow keys move the caret across UTF-8 characters or
+adjacent rendered lines. Physical Shift and Caps Lock update the visible keytop
+state while held or latched, with focus easing into and out of each state. The
+editor follows the selected caret into its two-line window with
+`WIPL_SE_LINE_SCROLL` whenever following starts page movement. Visible caret
+selections stay silent, and typing sounds remain intact when a key also starts
+scrolling. Insertion, deletion, phone multi-tap, and completion retain text
+after the caret. Text can also be selected while the keyboard is open. If a
+completion is pending, the first text click commits it and a fresh click moves
+the caret.
 The top toolbar strip remains visible during its downward entrance, using
 the same smooth progress and opacity as the bottom toolbar. Focused
 render-command and editing tests cover these flows. Native Zi8 working-memory

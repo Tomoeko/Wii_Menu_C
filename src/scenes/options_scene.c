@@ -381,6 +381,8 @@ WmOptionsControl options_scene_control_from_settings(
         case WM_SETTINGS_CONTROL_ITEM_6:
             return (WmOptionsControl)(WM_OPTIONS_CONTROL_SETTINGS_ITEM_1 +
                 control - WM_SETTINGS_CONTROL_ITEM_1);
+        case WM_SETTINGS_CONTROL_NICKNAME_FIELD:
+            return WM_OPTIONS_CONTROL_SETTINGS_NICKNAME_FIELD;
         default: return WM_OPTIONS_CONTROL_NONE;
     }
 }
@@ -513,6 +515,8 @@ static WmSettingsControl settings_control(WmOptionsControl control) {
         case WM_OPTIONS_CONTROL_SETTINGS_ITEM_6:
             return (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 +
                 control - WM_OPTIONS_CONTROL_SETTINGS_ITEM_1);
+        case WM_OPTIONS_CONTROL_SETTINGS_NICKNAME_FIELD:
+            return WM_SETTINGS_CONTROL_NICKNAME_FIELD;
         default: return WM_SETTINGS_CONTROL_NONE;
     }
 }
@@ -558,6 +562,61 @@ bool wm_options_scene_type_ascii(WmOptionsScene *scene, char character) {
 bool wm_options_scene_backspace(WmOptionsScene *scene) {
     return wm_options_scene_text_editing(scene) &&
            wm_settings_scene_backspace(scene->settings);
+}
+
+bool wm_options_scene_nickname_keyboard_visible(const WmOptionsScene *scene) {
+    return scene && scene->page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS &&
+           scene->settings &&
+           wm_settings_scene_nickname_keyboard_visible(scene->settings);
+}
+
+void wm_options_scene_keyboard_modifiers(WmOptionsScene *scene,
+                                          bool shift_down, bool caps_lock_on) {
+    if (wm_options_scene_nickname_keyboard_visible(scene))
+        wm_settings_scene_keyboard_modifiers(scene->settings, shift_down,
+                                              caps_lock_on);
+}
+
+bool wm_options_scene_place_nickname_caret(WmOptionsScene *scene, int x) {
+    return scene && scene->settings &&
+           wm_settings_scene_place_nickname_caret(scene->settings, x);
+}
+
+WmBoardKeyboardControl wm_options_scene_keyboard_hit(WmOptionsScene *scene,
+                                                     int x, int y) {
+    return scene && scene->settings
+        ? wm_settings_scene_keyboard_hit(scene->settings, x, y)
+        : WM_KEYBOARD_NONE;
+}
+
+bool wm_options_scene_keyboard_place_caret(WmOptionsScene *scene,
+                                            int x, int y) {
+    return scene && scene->settings &&
+           wm_settings_scene_keyboard_place_caret(scene->settings, x, y);
+}
+
+void wm_options_scene_keyboard_hover(WmOptionsScene *scene,
+                                     WmBoardKeyboardControl control) {
+    if (scene && scene->settings)
+        wm_settings_scene_keyboard_hover(scene->settings, control);
+}
+
+const char *wm_options_scene_keyboard_activate(WmOptionsScene *scene,
+                                               WmBoardKeyboardControl control) {
+    return scene && scene->settings
+        ? wm_settings_scene_keyboard_activate(scene->settings, control) : NULL;
+}
+
+const char *wm_options_scene_keyboard_close(WmOptionsScene *scene,
+                                            bool accept) {
+    return scene && scene->settings
+        ? wm_settings_scene_keyboard_close(scene->settings, accept) : NULL;
+}
+
+bool wm_options_scene_move_nickname_caret(WmOptionsScene *scene,
+                                          int direction) {
+    return scene && scene->settings &&
+           wm_settings_scene_move_nickname_caret(scene->settings, direction);
 }
 
 bool wm_options_scene_hover(WmOptionsScene *scene, WmOptionsControl control) {

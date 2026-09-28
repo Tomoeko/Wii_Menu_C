@@ -1,5 +1,8 @@
 #include "wii_menu/scenes/settings_scene.h"
 #include "wii_menu/layout/layout_runtime.h"
+#include "wii_menu/input/source_hit.h"
+#include "../../src/scenes/settings_scene_internal.h"
+#include "../../src/board/board_keyboard_internal.h"
 
 #include <assert.h>
 #include <math.h>
@@ -12,6 +15,31 @@ static size_t drawn_quad_count;
 static WmClipRect document_clip;
 static bool document_clip_seen;
 static uint32_t next_texture = 1;
+static size_t red_caret_draws;
+static float red_caret_x;
+
+void wm_platform_begin(WmPlatform *platform, WmColor clear_color) {
+    (void)platform;
+    (void)clear_color;
+    assert(false);
+}
+
+void wm_platform_end(WmPlatform *platform) {
+    (void)platform;
+    assert(false);
+}
+
+void wm_platform_prepare_material(WmPlatform *platform,
+                                  const WmMaterialQuad *quad) {
+    (void)platform;
+    (void)quad;
+}
+
+void wm_platform_draw_material_quad(WmPlatform *platform,
+                                    const WmMaterialQuad *quad) {
+    (void)platform;
+    (void)quad;
+}
 
 void wm_platform_set_clip(WmPlatform *platform, const WmClipRect *rect) {
     (void)platform;
@@ -31,8 +59,25 @@ void wm_platform_draw_vertices(WmPlatform *platform,
                                const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
-    (void)vertices;
-    (void)texture;
+    if (!texture && vertices[0].color.r == 1.0f &&
+        fabsf(vertices[0].color.g - 50.0f / 255.0f) < 0.001f &&
+        fabsf(vertices[0].color.b - 50.0f / 255.0f) < 0.001f) {
+        red_caret_draws++;
+        red_caret_x = (vertices[0].x + vertices[1].x) * 0.5f;
+    }
+}
+
+static size_t black_nickname_carets(void) {
+    size_t count = 0;
+    for (size_t index = 0; index < drawn_quad_count; index++) {
+        const WmQuad *quad = &drawn_quads[index];
+        if (!quad->texture && quad->y == 193.0f &&
+            quad->height == 50.0f && quad->width < 2.0f &&
+            quad->color.r == 0.0f && quad->color.g == 0.0f &&
+            quad->color.b == 0.0f)
+            count++;
+    }
+    return count;
 }
 
 uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
@@ -286,6 +331,105 @@ static void test_wide_render(const char *assets) {
            WM_SETTINGS_CONTROL_ITEM_3);
     assert(wm_settings_scene_hit(scene, 266, 120) ==
            WM_SETTINGS_CONTROL_ITEM_5);
+    wm_settings_scene_destroy(scene);
+    wm_font_cache_destroy(fonts);
+    wm_texture_cache_destroy(textures);
+}
+
+static void test_nickname_keyboard_caret_and_exit(const char *assets) {
+    WmTextureCache *textures = wm_texture_cache_create(
+        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(
+        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    assert(textures && fonts);
+    WmSettingsScene *scene = wm_settings_scene_create(
+        (WmPlatform *)1, assets, textures, fonts);
+    assert(scene);
+    wm_settings_scene_set_wide(scene, true);
+    assert(wm_settings_scene_open(scene));
+    wm_settings_scene_advance(scene, 21.0f);
+    assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
+    wm_settings_scene_advance(scene, 20.0f);
+    assert(wm_settings_scene_hit(scene, 160, 210) ==
+           WM_SETTINGS_CONTROL_NICKNAME_FIELD);
+    assert(wm_settings_scene_hit(scene, 470, 210) ==
+           WM_SETTINGS_CONTROL_NICKNAME_FIELD);
+
+    drawn_quad_count = 0;
+    red_caret_draws = 0;
+    assert(wm_settings_scene_draw(scene));
+    bool white_field = false;
+    for (size_t index = 0; index < drawn_quad_count; index++) {
+        const WmQuad *quad = &drawn_quads[index];
+        if (!quad->texture && quad->y == SETTINGS_NICKNAME_FIELD_Y &&
+            quad->height == SETTINGS_NICKNAME_FIELD_HEIGHT &&
+            fabsf(quad->x - 200.0f * 640.0f / 832.0f) < 0.001f &&
+            fabsf(quad->width - 432.0f * 640.0f / 832.0f) < 0.001f &&
+            quad->color.r == 1.0f && quad->color.g == 1.0f &&
+            quad->color.b == 1.0f)
+            white_field = true;
+    }
+    assert(white_field);
+    assert(black_nickname_carets() == 0 && red_caret_draws == 0);
+
+    assert(wm_settings_scene_place_nickname_caret(scene, 160));
+    assert(wm_settings_scene_activate(scene,
+                                      WM_SETTINGS_CONTROL_NICKNAME_FIELD));
+    drawn_quad_count = 0;
+    red_caret_draws = 0;
+    assert(wm_settings_scene_draw(scene));
+    assert(black_nickname_carets() == 1 && red_caret_draws == 0);
+    wm_settings_scene_advance(scene, 36.0f);
+    assert(scene->nickname_keyboard_phase == SETTINGS_NICKNAME_KEYBOARD_OPEN);
+    drawn_quad_count = 0;
+    red_caret_draws = 0;
+    assert(wm_settings_scene_draw(scene));
+    assert(red_caret_draws == 1);
+    float first_caret_x = red_caret_x;
+    WmSourceRect keyboard_text;
+    assert(wm_source_pane_rect(scene->nickname_keyboard->text_box_big,
+                               "T_2l_TextBox", true, WM_LAYOUT_IPL,
+                               NULL, &keyboard_text));
+    int text_y = (int)(keyboard_text.y + keyboard_text.height * 0.5f);
+    assert(wm_settings_scene_keyboard_place_caret(
+        scene, (int)keyboard_text.x + 8, text_y));
+    assert(scene->nickname_caret == 0);
+    assert(wm_settings_scene_keyboard_place_caret(
+        scene, (int)(keyboard_text.x + keyboard_text.width) - 8, text_y));
+    assert(scene->nickname_caret == 3);
+    assert(wm_settings_scene_keyboard_place_caret(
+        scene, (int)keyboard_text.x + 8, text_y));
+    assert(wm_settings_scene_type_ascii(scene, 'A'));
+    assert(strcmp(scene->nickname_keyboard_display, "AWii") == 0);
+    assert(strcmp(wm_settings_scene_keyboard_close(scene, false),
+                  "WIPL_SE_CHAR_DECIDE") == 0);
+    assert(strcmp(scene->edit_nickname, "Wii") == 0);
+    assert(strcmp(scene->nickname_keyboard_display, "AWii") == 0);
+    drawn_quad_count = 0;
+    red_caret_draws = 0;
+    assert(wm_settings_scene_draw(scene));
+    assert(black_nickname_carets() == 0 && red_caret_draws == 0);
+    wm_settings_scene_advance(scene, 29.0f);
+    assert(wm_settings_scene_nickname_keyboard_visible(scene));
+    assert(strcmp(scene->nickname_keyboard_display, "AWii") == 0);
+    wm_settings_scene_advance(scene, 1.0f);
+    assert(!wm_settings_scene_nickname_keyboard_visible(scene));
+
+    assert(wm_settings_scene_place_nickname_caret(scene, 470));
+    assert(wm_settings_scene_activate(scene,
+                                      WM_SETTINGS_CONTROL_NICKNAME_FIELD));
+    assert(wm_settings_scene_type_ascii(scene, 'X'));
+    assert(strcmp(scene->nickname_keyboard_display, "WiiX") == 0);
+    wm_settings_scene_advance(scene, 36.0f);
+    drawn_quad_count = 0;
+    red_caret_draws = 0;
+    assert(wm_settings_scene_draw(scene));
+    assert(red_caret_draws == 1 && red_caret_x > first_caret_x + 10.0f);
+    assert(strcmp(wm_settings_scene_keyboard_close(scene, true),
+                  "WIPL_SE_CHAR_DECIDE") == 0);
+    wm_settings_scene_advance(scene, 30.0f);
+    assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_NEXT));
+    assert(strcmp(wm_settings_scene_snapshot(scene).nickname, "WiiX") == 0);
     wm_settings_scene_destroy(scene);
     wm_font_cache_destroy(fonts);
     wm_texture_cache_destroy(textures);
@@ -2040,14 +2184,23 @@ static void test_extended_categories(const char *assets) {
 
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
     assert(wm_settings_scene_snapshot(scene).category == 1);
+    assert(wm_settings_scene_activate(scene,
+                                     WM_SETTINGS_CONTROL_NICKNAME_FIELD));
     assert(wm_settings_scene_type_ascii(scene, 'A'));
     assert(wm_settings_scene_backspace(scene));
     assert(strcmp(wm_settings_scene_snapshot(scene).nickname, "Wii") == 0);
     assert(wm_settings_scene_type_ascii(scene, 'X'));
     assert(wm_settings_scene_back(scene));
+    wm_settings_scene_advance(scene, 16.0f);
+    assert(wm_settings_scene_back(scene));
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
     assert(strcmp(wm_settings_scene_snapshot(scene).nickname, "Wii") == 0);
+    assert(wm_settings_scene_activate(scene,
+                                     WM_SETTINGS_CONTROL_NICKNAME_FIELD));
     assert(wm_settings_scene_type_ascii(scene, 'X'));
+    wm_settings_scene_advance(scene, 36.0f);
+    assert(wm_settings_scene_keyboard_close(scene, true));
+    wm_settings_scene_advance(scene, 30.0f);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_NEXT));
     assert(strcmp(wm_settings_scene_snapshot(scene).nickname, "WiiX") == 0);
 
@@ -2819,6 +2972,7 @@ int main(int argc, char **argv) {
     test_directional_controls(assets);
     test_wide_projection(assets);
     test_wide_render(assets);
+    test_nickname_keyboard_caret_and_exit(assets);
     test_initial_page_fades_as_one_raster(assets);
     test_page_crossfade_keeps_background_continuous(assets);
     test_calendar_arrow_rollover(assets);

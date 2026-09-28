@@ -207,11 +207,11 @@ static void pose_controls(WmBoardKeyboard *keyboard, bool toolbar) {
                             keyboard->phone_layout ? "P_kyChng_CP" :
                                                      "P_kyChng_QWERTY", 0.0f);
     } else {
-        if (keyboard->caps) {
+        if (wm_board_keyboard_caps_active(keyboard)) {
             append_rebound_clip(clips, &count, selected_motion[0],
                                 "P_key_CAPS", "P_key_CAPS", 0.0f);
         }
-        if (keyboard->shift) {
+        if (wm_board_keyboard_shift_active(keyboard)) {
             append_rebound_clip(clips, &count, selected_motion[0],
                                 "P_key_SHIFT", "P_key_SHIFT", 0.0f);
         }
@@ -228,18 +228,38 @@ static void pose_controls(WmBoardKeyboard *keyboard, bool toolbar) {
                                            keyboard->phone_layout);
         if (!target) continue;
         bool selected = !toolbar &&
-            ((index == WM_KEYBOARD_CAPS && keyboard->caps) ||
-             (index == WM_KEYBOARD_SHIFT && keyboard->shift));
+            ((index == WM_KEYBOARD_CAPS &&
+              wm_board_keyboard_caps_active(keyboard)) ||
+             (index == WM_KEYBOARD_SHIFT &&
+              wm_board_keyboard_shift_active(keyboard)));
         append_rebound_clip(clips, &count,
                     focus.resting
-                        ? selected ? "fs_VK_ascii_keytop_a_toggle-ON" :
+                        ? selected ? selected_motion[1] :
                           toolbar ? "fs_VK_toolbar_a_Roll_over" :
                                     "fs_VK_ascii_keytop_a_Roll_over"
                         : selected ? selected_motion[focus.entering ? 1 : 2] :
                                      motion[focus.entering ? 0 : 1],
                     focus_prototype((WmBoardKeyboardControl)index, target,
                                     keyboard->phone_layout),
-                    target, focus.frame);
+                    target, focus.resting && selected ? 5.0f : focus.frame);
+    }
+    /* Physical focus progresses through the same clips as pointer focus,
+     * then reverses after release without changing pointer ownership. */
+    if (!toolbar && keyboard->physical_shift_focus_frame > 0.0f &&
+        keyboard->hovered != WM_KEYBOARD_SHIFT) {
+        append_rebound_clip(clips, &count,
+                            wm_board_keyboard_shift_active(keyboard)
+                                ? selected_motion[1] : keytop_motion[0],
+                            "P_key_SHIFT", "P_key_SHIFT",
+                            keyboard->physical_shift_focus_frame);
+    }
+    if (!toolbar && keyboard->physical_caps_focus_frame > 0.0f &&
+        keyboard->hovered != WM_KEYBOARD_CAPS) {
+        append_rebound_clip(clips, &count,
+                            wm_board_keyboard_caps_active(keyboard)
+                                ? selected_motion[1] : keytop_motion[0],
+                            "P_key_CAPS", "P_key_CAPS",
+                            keyboard->physical_caps_focus_frame);
     }
     if (keyboard->pressed != WM_KEYBOARD_NONE &&
         is_toolbar(keyboard->pressed) == toolbar) {
@@ -248,8 +268,10 @@ static void pose_controls(WmBoardKeyboard *keyboard, bool toolbar) {
                                            target_names[index],
                                            keyboard->phone_layout);
         bool selected = !toolbar &&
-            ((index == WM_KEYBOARD_CAPS && keyboard->caps) ||
-             (index == WM_KEYBOARD_SHIFT && keyboard->shift));
+            ((index == WM_KEYBOARD_CAPS &&
+              wm_board_keyboard_caps_active(keyboard)) ||
+             (index == WM_KEYBOARD_SHIFT &&
+              wm_board_keyboard_shift_active(keyboard)));
         if (target && (toolbar ? is_toolbar(keyboard->pressed) :
                                 is_keytop(keyboard->pressed))) {
             append_rebound_clip(clips, &count,
@@ -291,17 +313,22 @@ static void pose_keytop(WmBoardKeyboard *keyboard) {
     wm_layout_set_pose_text(keyboard->keytop, "T_USEU_prdc_lang",
                              language_short[keyboard->dictionary_language]);
     wm_layout_set_pane_visible(keyboard->keytop, "P_prdc_ON",
-                                keyboard->prediction_animating
+                                keyboard->profile !=
+                                    WM_BOARD_KEYBOARD_CONSOLE_NICKNAME &&
+                                (keyboard->prediction_animating
                                     ? keyboard->prediction_from :
-                                      keyboard->prediction_enabled);
+                                      keyboard->prediction_enabled));
     wm_layout_set_pane_visible(keyboard->keytop, "P_prdc_OFF",
-                                keyboard->prediction_animating
+                                keyboard->profile !=
+                                    WM_BOARD_KEYBOARD_CONSOLE_NICKNAME &&
+                                (keyboard->prediction_animating
                                     ? !keyboard->prediction_from :
-                                      !keyboard->prediction_enabled);
+                                      !keyboard->prediction_enabled));
     wm_layout_set_pane_visible(keyboard->keytop, "W_USEU_prdc_lang",
                                 keyboard->profile == WM_BOARD_KEYBOARD_MEMO);
     if (keyboard->profile == WM_BOARD_KEYBOARD_ADDRESS_WII ||
-        keyboard->profile == WM_BOARD_KEYBOARD_ADDRESS_EMAIL) {
+        keyboard->profile == WM_BOARD_KEYBOARD_ADDRESS_EMAIL ||
+        keyboard->profile == WM_BOARD_KEYBOARD_CONSOLE_NICKNAME) {
         wm_layout_set_pane_visible(keyboard->keytop,
                                     "W_USEU_Chng_sign", false);
     }
@@ -363,16 +390,21 @@ static void pose_phone(WmBoardKeyboard *keyboard) {
                                keyboard->profile == WM_BOARD_KEYBOARD_MEMO &&
                                keyboard->phone_mode != 3);
     wm_layout_set_pane_visible(keyboard->phone, "N_prdc_EU_OFF",
-                                keyboard->prediction_animating
+                                keyboard->profile !=
+                                    WM_BOARD_KEYBOARD_CONSOLE_NICKNAME &&
+                                (keyboard->prediction_animating
                                     ? !keyboard->prediction_from :
-                                      !keyboard->prediction_enabled);
+                                      !keyboard->prediction_enabled));
     wm_layout_set_pane_visible(keyboard->phone, "N_prdc_EU_ON",
-                                keyboard->prediction_animating
+                                keyboard->profile !=
+                                    WM_BOARD_KEYBOARD_CONSOLE_NICKNAME &&
+                                (keyboard->prediction_animating
                                     ? keyboard->prediction_from :
-                                      keyboard->prediction_enabled);
+                                      keyboard->prediction_enabled));
     wm_layout_set_pane_visible(keyboard->phone, "W_othersBT_EU",
                                keyboard->profile != WM_BOARD_KEYBOARD_ADDRESS_WII &&
                                keyboard->profile != WM_BOARD_KEYBOARD_ADDRESS_EMAIL &&
+                               keyboard->profile != WM_BOARD_KEYBOARD_CONSOLE_NICKNAME &&
                                keyboard->phone_mode != 3);
     if (keyboard->profile != WM_BOARD_KEYBOARD_MEMO) {
         wm_layout_set_pane_visible(keyboard->phone, "W_CPkey_LF", false);
@@ -414,7 +446,8 @@ static void pose_toolbar(WmBoardKeyboard *keyboard) {
     wm_layout_set_pose_text(keyboard->toolbar, "T_BT_confirm", "OK");
     wm_layout_set_pane_visible(keyboard->toolbar, "N_keyboardChange",
         keyboard->profile == WM_BOARD_KEYBOARD_MEMO ||
-        keyboard->profile == WM_BOARD_KEYBOARD_ADDRESS_NICKNAME);
+        keyboard->profile == WM_BOARD_KEYBOARD_ADDRESS_NICKNAME ||
+        keyboard->profile == WM_BOARD_KEYBOARD_CONSOLE_NICKNAME);
 }
 
 void wm_board_keyboard_pose_prediction(WmBoardKeyboard *keyboard) {
@@ -734,6 +767,121 @@ static void pose_address_text_box(WmBoardKeyboard *keyboard) {
     }
 }
 
+typedef struct ConsoleCaretPane {
+    bool found;
+    float matrix[12];
+    float alpha;
+    WmFontPane font;
+    const char *font_name;
+} ConsoleCaretPane;
+
+static bool capture_console_caret_pane(void *context,
+                                       const WmLayoutPaneView *pane) {
+    if (strcmp(pane->name, "T_2l_TextBox") != 0 || !pane->text)
+        return true;
+    ConsoleCaretPane *caret = context;
+    caret->found = true;
+    memcpy(caret->matrix, pane->matrix, sizeof(caret->matrix));
+    caret->alpha = pane->alpha;
+    caret->font = pane->text->pane;
+    caret->font_name = pane->text->font_name;
+    return true;
+}
+
+static void draw_console_caret(WmBoardKeyboard *keyboard, float opacity) {
+    if (!keyboard->caret_visible || !keyboard->text_context || opacity <= 0.0f)
+        return;
+    ConsoleCaretPane caret = {0};
+    WmLayoutDrawOptions options = {
+        .wide = true, .mode = WM_LAYOUT_IPL, .alpha = opacity,
+        .on_pane = capture_console_caret_pane, .context = &caret
+    };
+    wm_layout_draw(keyboard->text_box_big, &options);
+    if (!caret.found || !caret.font_name) return;
+    WmCachedFont *face = wm_font_cache_resolve(keyboard->fonts,
+                                               caret.font_name);
+    const WmFontTextLayout *layout = face
+        ? wm_font_cache_layout(face, keyboard->text_context, &caret.font)
+        : NULL;
+    float position_x, position_y;
+    if (!layout || !wm_font_text_layout_caret(layout, keyboard->caret_bytes,
+                                              &position_x, &position_y))
+        return;
+
+    /* Match the red, pulsing insertion strip used by the source Memo editor. */
+    const float width = (float)(14592 / 832) / 6.0f;
+    const float height = fmaxf(0.0f, caret.font.font_size[1] - 4.0f);
+    const float radians = fmodf(keyboard->caret_age, 45.0f) *
+                          (8.0f * 3.14159265358979323846f / 180.0f);
+    const float alpha = floorf(127.0f * (1.0f + sinf(radians))) /
+                        255.0f * caret.alpha;
+    const float xs[4] = {position_x - width * 0.5f,
+                         position_x + width * 0.5f,
+                         position_x - width * 0.5f,
+                         position_x + width * 0.5f};
+    const float ys[4] = {position_y - 2.0f, position_y - 2.0f,
+                         position_y - 2.0f - height,
+                         position_y - 2.0f - height};
+    WmDrawVertex vertices[4] = {0};
+    for (size_t index = 0; index < 4; index++) {
+        float world_x = caret.matrix[0] * xs[index] +
+                        caret.matrix[1] * ys[index] + caret.matrix[3];
+        float world_y = caret.matrix[4] * xs[index] +
+                        caret.matrix[5] * ys[index] + caret.matrix[7];
+        vertices[index].x = WM_FRAME_WIDTH * 0.5f +
+                            world_x * (float)WM_FRAME_WIDTH / 832.0f;
+        vertices[index].y = WM_FRAME_HEIGHT * 0.5f - world_y;
+        vertices[index].color =
+            (WmColor){1.0f, 50.0f / 255.0f, 50.0f / 255.0f, alpha};
+    }
+    wm_platform_draw_vertices(keyboard->platform, vertices, 0);
+}
+
+bool wm_board_keyboard_hit_text_caret(WmBoardKeyboard *keyboard,
+                                      int x, int y, size_t *byte_index) {
+    if (!keyboard || !byte_index || !keyboard->text_context ||
+        keyboard->profile != WM_BOARD_KEYBOARD_CONSOLE_NICKNAME)
+        return false;
+    pose_address_text_box(keyboard);
+    position_layout(keyboard->text_box_big, 0.0f);
+    WmSourceRect bounds;
+    if (!wm_source_pane_rect(keyboard->text_box_big, "T_2l_TextBox",
+                              true, WM_LAYOUT_IPL, NULL, &bounds) ||
+        x < bounds.x || x >= bounds.x + bounds.width ||
+        y < bounds.y || y >= bounds.y + bounds.height)
+        return false;
+
+    ConsoleCaretPane caret = {0};
+    WmLayoutDrawOptions options = {
+        .wide = true, .mode = WM_LAYOUT_IPL, .alpha = 1.0f,
+        .on_pane = capture_console_caret_pane, .context = &caret
+    };
+    wm_layout_draw(keyboard->text_box_big, &options);
+    if (!caret.found || !caret.font_name) return false;
+    float determinant = caret.matrix[0] * caret.matrix[5] -
+                        caret.matrix[1] * caret.matrix[4];
+    if (!isfinite(determinant) || fabsf(determinant) < 0.000001f)
+        return false;
+    float projected_x = ((float)x - WM_FRAME_WIDTH * 0.5f) *
+                        832.0f / WM_FRAME_WIDTH - caret.matrix[3];
+    float projected_y = WM_FRAME_HEIGHT * 0.5f - (float)y - caret.matrix[7];
+    float local_x = (caret.matrix[5] * projected_x -
+                     caret.matrix[1] * projected_y) / determinant;
+    float local_y = (caret.matrix[0] * projected_y -
+                     caret.matrix[4] * projected_x) / determinant;
+    WmCachedFont *face = wm_font_cache_resolve(keyboard->fonts,
+                                               caret.font_name);
+    const WmFontTextLayout *layout = face
+        ? wm_font_cache_layout(face, keyboard->text_context, &caret.font)
+        : NULL;
+    size_t selected;
+    if (!layout || !wm_font_text_layout_hit_caret(layout, local_x, local_y,
+                                                  &selected)) return false;
+    size_t length = strlen(keyboard->text_context);
+    *byte_index = selected < length ? selected : length;
+    return true;
+}
+
 void wm_board_keyboard_draw(WmBoardKeyboard *keyboard, float progress,
                             bool entering) {
     (void)entering;
@@ -759,15 +907,19 @@ void wm_board_keyboard_draw(WmBoardKeyboard *keyboard, float progress,
             .loop_override = 0
         };
         wm_layout_pose(keyboard->background, &clip, 1);
-        wm_layout_present_with_fonts(keyboard->platform, keyboard->textures,
-                                     keyboard->fonts, keyboard->background,
-                                     true, WM_LAYOUT_IPL, NULL);
+        wm_layout_present_with_fonts_opacity(
+            keyboard->platform, keyboard->textures, keyboard->fonts,
+            keyboard->background, true, WM_LAYOUT_IPL, NULL, opacity);
         pose_address_text_box(keyboard);
         WmLayout *box = keyboard->profile != WM_BOARD_KEYBOARD_ADDRESS_EMAIL
             ? keyboard->text_box_big : keyboard->text_box_small;
-        wm_layout_present_with_fonts(keyboard->platform, keyboard->textures,
-                                     keyboard->fonts, box, true,
-                                     WM_LAYOUT_IPL, NULL);
+        if (keyboard->profile == WM_BOARD_KEYBOARD_CONSOLE_NICKNAME)
+            position_layout(box, offset);
+        wm_layout_present_with_fonts_opacity(
+            keyboard->platform, keyboard->textures, keyboard->fonts,
+            box, true, WM_LAYOUT_IPL, NULL, opacity);
+        if (keyboard->profile == WM_BOARD_KEYBOARD_CONSOLE_NICKNAME)
+            draw_console_caret(keyboard, opacity);
     }
     /* Native toolbar halves move in opposite directions during entrance. */
     position_layout(keyboard->toolbar, 0.0f);

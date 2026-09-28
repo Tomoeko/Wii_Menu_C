@@ -101,16 +101,17 @@ static const char qwerty_shifted[] =
     "!\\#$%^&*()_QWERTYUIOPASDFGHJKL;ZXCVBNM<>+";
 
 char wm_board_keyboard_key_character(const WmBoardKeyboard *keyboard, unsigned index) {
+    bool shift = wm_board_keyboard_shift_active(keyboard);
+    bool caps = wm_board_keyboard_caps_active(keyboard);
     if (index < sizeof(qwerty_normal) - 1) {
-        char value = keyboard->shift ? qwerty_shifted[index] :
-                                       qwerty_normal[index];
-        if (!keyboard->shift && keyboard->caps &&
+        char value = shift ? qwerty_shifted[index] : qwerty_normal[index];
+        if (!shift && caps &&
             value >= 'a' && value <= 'z') value = (char)(value - 'a' + 'A');
         return value;
     }
     if (index >= 44 && index < 50) {
-        return keyboard->shift ? shifted_extras[index - 44][0]
-                               : keytop_extras[index - 44][0];
+        return shift ? shifted_extras[index - 44][0]
+                     : keytop_extras[index - 44][0];
     }
     return '\0';
 }
@@ -192,6 +193,8 @@ void wm_board_keyboard_reset(WmBoardKeyboard *keyboard) {
     if (!keyboard) return;
     wm_board_keyboard_prediction_clear_learned(keyboard);
     keyboard->profile = WM_BOARD_KEYBOARD_MEMO;
+    keyboard->caret_visible = false;
+    keyboard->caret_age = 0.0f;
     keyboard->phone_layout = keyboard->memo_phone_layout;
     keyboard->phone_mode = keyboard->memo_phone_mode;
     memset(keyboard->focus, 0, sizeof(keyboard->focus));
@@ -201,6 +204,11 @@ void wm_board_keyboard_reset(WmBoardKeyboard *keyboard) {
     keyboard->press_frame = 20.0f;
     keyboard->caps = false;
     keyboard->shift = false;
+    keyboard->physical_caps = false;
+    keyboard->physical_shift = false;
+    keyboard->physical_caps_focus_frame = 0.0f;
+    keyboard->physical_shift_focus_frame = 0.0f;
+    keyboard->physical_caps_press_remaining = 0.0f;
     keyboard->keytop_dirty = true;
     keyboard->toolbar_dirty = true;
     keyboard->prediction_dirty = true;
@@ -232,6 +240,31 @@ void wm_board_keyboard_reset(WmBoardKeyboard *keyboard) {
     wm_board_keyboard_release_hold(keyboard);
 }
 
+void wm_board_keyboard_set_physical_modifiers(WmBoardKeyboard *keyboard,
+                                               bool shift_down,
+                                               bool caps_lock_on) {
+    if (!keyboard || (keyboard->physical_shift == shift_down &&
+                      keyboard->physical_caps == caps_lock_on)) return;
+    bool shift_changed = keyboard->physical_shift != shift_down;
+    bool caps_changed = keyboard->physical_caps != caps_lock_on;
+    keyboard->physical_shift = shift_down;
+    keyboard->physical_caps = caps_lock_on;
+    /* A physical modifier can press a keytop, but it cannot hover it. Only
+     * pointer movement owns focus; otherwise Caps remains stuck highlighted. */
+    if (shift_changed && shift_down) {
+        keyboard->pressed = WM_KEYBOARD_SHIFT;
+        keyboard->press_frame = 0.0f;
+    } else if (shift_changed && keyboard->pressed == WM_KEYBOARD_SHIFT) {
+        keyboard->pressed = WM_KEYBOARD_NONE;
+    }
+    if (caps_changed) {
+        keyboard->pressed = WM_KEYBOARD_CAPS;
+        keyboard->press_frame = 0.0f;
+        keyboard->physical_caps_press_remaining = 20.0f;
+    }
+    keyboard->keytop_dirty = true;
+}
+
 void wm_board_keyboard_set_profile(WmBoardKeyboard *keyboard,
                                     WmBoardKeyboardProfile profile) {
     if (!keyboard) return;
@@ -256,6 +289,15 @@ void wm_board_keyboard_set_profile(WmBoardKeyboard *keyboard,
 WmBoardKeyboardProfile wm_board_keyboard_profile(
     const WmBoardKeyboard *keyboard) {
     return keyboard ? keyboard->profile : WM_BOARD_KEYBOARD_MEMO;
+}
+
+void wm_board_keyboard_set_caret(WmBoardKeyboard *keyboard,
+                                size_t byte_index, bool visible) {
+    if (!keyboard) return;
+    size_t length = keyboard->text_context
+        ? strlen(keyboard->text_context) : 0;
+    keyboard->caret_bytes = byte_index < length ? byte_index : length;
+    keyboard->caret_visible = visible;
 }
 
 bool wm_board_keyboard_phone_space_pending(const WmBoardKeyboard *keyboard) {
@@ -325,10 +367,16 @@ WmBoardKeyboardControl wm_board_keyboard_press_physical(
         control = WM_KEYBOARD_SPACE;
     } else {
         for (unsigned index = 0; index < 50; index++) {
-            char normal = index < sizeof(qwerty_normal) - 1
-                ? qwerty_normal[index] : keytop_extras[index - 44][0];
-            char shifted = index < sizeof(qwerty_shifted) - 1
-                ? qwerty_shifted[index] : shifted_extras[index - 44][0];
+            char normal = '\0';
+            char shifted = '\0';
+            if (index < sizeof(qwerty_normal) - 1)
+                normal = qwerty_normal[index];
+            else if (index >= 44)
+                normal = keytop_extras[index - 44][0];
+            if (index < sizeof(qwerty_shifted) - 1)
+                shifted = qwerty_shifted[index];
+            else if (index >= 44)
+                shifted = shifted_extras[index - 44][0];
             if (normal == value || shifted == value ||
                 (isalpha(value) && normal == tolower(value))) {
                 control = (WmBoardKeyboardControl)(
@@ -430,6 +478,25 @@ static void mark_dirty(WmBoardKeyboard *keyboard,
 
 unsigned wm_board_keyboard_advance(WmBoardKeyboard *keyboard, float frames) {
     if (!keyboard || !isfinite(frames) || frames <= 0.0f) return 0;
+    if (keyboard->caret_visible) keyboard->caret_age += frames;
+    /* Physical modifiers drive their own focus clips. Pointer focus may move
+     * independently while a key is held, and release must ease back to idle. */
+    float caps_target = keyboard->physical_caps_press_remaining > 0.0f
+        ? 5.0f : 0.0f;
+    float shift_target = keyboard->physical_shift ? 5.0f : 0.0f;
+    float caps_previous = keyboard->physical_caps_focus_frame;
+    float shift_previous = keyboard->physical_shift_focus_frame;
+    keyboard->physical_caps_focus_frame = caps_previous < caps_target
+        ? fminf(caps_previous + frames, caps_target)
+        : fmaxf(caps_previous - frames, caps_target);
+    keyboard->physical_shift_focus_frame = shift_previous < shift_target
+        ? fminf(shift_previous + frames, shift_target)
+        : fmaxf(shift_previous - frames, shift_target);
+    if (keyboard->physical_caps_focus_frame != caps_previous ||
+        keyboard->physical_shift_focus_frame != shift_previous)
+        keyboard->keytop_dirty = true;
+    keyboard->physical_caps_press_remaining = fmaxf(
+        0.0f, keyboard->physical_caps_press_remaining - frames);
     if (keyboard->phone_pending &&
         keyboard->hovered == (WmBoardKeyboardControl)(
             WM_KEYBOARD_PHONE_FIRST + keyboard->phone_pending_index)) {
@@ -545,6 +612,18 @@ static bool profile_allows_control(const WmBoardKeyboard *keyboard,
                control <= WM_KEYBOARD_PHONE_LAST;
     if (keyboard->profile == WM_BOARD_KEYBOARD_ADDRESS_NICKNAME)
         return control != WM_KEYBOARD_RETURN;
+    if (keyboard->profile == WM_BOARD_KEYBOARD_CONSOLE_NICKNAME) {
+        if (control == WM_KEYBOARD_RETURN ||
+            control == WM_KEYBOARD_LANGUAGE ||
+            control == WM_KEYBOARD_PREDICTION ||
+            (control >= WM_KEYBOARD_MORE &&
+             control <= WM_KEYBOARD_SYMBOL_NEXT) ||
+            is_language_choice(control) ||
+            (control >= WM_KEYBOARD_CANDIDATE_FIRST &&
+             control <= WM_KEYBOARD_CANDIDATE_NEXT))
+            return false;
+        return true;
+    }
     return (control >= WM_KEYBOARD_CHARACTER_FIRST &&
             control <= WM_KEYBOARD_CHARACTER_LAST) ||
            control == WM_KEYBOARD_CAPS || control == WM_KEYBOARD_SHIFT ||

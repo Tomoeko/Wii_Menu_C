@@ -141,6 +141,106 @@ static void follow_memo_caret(WmBoardCompose *compose) {
     }
 }
 
+bool wm_board_compose_move_caret(WmBoardCompose *compose, WmKey direction) {
+    if (!compose || compose->phase != WM_COMPOSE_EDIT ||
+        (direction != WM_KEY_LEFT && direction != WM_KEY_RIGHT &&
+         direction != WM_KEY_UP && direction != WM_KEY_DOWN)) return false;
+
+    /* Navigation ends a predictive or phone-key run before measuring the
+     * stored text, so its byte boundaries match the visible insertion point. */
+    wm_board_keyboard_finish_composition(compose->keyboard);
+    wm_board_keyboard_clear_phone_pending(compose->keyboard);
+    size_t caret = compose->draft.caret_bytes;
+    size_t selected = caret;
+    if (direction == WM_KEY_LEFT && caret > 0) {
+        selected--;
+        while (selected > 0 &&
+               ((unsigned char)compose->draft.text[selected] & 0xc0u) == 0x80u)
+            selected--;
+        compose->memo_vertical_x_valid = false;
+    } else if (direction == WM_KEY_RIGHT && caret < compose->draft.text_bytes) {
+        selected++;
+        while (selected < compose->draft.text_bytes &&
+               ((unsigned char)compose->draft.text[selected] & 0xc0u) == 0x80u)
+            selected++;
+        compose->memo_vertical_x_valid = false;
+    } else if (direction == WM_KEY_UP || direction == WM_KEY_DOWN) {
+        WmFontPane pane;
+        const char *font_name = NULL;
+        if (wm_layout_pane_font(compose->body, "T_Letter", &pane, &font_name)) {
+            WmCachedFont *face = wm_font_cache_resolve(compose->fonts,
+                                                        font_name);
+            const WmFontTextLayout *layout = face
+                ? wm_font_cache_layout(face, compose->draft.text, &pane) : NULL;
+            float x, y;
+            if (layout &&
+                wm_font_text_layout_caret(layout, caret, &x, &y)) {
+                float column = compose->memo_vertical_x_valid
+                    ? compose->memo_vertical_x : x;
+                float target_y = 0.0f;
+                bool found_line = false;
+                /* Source line spacing need not equal the editor's scroll
+                 * increment. Find the nearest rendered line, including wraps. */
+                for (size_t index = 0; index <= compose->draft.text_bytes;
+                     index++) {
+                    if (index < compose->draft.text_bytes &&
+                        ((unsigned char)compose->draft.text[index] & 0xc0u) == 0x80u)
+                        continue;
+                    float point_x, point_y;
+                    if (!wm_font_text_layout_caret(layout, index,
+                                                    &point_x, &point_y))
+                        continue;
+                    bool adjacent = direction == WM_KEY_UP
+                        ? point_y > y + 0.5f &&
+                          (!found_line || point_y < target_y)
+                        : point_y < y - 0.5f &&
+                          (!found_line || point_y > target_y);
+                    if (adjacent) {
+                        target_y = point_y;
+                        found_line = true;
+                    }
+                }
+                float nearest_x = INFINITY;
+                for (size_t index = 0;
+                     found_line && index <= compose->draft.text_bytes;
+                     index++) {
+                    if (index < compose->draft.text_bytes &&
+                        ((unsigned char)compose->draft.text[index] & 0xc0u) == 0x80u)
+                        continue;
+                    float point_x, point_y;
+                    if (!wm_font_text_layout_caret(layout, index,
+                                                    &point_x, &point_y) ||
+                        fabsf(point_y - target_y) > 0.5f)
+                        continue;
+                    float distance = fabsf(point_x - column);
+                    if (distance < nearest_x) {
+                        nearest_x = distance;
+                        selected = index;
+                    }
+                }
+                if (isfinite(nearest_x)) {
+                    compose->memo_vertical_x = column;
+                    compose->memo_vertical_x_valid = true;
+                } else {
+                    selected = caret;
+                }
+            }
+        }
+    } else {
+        compose->memo_vertical_x_valid = false;
+    }
+
+    if (selected != caret) {
+        compose->draft.caret_bytes = selected;
+        board_compose_draft_sync_keyboard(&compose->draft);
+        wm_board_keyboard_text_changed(compose->keyboard, false);
+        compose->keyboard_age = 0.0f;
+        compose->scroll.follow_caret_pending = true;
+        follow_memo_caret(compose);
+    }
+    return true;
+}
+
 WmBoardCompose *wm_board_compose_create(WmPlatform *platform,
                                          const char *assets_directory,
                                          WmTextureCache *textures,
@@ -209,6 +309,7 @@ void wm_board_compose_reset(WmBoardCompose *compose) {
     compose->frame = 0.0f;
     compose->age = 0.0f;
     compose->keyboard_age = 0.0f;
+    compose->memo_vertical_x_valid = false;
     compose->address_keyboard_open = false;
     compose->network_phase = COMPOSE_NETWORK_CLOSED;
     compose->network_wii_connect24 = false;
@@ -789,9 +890,8 @@ static bool activate_keyboard_control(WmBoardCompose *compose,
                 return close_address_keyboard(compose,
                     action == WM_KEYBOARD_ACTION_CLOSE_OK);
             if (!wm_board_compose_finish_edit(compose)) return false;
-            compose->key_cues[0] = action == WM_KEYBOARD_ACTION_CLOSE_OK
-                ? "WIPL_SE_SK_DECIDE_CLOSE" :
-                  "WIPL_SE_SK_CANCEL_CLOSE";
+            /* Memo's two toolbar exits use the same key cue as Space. */
+            compose->key_cues[0] = "WIPL_SE_CHAR_DECIDE";
             return true;
         case WM_KEYBOARD_ACTION_SYMBOL_OPEN:
             queue_key_cue(compose, "WIPL_SE_SYMBOL_PAGE_OPEN");
@@ -1019,6 +1119,7 @@ static bool activate_pointer_caret(WmBoardCompose *compose,
         wm_board_keyboard_finish_composition(compose->keyboard);
         wm_board_keyboard_clear_phone_pending(compose->keyboard);
         compose->draft.caret_bytes = compose->draft.pointer_caret_bytes;
+        compose->memo_vertical_x_valid = false;
         compose->draft.pointer_caret_valid = false;
         board_compose_draft_sync_keyboard(&compose->draft);
         wm_board_keyboard_text_changed(compose->keyboard, false);
@@ -1047,6 +1148,7 @@ static bool activate_memo_control(WmBoardCompose *compose,
             wm_board_compose_hover(compose, WM_COMPOSE_CONTROL_NONE);
             compose->draft.caret_bytes = compose->draft.pointer_caret_valid
                 ? compose->draft.pointer_caret_bytes : compose->draft.text_bytes;
+            compose->memo_vertical_x_valid = false;
             compose->draft.pointer_caret_valid = false;
             board_compose_draft_sync_keyboard(&compose->draft);
             wm_board_keyboard_reset(compose->keyboard);
@@ -1251,6 +1353,7 @@ bool wm_board_compose_insert_text(WmBoardCompose *compose,
     if (compose->phase == WM_COMPOSE_EDIT && has_whitespace)
         wm_board_keyboard_finish_composition(compose->keyboard);
     if (!board_compose_draft_insert(&compose->draft, utf8, bytes)) return false;
+    compose->memo_vertical_x_valid = false;
     wm_board_keyboard_text_changed(compose->keyboard,
                                     compose->inserting_phone);
     if (commit_boundary) queue_key_cue(compose, "WIPL_SE_CHAR_DECIDE");
@@ -1269,6 +1372,14 @@ void wm_board_compose_press_physical(WmBoardCompose *compose,
     (void)wm_board_keyboard_press_physical(compose->keyboard, utf8);
 }
 
+void wm_board_compose_keyboard_modifiers(WmBoardCompose *compose,
+                                          bool shift_down, bool caps_lock_on) {
+    if (compose && (compose->phase == WM_COMPOSE_EDIT ||
+                    compose->address_keyboard_open))
+        wm_board_keyboard_set_physical_modifiers(compose->keyboard,
+                                                  shift_down, caps_lock_on);
+}
+
 bool wm_board_compose_backspace(WmBoardCompose *compose) {
     if (compose && compose->address_keyboard_open) {
         bool erased = wm_board_address_backspace(compose->address);
@@ -1284,6 +1395,7 @@ bool wm_board_compose_backspace(WmBoardCompose *compose) {
     if (compose->phase == WM_COMPOSE_EDIT &&
         wm_board_keyboard_symbols_visible(compose->keyboard)) return false;
     if (!board_compose_draft_backspace(&compose->draft)) return false;
+    compose->memo_vertical_x_valid = false;
     wm_board_keyboard_text_changed(compose->keyboard, false);
     compose->keyboard_age = 0.0f;
     compose->scroll.lines = memo_line_count(compose);

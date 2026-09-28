@@ -39,6 +39,20 @@ the newly displayed controls so an arrow beneath it acquires focus immediately.
 The C scene places the title, shared rows, and footer using the extracted
 document coordinates. Font raster and frame-aligned native pixels still need
 verification; native visual fidelity remains unverified.
+Console Nickname uses the source-sized white input field and accepts a pointer
+selection at any character boundary. A black caret appears in that field before
+the software keyboard opens. The keyboard uses the prepared source layouts,
+without dictionary or More controls, and draws a red insertion caret in its
+own text box. Clicking that text box while the keyboard is open moves the red
+caret to the nearest character boundary. Its text box rises with the keys over
+thirty updates and descends over thirty updates on Quit or OK. Physical Shift
+and Caps Lock update the visible keytops. Quit restores the previous field
+value while the keyboard retains its edited text until the exit finishes, so
+the text fades and moves out with the keyboard. Quit, OK, and Space share the
+same key cue.
+Physical keyboard input remains a local printable-ASCII substitute for Wii
+Remote text entry; this timing has not been checked against aligned native
+Console Nickname frames.
 The Date detail uses the USA English stylesheet's Month x=88, Day x=224, and
 Year x=400 controls and the WAD's original 72×72 up/down artwork. These
 positions also drive input; the shared `US/COM` stylesheet places them

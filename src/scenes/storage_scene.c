@@ -350,6 +350,7 @@ bool wm_storage_scene_open(WmStorageScene *scene, WmStorageTab initial_tab) {
     scene->balloon_frame = 0.0f;
     scene->balloon_slot = -1;
     scene->balloon_cue = false;
+    scene->dialog_cue = false;
     scene->base_data_frame = 0.0f;
     scene->base_select_frame = 0.0f;
     scene->box_frame = 0.0f;
@@ -425,6 +426,7 @@ static void phase_finish(WmStorageScene *scene) {
         case WM_STORAGE_DETAIL_BUTTONS_OUT:
             scene->view = WM_STORAGE_VIEW_DIALOG;
             phase_start(scene, WM_STORAGE_DIALOG_IN);
+            scene->dialog_cue = true;
             break;
         case WM_STORAGE_DIALOG_IN:
             phase_start(scene, WM_STORAGE_READY_PHASE);
@@ -666,6 +668,13 @@ bool wm_storage_scene_take_balloon_cue(WmStorageScene *scene) {
     if (!scene) return false;
     bool cue = scene->balloon_cue;
     scene->balloon_cue = false;
+    return cue;
+}
+
+bool wm_storage_scene_take_dialog_cue(WmStorageScene *scene) {
+    if (!scene) return false;
+    bool cue = scene->dialog_cue;
+    scene->dialog_cue = false;
     return cue;
 }
 

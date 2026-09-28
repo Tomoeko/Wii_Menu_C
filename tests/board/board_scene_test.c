@@ -846,7 +846,7 @@ static void test_compose_software_keyboard(int argc, char **argv) {
     assert(wm_board_compose_activate(compose, ok_control));
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_LEAVE_EDIT);
     assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_SK_DECIDE_CLOSE") == 0);
+                  "WIPL_SE_CHAR_DECIDE") == 0);
     assert(wm_board_compose_take_key_cue(compose) == NULL);
     wm_board_compose_advance(compose, 15.0f);
     WmBoardComposeScrollState scroll;
@@ -866,7 +866,7 @@ static void test_compose_software_keyboard(int argc, char **argv) {
         (int)(back.y + back.height * 0.5f)) == back_control);
     assert(wm_board_compose_activate(compose, back_control));
     assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_SK_CANCEL_CLOSE") == 0);
+                  "WIPL_SE_CHAR_DECIDE") == 0);
     assert(wm_board_compose_take_key_cue(compose) == NULL);
     wm_board_compose_advance(compose, 30.0f);
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_MEMO);
@@ -887,6 +887,50 @@ static WmBoardCompose *editing_compose(const char *assets) {
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_EDIT);
     assert(wm_board_compose_insert_text(compose, "abcdefghijklmnop"));
     return compose;
+}
+
+static void test_compose_physical_arrows(int argc, char **argv) {
+    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    WmBoardCompose *compose = wm_board_compose_create(
+        (WmPlatform *)1, assets, (WmTextureCache *)1, test_fonts);
+    assert(compose);
+    assert(wm_board_compose_open(compose));
+    wm_board_compose_advance(compose, 39.0f);
+    assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_MEMO));
+    wm_board_compose_advance(compose, 26.0f);
+    assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_EDIT));
+    wm_board_compose_advance(compose, 30.0f);
+    assert(wm_board_compose_insert_text(compose, "AB\nC\nDE"));
+    assert(wm_board_compose_caret(compose) == 7);
+    assert(wm_board_compose_move_caret(compose, WM_KEY_LEFT));
+    assert(wm_board_compose_caret(compose) == 6);
+    assert(wm_board_compose_move_caret(compose, WM_KEY_RIGHT));
+    assert(wm_board_compose_caret(compose) == 7);
+    assert(wm_board_compose_move_caret(compose, WM_KEY_UP));
+    assert(wm_board_compose_caret(compose) == 4);
+    assert(wm_board_compose_move_caret(compose, WM_KEY_UP));
+    assert(wm_board_compose_caret(compose) == 2);
+    assert(wm_board_compose_move_caret(compose, WM_KEY_DOWN));
+    assert(wm_board_compose_caret(compose) == 4);
+    assert(wm_board_compose_move_caret(compose, WM_KEY_DOWN));
+    assert(wm_board_compose_caret(compose) == 7);
+
+    wm_board_compose_reset(compose);
+    assert(wm_board_compose_open(compose));
+    wm_board_compose_advance(compose, 39.0f);
+    assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_MEMO));
+    wm_board_compose_advance(compose, 26.0f);
+    assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_EDIT));
+    wm_board_compose_advance(compose, 30.0f);
+    assert(wm_board_compose_insert_text(compose, "A\xc3\xa9" "B"));
+    assert(wm_board_compose_caret(compose) == 4);
+    assert(wm_board_compose_move_caret(compose, WM_KEY_LEFT));
+    assert(wm_board_compose_caret(compose) == 3);
+    assert(wm_board_compose_move_caret(compose, WM_KEY_LEFT));
+    assert(wm_board_compose_caret(compose) == 1);
+    assert(wm_board_compose_move_caret(compose, WM_KEY_RIGHT));
+    assert(wm_board_compose_caret(compose) == 3);
+    wm_board_compose_destroy(compose);
 }
 
 static WmBoardComposeControl compose_key(WmBoardKeyboardControl key) {
@@ -3548,6 +3592,7 @@ int main(int argc, char **argv) {
     test_board_network_settings_action(argc, argv);
     test_compose_mii_notice(argc, argv);
     test_compose_software_keyboard(argc, argv);
+    test_compose_physical_arrows(argc, argv);
     test_compose_phone_keyboard(argc, argv);
     test_compose_held_keytops(argc, argv);
     test_memo_caret_layout(argc, argv);

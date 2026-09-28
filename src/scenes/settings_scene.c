@@ -125,6 +125,10 @@ static WmSettingsControl category_hit(const WmSettingsScene *scene,
     if (x < 16 || y < 0 || x >= 624 || y >= WM_FRAME_HEIGHT)
         return WM_SETTINGS_CONTROL_NONE;
     int local_x = x - 16;
+    if (scene->active_category == SETTINGS_NICKNAME &&
+        within(x, y, SETTINGS_NICKNAME_FIELD_X, SETTINGS_NICKNAME_FIELD_Y,
+               SETTINGS_NICKNAME_FIELD_WIDTH, SETTINGS_NICKNAME_FIELD_HEIGHT))
+        return WM_SETTINGS_CONTROL_NICKNAME_FIELD;
     bool sensitivity_meter = scene->active_category == 6 &&
                              scene->detail == 2 &&
                              !scene->sensitivity_instructions;
@@ -268,6 +272,13 @@ WmSettingsScene *wm_settings_scene_create(WmPlatform *platform,
     scene->platform = platform;
     scene->textures = textures;
     scene->fonts = fonts;
+    size_t assets_length = strlen(assets_directory) + 1;
+    scene->assets_directory = malloc(assets_length);
+    if (!scene->assets_directory) {
+        free(scene);
+        return NULL;
+    }
+    memcpy(scene->assets_directory, assets_directory, assets_length);
     scene->phase = WM_SETTINGS_CLOSED;
     settings_scene_reset_local_values(scene);
     char path[SETTINGS_PATH_CAPACITY];
@@ -275,7 +286,7 @@ WmSettingsScene *wm_settings_scene_create(WmPlatform *platform,
                           "%s/layouts/setting/SceenChange_b.json",
                           assets_directory);
     if (length < 0 || length >= (int)sizeof(path)) {
-        free(scene);
+        wm_settings_scene_destroy(scene);
         return NULL;
     }
     char error[160] = {0};
@@ -283,7 +294,7 @@ WmSettingsScene *wm_settings_scene_create(WmPlatform *platform,
     if (!scene->scroll_layout) {
         fprintf(stderr, "Could not load Wii Settings page transition: %s\n",
                 error);
-        free(scene);
+        wm_settings_scene_destroy(scene);
         return NULL;
     }
     WmLayoutAnimationInfo left, right;
@@ -311,6 +322,8 @@ WmSettingsScene *wm_settings_scene_create(WmPlatform *platform,
 void wm_settings_scene_destroy(WmSettingsScene *scene) {
     if (!scene) return;
     free(scene->prior_page);
+    wm_board_keyboard_destroy(scene->nickname_keyboard);
+    free(scene->assets_directory);
     wm_outline_font_destroy(scene->outline_font, scene->platform);
     wm_layout_destroy(scene->scroll_layout);
     free(scene);
@@ -323,6 +336,8 @@ bool wm_settings_scene_open(WmSettingsScene *scene) {
     scene->phase = WM_SETTINGS_APPEAR;
     scene->phase_frame = -1.0f;
     scene->hover = WM_SETTINGS_CONTROL_NONE;
+    scene->nickname_keyboard_phase = SETTINGS_NICKNAME_KEYBOARD_CLOSED;
+    scene->nickname_keyboard_frame = 0.0f;
     clear_hover_presentation(scene);
     scene->pending_category = 0;
     scene->active_category = 0;
@@ -365,6 +380,8 @@ void wm_settings_scene_reset(WmSettingsScene *scene) {
     scene->phase = WM_SETTINGS_CLOSED;
     scene->phase_frame = 0.0f;
     scene->hover = WM_SETTINGS_CONTROL_NONE;
+    scene->nickname_keyboard_phase = SETTINGS_NICKNAME_KEYBOARD_CLOSED;
+    scene->nickname_keyboard_frame = 0.0f;
     clear_hover_presentation(scene);
     scene->pending_category = 0;
     scene->active_category = 0;
@@ -384,6 +401,7 @@ void wm_settings_scene_reset(WmSettingsScene *scene) {
 
 void wm_settings_scene_advance(WmSettingsScene *scene, float frames) {
     if (!scene || !isfinite(frames) || frames < 0.0f) return;
+    settings_scene_advance_nickname_keyboard(scene, frames);
     if (scene->phase == WM_SETTINGS_APPEAR) {
         scene->phase_frame += frames;
         if (scene->phase_frame >= 20.0f) {
@@ -503,6 +521,8 @@ bool wm_settings_scene_update_question(const WmSettingsScene *scene) {
 
 bool wm_settings_scene_back(WmSettingsScene *scene) {
     if (!scene) return false;
+    if (wm_settings_scene_nickname_keyboard_visible(scene))
+        return wm_settings_scene_keyboard_close(scene, false) != NULL;
     WmSettingsScene before = *scene;
     bool backed = settings_scene_back_control(scene);
     if (backed && (before.active_category != scene->active_category ||
@@ -528,6 +548,8 @@ unsigned wm_settings_scene_take_category(WmSettingsScene *scene) {
 WmSettingsControl wm_settings_scene_hit(const WmSettingsScene *scene,
                                         int x, int y) {
     if (!scene) return WM_SETTINGS_CONTROL_NONE;
+    if (wm_settings_scene_nickname_keyboard_visible(scene))
+        return WM_SETTINGS_CONTROL_NONE;
     int source_x = (int)floorf(settings_source_x(scene, x + 0.5f));
     return scene && scene->phase == WM_SETTINGS_READY &&
            !scene->exit_pending
@@ -540,7 +562,9 @@ WmSettingsControl wm_settings_scene_hit(const WmSettingsScene *scene,
 bool wm_settings_scene_hover(WmSettingsScene *scene,
                              WmSettingsControl control) {
     if (!scene || scene->phase != WM_SETTINGS_READY ||
-        scene->exit_pending || control > WM_SETTINGS_CONTROL_ITEM_6 ||
+        scene->exit_pending ||
+        wm_settings_scene_nickname_keyboard_visible(scene) ||
+        control > WM_SETTINGS_CONTROL_NICKNAME_FIELD ||
         scene->hover == control) return false;
     scene->hover = control;
     return true;
@@ -550,7 +574,10 @@ static bool activate_control(WmSettingsScene *scene,
                              WmSettingsControl control) {
     if (!scene || scene->phase != WM_SETTINGS_READY ||
         scene->exit_pending || control <= WM_SETTINGS_CONTROL_NONE ||
-        control > WM_SETTINGS_CONTROL_ITEM_6) return false;
+        control > WM_SETTINGS_CONTROL_NICKNAME_FIELD) return false;
+    if (wm_settings_scene_nickname_keyboard_visible(scene)) return false;
+    if (control == WM_SETTINGS_CONTROL_NICKNAME_FIELD)
+        return settings_scene_open_nickname_keyboard(scene);
     if (scene->active_category)
         return settings_scene_activate_category(scene, control);
     if (control == WM_SETTINGS_CONTROL_BACK)
@@ -578,9 +605,11 @@ static bool activate_control(WmSettingsScene *scene,
     scene->detail = 0;
     scene->selection = category == 4 ? scene->sound_choice
                      : category == 9 ? scene->language_choice : 0;
-    if (category == SETTINGS_NICKNAME)
+    if (category == SETTINGS_NICKNAME) {
         memcpy(scene->edit_nickname, scene->nickname,
                sizeof(scene->edit_nickname));
+        scene->nickname_caret = (unsigned)strlen(scene->edit_nickname);
+    }
     if (category == SETTINGS_COUNTRY) {
         scene->edit_country_choice = scene->country_choice;
         /* Always open the first country list page, even if the saved choice
@@ -662,27 +691,4 @@ bool wm_settings_scene_directional_control(const WmSettingsScene *scene,
                 scene->country_page < 9);
     }
     return false;
-}
-
-bool wm_settings_scene_type_ascii(WmSettingsScene *scene, char character) {
-    if (!wm_settings_scene_editing_nickname(scene) ||
-        character < 32 || character > 126) return false;
-    size_t length = strlen(scene->edit_nickname);
-    if (length >= SETTINGS_NICKNAME_LIMIT) return false;
-    scene->edit_nickname[length] = character;
-    scene->edit_nickname[length + 1] = '\0';
-    return true;
-}
-
-bool wm_settings_scene_backspace(WmSettingsScene *scene) {
-    if (!wm_settings_scene_editing_nickname(scene)) return false;
-    size_t length = strlen(scene->edit_nickname);
-    if (!length) return false;
-    scene->edit_nickname[length - 1] = '\0';
-    return true;
-}
-
-bool wm_settings_scene_editing_nickname(const WmSettingsScene *scene) {
-    return scene && scene->phase == WM_SETTINGS_READY &&
-           scene->active_category == SETTINGS_NICKNAME;
 }

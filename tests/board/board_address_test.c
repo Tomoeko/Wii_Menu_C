@@ -6,6 +6,7 @@
 #include "wii_menu/layout/layout_runtime.h"
 #include "wii_menu/input/source_hit.h"
 #include "wii_menu/render/texture_cache.h"
+#include "../../src/board/board_keyboard_internal.h"
 
 #include <assert.h>
 #include <math.h>
@@ -1018,6 +1019,39 @@ int main(int argc, char **argv) {
     assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_MORE,
                                        false, character) ==
            WM_KEYBOARD_ACTION_SYMBOL_OPEN);
+    wm_board_keyboard_set_profile(keyboard,
+                                  WM_BOARD_KEYBOARD_CONSOLE_NICKNAME);
+    assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_PREDICTION,
+                                       false, character) ==
+           WM_KEYBOARD_ACTION_NONE);
+    assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_LANGUAGE,
+                                       false, character) ==
+           WM_KEYBOARD_ACTION_NONE);
+    assert(wm_board_keyboard_activate(keyboard,
+                                       WM_KEYBOARD_CANDIDATE_FIRST,
+                                       false, character) ==
+           WM_KEYBOARD_ACTION_NONE);
+    assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_MORE,
+                                       false, character) ==
+           WM_KEYBOARD_ACTION_NONE);
+    wm_board_keyboard_draw(keyboard, 0.5f, false);
+    WmSourceRect rising_box;
+    assert(wm_source_pane_rect(keyboard->text_box_big, "T_2l_TextBox",
+                               true, WM_LAYOUT_IPL, NULL, &rising_box));
+    wm_board_keyboard_draw(keyboard, 1.0f, false);
+    WmSourceRect settled_box;
+    assert(wm_source_pane_rect(keyboard->text_box_big, "T_2l_TextBox",
+                               true, WM_LAYOUT_IPL, NULL, &settled_box));
+    assert(rising_box.y > settled_box.y + 5.0f);
+    WmSourceRect hidden_more;
+    assert(!wm_source_pane_rect(keyboard->keytop, "W_USEU_Chng_sign",
+                                 true, WM_LAYOUT_IPL, NULL, &hidden_more));
+    assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_PHONE,
+                                       false, character) ==
+           WM_KEYBOARD_ACTION_LAYOUT_PHONE);
+    wm_board_keyboard_draw(keyboard, 1.0f, false);
+    assert(!wm_source_pane_rect(keyboard->phone, "W_othersBT_EU",
+                                 true, WM_LAYOUT_IPL, NULL, &hidden_more));
     wm_board_keyboard_set_profile(keyboard, WM_BOARD_KEYBOARD_MEMO);
     assert(wm_board_keyboard_profile(keyboard) == WM_BOARD_KEYBOARD_MEMO);
     wm_board_keyboard_destroy(keyboard);

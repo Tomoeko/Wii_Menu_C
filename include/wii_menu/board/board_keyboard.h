@@ -16,7 +16,8 @@ typedef enum WmBoardKeyboardProfile {
     WM_BOARD_KEYBOARD_MEMO,
     WM_BOARD_KEYBOARD_ADDRESS_WII,
     WM_BOARD_KEYBOARD_ADDRESS_EMAIL,
-    WM_BOARD_KEYBOARD_ADDRESS_NICKNAME
+    WM_BOARD_KEYBOARD_ADDRESS_NICKNAME,
+    WM_BOARD_KEYBOARD_CONSOLE_NICKNAME
 } WmBoardKeyboardProfile;
 
 /* The first fifty IDs retain the source keytop order. Empty source keytops
@@ -93,8 +94,8 @@ WmBoardKeyboard *wm_board_keyboard_create(WmPlatform *platform,
                                           WmFontCache *fonts);
 void wm_board_keyboard_destroy(WmBoardKeyboard *keyboard);
 void wm_board_keyboard_reset(WmBoardKeyboard *keyboard);
-/* Address profiles reuse the keytop controller while displaying the source
- * background/text box and masking controls disabled by native types 12/7/11. */
+/* Address and Console Nickname profiles reuse the keytop controller while
+ * displaying the source background/text box and masking unavailable controls. */
 void wm_board_keyboard_set_profile(WmBoardKeyboard *keyboard,
                                     WmBoardKeyboardProfile profile);
 WmBoardKeyboardProfile wm_board_keyboard_profile(
@@ -110,6 +111,14 @@ WmBoardKeyboardControl wm_board_keyboard_held_control(
     const WmBoardKeyboard *keyboard);
 void wm_board_keyboard_set_text_context(WmBoardKeyboard *keyboard,
                                          const char *utf8);
+/* Mirror the host keyboard's held Shift and latched Caps Lock on the visible
+ * keytops. The editor still receives the host's actual printable character. */
+void wm_board_keyboard_set_physical_modifiers(WmBoardKeyboard *keyboard,
+                                               bool shift_down,
+                                               bool caps_lock_on);
+/* Console Nickname draws a red caret in the keyboard's source text box. */
+void wm_board_keyboard_set_caret(WmBoardKeyboard *keyboard,
+                                size_t byte_index, bool visible);
 void wm_board_keyboard_text_changed(WmBoardKeyboard *keyboard,
                                      bool from_phone_key);
 /* End the current predictive run at the editor's present text length. The
@@ -140,6 +149,8 @@ WmBoardKeyboardControl wm_board_keyboard_press_physical(
     WmBoardKeyboard *keyboard, const char *utf8);
 void wm_board_keyboard_draw(WmBoardKeyboard *keyboard, float progress,
                             bool entering);
+bool wm_board_keyboard_hit_text_caret(WmBoardKeyboard *keyboard,
+                                      int x, int y, size_t *byte_index);
 WmBoardKeyboardControl wm_board_keyboard_hit(WmBoardKeyboard *keyboard,
                                              int x, int y);
 void wm_board_keyboard_hover(WmBoardKeyboard *keyboard,

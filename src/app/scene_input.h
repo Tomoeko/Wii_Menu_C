@@ -13,6 +13,8 @@ typedef struct WmAppSceneInput {
     WmOptionsControl options_hovered;
     WmOptionsControl options_pressed;
     bool options_held_arrow;
+    WmBoardKeyboardControl nickname_key_hovered;
+    WmBoardKeyboardControl nickname_key_pressed;
     WmSdHit sd_pressed;
     WmStorageHit storage_pressed;
 } WmAppSceneInput;

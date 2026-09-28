@@ -204,6 +204,9 @@ WmBoardPhase wm_board_scene_phase(const WmBoardScene *board);
 WmBoardChild wm_board_scene_child(const WmBoardScene *board);
 /* True for an active Memo or Address Book text editor. */
 bool wm_board_scene_compose_editor_active(const WmBoardScene *board);
+void wm_board_scene_keyboard_modifiers(WmBoardScene *board,
+                                        bool shift_down, bool caps_lock_on);
+bool wm_board_scene_move_memo_caret(WmBoardScene *board, WmKey direction);
 bool wm_board_scene_compose_keyboard_overlay_visible(
     const WmBoardScene *board);
 /* Narrow route for physical Enter in an Address Book text editor. */

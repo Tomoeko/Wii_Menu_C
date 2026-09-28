@@ -374,25 +374,24 @@ void wm_storage_pose_back(WmStorageScene *scene) {
     add_clip(&pose, "it_Button_a", "SeenIn", "G_BarIn", 15.0f);
     add_clip(&pose, "it_Button_a", "WiiLost", "G_Wii", 15.0f);
     add_clip(&pose, "it_Button_a", "AlphOut", "G_FocusBtnA", 0.0f);
-    if (scene->kind == WM_STORAGE_CHANNELS) {
-        /* Keep the independent Back button active while the dialog enters
-         * and exits. Its alpha clips follow the transitions, then hold. */
-        const char *fade = NULL;
-        float fade_frame = 0.0f;
-        if (scene->phase == WM_STORAGE_DIALOG_IN) {
-            fade = "AlphOut";
-            fade_frame = scene->phase_frame;
-        } else if (scene->phase == WM_STORAGE_DETAIL_BUTTONS_IN) {
-            fade = "AlphIn";
-            fade_frame = scene->phase_frame;
-        } else if (scene->view == WM_STORAGE_VIEW_DIALOG) {
-            fade = "AlphOut";
-            fade_frame = 10.0f;
-        }
-        if (fade) {
-            add_clip(&pose, "it_Button_a", fade, "G_FocusBtnA",
-                     endpoint(fade_frame, 11));
-        }
+    /* Fade Back as soon as the operation is pressed. The confirmation
+     * window rises only after the button has finished disappearing. */
+    const char *fade = NULL;
+    float fade_frame = 0.0f;
+    if (scene->phase == WM_STORAGE_OPERATION_FLASH) {
+        fade = "AlphOut";
+        fade_frame = scene->phase_frame;
+    } else if (scene->phase == WM_STORAGE_DETAIL_BUTTONS_IN) {
+        fade = "AlphIn";
+        fade_frame = scene->phase_frame;
+    } else if (scene->phase == WM_STORAGE_DETAIL_BUTTONS_OUT ||
+               scene->view == WM_STORAGE_VIEW_DIALOG) {
+        fade = "AlphOut";
+        fade_frame = 10.0f;
+    }
+    if (fade) {
+        add_clip(&pose, "it_Button_a", fade, "G_FocusBtnA",
+                 endpoint(fade_frame, 11));
     }
     if (scene->phase == WM_STORAGE_BACK_PRESS) {
         add_clip(&pose, "it_Button_a", "BtnFlash", "G_SelectBtnA",

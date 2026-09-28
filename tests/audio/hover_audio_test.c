@@ -64,6 +64,12 @@ int main(void) {
     assert(strcmp(wm_hover_audio_menu_cue(WM_HIT_CHANNEL), "hover") == 0);
     assert(strcmp(wm_hover_audio_board_cue(WM_BOARD_CONTROL_COMPOSE_KEY_FIRST),
                   "WIPL_SE_CHAR_FOCUS") == 0);
+    assert(strcmp(wm_hover_audio_board_cue((WmBoardControl)(
+                      WM_BOARD_CONTROL_COMPOSE_KEY_FIRST +
+                      WM_KEYBOARD_CAPS - 1)), "WIPL_SE_CHAR_FOCUS") == 0);
+    assert(strcmp(wm_hover_audio_board_cue((WmBoardControl)(
+                      WM_BOARD_CONTROL_COMPOSE_KEY_FIRST +
+                      WM_KEYBOARD_SHIFT - 1)), "WIPL_SE_CHAR_FOCUS") == 0);
     assert(strcmp(wm_hover_audio_sd_cue(WM_SD_CONTROL_CHANNEL),
                   "buttonHover") == 0);
     assert(strcmp(wm_hover_audio_sd_cue(WM_SD_CONTROL_HELP),

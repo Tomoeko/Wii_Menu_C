@@ -18,7 +18,8 @@ typedef enum WmEventType {
     WM_EVENT_POINTER_UP,
     WM_EVENT_POINTER_MOVE,
     WM_EVENT_POINTER_LEAVE,
-    WM_EVENT_KEY_DOWN
+    WM_EVENT_KEY_DOWN,
+    WM_EVENT_KEY_MODIFIERS
 } WmEventType;
 
 typedef enum WmKey {
@@ -30,7 +31,9 @@ typedef enum WmKey {
     WM_KEY_ENTER,
     WM_KEY_ESCAPE,
     WM_KEY_BACKSPACE,
-    WM_KEY_HOME
+    WM_KEY_HOME,
+    WM_KEY_SHIFT,
+    WM_KEY_CAPS_LOCK
 } WmKey;
 
 typedef enum WmPointerButton {
@@ -50,6 +53,10 @@ typedef struct WmEvent {
     bool outside_viewport;
     /* Focus loss cancels a held action; pointer departure may finish it. */
     bool cancel_capture;
+    /* A modifier change is separate from text input so held Shift can be
+     * released visually without synthesizing a character. */
+    bool shift_down;
+    bool caps_lock_on;
 } WmEvent;
 
 typedef struct WmColor {

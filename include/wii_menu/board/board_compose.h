@@ -104,6 +104,9 @@ WmBoardComposeControl wm_board_compose_hit(WmBoardCompose *compose,
 /* Text hits retain a UTF-8 insertion boundary until EDIT activation. Pointer
  * motion alone never changes the draft or its current insertion point. */
 size_t wm_board_compose_caret(const WmBoardCompose *compose);
+/* Physical arrow keys move the Memo insertion point by UTF-8 boundary or
+ * by the source font's wrapped visual lines. */
+bool wm_board_compose_move_caret(WmBoardCompose *compose, WmKey direction);
 void wm_board_compose_hover(WmBoardCompose *compose,
                             WmBoardComposeControl control);
 bool wm_board_compose_activate(WmBoardCompose *compose,
@@ -128,6 +131,8 @@ bool wm_board_compose_insert_text(WmBoardCompose *compose,
                                    const char *utf8);
 void wm_board_compose_press_physical(WmBoardCompose *compose,
                                       const char *utf8);
+void wm_board_compose_keyboard_modifiers(WmBoardCompose *compose,
+                                          bool shift_down, bool caps_lock_on);
 bool wm_board_compose_backspace(WmBoardCompose *compose);
 bool wm_board_compose_finish_edit(WmBoardCompose *compose);
 /* The Memo's display and two-line editor share a scroll position. The editor

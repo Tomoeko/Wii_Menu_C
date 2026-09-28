@@ -146,6 +146,8 @@ WmStorageAction wm_storage_scene_take_action(WmStorageScene *scene,
                                               WmStorageRecord *record);
 /* True once when a held populated slot opens its native title balloon. */
 bool wm_storage_scene_take_balloon_cue(WmStorageScene *scene);
+/* True once when an operation's confirmation window starts rising. */
+bool wm_storage_scene_take_dialog_cue(WmStorageScene *scene);
 
 /* While Storage is open, source order is Options background, Storage Back,
  * retained Options objects/headings, then Storage content. */

@@ -11,8 +11,20 @@ enum {
     SETTINGS_ITEMS_PER_PAGE = 4,
     SETTINGS_NICKNAME_LIMIT = 10,
     SETTINGS_WIDE_WIDTH = 832,
-    SETTINGS_SIDE_WIDTH = 112
+    SETTINGS_SIDE_WIDTH = 112,
+    SETTINGS_NICKNAME_FIELD_X = 104,
+    SETTINGS_NICKNAME_FIELD_Y = 190,
+    SETTINGS_NICKNAME_FIELD_WIDTH = 432,
+    SETTINGS_NICKNAME_FIELD_HEIGHT = 56
 };
+
+typedef enum SettingsNicknameKeyboardPhase {
+    SETTINGS_NICKNAME_KEYBOARD_CLOSED,
+    SETTINGS_NICKNAME_KEYBOARD_PENDING,
+    SETTINGS_NICKNAME_KEYBOARD_OPENING,
+    SETTINGS_NICKNAME_KEYBOARD_OPEN,
+    SETTINGS_NICKNAME_KEYBOARD_CLOSING
+} SettingsNicknameKeyboardPhase;
 
 enum SettingsCategory {
     SETTINGS_NICKNAME = 1,
@@ -80,6 +92,13 @@ struct WmSettingsScene {
     bool sensitivity_instructions;
     char nickname[SETTINGS_NICKNAME_LIMIT + 1];
     char edit_nickname[SETTINGS_NICKNAME_LIMIT + 1];
+    char nickname_before_keyboard[SETTINGS_NICKNAME_LIMIT + 1];
+    char nickname_keyboard_display[SETTINGS_NICKNAME_LIMIT + 1];
+    char *assets_directory;
+    WmBoardKeyboard *nickname_keyboard;
+    SettingsNicknameKeyboardPhase nickname_keyboard_phase;
+    float nickname_keyboard_frame;
+    unsigned nickname_caret;
     bool parental_enabled;
     bool connect24_enabled;
     bool standby_enabled;
@@ -119,5 +138,10 @@ bool settings_scene_activate_category(WmSettingsScene *scene,
 float wm_settings_focus_opacity(const WmSettingsScene *scene,
                                 WmSettingsControl control);
 float wm_settings_page_opacity(const WmSettingsScene *scene);
+void settings_scene_advance_nickname_keyboard(WmSettingsScene *scene,
+                                               float frames);
+bool settings_scene_open_nickname_keyboard(WmSettingsScene *scene);
+void settings_scene_draw_nickname_keyboard(WmSettingsScene *scene);
+float settings_scene_nickname_caret_x(const WmSettingsScene *scene);
 
 #endif

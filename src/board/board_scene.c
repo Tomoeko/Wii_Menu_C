@@ -348,6 +348,16 @@ bool wm_board_scene_compose_editor_active(const WmBoardScene *board) {
          wm_board_compose_address_editor_active(board->compose));
 }
 
+void wm_board_scene_keyboard_modifiers(WmBoardScene *board,
+                                        bool shift_down, bool caps_lock_on) {
+    if (board) wm_board_compose_keyboard_modifiers(board->compose,
+                                                    shift_down, caps_lock_on);
+}
+
+bool wm_board_scene_move_memo_caret(WmBoardScene *board, WmKey direction) {
+    return board && wm_board_compose_move_caret(board->compose, direction);
+}
+
 bool wm_board_scene_compose_keyboard_overlay_visible(
     const WmBoardScene *board) {
     return board &&

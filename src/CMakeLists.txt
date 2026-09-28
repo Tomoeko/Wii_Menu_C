@@ -95,6 +95,7 @@ add_library(wii_menu_core STATIC
     scenes/sd_scene_render.c
     scenes/settings_scene.c
     scenes/settings_scene_audio.c
+    scenes/settings_scene_nickname.c
     scenes/settings_scene_category_input.c
     scenes/settings_scene_render.c
     scenes/storage_scene.c

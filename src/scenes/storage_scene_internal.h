@@ -73,6 +73,7 @@ struct WmStorageScene {
     float balloon_frame;
     int balloon_slot;
     bool balloon_cue;
+    bool dialog_cue;
     char capacity_text[96];
 };
 
