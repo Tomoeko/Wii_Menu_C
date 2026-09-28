@@ -1842,7 +1842,9 @@ bool wm_board_scene_back(WmBoardScene *board) {
     if (board->phase != WM_BOARD_READY) return false;
     wm_board_scene_hover(board,
                          (WmBoardHit){WM_BOARD_CONTROL_NONE, SIZE_MAX});
-    if (!begin_date_transition(board, board->today, WM_BOARD_EXIT, true, 0.0f))
+    /* Returning to the Home Menu reuses the page slide, but does not press
+     * either Board page arrow and therefore must not play its cue. */
+    if (!begin_date_transition(board, board->today, WM_BOARD_EXIT, false, 0.0f))
         return false;
     memset(board->button_focus, 0, sizeof(board->button_focus));
     return true;

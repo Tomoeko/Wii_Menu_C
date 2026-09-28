@@ -2622,8 +2622,7 @@ static void test_return_arrival_transition(int argc, char **argv) {
         WmBoardSoundEvent event;
         while (wm_board_scene_take_sound_event(board, &event)) {}
         assert(wm_board_scene_back(board));
-        assert(wm_board_scene_take_sound_event(board, &event));
-        assert(strcmp(event.cue, "page") == 0);
+        assert(!wm_board_scene_take_sound_event(board, &event));
         for (unsigned frame = 0; frame <= 110; frame++) {
             WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
             bool parked = frame >= 40;
@@ -2694,8 +2693,6 @@ static void test_parked_arrival_batch_clock(int argc, char **argv) {
             for (unsigned frame = 0; frame < 70; frame++)
                 wm_board_scene_advance_parked(board, 1.0f);
         }
-        assert(wm_board_scene_take_sound_event(board, &event) &&
-               strcmp(event.cue, "page") == 0);
         assert(!wm_board_scene_take_sound_event(board, &event));
         WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
         size_t count = wm_board_scene_parked_memo_presentation(board, today, cards);
@@ -2952,8 +2949,6 @@ static void test_memo_date_continuity(int argc, char **argv) {
         assert(count == 2 && entering && entering->entering &&
                entering->paste_frame == 10.0f &&
                entering->next_page_frame == -1.0f);
-        assert(wm_board_scene_take_sound_event(board, &event));
-        assert(strcmp(event.cue, "page") == 0);
         assert(!wm_board_scene_take_sound_event(board, &event));
         wm_board_scene_advance(board, 40.0f);
         assert(wm_board_scene_phase(board) == WM_BOARD_CLOSED);
