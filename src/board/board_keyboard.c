@@ -2,6 +2,8 @@
 
 #include "wii_menu/board/board_keyboard.h"
 
+#include "keyboard_text.h"
+
 #include "wii_menu/board/keyboard_dictionary.h"
 #include "wii_menu/layout/layout_present.h"
 #include "wii_menu/layout/layout_runtime.h"
@@ -341,89 +343,6 @@ static const char *phone_label(const WmBoardKeyboard *keyboard,
     return output;
 }
 
-static uint32_t next_codepoint(const char **cursor, const char *end) {
-    if (*cursor >= end) return 0;
-    const unsigned char *bytes = (const unsigned char *)*cursor;
-    uint32_t point = bytes[0];
-    unsigned continuation = 0;
-    if ((point & 0xe0u) == 0xc0u) {
-        point &= 0x1fu;
-        continuation = 1;
-    } else if ((point & 0xf0u) == 0xe0u) {
-        point &= 0x0fu;
-        continuation = 2;
-    } else if ((point & 0xf8u) == 0xf0u) {
-        point &= 0x07u;
-        continuation = 3;
-    } else {
-        (*cursor)++;
-        return point;
-    }
-    if ((size_t)(end - *cursor) <= continuation) {
-        (*cursor)++;
-        return bytes[0];
-    }
-    for (unsigned index = 1; index <= continuation; index++) {
-        if ((bytes[index] & 0xc0u) != 0x80u) {
-            (*cursor)++;
-            return bytes[0];
-        }
-        point = (point << 6) | (bytes[index] & 0x3fu);
-    }
-    *cursor += continuation + 1;
-    return point;
-}
-
-static uint32_t lower_point(uint32_t point) {
-    if (point >= 'A' && point <= 'Z') return point + 0x20u;
-    if ((point >= 0xc0u && point <= 0xd6u) ||
-        (point >= 0xd8u && point <= 0xdeu)) return point + 0x20u;
-    if (point == 0x178u) return 0xffu;
-    return point;
-}
-
-static uint32_t upper_point(uint32_t point) {
-    if (point >= 'a' && point <= 'z') return point - 0x20u;
-    if ((point >= 0xe0u && point <= 0xf6u) ||
-        (point >= 0xf8u && point <= 0xfeu)) return point - 0x20u;
-    if (point == 0xffu) return 0x178u;
-    return point;
-}
-
-static size_t encode_point(char output[4], uint32_t point) {
-    if (point < 0x80u) {
-        output[0] = (char)point;
-        return 1;
-    }
-    if (point < 0x800u) {
-        output[0] = (char)(0xc0u | (point >> 6));
-        output[1] = (char)(0x80u | (point & 0x3fu));
-        return 2;
-    }
-    if (point < 0x10000u) {
-        output[0] = (char)(0xe0u | (point >> 12));
-        output[1] = (char)(0x80u | ((point >> 6) & 0x3fu));
-        output[2] = (char)(0x80u | (point & 0x3fu));
-        return 3;
-    }
-    output[0] = (char)(0xf0u | (point >> 18));
-    output[1] = (char)(0x80u | ((point >> 12) & 0x3fu));
-    output[2] = (char)(0x80u | ((point >> 6) & 0x3fu));
-    output[3] = (char)(0x80u | (point & 0x3fu));
-    return 4;
-}
-
-static bool is_word_point(uint32_t point) {
-    if ((point >= 'A' && point <= 'Z') ||
-        (point >= 'a' && point <= 'z')) return true;
-    if ((point >= 0xc0u && point <= 0xffu &&
-         point != 0xd7u && point != 0xf7u) ||
-        (point >= 0x100u && point <= 0x24fu) ||
-        (point >= 0x300u && point <= 0x36fu) ||
-        (point >= 0x370u && point <= 0x3ffu)) return true;
-    return false;
-}
-
 static void learn_word(WmBoardKeyboard *keyboard, const char *start,
                        size_t bytes, size_t points, size_t units) {
     if (points <= 1 || units > 64 || bytes >=
@@ -434,8 +353,9 @@ static void learn_word(WmBoardKeyboard *keyboard, const char *start,
     const char *end = start + bytes;
     while (cursor < end) {
         char encoded[4];
-        size_t encoded_bytes = encode_point(encoded,
-            lower_point(next_codepoint(&cursor, end)));
+        uint32_t point = wm_keyboard_text_next_codepoint(&cursor, end);
+        size_t encoded_bytes = wm_keyboard_text_encode_point(
+            encoded, wm_keyboard_text_lower_point(point));
         if (used + encoded_bytes >= sizeof(lower)) return;
         memcpy(lower + used, encoded, encoded_bytes);
         used += encoded_bytes;
@@ -468,8 +388,8 @@ static void learn_complete_words(WmBoardKeyboard *keyboard, const char *text,
     size_t points = 0, units = 0;
     while (cursor < end) {
         const char *before = cursor;
-        uint32_t point = next_codepoint(&cursor, end);
-        if (is_word_point(point)) {
+        uint32_t point = wm_keyboard_text_next_codepoint(&cursor, end);
+        if (wm_keyboard_text_is_word_point(point)) {
             if (!word) word = before;
             points++;
             units += point > 0xffffu ? 2u : 1u;
@@ -485,57 +405,6 @@ static void learn_complete_words(WmBoardKeyboard *keyboard, const char *text,
         learn_word(keyboard, word, (size_t)(end - word), points, units);
 }
 
-static bool prefix_matches(const char *word, size_t word_bytes,
-                           const char *prefix, size_t prefix_bytes) {
-    const char *word_cursor = word;
-    const char *word_end = word + word_bytes;
-    const char *prefix_cursor = prefix;
-    const char *prefix_end = prefix + prefix_bytes;
-    while (prefix_cursor < prefix_end) {
-        if (word_cursor >= word_end) return false;
-        if (lower_point(next_codepoint(&word_cursor, word_end)) !=
-            lower_point(next_codepoint(&prefix_cursor, prefix_end)))
-            return false;
-    }
-    return true;
-}
-
-static char phone_digit_for_letter(uint32_t letter) {
-    static const char *const groups[8] = {
-        "abc", "def", "ghi", "jkl", "mno", "pqrs", "tuv", "wxyz"
-    };
-    letter = lower_point(letter);
-    if (letter >= 0xe0u && letter <= 0xe5u) letter = 'a';
-    else if (letter == 0xe7u) letter = 'c';
-    else if (letter >= 0xe8u && letter <= 0xebu) letter = 'e';
-    else if (letter >= 0xecu && letter <= 0xefu) letter = 'i';
-    else if (letter == 0xf1u) letter = 'n';
-    else if (letter >= 0xf2u && letter <= 0xf6u) letter = 'o';
-    else if (letter >= 0xf9u && letter <= 0xfcu) letter = 'u';
-    else if (letter == 0xfdu || letter == 0xffu) letter = 'y';
-    if (letter > 0x7fu) return '\0';
-    for (unsigned index = 0; index < 8; index++)
-        if (strchr(groups[index], (int)letter)) return (char)('2' + index);
-    return '\0';
-}
-
-static bool phone_digits_match(const char *word, size_t word_bytes,
-                               const char *digits, bool *exact) {
-    size_t count = strlen(digits);
-    size_t matched = 0;
-    const char *cursor = word;
-    const char *end = word + word_bytes;
-    while (cursor < end) {
-        uint32_t point = next_codepoint(&cursor, end);
-        char digit = phone_digit_for_letter(point);
-        if (digit == '\0') continue;
-        if (matched < count && digit != digits[matched]) return false;
-        matched++;
-    }
-    if (exact) *exact = matched == count;
-    return matched >= count;
-}
-
 static void phone_prediction_value(WmBoardKeyboard *keyboard,
                                     char output[256]) {
     const char *digits = keyboard->phone_prediction_digits;
@@ -548,7 +417,10 @@ static void phone_prediction_value(WmBoardKeyboard *keyboard,
     size_t length;
     while (next_vocabulary_word(keyboard, &cursor, &word, &length)) {
         bool exact = false;
-        if (!phone_digits_match(word, length, digits, &exact)) continue;
+        if (!wm_keyboard_text_phone_digits_match(word, length, digits,
+                                                 &exact)) {
+            continue;
+        }
         if (!chosen || (!chosen_exact && exact)) {
             chosen = word;
             chosen_length = length;
@@ -560,7 +432,7 @@ static void phone_prediction_value(WmBoardKeyboard *keyboard,
         const char *end = chosen + chosen_length;
         const char *part = chosen;
         for (size_t index = 0; index < count && part < end; index++)
-            (void)next_codepoint(&part, end);
+            (void)wm_keyboard_text_next_codepoint(&part, end);
         size_t bytes = (size_t)(part - chosen);
         memcpy(output, chosen, bytes);
         output[bytes] = '\0';
@@ -571,9 +443,11 @@ static void phone_prediction_value(WmBoardKeyboard *keyboard,
     }
     if (keyboard->phone_prediction_uppercase && output[0]) {
         const char *part = output;
-        uint32_t first = next_codepoint(&part, output + strlen(output));
+        uint32_t first = wm_keyboard_text_next_codepoint(
+            &part, output + strlen(output));
         char converted[4];
-        size_t converted_bytes = encode_point(converted, upper_point(first));
+        size_t converted_bytes = wm_keyboard_text_encode_point(
+            converted, wm_keyboard_text_upper_point(first));
         size_t old_bytes = (size_t)(part - output);
         size_t rest = strlen(part);
         if (converted_bytes + rest < 256) {
@@ -654,47 +528,6 @@ static float candidate_offset(const WmBoardKeyboard *keyboard) {
     return from + (to - from) * t;
 }
 
-static bool copy_candidate_case(char output[WM_KEYBOARD_CANDIDATE_UTF8_CAPACITY],
-                                const char *word, size_t word_bytes,
-                                const char *prefix, size_t prefix_bytes,
-                                bool phone_digits,
-                                bool phone_uppercase) {
-    bool all_upper = !phone_digits;
-    bool first_upper = phone_digits && phone_uppercase;
-    if (!phone_digits) {
-        const char *cursor = prefix;
-        const char *end = prefix + prefix_bytes;
-        if (cursor < end) {
-            uint32_t point = next_codepoint(&cursor, end);
-            first_upper = upper_point(point) == point;
-            if (lower_point(point) == point && upper_point(point) != point)
-                all_upper = false;
-        }
-        while (cursor < end) {
-            uint32_t point = next_codepoint(&cursor, end);
-            if (lower_point(point) == point && upper_point(point) != point)
-                all_upper = false;
-        }
-    }
-    const char *cursor = word;
-    const char *end = word + word_bytes;
-    size_t used = 0;
-    bool first = true;
-    while (cursor < end) {
-        uint32_t point = lower_point(next_codepoint(&cursor, end));
-        if (all_upper || (first && first_upper)) point = upper_point(point);
-        char encoded[4];
-        size_t bytes = encode_point(encoded, point);
-        if (used + bytes >= WM_KEYBOARD_CANDIDATE_UTF8_CAPACITY)
-            return false;
-        memcpy(output + used, encoded, bytes);
-        used += bytes;
-        first = false;
-    }
-    output[used] = '\0';
-    return used > 0;
-}
-
 static bool candidate_already_added(const WmBoardKeyboard *keyboard,
                                     const char *candidate) {
     for (unsigned index = 0; index < keyboard->candidate_count; index++)
@@ -740,20 +573,25 @@ static void refresh_candidates(WmBoardKeyboard *keyboard) {
                 word_length >= WM_KEYBOARD_CANDIDATE_UTF8_CAPACITY) continue;
             if (phone_digits) {
                 bool exact = false;
-                if (!phone_digits_match(word, word_length,
-                    keyboard->phone_prediction_digits, &exact) ||
-                    exact != (pass == 0)) continue;
-            } else if (!prefix_matches(word, word_length,
-                       text + start, length) ||
-                       prefix_matches(text + start, length,
-                                      word, word_length)) {
+                if (!wm_keyboard_text_phone_digits_match(
+                        word, word_length, keyboard->phone_prediction_digits,
+                        &exact) || exact != (pass == 0)) {
+                    continue;
+                }
+            } else if (!wm_keyboard_text_prefix_matches(
+                           word, word_length, text + start, length) ||
+                       wm_keyboard_text_prefix_matches(
+                           text + start, length, word, word_length)) {
                 continue;
             }
             char candidate[WM_KEYBOARD_CANDIDATE_UTF8_CAPACITY];
-            if (!copy_candidate_case(candidate, word, word_length,
-                text + start, length, phone_digits,
-                keyboard->phone_prediction_uppercase) ||
-                candidate_already_added(keyboard, candidate)) continue;
+            if (!wm_keyboard_text_copy_candidate_case(
+                    candidate, sizeof(candidate), word, word_length,
+                    text + start, length, phone_digits,
+                    keyboard->phone_prediction_uppercase) ||
+                candidate_already_added(keyboard, candidate)) {
+                continue;
+            }
             memcpy(keyboard->candidates[keyboard->candidate_count++],
                    candidate, strlen(candidate) + 1);
         }
@@ -1066,8 +904,10 @@ bool wm_board_keyboard_composition(const WmBoardKeyboard *keyboard,
         size_t start = strlen(text) - composition->prefix_bytes;
         for (unsigned index = 0; index < keyboard->candidate_count; index++) {
             const char *word = keyboard->candidates[index];
-            if (strcmp(word, ">") && prefix_matches(word, strlen(word),
-                text + start, composition->prefix_bytes)) {
+            if (strcmp(word, ">") &&
+                wm_keyboard_text_prefix_matches(word, strlen(word),
+                                                text + start,
+                                                composition->prefix_bytes)) {
                 preview = index;
                 break;
             }

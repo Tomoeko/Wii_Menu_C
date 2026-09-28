@@ -46,6 +46,11 @@ wm_add_test(wii-menu-keyboard-dictionary
     SOURCES board/keyboard_dictionary_test.c
     LIBRARIES wii_menu_core
 )
+wm_add_test(wii-menu-keyboard-text
+    SOURCES board/keyboard_text_test.c
+    LIBRARIES wii_menu_core
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/board"
+)
 wm_add_test(wii-menu-board-scene
     SOURCES board/board_scene_test.c
     LIBRARIES wii_menu_core m
@@ -196,6 +201,12 @@ wm_add_test(wii-menu-audio
 )
 
 # Scenes.
+wm_add_test(wii-menu-scene-assets
+    SOURCES scenes/scene_assets_test.c
+    LIBRARIES wii_menu_core
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/scenes"
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+)
 wm_add_test(wii-menu-home-overlay
     SOURCES scenes/home_overlay_test.c
     LIBRARIES wii_menu_core m

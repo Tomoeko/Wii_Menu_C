@@ -13,14 +13,13 @@
 #include "wii_menu/scenes/preview_scene.h"
 #include "wii_menu/input/source_hit.h"
 #include "wii_menu/render/texture_cache.h"
+#include "scene_assets.h"
 
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-enum { WM_SCENE_PATH_CAPACITY = 4096 };
 
 typedef struct FocusAnimation {
     bool active;
@@ -124,14 +123,8 @@ typedef struct GridTraversal {
     float zoom_scale_y;
 } GridTraversal;
 
-static WmLayout *load_layout(const char *assets_directory,
-                             const char *relative_path) {
-    char path[WM_SCENE_PATH_CAPACITY];
-    int length = snprintf(path, sizeof(path), "%s/%s",
-                          assets_directory, relative_path);
-    if (length < 0 || length >= (int)sizeof(path)) return NULL;
-    char error[160];
-    return wm_layout_load_json(path, error, sizeof(error));
+static WmLayout *load_layout(const char *root, const char *relative) {
+    return wm_scene_load_layout(root, relative, NULL);
 }
 
 static bool prepare_widescreen_grid(WmLayout *grid) {

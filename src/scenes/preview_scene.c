@@ -11,6 +11,7 @@
 #include "wii_menu/input/source_hit.h"
 #include "wii_menu/render/texture_cache.h"
 #include "wii_menu/render/ui.h"
+#include "scene_assets.h"
 
 #include <math.h>
 #include <stdint.h>
@@ -18,8 +19,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-enum { WM_PREVIEW_PATH_CAPACITY = 4096 };
 
 typedef struct PreviewFocus {
     float frame;
@@ -64,18 +63,8 @@ typedef struct ArrowVisibility {
     bool next;
 } ArrowVisibility;
 
-static WmLayout *load_layout(const char *directory, const char *relative_path)
-{
-    char path[WM_PREVIEW_PATH_CAPACITY];
-    int length = snprintf(path, sizeof(path), "%s/%s", directory, relative_path);
-    if (length < 0 || length >= (int)sizeof(path)) return NULL;
-    char error[160] = {0};
-    WmLayout *layout = wm_layout_load_json(path, error, sizeof(error));
-    if (layout == NULL) {
-        fprintf(stderr, "Could not load Disc preview layout %s: %s\n",
-                relative_path, error);
-    }
-    return layout;
+static WmLayout *load_layout(const char *directory, const char *relative_path) {
+    return wm_scene_load_layout(directory, relative_path, "Disc preview");
 }
 
 static bool pose_frame(WmLayout *layout, const char *animation, float frame)

@@ -6,6 +6,7 @@
 #include "wii_menu/animation/scene_fader.h"
 #include "wii_menu/scenes/settings_scene.h"
 #include "wii_menu/input/source_hit.h"
+#include "scene_assets.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -13,7 +14,6 @@
 #include <string.h>
 
 enum {
-    OPTIONS_PATH_CAPACITY = 4096,
     OPTIONS_POSE_CAPACITY = 40,
     OPTIONS_BUTTON_COUNT = 6,
     OPTIONS_FOCUS_COUNT = 7,
@@ -103,16 +103,7 @@ struct WmOptionsScene {
 };
 
 static WmLayout *load_layout(const char *directory, const char *relative) {
-    char path[OPTIONS_PATH_CAPACITY];
-    int length = snprintf(path, sizeof(path), "%s/%s", directory, relative);
-    if (length < 0 || length >= (int)sizeof(path)) return NULL;
-    char error[160] = {0};
-    WmLayout *layout = wm_layout_load_json(path, error, sizeof(error));
-    if (!layout) {
-        fprintf(stderr, "Could not load Wii Options layout %s: %s\n",
-                relative, error);
-    }
-    return layout;
+    return wm_scene_load_layout(directory, relative, "Wii Options");
 }
 
 static int button_index(WmOptionsControl control) {

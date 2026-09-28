@@ -20,12 +20,20 @@ Include a header by its full module path, for example
 | `scenes/` | Grid, channel preview, health, HOME, options, settings, storage, and SD scenes |
 | `support/` | JSON tokenization and value conversion |
 
-`src/app/main.c` owns application startup and coordinates scenes, input, audio,
-and presentation. `src/platform/gles2/` and `src/platform/metal/` implement
+`src/app/main.c` owns application startup and coordinates scenes, input, and
+updates. Its private `input_routing` module handles key and hit activation;
+`frame_render` owns frame selection, draw order, and the retained HOME target.
+The Board's private `board_model` owns memo copies and ordering, while
+`keyboard_text` handles UTF-8 and prediction matching. The shared
+`scenes/scene_assets` helper checks layout paths and preserves each scene's
+missing-asset diagnostics.
+
+`src/platform/gles2/` and `src/platform/metal/` implement
 the common contract in `include/wii_menu/platform/platform.h`. The adapters
 consume shared logical draw data and geometry; API objects and GPU calls stay
-inside their respective backends. Apple and Linux audio devices live in
-`src/platform/apple/` and `src/platform/linux/`, behind the private
+inside their respective backends. GLES2 shader sources, program compilation,
+and the TEV cache live in its private `shaders` module. Apple and Linux audio
+devices live in `src/platform/apple/` and `src/platform/linux/`, behind the private
 `src/audio/audio_platform.h` interface.
 
 Private helpers stay with their owning implementations. The geometry helper

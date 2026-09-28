@@ -4,6 +4,7 @@
 #include "wii_menu/layout/layout_runtime.h"
 #include "wii_menu/render/material_prepare.h"
 #include "wii_menu/input/source_hit.h"
+#include "scene_assets.h"
 
 #include <math.h>
 #include <stdint.h>
@@ -12,7 +13,6 @@
 #include <string.h>
 
 enum {
-    STORAGE_PATH_CAPACITY = 4096,
     STORAGE_RECORD_LIMIT = 240,
     STORAGE_PAGE_SIZE = 15,
     STORAGE_POSE_CAPACITY = 18,
@@ -58,7 +58,7 @@ struct WmStorageScene {
     WmLayout *balloon;
     WmLayout *icons[STORAGE_PAGE_SIZE];
     char icon_paths[STORAGE_PAGE_SIZE][256];
-    char assets_directory[STORAGE_PATH_CAPACITY];
+    char assets_directory[WM_SCENE_ASSET_PATH_CAPACITY];
     char base_stem[40];
     char box_stem[40];
     char detail_stem[48];
@@ -167,16 +167,7 @@ static void sort_wii_channels(WmStorageRecord *records, size_t count) {
 }
 
 static WmLayout *load_layout(const char *directory, const char *relative) {
-    char path[STORAGE_PATH_CAPACITY];
-    int length = snprintf(path, sizeof(path), "%s/%s", directory, relative);
-    if (length < 0 || length >= (int)sizeof(path)) return NULL;
-    char error[160] = {0};
-    WmLayout *layout = wm_layout_load_json(path, error, sizeof(error));
-    if (!layout) {
-        fprintf(stderr, "Could not load Data Management layout %s: %s\n",
-                relative, error);
-    }
-    return layout;
+    return wm_scene_load_layout(directory, relative, "Data Management");
 }
 
 static bool record_valid(const WmStorageRecord *record) {

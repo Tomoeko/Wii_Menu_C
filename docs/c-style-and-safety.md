@@ -5,10 +5,18 @@ boundaries. This guide turns those requirements into review checks. It draws
 on the [SEI CERT C Coding Standard](https://wiki.sei.cmu.edu/confluence/display/c),
 the [Linux kernel's advice on focused functions](https://docs.kernel.org/process/coding-style.html#functions),
 and [LLVM's advice to keep edits locally consistent](https://llvm.org/docs/CodingStandards.html#introduction).
+The short C function and control-flow examples in
+[CPython's PEP 7](https://peps.python.org/pep-0007/#code-lay-out) are a
+concrete reference for four-space indentation, explicit braces, and comments
+placed before the behavior they explain. The
+[curl C guide](https://curl.se/dev/code-style.html#readability) emphasizes
+clear intent and names over clever brevity.
 Those projects have different formatting rules; the four-space project rule
 applies here.
 `.editorconfig` helps editors preserve indentation and whitespace without
-adding a runtime or build dependency.
+adding a runtime or build dependency. `.clang-format` records the local
+formatting choices for new files and touched functions; apply it to edited
+regions instead of reformatting unrelated files.
 
 ## Source shape
 
@@ -22,10 +30,11 @@ adding a runtime or build dependency.
   resource acquisition, rendering, and cleanup. A long data declaration or
   switch is less urgent than a short function with several intertwined states.
 - Use four spaces, descriptive names, and ordinary multiline statements.
-  Keep local brace placement consistent within a module until that module is
-  edited for a substantive reason. Avoid broad formatting-only diffs that hide
-  behavior changes. Comments should explain constraints, ownership, draw
-  order, or provenance instead of restating expressions.
+  Use braces for new control-flow blocks. Keep local brace placement
+  consistent within a module until that module is edited for a substantive
+  reason. Avoid broad formatting-only diffs that hide behavior changes.
+  Comments should explain constraints, ownership, draw order, or provenance
+  instead of restating expressions.
 - Preserve lookup identifiers, pane ordering, and resource semantics exactly.
   Keep graphics API types inside backends, and let GLES2 and Metal consume the
   same backend-neutral draw decisions.
@@ -68,22 +77,16 @@ behavior sanitizer checks where the host supports them. A source-resource
 test that skips because private assets are absent is not a rendered comparison.
 Visual and performance claims still need the evidence required by `AGENTS.md`.
 
-The next large structural work should proceed in reviewable steps:
+The application now has private `input_routing` and `frame_render` modules;
+the Board has a private memo model; keyboard text handling has its own module;
+the GLES2 shader cache is separate from draw submission; and five scenes
+share a checked layout loader. These boundaries keep scene state and render
+ordering in their existing owners, with no new per-frame allocation.
 
-1. Split `src/app/main.c`'s long menu loop into application lifetime,
-   input routing, update, and drawing helpers. Consolidate its repeated HOME
-   entry path while retaining event order.
-2. Isolate the pure UTF-8 and prediction logic from
-   `src/board/board_keyboard.c`, with an explicit malformed-UTF-8 policy.
-   Keep keyboard layout and input behavior in the scene facade.
-3. Separate board model and transitions from presentation inside
-   `src/board/board_scene.c`, preserving one public facade and draw order.
-4. Split host setup and shader-program management out of
-   `src/platform/gles2/platform_gles2.c`. Keep ES 2.0 as the working floor
-   and check the Metal contract for each backend-facing change.
-5. Consolidate repeated checked asset-path and JSON-load boilerplate across
-   scenes after its differing missing-asset behavior is documented.
-
-These are boundaries for future patches, not claims that file length alone is
-a bug. Reformatting the whole tree at once would make the behavior-sensitive
-changes harder to review.
+The next steps are the remaining long event and update paths in
+`src/app/main.c`, keyboard presentation in `src/board/board_keyboard.c`,
+Board presentation in `src/board/board_scene.c`, and host/window setup in
+`src/platform/gles2/platform_gles2.c`. Each should move behind a narrow
+private interface after its state and order dependencies are mapped. File
+length alone is not a bug; make each change reviewable against its tests and
+rendered behavior.

@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "wii_menu/board/board_scene.h"
+#include "board_model.h"
 #include "wii_menu/board/board_calendar.h"
 #include "wii_menu/board/board_compose.h"
 #include "wii_menu/board/board_erase.h"
@@ -21,8 +22,6 @@
 enum {
     BOARD_PATH_CAPACITY = 4096,
     BOARD_MEMOS_PER_PAGE = 10,
-    BOARD_MAX_MEMOS = 4096,
-    BOARD_MAX_TEXT_BYTES = 16 * 1024 * 1024,
     BOARD_CLIP_CAPACITY = 20,
     BOARD_SOUND_CAPACITY = 32,
     BOARD_PASTE_DURATION = 11,
@@ -30,26 +29,6 @@ enum {
      * Native asynchronous I/O has no fixed cadence. */
     BOARD_MEMO_ARRIVAL_INTERVAL = 5
 };
-
-typedef struct BoardMemo {
-    char *id;
-    char *text;
-    WmBoardDate date;
-    int64_t created_at_ms;
-    float x;
-    float y;
-    bool read;
-    size_t source_index;
-    WmBoardPinKind pin_kind;
-    bool pin_sampled;
-    float pin_start_clock;
-    float paste_age;
-} BoardMemo;
-
-typedef struct BoardMemoOrder {
-    size_t index;
-    int64_t created_at_ms;
-} BoardMemoOrder;
 
 typedef struct BoardPinState {
     WmBoardPinKind kind;
@@ -82,9 +61,7 @@ struct WmBoardScene {
     WmBoardCompose *compose;
     WmBoardErase *erase;
     WmBoardReaderScroll reader_scroll;
-    BoardMemo *memos;
-    BoardMemoOrder *memo_order;
-    size_t memo_count;
+    BoardModel model;
     size_t visible[BOARD_MEMOS_PER_PAGE];
     size_t card_order[BOARD_MEMOS_PER_PAGE];
     size_t visible_count;
@@ -154,7 +131,7 @@ void wm_board_scene_set_pin_clock(WmBoardScene *board,
 }
 
 static WmBoardPinKind sample_pin_kind(WmBoardScene *board, size_t index) {
-    BoardMemo *memo = &board->memos[index];
+    BoardMemo *memo = &board->model.memos[index];
     if (memo->pin_sampled) return memo->pin_kind;
     memo->pin_start_clock = board->pin_age;
     /* Version 1 stores only the calendar day. Treat its unknown creation time
@@ -178,8 +155,8 @@ static WmBoardPinKind sample_pin_kind(WmBoardScene *board, size_t index) {
 }
 
 static void reset_pin_choices(WmBoardScene *board) {
-    for (size_t index = 0; index < board->memo_count; index++) {
-        board->memos[index].pin_sampled = false;
+    for (size_t index = 0; index < board->model.memo_count; index++) {
+        board->model.memos[index].pin_sampled = false;
     }
     board->pin_age = 0.0f;
 }
@@ -187,76 +164,6 @@ static void reset_pin_choices(WmBoardScene *board) {
 static size_t visible_position(const WmBoardScene *board,
                                size_t source_index);
 static void promote_card(WmBoardScene *board, size_t source_index);
-
-static bool same_date(WmBoardDate first, WmBoardDate second) {
-    return first.year == second.year && first.month == second.month &&
-           first.day == second.day;
-}
-
-static bool leap_year(int year) {
-    return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-}
-
-bool wm_board_date_valid(WmBoardDate date) {
-    static const int month_days[12] = {
-        31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
-    };
-    if (date.year < 2000 || date.year > 2035 ||
-        date.month < 1 || date.month > 12 || date.day < 1) return false;
-    int maximum = month_days[date.month - 1];
-    if (date.month == 2 && leap_year(date.year)) maximum++;
-    return date.day <= maximum;
-}
-
-/* Days since 1970-01-01. The formula keeps all arithmetic in bounded signed
- * 64-bit integers for the Board calendar's source-supported year range. */
-static int64_t civil_day(WmBoardDate date) {
-    int64_t year = date.year - (date.month <= 2);
-    int64_t era = year / 400;
-    int64_t year_of_era = year - era * 400;
-    int64_t month = date.month + (date.month > 2 ? -3 : 9);
-    int64_t day_of_year = (153 * month + 2) / 5 + date.day - 1;
-    int64_t year_day = year_of_era * 365 + year_of_era / 4 -
-                       year_of_era / 100 + day_of_year;
-    return era * 146097 + year_day - 719468;
-}
-
-static WmBoardDate date_from_day(int64_t day) {
-    day += 719468;
-    int64_t era = day / 146097;
-    int64_t day_of_era = day - era * 146097;
-    int64_t year_of_era = (day_of_era - day_of_era / 1460 +
-                           day_of_era / 36524 - day_of_era / 146096) / 365;
-    int64_t year = year_of_era + era * 400;
-    int64_t day_of_year = day_of_era - (365 * year_of_era +
-                           year_of_era / 4 - year_of_era / 100);
-    int64_t month_part = (5 * day_of_year + 2) / 153;
-    int month = (int)(month_part + (month_part < 10 ? 3 : -9));
-    return (WmBoardDate){
-        .year = (int)(year + (month <= 2)),
-        .month = month,
-        .day = (int)(day_of_year - (153 * month_part + 2) / 5 + 1)
-    };
-}
-
-bool wm_board_date_shift(WmBoardDate date, int days, WmBoardDate *result) {
-    if (!result || !wm_board_date_valid(date)) return false;
-    int64_t shifted = civil_day(date) + (int64_t)days;
-    WmBoardDate value = date_from_day(shifted);
-    if (!wm_board_date_valid(value)) return false;
-    *result = value;
-    return true;
-}
-
-unsigned wm_board_badge_count(const WmBoardMemo *memos, size_t count,
-                              WmBoardDate today) {
-    if (!memos || !wm_board_date_valid(today)) return 0;
-    unsigned found = 0;
-    for (size_t index = 0; index < count; index++) {
-        if (same_date(memos[index].date, today) && found < 99) found++;
-    }
-    return found;
-}
 
 static WmBoardDate local_today(void) {
     time_t now = time(NULL);
@@ -272,40 +179,8 @@ static WmBoardDate local_today(void) {
     return wm_board_date_valid(date) ? date : (WmBoardDate){2000, 1, 1};
 }
 
-static char *copy_string(const char *value) {
-    if (!value) return NULL;
-    size_t length = strlen(value);
-    if (length == SIZE_MAX) return NULL;
-    char *copy = malloc(length + 1);
-    if (copy) memcpy(copy, value, length + 1);
-    return copy;
-}
-
-static void free_memos(BoardMemo *memos, size_t count) {
-    if (!memos) return;
-    for (size_t index = 0; index < count; index++) {
-        free(memos[index].id);
-        free(memos[index].text);
-    }
-    free(memos);
-}
-
-static int compare_memo_order(const void *left, const void *right) {
-    const BoardMemoOrder *first = left;
-    const BoardMemoOrder *second = right;
-    if (first->created_at_ms > second->created_at_ms) return -1;
-    if (first->created_at_ms < second->created_at_ms) return 1;
-    if (first->index < second->index) return -1;
-    if (first->index > second->index) return 1;
-    return 0;
-}
-
 static float clamp_frame(float frame, float length) {
     return fminf(fmaxf(frame, 0.0f), length);
-}
-
-static float clamp_position(float value, float minimum, float maximum) {
-    return fminf(fmaxf(value, minimum), maximum);
 }
 
 static WmLayout *load_layout(const char *directory, const char *relative) {
@@ -325,9 +200,10 @@ static void update_visible(WmBoardScene *board) {
     size_t first = board->page * BOARD_MEMOS_PER_PAGE;
     board->day_count = 0;
     board->visible_count = 0;
-    for (size_t position = 0; position < board->memo_count; position++) {
-        size_t index = board->memo_order[position].index;
-        if (!same_date(board->memos[index].date, board->date)) continue;
+    for (size_t position = 0; position < board->model.memo_count; position++) {
+        size_t index = board->model.memo_order[position].index;
+        if (!board_model_same_date(board->model.memos[index].date,
+                                   board->date)) continue;
         if (board->day_count >= first &&
             board->visible_count < BOARD_MEMOS_PER_PAGE) {
             board->visible[board->visible_count] = index;
@@ -413,8 +289,7 @@ void wm_board_scene_destroy(WmBoardScene *board) {
     wm_board_compose_destroy(board->compose);
     wm_board_erase_destroy(board->erase);
     free(board->last_erased_id);
-    free_memos(board->memos, board->memo_count);
-    free(board->memo_order);
+    board_model_dispose(&board->model);
     free(board);
 }
 
@@ -437,8 +312,8 @@ void wm_board_scene_reset(WmBoardScene *board) {
     board->age = 0.0f;
     board->card_arrival_count = 0;
     board->pending_posted_memo = SIZE_MAX;
-    for (size_t index = 0; index < board->memo_count; index++) {
-        board->memos[index].paste_age = BOARD_PASTE_DURATION;
+    for (size_t index = 0; index < board->model.memo_count; index++) {
+        board->model.memos[index].paste_age = BOARD_PASTE_DURATION;
     }
     board->page = 0;
     board->selected = SIZE_MAX;
@@ -470,75 +345,31 @@ void wm_board_scene_reset(WmBoardScene *board) {
 
 bool wm_board_scene_set_memos(WmBoardScene *board,
                                const WmBoardMemo *memos, size_t count) {
-    if (!board || (count && !memos) || count > BOARD_MAX_MEMOS ||
-        count > SIZE_MAX / sizeof(BoardMemo)) return false;
-    BoardMemo *copy = count ? calloc(count, sizeof(*copy)) : NULL;
-    BoardMemoOrder *order = count ? malloc(count * sizeof(*order)) : NULL;
-    if (count && (!copy || !order)) {
-        free(copy);
-        free(order);
+    if (!board) return false;
+    BoardModel replacement = {0};
+    if (!board_model_copy(&replacement, memos, count, BOARD_PASTE_DURATION)) {
         return false;
     }
-    size_t total_bytes = 0;
-    for (size_t index = 0; index < count; index++) {
-        const WmBoardMemo *source = &memos[index];
-        if (!source->id || !source->text || !wm_board_date_valid(source->date) ||
-            source->created_at_ms < 0 ||
-            source->created_at_ms > INT64_C(253402300799999)) {
-            free_memos(copy, count);
-            free(order);
-            return false;
-        }
-        size_t id_bytes = strlen(source->id);
-        size_t text_bytes = strlen(source->text);
-        if (id_bytes > BOARD_MAX_TEXT_BYTES - total_bytes ||
-            text_bytes > BOARD_MAX_TEXT_BYTES - total_bytes - id_bytes) {
-            free_memos(copy, count);
-            free(order);
-            return false;
-        }
-        total_bytes += id_bytes + text_bytes;
-        copy[index].id = copy_string(source->id);
-        copy[index].text = copy_string(source->text);
-        if (!copy[index].id || !copy[index].text) {
-            free_memos(copy, count);
-            free(order);
-            return false;
-        }
-        copy[index].date = source->date;
-        copy[index].created_at_ms = source->created_at_ms;
-        copy[index].x = source->has_position
-                            ? clamp_position(source->x, -230.0f, 230.0f) : 0.0f;
-        copy[index].y = source->has_position
-                            ? clamp_position(source->y, -80.0f, 180.0f) : 53.0f;
-        copy[index].read = source->read;
-        copy[index].source_index = index;
-        copy[index].paste_age = BOARD_PASTE_DURATION;
-        order[index] = (BoardMemoOrder){index, source->created_at_ms};
-    }
-    if (count > 1) qsort(order, count, sizeof(*order), compare_memo_order);
-    WmBoardDate *message_dates = count ? malloc(count * sizeof(*message_dates)) : NULL;
+    WmBoardDate *message_dates = count
+                                     ? malloc(count * sizeof(*message_dates))
+                                     : NULL;
     if (count && !message_dates) {
-        free_memos(copy, count);
-        free(order);
+        board_model_dispose(&replacement);
         return false;
     }
     for (size_t index = 0; index < count; index++) {
-        message_dates[index] = copy[index].date;
+        message_dates[index] = replacement.memos[index].date;
     }
     bool dates_updated = wm_board_calendar_set_message_dates(
         board->calendar, message_dates, count);
     free(message_dates);
     if (!dates_updated) {
-        free_memos(copy, count);
-        free(order);
+        board_model_dispose(&replacement);
         return false;
     }
-    free_memos(board->memos, board->memo_count);
-    free(board->memo_order);
-    board->memos = copy;
-    board->memo_order = order;
-    board->memo_count = count;
+    /* Keep the old model intact until the calendar accepts the same dates. */
+    board_model_dispose(&board->model);
+    board->model = replacement;
     board->selected = SIZE_MAX;
     board->dragging = false;
     board->dragged_index = SIZE_MAX;
@@ -553,7 +384,7 @@ bool wm_board_scene_set_memos(WmBoardScene *board,
 bool wm_board_scene_open(WmBoardScene *board, WmBoardDate date) {
     if (!board || board->phase != WM_BOARD_CLOSED ||
         !wm_board_date_valid(date)) return false;
-    if (!same_date(board->date, date)) reset_pin_choices(board);
+    if (!board_model_same_date(board->date, date)) reset_pin_choices(board);
     board->date = date;
     board->today = date;
     board->page = 0;
@@ -576,7 +407,8 @@ bool wm_board_scene_open(WmBoardScene *board, WmBoardDate date) {
     for (size_t position = 0; position < board->visible_count; position++) {
         /* Today's existing cards are already present behind the Home Menu.
          * Opening the Board retains their settled pose throughout entry. */
-        board->memos[board->visible[position]].paste_age = BOARD_PASTE_DURATION;
+        board->model.memos[board->visible[position]].paste_age =
+            BOARD_PASTE_DURATION;
     }
     return true;
 }
@@ -641,8 +473,9 @@ size_t wm_board_scene_memo_page_count(const WmBoardScene *board) {
 unsigned wm_board_scene_today_count(const WmBoardScene *board) {
     if (!board) return 0;
     unsigned found = 0;
-    for (size_t index = 0; index < board->memo_count; index++) {
-        if (same_date(board->memos[index].date, board->today) && found < 99) found++;
+    for (size_t index = 0; index < board->model.memo_count; index++) {
+        if (board_model_same_date(board->model.memos[index].date,
+                                   board->today) && found < 99) found++;
     }
     return found;
 }
@@ -650,9 +483,10 @@ unsigned wm_board_scene_today_count(const WmBoardScene *board) {
 unsigned wm_board_scene_today_unread_count(const WmBoardScene *board) {
     if (!board) return 0;
     unsigned found = 0;
-    for (size_t index = 0; index < board->memo_count; index++) {
-        if (same_date(board->memos[index].date, board->today) &&
-            !board->memos[index].read) found++;
+    for (size_t index = 0; index < board->model.memo_count; index++) {
+        if (board_model_same_date(board->model.memos[index].date,
+                                  board->today) &&
+            !board->model.memos[index].read) found++;
     }
     return found;
 }
@@ -660,30 +494,18 @@ unsigned wm_board_scene_today_unread_count(const WmBoardScene *board) {
 bool wm_board_scene_refresh_today(WmBoardScene *board, WmBoardDate today) {
     if (!board || board->phase != WM_BOARD_CLOSED ||
         !wm_board_date_valid(today)) return false;
-    if (!same_date(board->today, today)) reset_pin_choices(board);
+    if (!board_model_same_date(board->today, today)) reset_pin_choices(board);
     board->today = today;
     return true;
 }
 
 size_t wm_board_scene_memo_count(const WmBoardScene *board) {
-    return board ? board->memo_count : 0;
+    return board ? board->model.memo_count : 0;
 }
 
 bool wm_board_scene_get_memo(const WmBoardScene *board, size_t index,
                               WmBoardMemo *memo) {
-    if (!board || !memo || index >= board->memo_count) return false;
-    const BoardMemo *source = &board->memos[index];
-    *memo = (WmBoardMemo){
-        .id = source->id,
-        .text = source->text,
-        .date = source->date,
-        .created_at_ms = source->created_at_ms,
-        .x = source->x,
-        .y = source->y,
-        .has_position = true,
-        .read = source->read
-    };
-    return true;
+    return board && board_model_get_memo(&board->model, index, memo);
 }
 
 const char *wm_board_scene_last_erased_id(const WmBoardScene *board) {
@@ -763,15 +585,15 @@ bool wm_board_scene_take_sound_event(WmBoardScene *board,
 
 static float card_arrival_age(const WmBoardScene *board, size_t memo_index) {
     if (memo_index == board->pending_posted_memo) return -1.0f;
-    return memo_index < board->memo_count
-               ? board->memos[memo_index].paste_age : BOARD_PASTE_DURATION;
+    return memo_index < board->model.memo_count
+               ? board->model.memos[memo_index].paste_age : BOARD_PASTE_DURATION;
 }
 
 static void advance_card_arrivals(WmBoardScene *board, float frames) {
     for (size_t index = 0; index < board->card_arrival_count; index++) {
         board->card_arrivals[index].age = fminf(
             100000.0f, board->card_arrivals[index].age + frames);
-        board->memos[board->card_arrivals[index].memo_index].paste_age =
+        board->model.memos[board->card_arrivals[index].memo_index].paste_age =
             board->card_arrivals[index].age;
     }
     for (;;) {
@@ -788,12 +610,12 @@ static void advance_card_arrivals(WmBoardScene *board, float frames) {
         BoardCardArrival *arrival = &board->card_arrivals[next];
         arrival->started = true;
         sample_pin_kind(board, arrival->memo_index);
-        board->memos[arrival->memo_index].pin_start_clock =
+        board->model.memos[arrival->memo_index].pin_start_clock =
             board->pin_age - arrival->age;
         /* Native audio divides object X by the projection's right edge.
          * The Board's shared renderer currently uses the wide IPL view. */
         queue_sound_event(board, "WIPL_SE_MSG_DISP",
-                          board->memos[arrival->memo_index].x / 416.0f,
+                          board->model.memos[arrival->memo_index].x / 416.0f,
                           arrival->memo_index);
     }
 }
@@ -816,19 +638,20 @@ static void start_date_arrivals(WmBoardScene *board, WmBoardDate date,
     board->card_arrival_count = retained;
     size_t skipped = 0;
     size_t arriving = 0;
-    for (size_t position = 0; position < board->memo_count &&
+    for (size_t position = 0; position < board->model.memo_count &&
                            arriving < BOARD_MEMOS_PER_PAGE; position++) {
-        size_t index = board->memo_order[position].index;
-        if (!same_date(board->memos[index].date, date)) continue;
+        size_t index = board->model.memo_order[position].index;
+        if (!board_model_same_date(board->model.memos[index].date,
+                                   date)) continue;
         if (skipped++ < page * BOARD_MEMOS_PER_PAGE) continue;
         if (board->phase == WM_BOARD_EXIT) {
             /* Home already owns today's cards. Preserve them during the
              * return slide; ordinary Board page changes replay arrivals. */
-            board->memos[index].paste_age = BOARD_PASTE_DURATION;
+            board->model.memos[index].paste_age = BOARD_PASTE_DURATION;
             arriving++;
             continue;
         }
-        board->memos[index].pin_sampled = false;
+        board->model.memos[index].pin_sampled = false;
         board->card_arrivals[board->card_arrival_count++] = (BoardCardArrival){
             .memo_index = index,
             .age = elapsed - (float)arriving * BOARD_MEMO_ARRIVAL_INTERVAL
@@ -852,8 +675,8 @@ static bool begin_date_transition(WmBoardScene *board, WmBoardDate target,
                                    WmBoardPhase phase, bool play_page_cue,
                                    float elapsed) {
     if (!wm_board_date_valid(target)) return false;
-    int64_t selected_day = civil_day(board->date);
-    int64_t target_day = civil_day(target);
+    int64_t selected_day = board_model_day_number(board->date);
+    int64_t target_day = board_model_day_number(target);
     int direction = target_day > selected_day ? 1 :
                     target_day < selected_day ? -1 : 0;
     if (phase == WM_BOARD_DATE_SCROLL && direction == 0) return false;
@@ -873,7 +696,7 @@ static bool begin_date_transition(WmBoardScene *board, WmBoardDate target,
              * Its cards also retain a settled pose until the grid covers it. */
             for (size_t position = 0; position < board->visible_count;
                  position++) {
-                board->memos[board->visible[position]].paste_age =
+                board->model.memos[board->visible[position]].paste_age =
                     BOARD_PASTE_DURATION;
             }
         }
@@ -886,7 +709,7 @@ static bool begin_date_transition(WmBoardScene *board, WmBoardDate target,
 
 static void reveal_posted_memo(WmBoardScene *board, float elapsed) {
     size_t index = board->pending_posted_memo;
-    if (index >= board->memo_count) return;
+    if (index >= board->model.memo_count) return;
     board->pending_posted_memo = SIZE_MAX;
     board->card_arrival_count = 1;
     board->card_arrivals[0] = (BoardCardArrival){
@@ -920,7 +743,7 @@ bool wm_board_scene_pointer_down(WmBoardScene *board, WmBoardHit hit,
                                   int x, int y) {
     if (!board || board->phase != WM_BOARD_READY || board->dragging ||
         hit.control != WM_BOARD_CONTROL_MEMO ||
-        hit.memo_index >= board->memo_count ||
+        hit.memo_index >= board->model.memo_count ||
         visible_position(board, hit.memo_index) == SIZE_MAX ||
         card_arrival_age(board, hit.memo_index) < 11.0f) return false;
     board->dragging = true;
@@ -932,7 +755,7 @@ bool wm_board_scene_pointer_down(WmBoardScene *board, WmBoardHit hit,
     board->drag_last_x = 0.0f;
     board->drag_last_y = 0.0f;
     board->drag_gain = 0.0f;
-    board->drag_pan = clamp_pan(board->memos[hit.memo_index].x / 304.0f);
+    board->drag_pan = clamp_pan(board->model.memos[hit.memo_index].x / 304.0f);
     board->drag_pitch = 1.0f;
     promote_card(board, hit.memo_index);
     queue_drag_cue(board, WM_BOARD_DRAG_CUE_HOLD, board->drag_pan);
@@ -951,20 +774,20 @@ bool wm_board_scene_pointer_move(WmBoardScene *board, int x, int y) {
 
 bool wm_board_scene_pointer_up(WmBoardScene *board, int x, int y) {
     if (!board || !board->dragging ||
-        board->dragged_index >= board->memo_count) return false;
+        board->dragged_index >= board->model.memo_count) return false;
     wm_board_scene_pointer_move(board, x, y);
     return wm_board_scene_pointer_finish(board);
 }
 
 bool wm_board_scene_pointer_finish(WmBoardScene *board) {
     if (!board || !board->dragging ||
-        board->dragged_index >= board->memo_count) return false;
+        board->dragged_index >= board->model.memo_count) return false;
     size_t index = board->dragged_index;
-    BoardMemo *memo = &board->memos[index];
-    memo->x = clamp_position(memo->x + board->drag_delta_x,
-                              -230.0f, 230.0f);
-    memo->y = clamp_position(memo->y + board->drag_delta_y,
-                              -80.0f, 180.0f);
+    BoardMemo *memo = &board->model.memos[index];
+    memo->x = board_model_clamp_position(memo->x + board->drag_delta_x,
+                                         -230.0f, 230.0f);
+    memo->y = board_model_clamp_position(memo->y + board->drag_delta_y,
+                                         -80.0f, 180.0f);
     board->dragging = false;
     board->dragged_index = SIZE_MAX;
     board->drag_gain = 0.0f;
@@ -1054,7 +877,8 @@ bool wm_board_scene_grid_overlay(const WmBoardScene *board, float *grid_frame) {
 }
 
 static unsigned weekday(WmBoardDate date) {
-    int64_t value = civil_day(date) + 4; /* 1970-01-01 was Thursday. */
+    int64_t value = board_model_day_number(date) + 4;
+    /* 1970-01-01 was Thursday. */
     int64_t remainder = value % 7;
     return (unsigned)(remainder < 0 ? remainder + 7 : remainder);
 }
@@ -1063,7 +887,8 @@ static void date_text(WmBoardDate date, int day_offset, char buffer[32]) {
     static const char *const weekdays[7] = {
         "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
     };
-    WmBoardDate displayed = date_from_day(civil_day(date) + day_offset);
+    WmBoardDate displayed = board_model_date_from_day(
+        board_model_day_number(date) + day_offset);
     snprintf(buffer, 32, "%s %d/%d", weekdays[weekday(displayed)],
              displayed.month, displayed.day);
 }
@@ -1278,14 +1103,14 @@ static void pose_card(WmBoardScene *board,
     }
     wm_layout_pose(board->card, clips, count);
     char thumbnail[64];
-    thumbnail_text(board->memos[card->memo_index].text, thumbnail);
+    thumbnail_text(board->model.memos[card->memo_index].text, thumbnail);
     wm_layout_set_pose_text(board->card, "T_Letter", thumbnail);
     wm_layout_set_pane_visible(board->card, "Nigaoe", false);
 }
 
 static void card_matrix(const WmBoardScene *board, size_t position,
                         float matrix[12]) {
-    const BoardMemo *memo = &board->memos[board->visible[position]];
+    const BoardMemo *memo = &board->model.memos[board->visible[position]];
     float x = memo->x;
     float y = memo->y;
     if (board->phase == WM_BOARD_MEMO_PAGE) {
@@ -1323,7 +1148,8 @@ static void append_visible_card(
         .next_page_frame = board->phase == WM_BOARD_MEMO_PAGE
                                ? clamp_frame(board->phase_frame, 14.0f) : -1.0f,
         .pin_kind = pin,
-        .pin_frame = board->pin_age - board->memos[memo_index].pin_start_clock
+        .pin_frame = board->pin_age -
+                     board->model.memos[memo_index].pin_start_clock
     };
 }
 
@@ -1333,11 +1159,11 @@ static void append_date_cards(
     size_t *count) {
     size_t entered = 0;
     float page_offset = direction < 0 ? -832.0f : 832.0f;
-    for (size_t position = 0; position < board->memo_count &&
+    for (size_t position = 0; position < board->model.memo_count &&
                            entered < BOARD_MEMOS_PER_PAGE; position++) {
-        size_t index = board->memo_order[position].index;
-        const BoardMemo *memo = &board->memos[index];
-        if (!same_date(memo->date, date)) continue;
+        size_t index = board->model.memo_order[position].index;
+        const BoardMemo *memo = &board->model.memos[index];
+        if (!board_model_same_date(memo->date, date)) continue;
         float arrival_age = card_arrival_age(board, index);
         if (arrival_age < 0.0f) {
             entered++;
@@ -1353,7 +1179,7 @@ static void append_date_cards(
             .paste_frame = clamp_frame(arrival_age, 10.0f),
             .next_page_frame = -1.0f,
             .pin_kind = pin,
-            .pin_frame = board->pin_age - board->memos[index].pin_start_clock,
+            .pin_frame = board->pin_age - board->model.memos[index].pin_start_clock,
             .entering = true
         };
         entered++;
@@ -1392,11 +1218,11 @@ size_t wm_board_scene_parked_memo_presentation(
         !wm_board_date_valid(today)) return 0;
     size_t count = 0;
     size_t found = 0;
-    for (size_t position = 0; position < board->memo_count &&
+    for (size_t position = 0; position < board->model.memo_count &&
                            found < BOARD_MEMOS_PER_PAGE; position++) {
-        size_t index = board->memo_order[position].index;
-        const BoardMemo *memo = &board->memos[index];
-        if (!same_date(memo->date, today)) continue;
+        size_t index = board->model.memo_order[position].index;
+        const BoardMemo *memo = &board->model.memos[index];
+        if (!board_model_same_date(memo->date, today)) continue;
         found++;
         float arrival_age = card_arrival_age(board, index);
         if (arrival_age < 0.0f) continue;
@@ -1416,7 +1242,8 @@ size_t wm_board_scene_parked_memo_presentation(
             .next_page_frame = -1.0f,
             .pin_kind = pin,
             .pin_frame = scheduled
-                ? board->pin_age - board->memos[index].pin_start_clock : 100000.0f
+                ? board->pin_age - board->model.memos[index].pin_start_clock
+                : 100000.0f
         };
     }
     return count;
@@ -1510,7 +1337,7 @@ static void pose_reader(WmBoardScene *board) {
     wm_layout_set_pose_text(board->reader, "T_Nigaoe", "");
     wm_layout_set_pose_text(board->reader, "T_Header", "Memo");
     wm_layout_set_pose_text(board->reader, "T_Letter",
-                             board->memos[board->selected].text);
+                             board->model.memos[board->selected].text);
     wm_layout_set_pane_visible(board->reader, "Nigaoe", false);
     wm_layout_set_pane_visible(board->reader, "B_Nigaoe", false);
     wm_layout_set_pane_translation(board->reader, "N_Memo", 0.0f,
@@ -1606,7 +1433,7 @@ static void draw_reader_body_rows(WmBoardScene *board,
 }
 
 static void draw_reader(WmBoardScene *board) {
-    if (!reading_memo(board) || board->selected >= board->memo_count) return;
+    if (!reading_memo(board) || board->selected >= board->model.memo_count) return;
     WmLayoutClip mask = {
         .animation = memo_exit_phase(board->phase)
                          ? "my_BbsMask_a_MaskOut" :
@@ -1621,7 +1448,7 @@ static void draw_reader(WmBoardScene *board) {
 
     if (memo_exit_phase(board->phase) && board->phase_frame >= 17.0f) return;
     pose_reader(board);
-    const BoardMemo *memo = &board->memos[board->selected];
+    const BoardMemo *memo = &board->model.memos[board->selected];
     float fraction = board->phase == WM_BOARD_MEMO_OPEN
                          ? 1.0f - clamp_frame(board->phase_frame, 17.0f) / 17.0f
                          : memo_exit_phase(board->phase)
@@ -1677,11 +1504,11 @@ void wm_board_scene_draw_body(WmBoardScene *board) {
 }
 
 static bool at_first_day(const WmBoardScene *board) {
-    return same_date(board->date, (WmBoardDate){2000, 1, 1});
+    return board_model_same_date(board->date, (WmBoardDate){2000, 1, 1});
 }
 
 static bool at_last_day(const WmBoardScene *board) {
-    return same_date(board->date, (WmBoardDate){2035, 12, 31});
+    return board_model_same_date(board->date, (WmBoardDate){2035, 12, 31});
 }
 
 static float footer_scene_frame(const WmBoardScene *board) {
@@ -1747,10 +1574,10 @@ static void pose_footer(WmBoardScene *board) {
                                  board->return_direction != 0
                                      ? board->today : board->date;
         bool hidden = arrow == 0
-                          ? same_date(arrow_date,
+                          ? board_model_same_date(arrow_date,
                                       (WmBoardDate){2000, 1, 1}) &&
                             board->page + 1 >= wm_board_scene_memo_page_count(board)
-                          : same_date(arrow_date,
+                          : board_model_same_date(arrow_date,
                                       (WmBoardDate){2035, 12, 31}) &&
                             board->page == 0;
         bool reader_opening = board->phase == WM_BOARD_MEMO_OPEN;
@@ -2032,10 +1859,11 @@ static float next_unit_random(WmBoardScene *board) {
 }
 
 static bool append_posted_memo(WmBoardScene *board, const char *text) {
-    if (!text || !text[0] || board->memo_count >= BOARD_MAX_MEMOS) return false;
-    size_t previous_count = board->memo_count;
+    if (!text || !text[0] ||
+        board->model.memo_count >= BOARD_MODEL_MAX_MEMOS) return false;
+    size_t previous_count = board->model.memo_count;
     WmBoardMemo *records = calloc(previous_count + 1, sizeof(*records));
-    BoardMemo *previous = board->memos;
+    BoardMemo *previous = board->model.memos;
     BoardPinState *pins = previous_count
                               ? malloc(previous_count * sizeof(*pins)) : NULL;
     if (!records || (previous_count && !pins)) {
@@ -2098,9 +1926,9 @@ static bool append_posted_memo(WmBoardScene *board, const char *text) {
     /* Posting adds one card without reclassifying existing pins. The source
      * clears only the newly posted record's cached animation. */
     for (size_t index = 0; index < previous_count; index++) {
-        board->memos[index].pin_sampled = pins[index].sampled;
-        board->memos[index].pin_kind = pins[index].kind;
-        board->memos[index].pin_start_clock = pins[index].start_clock;
+        board->model.memos[index].pin_sampled = pins[index].sampled;
+        board->model.memos[index].pin_kind = pins[index].kind;
+        board->model.memos[index].pin_start_clock = pins[index].start_clock;
     }
     free(pins);
     board->page = 0;
@@ -2112,48 +1940,21 @@ static bool append_posted_memo(WmBoardScene *board, const char *text) {
 }
 
 static bool finish_memo_erase(WmBoardScene *board) {
-    if (board->selected >= board->memo_count) return false;
+    if (board->selected >= board->model.memo_count) return false;
     size_t deleted = board->selected;
-    char *id = copy_string(board->memos[deleted].id);
-    if (!id) return false;
-    size_t new_count = board->memo_count - 1;
+    size_t new_count = board->model.memo_count - 1;
     WmBoardDate *dates = new_count ? malloc(new_count * sizeof(*dates)) : NULL;
-    if (new_count && !dates) {
-        free(id);
-        return false;
-    }
-    for (size_t source = 0, target = 0; source < board->memo_count;
+    if (new_count && !dates) return false;
+    for (size_t source = 0, target = 0; source < board->model.memo_count;
          source++) {
-        if (source != deleted) dates[target++] = board->memos[source].date;
+        if (source != deleted) dates[target++] = board->model.memos[source].date;
     }
     bool dates_updated = wm_board_calendar_set_message_dates(
         board->calendar, dates, new_count);
     free(dates);
-    if (!dates_updated) {
-        free(id);
-        return false;
-    }
-    free(board->memos[deleted].id);
-    free(board->memos[deleted].text);
-    if (deleted + 1 < board->memo_count) {
-        memmove(&board->memos[deleted], &board->memos[deleted + 1],
-                (board->memo_count - deleted - 1) * sizeof(*board->memos));
-    }
-    for (size_t position = 0; position < board->memo_count; position++) {
-        if (board->memo_order[position].index == deleted) {
-            memmove(&board->memo_order[position],
-                    &board->memo_order[position + 1],
-                    (board->memo_count - position - 1) *
-                        sizeof(*board->memo_order));
-            break;
-        }
-    }
-    for (size_t position = 0; position < new_count; position++) {
-        if (board->memo_order[position].index > deleted) {
-            board->memo_order[position].index--;
-        }
-    }
-    board->memo_count = new_count;
+    if (!dates_updated) return false;
+    /* The model hands the removed ID to the scene for the persistence action. */
+    char *id = board_model_remove(&board->model, deleted);
     board->selected = SIZE_MAX;
     board->card_arrival_count = 0;
     board->pending_posted_memo = SIZE_MAX;
@@ -2229,14 +2030,14 @@ void wm_board_scene_advance(WmBoardScene *board, float frames) {
     board->pin_age += frames;
     advance_card_arrivals(board, frames);
     wm_board_reader_scroll_advance(&board->reader_scroll, frames);
-    if (board->dragging && board->dragged_index < board->memo_count) {
+    if (board->dragging && board->dragged_index < board->model.memo_count) {
         float delta_x = board->drag_delta_x - board->drag_last_x;
         float delta_y = board->drag_delta_y - board->drag_last_y;
         float speed = hypotf(delta_x, delta_y) / frames;
         board->drag_last_x = board->drag_delta_x;
         board->drag_last_y = board->drag_delta_y;
         board->drag_gain = fminf(1.0f, 2.0f * speed / 304.0f);
-        board->drag_pan = clamp_pan((board->memos[board->dragged_index].x +
+        board->drag_pan = clamp_pan((board->model.memos[board->dragged_index].x +
                                      board->drag_delta_x) / 304.0f);
         /* holdSEwithPosDis changes pitch only above 30 units per update.
          * Slower motion keeps the held voice's previous pitch. */
@@ -2699,7 +2500,7 @@ WmBoardHit wm_board_scene_hit(WmBoardScene *board, int x, int y) {
             .next_page_frame = -1.0f,
             .pin_kind = pin,
             .pin_frame = board->pin_age -
-                          board->memos[source_index].pin_start_clock
+                          board->model.memos[source_index].pin_start_clock
         };
         pose_card(board, &card, false);
         float matrix[12];
@@ -2871,7 +2672,7 @@ bool wm_board_scene_activate(WmBoardScene *board, WmBoardHit hit) {
     }
     if (hit.control == WM_BOARD_CONTROL_MEMO_TRASH &&
         board->phase == WM_BOARD_MEMO_READ &&
-        board->selected < board->memo_count) {
+        board->selected < board->model.memo_count) {
         wm_board_reader_scroll_set_sound_enabled(&board->reader_scroll,
                                                   false);
         wm_board_reader_scroll_hover(&board->reader_scroll,
@@ -2923,19 +2724,19 @@ bool wm_board_scene_activate(WmBoardScene *board, WmBoardHit hit) {
                                          true, 0.0f);
         }
         case WM_BOARD_CONTROL_MEMO:
-            if (hit.memo_index >= board->memo_count ||
+            if (hit.memo_index >= board->model.memo_count ||
                 visible_position(board, hit.memo_index) == SIZE_MAX ||
                 card_arrival_age(board, hit.memo_index) < 11.0f) return false;
             if (!configure_reader_scroll(
-                    board, board->memos[hit.memo_index].text)) return false;
+                    board, board->model.memos[hit.memo_index].text)) return false;
             board->selected = hit.memo_index;
             board->phase = WM_BOARD_MEMO_OPEN;
             board->phase_frame = 0.0f;
             /* The board footer hands control to the reader at selection.
              * Retire its old button and arrow focus before reader clips run. */
             retire_footer_focus(board);
-            if (!board->memos[hit.memo_index].read) {
-                board->memos[hit.memo_index].read = true;
+            if (!board->model.memos[hit.memo_index].read) {
+                board->model.memos[hit.memo_index].read = true;
                 board->pending_action = WM_BOARD_ACTION_MEMO_READ;
                 board->pending_memo_index = hit.memo_index;
             }

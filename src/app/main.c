@@ -1,26 +1,30 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include "wii_menu/audio/audio.h"
-#include "wii_menu/input/channel_drag.h"
-#include "wii_menu/scenes/health_scene.h"
-#include "wii_menu/board/board_scene.h"
-#include "wii_menu/persistence/board_store.h"
-#include "wii_menu/scenes/home_overlay.h"
-#include "wii_menu/audio/hover_audio.h"
-#include "wii_menu/menu/menu_restart.h"
-#include "wii_menu/menu/menu.h"
-#include "wii_menu/scenes/options_scene.h"
-#include "wii_menu/layout/layout_present.h"
-#include "wii_menu/platform/platform.h"
-#include "wii_menu/input/pointer.h"
-#include "wii_menu/scenes/preview_scene.h"
-#include "wii_menu/scenes/resource_scene.h"
-#include "wii_menu/resources/resource_bmg.h"
+#include "frame_render.h"
+#include "input_routing.h"
+
 #include "wii_menu/animation/scene_fader.h"
-#include "wii_menu/scenes/sd_scene.h"
-#include "wii_menu/scenes/storage_scene.h"
+#include "wii_menu/audio/audio.h"
+#include "wii_menu/audio/hover_audio.h"
+#include "wii_menu/board/board_scene.h"
+#include "wii_menu/fonts/font_cache.h"
+#include "wii_menu/input/channel_drag.h"
+#include "wii_menu/input/pointer.h"
+#include "wii_menu/layout/layout_runtime.h"
+#include "wii_menu/menu/menu.h"
+#include "wii_menu/menu/menu_restart.h"
+#include "wii_menu/persistence/board_store.h"
+#include "wii_menu/platform/platform.h"
 #include "wii_menu/render/texture_cache.h"
 #include "wii_menu/render/ui.h"
+#include "wii_menu/resources/resource_bmg.h"
+#include "wii_menu/scenes/health_scene.h"
+#include "wii_menu/scenes/home_overlay.h"
+#include "wii_menu/scenes/options_scene.h"
+#include "wii_menu/scenes/preview_scene.h"
+#include "wii_menu/scenes/resource_scene.h"
+#include "wii_menu/scenes/sd_scene.h"
+#include "wii_menu/scenes/storage_scene.h"
 
 #include <errno.h>
 #include <stdbool.h>
@@ -29,27 +33,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-typedef struct WmAppSceneFade {
-    WmSceneFader clock;
-    WmScreen destination;
-} WmAppSceneFade;
-
-typedef struct WmHomeUnderlay {
-    WmPlatform *platform;
-    WmTextureCache *textures;
-    WmFontCache *fonts;
-    WmMenu *menu;
-    WmResourceScene *grid;
-    WmPreviewScene *preview;
-    WmBoardScene *board;
-    WmOptionsScene *options;
-    WmSdScene *sd;
-    WmStorageScene *storage;
-    WmHit hover;
-    float elapsed_seconds;
-    float preview_elapsed_seconds;
-} WmHomeUnderlay;
 
 typedef struct WmHomeEntryContext {
     WmHomeOverlay *home;
@@ -64,7 +47,7 @@ typedef struct WmHomeEntryContext {
     uint64_t *opened_at;
     float *underlay_elapsed;
     float *underlay_preview_elapsed;
-    bool *underlay_valid;
+    WmAppRenderer *renderer;
 } WmHomeEntryContext;
 
 static void home_cue(void *context, const char *symbol) {
@@ -86,7 +69,9 @@ static bool open_home(WmHomeOverlay *home, WmMenu *menu,
         menu->transition != WM_TRANSITION_NONE ||
         wm_scene_fader_active(&fade->clock) ||
         wm_channel_drag_state(drag).phase != WM_CHANNEL_DRAG_NONE ||
-        !wm_home_overlay_open(home)) return false;
+        !wm_home_overlay_open(home)) {
+        return false;
+    }
     /* The GLES2 backend permits one capture target. The zoom capture is no
      * longer needed after the grid has settled. */
     wm_resource_scene_release_preview_capture(resource_scene);
@@ -116,57 +101,8 @@ static bool try_enter_home(const WmHomeEntryContext *entry, uint64_t now,
     *entry->underlay_elapsed = (float)(now - started) / 1000000000.0f;
     *entry->underlay_preview_elapsed =
         (float)(now - preview_started) / 1000000000.0f;
-    *entry->underlay_valid = false;
+    wm_app_renderer_invalidate_home_underlay(entry->renderer);
     return true;
-}
-
-static void draw_home_underlay(const WmHomeUnderlay *view) {
-    const WmMenu *menu = view->menu;
-    if (view->grid && menu->screen == WM_SCREEN_GRID) {
-        WmResourceSceneFrame frame = {
-            .elapsed_seconds = view->elapsed_seconds,
-            .preview_elapsed_seconds = view->preview_elapsed_seconds,
-            .hover = view->hover,
-            .preview_scene = view->preview,
-            .board_scene = view->board
-        };
-        wm_resource_scene_draw_layers(view->grid, menu, &frame);
-        return;
-    }
-    if (view->preview && menu->screen == WM_SCREEN_PREVIEW &&
-        wm_preview_scene_available(view->preview, menu)) {
-        wm_texture_cache_begin_frame(view->textures);
-        wm_font_cache_begin_frame(view->fonts);
-        wm_preview_scene_draw_layers(view->preview, menu,
-                                     view->preview_elapsed_seconds, NULL);
-        return;
-    }
-    wm_texture_cache_begin_frame(view->textures);
-    wm_font_cache_begin_frame(view->fonts);
-    if (view->board && menu->screen == WM_SCREEN_BOARD) {
-        wm_board_scene_draw_body(view->board);
-        float grid_frame = 0.0f;
-        if (view->grid && wm_board_scene_grid_overlay(view->board,
-                                                        &grid_frame))
-            wm_resource_scene_draw_grid_overlay(view->grid, menu,
-                                                 grid_frame,
-                                                 view->elapsed_seconds);
-        wm_board_scene_draw_footer(view->board);
-        if (view->grid && wm_board_scene_sd_visible(view->board))
-            wm_resource_scene_draw_sd_button(view->grid,
-                                              view->elapsed_seconds);
-    } else if (view->options && menu->screen == WM_SCREEN_SETTINGS) {
-        if (view->storage) {
-            wm_options_scene_draw_background(view->options);
-            wm_storage_scene_draw_back(view->storage);
-            wm_options_scene_draw_objects(view->options);
-            wm_storage_scene_draw_content(view->storage);
-        } else {
-            wm_options_scene_draw(view->options);
-        }
-    } else if (view->sd && menu->screen == WM_SCREEN_SD) {
-        wm_sd_scene_draw(view->sd);
-    }
 }
 
 static uint64_t monotonic_nanoseconds(void) {
@@ -181,8 +117,9 @@ static void sleep_nanoseconds(uint64_t duration) {
         .tv_nsec = (long)(duration % 1000000000ULL)
     };
     struct timespec remaining;
-    while (nanosleep(&delay, &remaining) != 0 && errno == EINTR)
+    while (nanosleep(&delay, &remaining) != 0 && errno == EINTR) {
         delay = remaining;
+    }
 }
 
 static bool same_hit(WmHit first, WmHit second) {
@@ -236,20 +173,6 @@ static void play_drag_sound(WmAudio *audio, WmChannelDragSound sound) {
         wm_audio_play(audio, "invalidDrop");
 }
 
-static WmBoardDate today_date(void) {
-    time_t now = time(NULL);
-    struct tm date;
-    if (!localtime_r(&now, &date)) return (WmBoardDate){2000, 1, 1};
-    return (WmBoardDate){date.tm_year + 1900, date.tm_mon + 1,
-                          date.tm_mday};
-}
-
-static bool without_masks(void *context, const WmLayoutPaneView *pane) {
-    (void)context;
-    return strncmp(pane->name, "BaseMask", 8) != 0 &&
-           strcmp(pane->name, "ChMask") != 0;
-}
-
 static void play_hover_cue(WmAudio *audio, WmHit hit) {
     const char *cue = wm_hover_audio_menu_cue(hit.type);
     if (cue) wm_audio_play(audio, cue);
@@ -290,183 +213,10 @@ static bool compose_keyboard_control(WmBoardControl control) {
            control <= WM_BOARD_CONTROL_COMPOSE_KEY_LAST;
 }
 
-static bool play_board_compose_cues_with_non_scroll(
-    WmAudio *audio, WmBoardScene *board, bool *non_scroll_played) {
-    const char *cue;
-    bool played = false;
-    if (non_scroll_played) *non_scroll_played = false;
-    while ((cue = wm_board_scene_take_compose_key_cue(board)) != NULL) {
-        wm_audio_play(audio, cue);
-        played = true;
-        if (non_scroll_played && strcmp(cue, "WIPL_SE_LINE_SCROLL") != 0)
-            *non_scroll_played = true;
-    }
-    return played;
-}
-
-static bool play_board_compose_cues(WmAudio *audio, WmBoardScene *board) {
-    return play_board_compose_cues_with_non_scroll(audio, board, NULL);
-}
-
-static void play_board_sound_events(WmAudio *audio, WmBoardScene *board) {
-    WmBoardSoundEvent event;
-    while (wm_board_scene_take_sound_event(board, &event)) {
-        wm_audio_play_panned(audio, event.cue, event.pan);
-    }
-}
-
 static void play_board_hover_cue(WmAudio *audio,
                                  WmBoardControl control) {
     const char *cue = wm_hover_audio_board_cue(control);
     if (cue) wm_audio_play(audio, cue);
-}
-
-static void activate_hit(WmMenu *menu, WmAudio *audio,
-                         WmResourceScene *resource_scene,
-                         WmBoardScene *board_scene,
-                         WmOptionsScene *options_scene,
-                         WmAppSceneFade *fade, WmHit hit) {
-    if (hit.type != WM_HIT_NONE)
-        wm_resource_scene_dismiss_balloon(resource_scene);
-    switch (hit.type) {
-        case WM_HIT_CHANNEL:
-            if (wm_menu_select(menu, hit.slot)) {
-                wm_audio_play(audio, "click");
-                wm_audio_play(audio, "select");
-            }
-            break;
-        case WM_HIT_PAGE_PREVIOUS:
-        case WM_HIT_PAGE_NEXT:
-            if (wm_menu_change_page(menu, hit.type == WM_HIT_PAGE_NEXT ? 1 : -1)) {
-                wm_resource_scene_press_arrow(resource_scene,
-                                               hit.type == WM_HIT_PAGE_NEXT ? 1 : -1);
-                wm_audio_play(audio, "page");
-            }
-            break;
-        case WM_HIT_PREVIEW_PREVIOUS:
-        case WM_HIT_PREVIEW_NEXT:
-            if (wm_menu_change_preview(menu,
-                                       hit.type == WM_HIT_PREVIEW_NEXT ? 1 : -1))
-                wm_audio_play(audio, "page");
-            break;
-        case WM_HIT_SETTINGS:
-            if (options_scene && menu->screen == WM_SCREEN_GRID &&
-                menu->transition == WM_TRANSITION_NONE &&
-                wm_scene_fader_start(&fade->clock)) {
-                fade->destination = WM_SCREEN_SETTINGS;
-                wm_audio_play(audio, "confirm");
-            }
-            break;
-        case WM_HIT_BOARD:
-            if (wm_menu_open_screen(menu, WM_SCREEN_BOARD)) {
-                wm_resource_scene_retire_footer_focus(resource_scene);
-                wm_board_scene_set_grid_page(board_scene, menu->page);
-                wm_board_scene_open(board_scene, today_date());
-                wm_audio_play(audio, "confirm");
-            }
-            break;
-        case WM_HIT_SD:
-            if (menu->screen == WM_SCREEN_GRID &&
-                menu->transition == WM_TRANSITION_NONE &&
-                wm_scene_fader_start(&fade->clock)) {
-                fade->destination = WM_SCREEN_SD;
-                wm_audio_play(audio, "confirm");
-            }
-            break;
-        case WM_HIT_BACK: {
-            bool preview = menu->screen == WM_SCREEN_PREVIEW;
-            if (wm_menu_back(menu)) {
-                if (preview) {
-                    wm_audio_play(audio, "WIPL_SE_BT_PUSH");
-                    wm_audio_play(audio, "WIPL_SE_CH_UNSELECT");
-                } else {
-                    wm_audio_play(audio, "back");
-                }
-            }
-            break;
-        }
-        case WM_HIT_START:
-            if (wm_menu_start_preview(menu)) wm_audio_play(audio, "confirm");
-            break;
-        case WM_HIT_NOTICE_DISMISS:
-            if (wm_menu_dismiss_notice(menu)) wm_audio_play(audio, "back");
-            break;
-        case WM_HIT_HOME:
-        case WM_HIT_HOME_CLOSE:
-        case WM_HIT_HOME_MENU:
-            break;
-        case WM_HIT_NONE: break;
-    }
-}
-
-static void handle_key(WmMenu *menu, WmAudio *audio,
-                       WmResourceScene *resource_scene,
-                       WmBoardScene *board_scene,
-                       WmOptionsScene *options_scene,
-                       WmAppSceneFade *fade, WmKey key,
-                       int *focused_slot) {
-    if (menu->notice[0]) {
-        if (key == WM_KEY_ENTER || key == WM_KEY_ESCAPE ||
-            key == WM_KEY_BACKSPACE)
-            activate_hit(menu, audio, resource_scene, board_scene, options_scene, fade,
-                         (WmHit){WM_HIT_NOTICE_DISMISS, -1});
-        return;
-    }
-    if (key == WM_KEY_ESCAPE || key == WM_KEY_BACKSPACE) {
-        if (menu->screen == WM_SCREEN_BOARD && board_scene) {
-            WmBoardPhase phase = wm_board_scene_phase(board_scene);
-            WmBoardChild child = wm_board_scene_child(board_scene);
-            bool silent_keyboard_overlay =
-                wm_board_scene_compose_keyboard_overlay_visible(board_scene);
-            if (wm_board_scene_back(board_scene)) {
-                if (!play_board_compose_cues(audio, board_scene) &&
-                    !silent_keyboard_overlay) {
-                    const char *cue = phase == WM_BOARD_READY &&
-                                      child == WM_BOARD_CHILD_NONE
-                                          ? "confirm" :
-                                      phase == WM_BOARD_MEMO_READ
-                                          ? "WIPL_SE_BOARD_UNSELECT" : "back";
-                    wm_audio_play(audio, cue);
-                }
-            }
-        } else if (menu->screen == WM_SCREEN_SETTINGS && options_scene) {
-            const char *cue = wm_options_scene_click_cue(
-                options_scene, WM_OPTIONS_CONTROL_BACK);
-            if (wm_options_scene_back(options_scene) && cue)
-                wm_audio_play(audio, cue);
-        } else {
-            activate_hit(menu, audio, resource_scene, board_scene,
-                         options_scene, fade, (WmHit){WM_HIT_BACK, -1});
-        }
-        return;
-    }
-    if (menu->screen == WM_SCREEN_PREVIEW) {
-        if (key == WM_KEY_LEFT)
-            activate_hit(menu, audio, resource_scene, board_scene, options_scene, fade,
-                         (WmHit){WM_HIT_PREVIEW_PREVIOUS, -1});
-        if (key == WM_KEY_RIGHT)
-            activate_hit(menu, audio, resource_scene, board_scene, options_scene, fade,
-                         (WmHit){WM_HIT_PREVIEW_NEXT, -1});
-        return;
-    }
-    if (menu->screen != WM_SCREEN_GRID) return;
-    if (key == WM_KEY_LEFT) {
-        if (*focused_slot % 4 > 0) (*focused_slot)--;
-        else activate_hit(menu, audio, resource_scene, board_scene, options_scene, fade,
-                          (WmHit){WM_HIT_PAGE_PREVIOUS, -1});
-    } else if (key == WM_KEY_RIGHT) {
-        if (*focused_slot % 4 < 3) (*focused_slot)++;
-        else activate_hit(menu, audio, resource_scene, board_scene, options_scene, fade,
-                          (WmHit){WM_HIT_PAGE_NEXT, -1});
-    } else if (key == WM_KEY_UP && *focused_slot >= 4) {
-        *focused_slot -= 4;
-    } else if (key == WM_KEY_DOWN && *focused_slot < 8) {
-        *focused_slot += 4;
-    } else if (key == WM_KEY_ENTER) {
-        activate_hit(menu, audio, resource_scene, board_scene, options_scene, fade,
-                     (WmHit){WM_HIT_CHANNEL,
-                             menu->page * WM_CHANNELS_PER_PAGE + *focused_slot});
-    }
 }
 
 static int print_usage(const char *program) {
@@ -710,13 +460,32 @@ int main(int argc, char **argv) {
     uint64_t started = previous;
     uint64_t preview_started = previous;
     uint64_t home_opened_at = 0;
-    uint32_t home_underlay_texture = 0;
-    bool home_underlay_valid = false;
     bool entrance_active = false;
     float entrance_frames = 0.0f;
     float home_underlay_elapsed = 0.0f;
     float home_underlay_preview_elapsed = 0.0f;
     int preview_running_slot = -1;
+    WmAppRenderer renderer = {
+        .platform = platform,
+        .layout_textures = textures,
+        .layout_fonts = fonts,
+        .scene_textures = scene_textures,
+        .scene_fonts = scene_fonts,
+        .layout = layout,
+        .animation = animation,
+        .hide_masks = hide_masks,
+        .health_scene = health_scene,
+        .restart_scene = restart_scene,
+        .home = home,
+        .resource_scene = resource_scene,
+        .preview_scene = preview_scene,
+        .board_scene = board_scene,
+        .options_scene = options_scene,
+        .sd_scene = sd_scene,
+        .pointer = pointer,
+        .drag = drag,
+        .audio = audio
+    };
     const WmHomeEntryContext home_entry = {
         .home = home,
         .menu = &menu,
@@ -730,7 +499,7 @@ int main(int argc, char **argv) {
         .opened_at = &home_opened_at,
         .underlay_elapsed = &home_underlay_elapsed,
         .underlay_preview_elapsed = &home_underlay_preview_elapsed,
-        .underlay_valid = &home_underlay_valid
+        .renderer = &renderer
     };
     const uint64_t frame_period = 1000000000ULL / 60ULL;
     uint64_t next_frame_deadline = previous + frame_period;
@@ -794,11 +563,7 @@ int main(int argc, char **argv) {
                 uint64_t paused = frame_start - home_opened_at;
                 started += paused;
                 preview_started += paused;
-                if (home_underlay_texture) {
-                    wm_platform_destroy_texture(platform, home_underlay_texture);
-                    home_underlay_texture = 0;
-                }
-                home_underlay_valid = false;
+                wm_app_renderer_release_home_underlay(&renderer);
                 home_hovered = WM_HOME_CONTROL_NONE;
                 home_pressed = WM_HOME_CONTROL_NONE;
                 hover = (WmHit){WM_HIT_NONE, -1};
@@ -1050,7 +815,7 @@ int main(int argc, char **argv) {
                         if (wm_board_scene_activate_secondary(board_scene,
                                                                board_hit)) {
                             board_pressed = (WmBoardHit){WM_BOARD_CONTROL_NONE, 0};
-                            play_board_compose_cues(audio, board_scene);
+                            wm_app_play_board_compose_cues(audio, board_scene);
                             continue;
                         }
                     }
@@ -1073,7 +838,7 @@ int main(int argc, char **argv) {
                             board_scene, board_pressed.control);
                     if (board_held_keyboard) {
                         board_pressed = (WmBoardHit){WM_BOARD_CONTROL_NONE, 0};
-                        play_board_compose_cues(audio, board_scene);
+                        wm_app_play_board_compose_cues(audio, board_scene);
                     }
                     continue;
                 }
@@ -1229,9 +994,9 @@ int main(int argc, char **argv) {
                                      WM_BOARD_CONTROL_COMPOSE_ADDRESS_DIALOG_NO ||
                                  compose_keyboard_control(next.control))
                             cue = NULL;
-                        if (!play_board_compose_cues(audio, board_scene) && cue)
+                        if (!wm_app_play_board_compose_cues(audio, board_scene) && cue)
                             wm_audio_play(audio, cue);
-                        play_board_sound_events(audio, board_scene);
+                        wm_app_play_board_sound_events(audio, board_scene);
                     }
                     board_pressed = (WmBoardHit){WM_BOARD_CONTROL_NONE, 0};
                     continue;
@@ -1284,7 +1049,7 @@ int main(int argc, char **argv) {
                         try_enter_home(&home_entry, frame_start, started,
                                        preview_started);
                     } else {
-                        activate_hit(&menu, audio, resource_scene, board_scene,
+                        wm_app_activate_hit(&menu, audio, resource_scene, board_scene,
                                      options_scene, &fade, exact);
                         if (exact.type == WM_HIT_BOARD &&
                             menu.screen == WM_SCREEN_BOARD)
@@ -1369,12 +1134,12 @@ int main(int argc, char **argv) {
                     if (event.key == WM_KEY_ENTER &&
                         wm_board_scene_address_editor_active(board_scene)) {
                         if (wm_board_scene_finish_edit(board_scene))
-                            play_board_compose_cues(audio, board_scene);
+                            wm_app_play_board_compose_cues(audio, board_scene);
                         continue;
                     }
                     if (event.key == WM_KEY_ENTER &&
                         wm_board_scene_insert_text(board_scene, "\n")) {
-                        play_board_compose_cues(audio, board_scene);
+                        wm_app_play_board_compose_cues(audio, board_scene);
                         wm_audio_play(audio, "WIPL_SE_CHAR_DECIDE");
                         continue;
                     }
@@ -1386,7 +1151,7 @@ int main(int argc, char **argv) {
                         char character[2] = {(char)event.key, '\0'};
                         if (wm_board_scene_insert_text(board_scene, character)) {
                             bool non_scroll_played;
-                            play_board_compose_cues_with_non_scroll(
+                            wm_app_play_board_compose_cues_with_non_scroll(
                                 audio, board_scene, &non_scroll_played);
                             if (!editor_active || !non_scroll_played)
                                 wm_audio_play(audio, event.key == ' '
@@ -1416,7 +1181,7 @@ int main(int argc, char **argv) {
                         continue;
                     }
                 }
-                handle_key(&menu, audio, resource_scene, board_scene,
+                wm_app_handle_key(&menu, audio, resource_scene, board_scene,
                            options_scene, &fade, event.key,
                            &focused_slot);
             }
@@ -1430,8 +1195,8 @@ int main(int argc, char **argv) {
             !wm_menu_restart_active(&restart) &&
             menu.screen == WM_SCREEN_BOARD && board_scene) {
             wm_board_scene_advance(board_scene, elapsed * 60.0f);
-            play_board_compose_cues(audio, board_scene);
-            play_board_sound_events(audio, board_scene);
+            wm_app_play_board_compose_cues(audio, board_scene);
+            wm_app_play_board_sound_events(audio, board_scene);
             const char *reader_cue;
             while ((reader_cue =
                     wm_board_scene_take_reader_cue(board_scene)) != NULL)
@@ -1533,12 +1298,12 @@ int main(int argc, char **argv) {
              * behind ChannelSelect. Continue their shared clock and cues
              * once per update, including after the Board has closed. */
             wm_board_scene_advance_parked(board_scene, elapsed * 60.0f);
-            play_board_sound_events(audio, board_scene);
+            wm_app_play_board_sound_events(audio, board_scene);
         }
         if (!layout && resource_scene && board_scene) {
             if (menu.screen == WM_SCREEN_GRID &&
                 !wm_home_overlay_active(home))
-                wm_board_scene_refresh_today(board_scene, today_date());
+                wm_board_scene_refresh_today(board_scene, wm_app_today_date());
             wm_resource_scene_set_message_badge(
                 resource_scene, wm_board_scene_today_count(board_scene),
                 !board_visited &&
@@ -1706,174 +1471,23 @@ int main(int argc, char **argv) {
             wm_preview_scene_set_module_lead(preview_scene,
                                                navigated ? 10.0f : 0.0f);
         }
-        WmHit visual_focus = hover;
-        if (keyboard_focus && menu.screen == WM_SCREEN_GRID && !menu.home_open) {
-            visual_focus = (WmHit){WM_HIT_CHANNEL,
-                                   menu.page * WM_CHANNELS_PER_PAGE + focused_slot};
-        }
-        bool grid_transition = menu.transition == WM_TRANSITION_SELECT ||
-                               menu.transition == WM_TRANSITION_BACK;
-        if (layout) {
-            if (animation) {
-                WmLayoutClip clip = {
-                    .animation = animation,
-                    .frame = (float)(frame_start - started) / 1000000000.0f * 60.0f,
-                    .loop_override = -1
-                };
-                wm_layout_pose(layout, &clip, 1);
-            }
-            wm_texture_cache_begin_frame(textures);
-            wm_font_cache_begin_frame(fonts);
-            wm_platform_begin(platform, (WmColor){0.92f, 0.92f, 0.92f, 1.0f});
-            wm_layout_present_filtered_with_fonts(
-                platform, textures, fonts, layout, true, WM_LAYOUT_IPL, NULL,
-                hide_masks ? without_masks : NULL, NULL);
-            wm_platform_end(platform);
-        } else if (health_frame) {
-            wm_texture_cache_begin_frame(scene_textures);
-            wm_font_cache_begin_frame(scene_fonts);
-            wm_platform_begin(platform, (WmColor){0, 0, 0, 1});
-            wm_health_scene_draw(health_scene);
-            wm_platform_end(platform);
-        } else if (wm_menu_restart_active(&restart)) {
-            if (restart.phase == WM_MENU_RESTART_GRID && resource_scene) {
-                const WmResourceSceneFrame scene_frame = {
-                    .elapsed_seconds =
-                        (float)(frame_start - started) / 1000000000.0f,
-                    .hover = {WM_HIT_NONE, -1},
-                    .pointer = pointer,
-                    .preview_scene = preview_scene,
-                    .board_scene = board_scene
-                };
-                wm_resource_scene_draw(resource_scene, &menu, &scene_frame);
-            } else {
-                wm_texture_cache_begin_frame(scene_textures);
-                wm_font_cache_begin_frame(scene_fonts);
-                wm_platform_begin(platform, (WmColor){0, 0, 0, 1});
-                wm_menu_restart_scene_draw(restart_scene, &restart);
-                wm_platform_end(platform);
-            }
-        } else if (wm_home_overlay_active(home)) {
-            WmHomeUnderlay underlay = {
-                .platform = platform,
-                .textures = scene_textures,
-                .fonts = scene_fonts,
-                .menu = &menu,
-                .grid = resource_scene,
-                .preview = preview_scene,
-                .board = board_scene,
-                .options = options_scene,
-                .sd = sd_scene,
-                .storage = active_storage,
-                .hover = {WM_HIT_NONE, -1},
-                .elapsed_seconds = home_underlay_elapsed,
-                .preview_elapsed_seconds = home_underlay_preview_elapsed
-            };
-            if (!home_underlay_texture)
-                home_underlay_texture =
-                    wm_platform_create_render_texture(platform);
-            if (!home_underlay_valid && home_underlay_texture &&
-                wm_platform_begin_target(platform, home_underlay_texture,
-                    (WmColor){0.92f, 0.92f, 0.92f, 1.0f})) {
-                draw_home_underlay(&underlay);
-                wm_platform_end(platform);
-                home_underlay_valid = true;
-            }
-            wm_texture_cache_begin_frame(scene_textures);
-            wm_font_cache_begin_frame(scene_fonts);
-            wm_platform_begin(platform,
-                              (WmColor){0.92f, 0.92f, 0.92f, 1.0f});
-            if (home_underlay_valid) {
-                const WmQuad retained_scene = {
-                    .x = 0.0f, .y = 0.0f,
-                    .width = WM_FRAME_WIDTH, .height = WM_FRAME_HEIGHT,
-                    .u1 = 1.0f, .v1 = 1.0f,
-                    .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                    .texture = home_underlay_texture
-                };
-                wm_platform_draw_quad(platform, &retained_scene);
-            } else {
-                draw_home_underlay(&underlay);
-            }
-            wm_home_overlay_draw(home);
-            wm_pointer_draw(pointer);
-            wm_home_overlay_draw_fade(home);
-            wm_platform_end(platform);
-        } else if (resource_scene &&
-                   (menu.screen == WM_SCREEN_GRID || grid_transition) &&
-                   !menu.home_open) {
-            const WmResourceSceneFrame scene_frame = {
-                .elapsed_seconds =
-                    (float)(frame_start - started) / 1000000000.0f,
-                .preview_elapsed_seconds =
-                    (float)(frame_start - preview_started) / 1000000000.0f,
-                .hover = visual_focus,
-                .suppress_balloons = wm_scene_fader_active(&fade.clock),
-                .pointer = pointer,
-                .preview_scene = preview_scene,
-                .board_scene = board_scene,
-                .drag = drag
-            };
-            wm_resource_scene_draw(resource_scene, &menu, &scene_frame);
-            if (wm_resource_scene_take_balloon_sound(resource_scene))
-                wm_audio_play(audio, "balloon");
-        } else if (preview_scene && menu.screen == WM_SCREEN_PREVIEW &&
-                   !menu.home_open &&
-                   wm_preview_scene_draw(
-                       preview_scene, &menu,
-                       (float)(frame_start - preview_started) / 1000000000.0f,
-                       visual_focus, pointer)) {
-            /* The WAD-backed preview owns this frame. */
-        } else if (board_scene && menu.screen == WM_SCREEN_BOARD &&
-                   !menu.home_open) {
-            wm_texture_cache_begin_frame(scene_textures);
-            wm_font_cache_begin_frame(scene_fonts);
-            wm_platform_begin(platform, (WmColor){0.92f, 0.92f, 0.92f, 1.0f});
-            wm_board_scene_draw_body(board_scene);
-            float grid_frame = 0.0f;
-            float scene_seconds =
-                (float)(frame_start - started) / 1000000000.0f;
-            if (resource_scene &&
-                wm_board_scene_grid_overlay(board_scene, &grid_frame))
-                wm_resource_scene_draw_grid_overlay(resource_scene, &menu,
-                                                      grid_frame, scene_seconds);
-            wm_board_scene_draw_footer(board_scene);
-            if (resource_scene && wm_board_scene_sd_visible(board_scene))
-                wm_resource_scene_draw_sd_button(resource_scene, scene_seconds);
-            if (resource_scene) {
-                wm_resource_scene_draw_board_balloons(resource_scene,
-                    board_scene, board_hovered, scene_seconds);
-                if (wm_resource_scene_take_balloon_sound(resource_scene))
-                    wm_audio_play(audio, "balloon");
-            }
-            wm_pointer_draw(pointer);
-            wm_platform_end(platform);
-        } else if (options_scene && menu.screen == WM_SCREEN_SETTINGS &&
-                   !menu.home_open) {
-            wm_texture_cache_begin_frame(scene_textures);
-            wm_font_cache_begin_frame(scene_fonts);
-            wm_platform_begin(platform, (WmColor){0.92f, 0.92f, 0.92f, 1.0f});
-            if (active_storage) {
-                wm_options_scene_draw_background(options_scene);
-                wm_storage_scene_draw_back(active_storage);
-                wm_options_scene_draw_objects(options_scene);
-                wm_storage_scene_draw_content(active_storage);
-            } else {
-                wm_options_scene_draw(options_scene);
-            }
-            wm_pointer_draw(pointer);
-            wm_platform_end(platform);
-        } else if (sd_scene && menu.screen == WM_SCREEN_SD &&
-                   !menu.home_open) {
-            wm_texture_cache_begin_frame(scene_textures);
-            wm_font_cache_begin_frame(scene_fonts);
-            wm_platform_begin(platform, (WmColor){0.92f, 0.92f, 0.92f, 1.0f});
-            wm_sd_scene_draw(sd_scene);
-            wm_pointer_draw(pointer);
-            wm_platform_end(platform);
-        } else {
-            wm_ui_draw(platform, &menu, visual_focus, pointer);
-        }
+        WmAppRenderFrame render_frame = {
+            .menu = &menu,
+            .fade = &fade,
+            .restart = &restart,
+            .active_storage = active_storage,
+            .hover = hover,
+            .board_hovered = board_hovered,
+            .health_frame = health_frame,
+            .keyboard_focus = keyboard_focus,
+            .focused_slot = focused_slot,
+            .frame_start = frame_start,
+            .started = started,
+            .preview_started = preview_started,
+            .home_underlay_elapsed = home_underlay_elapsed,
+            .home_underlay_preview_elapsed = home_underlay_preview_elapsed
+        };
+        wm_app_renderer_draw(&renderer, &render_frame);
 
         /* Follow a fixed deadline so sleep overshoot does not accumulate and
          * slow every 28-frame zoom by roughly one millisecond per frame. */
@@ -1891,8 +1505,7 @@ int main(int argc, char **argv) {
     wm_pointer_destroy(pointer);
     wm_channel_drag_destroy(drag);
     wm_home_overlay_destroy(home);
-    if (home_underlay_texture)
-        wm_platform_destroy_texture(platform, home_underlay_texture);
+    wm_app_renderer_release_home_underlay(&renderer);
     wm_audio_destroy(audio);
     wm_resource_scene_destroy(resource_scene);
     wm_preview_scene_destroy(preview_scene);

@@ -6,6 +6,7 @@
 #include "wii_menu/layout/layout_runtime.h"
 #include "wii_menu/render/material_prepare.h"
 #include "wii_menu/input/source_hit.h"
+#include "scene_assets.h"
 
 #include <ctype.h>
 #include <math.h>
@@ -14,7 +15,6 @@
 #include <string.h>
 
 enum {
-    SD_PATH_CAPACITY = 4096,
     SD_VISIBLE_TILES = 5 * WM_SD_SLOTS_PER_PAGE,
     SD_CLIP_CAPACITY = 18,
     SD_EVENT_CAPACITY = 16
@@ -70,7 +70,7 @@ typedef enum SdLoaderPhase {
 } SdLoaderPhase;
 
 struct WmSdScene {
-    char assets_directory[SD_PATH_CAPACITY];
+    char assets_directory[WM_SCENE_ASSET_PATH_CAPACITY];
     WmPlatform *platform;
     WmTextureCache *textures;
     WmFontCache *fonts;
@@ -157,15 +157,7 @@ bool wm_sd_scene_take_event(WmSdScene *scene, WmSdEvent *event) {
 }
 
 static WmLayout *load_layout(const char *root, const char *relative) {
-    char path[SD_PATH_CAPACITY];
-    int length = snprintf(path, sizeof(path), "%s/%s", root, relative);
-    if (length < 0 || length >= (int)sizeof(path)) return NULL;
-    char error[160] = {0};
-    WmLayout *layout = wm_layout_load_json(path, error, sizeof(error));
-    if (!layout) {
-        fprintf(stderr, "Could not load SD layout %s: %s\n", relative, error);
-    }
-    return layout;
+    return wm_scene_load_layout(root, relative, "SD");
 }
 
 static bool prepare_wide_grid(WmLayout *grid) {
