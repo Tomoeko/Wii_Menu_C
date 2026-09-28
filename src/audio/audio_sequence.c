@@ -1,4 +1,4 @@
-#include "wii_menu/audio/audio_sequence.h"
+#include "audio_sequence_render_internal.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -6,12 +6,8 @@
 #include <string.h>
 
 enum {
-    WM_SEQUENCE_RATE = 32000,
-    WM_SEQUENCE_BLOCK = 96,
     WM_SEQUENCE_MAX_TICK = 1000000,
-    WM_SEQUENCE_MAX_FRAMES = WM_SEQUENCE_RATE * 600,
-    WM_SEQUENCE_MAX_VOICES = 128,
-    WM_SEQUENCE_MAX_WAVES = 256
+    WM_SEQUENCE_MAX_FRAMES = WM_SEQUENCE_RATE * 600
 };
 
 static void set_error(char *error, size_t capacity, const char *message)
@@ -25,81 +21,6 @@ static bool has_bytes(const WmRsarSequence *sequence, size_t offset,
     return sequence && sequence->data && offset <= sequence->size &&
            length <= sequence->size - offset;
 }
-
-typedef struct SequenceTables {
-    float attack[128];
-    int16_t sustain[128];
-    float decibels[965];
-    float pan[257];
-    uint32_t reverb_frames[8];
-    float reverb_preset[6];
-} SequenceTables;
-
-typedef struct SequenceWave {
-    uint32_t index;
-    WmAudioPcm pcm;
-} SequenceWave;
-
-typedef struct PreparedNote {
-    WmRsarInstrument instrument;
-    uint16_t wave_slot;
-} PreparedNote;
-
-typedef struct SequenceTrack {
-    uint8_t volume;
-    uint8_t volume2;
-    uint8_t pan;
-    uint8_t main_send;
-    uint8_t aux_a;
-    uint8_t aux_b;
-    uint8_t aux_c;
-    int16_t envelope[4];
-    size_t event_index;
-    uint32_t tick;
-    bool waiting_for_end;
-} SequenceTrack;
-
-typedef struct SequenceVoice {
-    const WmRsarInstrument *instrument;
-    const WmAudioPcm *wave;
-    uint32_t release_tick;
-    double position;
-    double speed;
-    float initial_gain;
-    float previous_gain;
-    float envelope_level;
-    uint8_t envelope[4];
-    uint8_t track;
-    uint8_t envelope_state;
-    bool has_previous_gain;
-} SequenceVoice;
-
-typedef struct SequencePlayer {
-    const WmSequenceTimeline *timeline;
-    const PreparedNote *prepared;
-    const SequenceWave *waves;
-    const SequenceTables *tables;
-    SequenceTrack tracks[16];
-    SequenceVoice voices[WM_SEQUENCE_MAX_VOICES];
-    size_t voice_count;
-    uint32_t pending_until[16];
-    uint32_t song_tick;
-    uint32_t elapsed_ticks;
-    uint32_t tempo_counter;
-    uint32_t tempo;
-    uint32_t block_position;
-    uint8_t main_volume;
-    size_t event_index;
-    size_t loop_event_index;
-    size_t voice_loop_event_index;
-    uint32_t voice_loop_start_frame;
-    bool voice_loop_started;
-    float gain;
-    float block_left[WM_SEQUENCE_BLOCK];
-    float block_right[WM_SEQUENCE_BLOCK];
-    float aux_left[WM_SEQUENCE_BLOCK];
-    float aux_right[WM_SEQUENCE_BLOCK];
-} SequencePlayer;
 
 static uint16_t big_u16(const uint8_t *data)
 {
@@ -347,8 +268,6 @@ static float note_gain(uint8_t velocity, uint8_t instrument_volume)
     return (velocity_ratio * velocity_ratio) * instrument_ratio;
 }
 
-static float release_rate(uint8_t value);
-
 bool wm_sequence_extract_held(const WmRsar *archive, const WmRsarSound *sound,
                               const uint8_t *system_menu_dol, size_t dol_size,
                               WmAudioHeldProfile *profile,
@@ -396,9 +315,9 @@ bool wm_sequence_extract_held(const WmRsar *archive, const WmRsarSound *sound,
     }
     *profile = (WmAudioHeldProfile){
         .attack_multiplier = driver.attack[instrument.envelope[0]],
-        .decay_rate = release_rate(instrument.envelope[1]),
+        .decay_rate = wm_sequence_release_rate(instrument.envelope[1]),
         .sustain_level = driver.sustain[instrument.envelope[2]],
-        .release_rate = release_rate(instrument.envelope[3]),
+        .release_rate = wm_sequence_release_rate(instrument.envelope[3]),
         .volume = note_gain(127, instrument.volume),
         .pan = ((float)instrument.pan - 64.0f) / 63.0f
     };
@@ -528,143 +447,6 @@ static bool dispatch_tick(SequencePlayer *player)
     return true;
 }
 
-static float release_rate(uint8_t value)
-{
-    if (value == 127) return 65535;
-    if (value == 126) return 24;
-    if (value < 50) return ((float)(value * 2 + 1) / 128.0f) / 5.0f;
-    return (60.0f / (126.0f - (float)value)) / 5.0f;
-}
-
-static void update_envelope(SequenceVoice *voice,
-                            const SequenceTables *tables)
-{
-    const uint8_t *envelope = voice->envelope;
-    if (voice->envelope_state == 0) {
-        for (size_t millisecond = 0; millisecond < 3; millisecond++) {
-            voice->envelope_level *= tables->attack[envelope[0]];
-            if (voice->envelope_level > -1.0f / 32.0f) {
-                voice->envelope_level = 0;
-                voice->envelope_state = 1;
-            }
-        }
-    } else if (voice->envelope_state == 1) {
-        voice->envelope_level -= release_rate(envelope[1]) * 3.0f;
-        if (voice->envelope_level <= tables->sustain[envelope[2]]) {
-            voice->envelope_level = tables->sustain[envelope[2]];
-            voice->envelope_state = 2;
-        }
-    } else if (voice->envelope_state == 3) {
-        voice->envelope_level -= release_rate(envelope[3]) * 3.0f;
-    }
-}
-
-static float envelope_gain(const SequenceVoice *voice,
-                           const SequenceTables *tables)
-{
-    bool instant = voice->envelope_state == 0 &&
-                   tables->attack[voice->envelope[0]] == 0;
-    float decibels = instant ? 0 : voice->envelope_level / 10.0f;
-    if (decibels < -90.4f) decibels = -90.4f;
-    if (decibels > 6.0f) decibels = 6.0f;
-    int index = 904 + (int)(decibels * 10.0f);
-    if (index < 0) index = 0;
-    if (index > 964) index = 964;
-    return tables->decibels[index];
-}
-
-static int volume_coefficient(float gain)
-{
-    if (gain < 0) gain = 0;
-    if (gain > 1) gain = 1;
-    return (int)truncf(gain * 32767.0f);
-}
-
-static int send_coefficient(float gain)
-{
-    if (gain < 0) gain = 0;
-    float scaled = truncf(gain * 32768.0f);
-    if (scaled > 65535.0f) return 65535;
-    return (int)scaled;
-}
-
-static int multiply_pcm_volume(double sample, int coefficient)
-{
-    return (int)floor(sample * coefficient / 32768.0);
-}
-
-static void render_voice(SequencePlayer *player, SequenceVoice *voice)
-{
-    if (player->elapsed_ticks > 0 &&
-        player->elapsed_ticks - 1 >= voice->release_tick) {
-        voice->envelope_state = 3;
-    }
-    const SequenceTrack *track = &player->tracks[voice->track];
-    float volume = (float)track->volume / 127.0f;
-    float volume2 = (float)track->volume2 / 127.0f;
-    float main_volume = (float)player->main_volume / 127.0f;
-    float gain = voice->initial_gain * volume * volume *
-                 volume2 * volume2 * main_volume * main_volume *
-                 player->gain;
-    float initial_gain = voice->has_previous_gain
-                             ? voice->previous_gain : gain;
-    int initial = volume_coefficient(initial_gain *
-                                     envelope_gain(voice, player->tables));
-    update_envelope(voice, player->tables);
-    int target = volume_coefficient(gain *
-                                    envelope_gain(voice, player->tables));
-    int delta = (target - initial) / WM_SEQUENCE_BLOCK;
-    voice->previous_gain = gain;
-    voice->has_previous_gain = true;
-
-    float pan = ((float)voice->instrument->pan - 64.0f +
-                 (float)track->pan - 64.0f) / 63.0f;
-    if (pan < -1) pan = -1;
-    if (pan > 1) pan = 1;
-    int pan_index = (int)floorf((pan + 1.0f) * 128.0f + 0.5f);
-    if (pan_index < 0) pan_index = 0;
-    if (pan_index > 256) pan_index = 256;
-    float main_send = (float)track->main_send / 127.0f;
-    float aux_send = (float)track->aux_a / 127.0f;
-    int main_left = send_coefficient(player->tables->pan[pan_index] *
-                                     main_send);
-    int main_right = send_coefficient(player->tables->pan[256 - pan_index] *
-                                      main_send);
-    int aux_left = send_coefficient(player->tables->pan[pan_index] * aux_send);
-    int aux_right = send_coefficient(player->tables->pan[256 - pan_index] *
-                                     aux_send);
-    const WmAudioPcm *wave = voice->wave;
-    for (size_t frame = 0; frame < WM_SEQUENCE_BLOCK; frame++) {
-        if (voice->position >= wave->frame_count) break;
-        size_t low = (size_t)voice->position;
-        size_t next = low + 1 < wave->frame_count ? low + 1 : low;
-        double fraction = voice->position - (double)low;
-        double source_left = wave->samples[low * wave->channels] +
-            (wave->samples[next * wave->channels] -
-             wave->samples[low * wave->channels]) * fraction;
-        double source_right;
-        if (wave->channels == 2) {
-            source_right = wave->samples[low * 2 + 1] +
-                (wave->samples[next * 2 + 1] -
-                 wave->samples[low * 2 + 1]) * fraction;
-        } else {
-            source_right = source_left;
-        }
-        int envelope = initial + (int)frame * delta;
-        int left = multiply_pcm_volume(source_left, envelope);
-        int right = multiply_pcm_volume(source_right, envelope);
-        player->block_left[frame] +=
-            (float)multiply_pcm_volume(left, main_left) / 32768.0f;
-        player->block_right[frame] +=
-            (float)multiply_pcm_volume(right, main_right) / 32768.0f;
-        player->aux_left[frame] +=
-            (float)multiply_pcm_volume(left, aux_left) / 32768.0f;
-        player->aux_right[frame] +=
-            (float)multiply_pcm_volume(right, aux_right) / 32768.0f;
-        voice->position += voice->speed;
-    }
-}
-
 static bool render_block(SequencePlayer *player)
 {
     uint32_t due = player->tempo_counter / 416;
@@ -677,7 +459,7 @@ static bool render_block(SequencePlayer *player)
     memset(player->aux_left, 0, sizeof(player->aux_left));
     memset(player->aux_right, 0, sizeof(player->aux_right));
     for (size_t index = 0; index < player->voice_count; index++) {
-        render_voice(player, &player->voices[index]);
+        wm_sequence_voice_render(player, &player->voices[index]);
     }
     size_t retained = 0;
     for (size_t index = 0; index < player->voice_count; index++) {
@@ -750,137 +532,6 @@ static int16_t quantize_sample(float value)
     if (scaled < -32768) scaled = -32768;
     if (scaled > 32767) scaled = 32767;
     return (int16_t)scaled;
-}
-
-typedef struct DelayLine {
-    float *samples;
-    uint32_t length;
-    uint32_t position;
-} DelayLine;
-
-typedef struct ReverbChannel {
-    DelayLine comb[3];
-    DelayLine all_pass[2];
-    DelayLine final;
-    float last;
-} ReverbChannel;
-
-typedef struct SequenceReverb {
-    ReverbChannel channels[2];
-    float comb_gain[3];
-    float coloration;
-    float low_pass;
-    float output_gain;
-    float aux_return[2][WM_SEQUENCE_BLOCK * 2];
-    size_t aux_return_position;
-    bool enabled;
-} SequenceReverb;
-
-static bool allocate_delay(DelayLine *line, uint32_t length)
-{
-    line->samples = calloc(length, sizeof(*line->samples));
-    line->length = length;
-    return line->samples != NULL;
-}
-
-static void free_reverb(SequenceReverb *reverb)
-{
-    for (size_t channel = 0; channel < 2; channel++) {
-        ReverbChannel *state = &reverb->channels[channel];
-        for (size_t index = 0; index < 3; index++) {
-            free(state->comb[index].samples);
-        }
-        for (size_t index = 0; index < 2; index++) {
-            free(state->all_pass[index].samples);
-        }
-        free(state->final.samples);
-    }
-    memset(reverb, 0, sizeof(*reverb));
-}
-
-static bool initialize_reverb(SequenceReverb *reverb,
-                              const SequenceTables *tables,
-                              bool enabled)
-{
-    memset(reverb, 0, sizeof(*reverb));
-    reverb->enabled = enabled;
-    if (!enabled) return true;
-    const float *preset = tables->reverb_preset;
-    reverb->coloration = preset[2];
-    reverb->low_pass = fminf(0.95f, 1.0f - preset[3]);
-    reverb->output_gain = 0.6f * preset[5];
-    float denominator = preset[1] * WM_SEQUENCE_RATE;
-    for (size_t index = 0; index < 3; index++) {
-        reverb->comb_gain[index] = powf(10.0f,
-            (float)tables->reverb_frames[index] * -3.0f / denominator);
-    }
-    for (size_t channel = 0; channel < 2; channel++) {
-        ReverbChannel *state = &reverb->channels[channel];
-        for (size_t index = 0; index < 3; index++) {
-            if (!allocate_delay(&state->comb[index],
-                                tables->reverb_frames[index])) goto failed;
-        }
-        for (size_t index = 0; index < 2; index++) {
-            if (!allocate_delay(&state->all_pass[index],
-                                tables->reverb_frames[3 + index])) goto failed;
-        }
-        if (!allocate_delay(&state->final,
-                            tables->reverb_frames[5 + channel])) goto failed;
-    }
-    return true;
-
-failed:
-    free_reverb(reverb);
-    return false;
-}
-
-static float all_pass(DelayLine *line, float input, float coefficient)
-{
-    float delayed = line->samples[line->position];
-    float value = input + delayed * coefficient;
-    line->samples[line->position] = value;
-    line->position = (line->position + 1) % line->length;
-    return delayed - value * coefficient;
-}
-
-static float process_reverb(SequenceReverb *reverb, uint8_t channel,
-                            float input)
-{
-    ReverbChannel *state = &reverb->channels[channel];
-    float value = 0;
-    for (size_t index = 0; index < 3; index++) {
-        DelayLine *line = &state->comb[index];
-        float delayed = line->samples[line->position];
-        value += delayed;
-        line->samples[line->position] = input + delayed *
-                                        reverb->comb_gain[index];
-        line->position = (line->position + 1) % line->length;
-    }
-    for (size_t index = 0; index < 2; index++) {
-        value = all_pass(&state->all_pass[index], value,
-                         reverb->coloration);
-    }
-    value = (1.0f - reverb->low_pass) * value +
-            reverb->low_pass * state->last;
-    state->last = value;
-    value = all_pass(&state->final, value, reverb->coloration);
-    return truncf(value * reverb->output_gain * 32768.0f) / 32768.0f;
-}
-
-static void apply_reverb(SequenceReverb *reverb, SequencePlayer *player)
-{
-    if (!reverb->enabled) return;
-    for (size_t frame = 0; frame < WM_SEQUENCE_BLOCK; frame++) {
-        size_t position = reverb->aux_return_position;
-        player->block_left[frame] += reverb->aux_return[0][position];
-        player->block_right[frame] += reverb->aux_return[1][position];
-        reverb->aux_return[0][position] =
-            process_reverb(reverb, 0, player->aux_left[frame]);
-        reverb->aux_return[1][position] =
-            process_reverb(reverb, 1, player->aux_right[frame]);
-        reverb->aux_return_position =
-            (position + 1) % (WM_SEQUENCE_BLOCK * 2);
-    }
 }
 
 static bool reserve_pcm(int16_t **samples, size_t *capacity, size_t count)
@@ -959,14 +610,14 @@ bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
         goto failed;
     }
     SequenceReverb reverb;
-    if (!initialize_reverb(&reverb, &tables, has_aux)) {
+    if (!wm_sequence_reverb_initialize(&reverb, &tables, has_aux)) {
         set_error(error, error_capacity,
                   "Out of memory initializing sequence reverb.");
         goto failed;
     }
     SequencePlayer *player = malloc(sizeof(*player));
     if (!player) {
-        free_reverb(&reverb);
+        wm_sequence_reverb_free(&reverb);
         set_error(error, error_capacity, "Out of memory creating sequence player.");
         goto failed;
     }
@@ -987,7 +638,7 @@ bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
             !tick_positions(&timeline, timeline.loop_end_tick, target,
                             &loop_frame, &final_frame) || !final_frame) {
             free(player);
-            free_reverb(&reverb);
+            wm_sequence_reverb_free(&reverb);
             set_error(error, error_capacity,
                       "Sequence loop exceeds the ten-minute render budget.");
             goto failed;
@@ -1021,7 +672,7 @@ bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
             valid = false;
             break;
         }
-        apply_reverb(&reverb, player);
+        wm_sequence_reverb_apply(&reverb, player);
         for (size_t frame = 0; frame < WM_SEQUENCE_BLOCK; frame++) {
             int16_t left = quantize_sample(player->block_left[frame]);
             int16_t right = quantize_sample(player->block_right[frame]);
@@ -1039,7 +690,7 @@ bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
     bool voice_loop_started = player->voice_loop_started;
     uint32_t voice_loop_start_frame = player->voice_loop_start_frame;
     free(player);
-    free_reverb(&reverb);
+    wm_sequence_reverb_free(&reverb);
     if (!valid || (timeline.looping && !timeline.voice_wait_loop &&
                    frame_count != final_frame) ||
         (!timeline.looping && frame_count >= WM_SEQUENCE_MAX_FRAMES)) {

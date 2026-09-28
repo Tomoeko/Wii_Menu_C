@@ -39,6 +39,7 @@ wm_add_test(wii-menu-audio-restart
 wm_add_test(wii-menu-audio-sequence
     SOURCES audio/audio_sequence_test.c
     LIBRARIES wii_menu_core m
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/audio"
 )
 
 # Board.
@@ -289,9 +290,20 @@ wm_add_test(wii-menu-preview-arrow
 )
 
 # Tools.
+wm_add_test(wii-menu-channel-manifest
+    SOURCES
+        tools/channel_manifest_test.c
+        "${PROJECT_SOURCE_DIR}/tools/channels/export_manifest.c"
+        "${PROJECT_SOURCE_DIR}/src/support/json.c"
+    INCLUDE_DIRECTORIES
+        "${PROJECT_SOURCE_DIR}/include"
+        "${PROJECT_SOURCE_DIR}/tools/channels"
+)
 wm_add_test(wii-menu-prepare-update
     SOURCES
         tools/prepare_update_test.c
+        "${PROJECT_SOURCE_DIR}/tools/preparation/prepare_fs.c"
+        "${PROJECT_SOURCE_DIR}/tools/preparation/prepare_recovery.c"
         "${PROJECT_SOURCE_DIR}/src/support/json.c"
         "${PROJECT_SOURCE_DIR}/tools/wad/crypto.c"
     INCLUDE_DIRECTORIES

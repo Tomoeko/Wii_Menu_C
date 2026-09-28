@@ -1,7 +1,10 @@
 #include "wii_menu/audio/audio_sequence.h"
 
+#include "audio_sequence_render_internal.h"
+
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static WmSequenceTimeline parse(const uint8_t *data, size_t size)
@@ -9,7 +12,10 @@ static WmSequenceTimeline parse(const uint8_t *data, size_t size)
     WmRsarSequence source = {.data = data, .size = size};
     WmSequenceTimeline timeline;
     char error[160] = {0};
-    assert(wm_sequence_parse(&source, &timeline, error, sizeof(error)));
+    if (!wm_sequence_parse(&source, &timeline, error, sizeof(error))) {
+        fprintf(stderr, "sequence parse failed: %s\n", error);
+        abort();
+    }
     assert(error[0] == '\0');
     return timeline;
 }
@@ -121,12 +127,92 @@ static void variable_counted_phrase(void)
     wm_sequence_timeline_free(&timeline);
 }
 
+static void synthetic_voice_pcm(void)
+{
+    /* Interpolation and two fixed-point gain stages preserve the source's
+     * floor-toward-negative-infinity behavior for negative samples. */
+    int16_t samples[] = {0, 32767, -32768, 1234};
+    WmAudioPcm wave = {
+        .samples = samples,
+        .sample_rate = WM_SEQUENCE_RATE,
+        .frame_count = 4,
+        .channels = 1
+    };
+    WmRsarInstrument instrument = {.pan = 64};
+    SequenceTables tables = {0};
+    tables.attack[0] = 0.0f;
+    tables.decibels[904] = 1.0f;
+    tables.pan[128] = 1.0f;
+    SequencePlayer player = {
+        .tables = &tables,
+        .main_volume = 127,
+        .gain = 1.0f
+    };
+    player.tracks[0] = (SequenceTrack){
+        .volume = 127,
+        .volume2 = 127,
+        .pan = 64,
+        .main_send = 127,
+        .aux_a = 127
+    };
+    SequenceVoice voice = {
+        .instrument = &instrument,
+        .wave = &wave,
+        .release_tick = UINT32_MAX,
+        .speed = 0.5,
+        .initial_gain = 1.0f,
+        .envelope_level = -904.0f
+    };
+    const int expected[] = {
+        0, 16383, 32766, -1, -32767, -15767, 1233, 1233
+    };
+    wm_sequence_voice_render(&player, &voice);
+    assert(voice.position == 4.0);
+    assert(voice.envelope_state == 1);
+    for (size_t frame = 0; frame < sizeof(expected) / sizeof(expected[0]);
+         frame++) {
+        float sample = (float)expected[frame] / 32768.0f;
+        assert(player.block_left[frame] == sample);
+        assert(player.block_right[frame] == sample);
+        assert(player.aux_left[frame] == sample);
+        assert(player.aux_right[frame] == sample);
+    }
+    assert(player.block_left[8] == 0.0f);
+}
+
+static void synthetic_reverb_impulse(void)
+{
+    SequenceTables tables = {0};
+    for (size_t index = 0; index < 8; index++) {
+        tables.reverb_frames[index] = 1;
+    }
+    tables.reverb_preset[1] = 1.0f;
+    tables.reverb_preset[3] = 1.0f;
+    tables.reverb_preset[5] = 1.0f;
+    SequenceReverb reverb;
+    if (!wm_sequence_reverb_initialize(&reverb, &tables, true)) {
+        fputs("synthetic reverb initialization failed\n", stderr);
+        abort();
+    }
+    SequencePlayer player = {0};
+    player.aux_left[0] = 1.0f;
+    wm_sequence_reverb_apply(&reverb, &player);
+    memset(player.aux_left, 0, sizeof(player.aux_left));
+    wm_sequence_reverb_apply(&reverb, &player);
+    wm_sequence_reverb_apply(&reverb, &player);
+    assert(player.block_left[4] == 58982.0f / 32768.0f);
+    assert(player.block_right[4] == 0.0f);
+    wm_sequence_reverb_free(&reverb);
+}
+
 int main(void)
 {
     independent_track_clocks();
     loop_and_note_wait();
     centered_random_and_rejection();
     variable_counted_phrase();
-    puts("Sequence parsing fixtures passed.");
+    synthetic_voice_pcm();
+    synthetic_reverb_impulse();
+    puts("Sequence parsing and synthetic PCM fixtures passed.");
     return 0;
 }

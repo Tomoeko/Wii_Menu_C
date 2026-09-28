@@ -1,12 +1,16 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "app_resources.h"
+#include "board_input.h"
+#include "board_update.h"
 #include "frame_render.h"
 #include "input_routing.h"
+#include "menu_pointer.h"
+#include "scene_input.h"
+#include "scene_updates.h"
 
 #include "wii_menu/animation/scene_fader.h"
 #include "wii_menu/audio/audio.h"
-#include "wii_menu/audio/hover_audio.h"
 #include "wii_menu/board/board_scene.h"
 #include "wii_menu/fonts/font_cache.h"
 #include "wii_menu/input/channel_drag.h"
@@ -14,10 +18,8 @@
 #include "wii_menu/layout/layout_runtime.h"
 #include "wii_menu/menu/menu.h"
 #include "wii_menu/menu/menu_restart.h"
-#include "wii_menu/persistence/board_store.h"
 #include "wii_menu/platform/platform.h"
 #include "wii_menu/render/texture_cache.h"
-#include "wii_menu/render/ui.h"
 #include "wii_menu/scenes/health_scene.h"
 #include "wii_menu/scenes/home_overlay.h"
 #include "wii_menu/scenes/options_scene.h"
@@ -110,103 +112,6 @@ static void sleep_nanoseconds(uint64_t duration) {
     }
 }
 
-static bool same_hit(WmHit first, WmHit second) {
-    return first.type == second.type && first.slot == second.slot;
-}
-
-static WmHit hit_menu(const WmMenu *menu, const WmResourceScene *resource_scene,
-                      const WmPreviewScene *preview_scene, int x, int y) {
-    if (menu->notice[0]) return wm_ui_notice_hit(menu, x, y);
-    if (resource_scene && menu->screen == WM_SCREEN_GRID && !menu->home_open) {
-        return wm_resource_scene_hit(resource_scene, menu, x, y);
-    }
-    if (preview_scene && !menu->home_open &&
-        wm_preview_scene_available(preview_scene, menu)) {
-        return wm_preview_scene_hit(preview_scene, menu, x, y);
-    }
-    return wm_ui_hit(menu, x, y);
-}
-
-static WmHit hover_menu(const WmMenu *menu,
-                        const WmResourceScene *resource_scene,
-                        const WmPreviewScene *preview_scene,
-                        int x, int y, WmHit held) {
-    if (!menu->notice[0] && menu->screen == WM_SCREEN_PREVIEW &&
-        preview_scene && !menu->home_open &&
-        wm_preview_scene_available(preview_scene, menu)) {
-        return wm_preview_scene_hover_hit(preview_scene, menu, x, y, held);
-    }
-    return hit_menu(menu, resource_scene, preview_scene, x, y);
-}
-
-static WmHit drag_hover(const WmResourceScene *scene, const WmMenu *menu,
-                        int x, int y) {
-    WmHit hit = wm_resource_scene_hit(scene, menu, x, y);
-    return hit.type == WM_HIT_PAGE_PREVIOUS || hit.type == WM_HIT_PAGE_NEXT
-               ? hit : (WmHit){WM_HIT_NONE, -1};
-}
-
-static void drag_point(WmChannelDrag *drag, const WmResourceScene *scene,
-                        const WmMenu *menu, int x, int y) {
-    WmHit arrow = drag_hover(scene, menu, x, y);
-    int edge = arrow.type == WM_HIT_PAGE_PREVIOUS ? -1 :
-               arrow.type == WM_HIT_PAGE_NEXT ? 1 : 0;
-    int slot = wm_resource_scene_slot_at(scene, menu, x, y);
-    wm_channel_drag_point(drag, (float)x, (float)y, slot, edge);
-}
-
-static void play_drag_sound(WmAudio *audio, WmChannelDragSound sound) {
-    if (sound == WM_CHANNEL_DRAG_SOUND_DROP) wm_audio_play(audio, "drop");
-    if (sound == WM_CHANNEL_DRAG_SOUND_INVALID_DROP)
-        wm_audio_play(audio, "invalidDrop");
-}
-
-static void play_hover_cue(WmAudio *audio, WmHit hit) {
-    const char *cue = wm_hover_audio_menu_cue(hit.type);
-    if (cue) wm_audio_play(audio, cue);
-}
-
-static const char *storage_click_cue(WmStorageControl control,
-                                     bool channel_storage) {
-    switch (control) {
-        case WM_STORAGE_CONTROL_PREVIOUS:
-        case WM_STORAGE_CONTROL_NEXT:
-            return "WSD_SELECT";
-        case WM_STORAGE_CONTROL_WII_TAB:
-        case WM_STORAGE_CONTROL_SD_TAB:
-            return "WIPL_SE_BT_PUSH";
-        case WM_STORAGE_CONTROL_SLOT:
-        case WM_STORAGE_CONTROL_MOVE:
-        case WM_STORAGE_CONTROL_COPY:
-        case WM_STORAGE_CONTROL_ERASE:
-            return channel_storage ? "WIPL_SE_DECIDE" : "WIPL_SE_BT_PUSH";
-        case WM_STORAGE_CONTROL_BACK:
-        case WM_STORAGE_CONTROL_NO:
-            return "WIPL_SE_CANCEL";
-        case WM_STORAGE_CONTROL_YES:
-            return "WIPL_SE_DECIDE";
-        case WM_STORAGE_CONTROL_NONE:
-            return NULL;
-    }
-    return NULL;
-}
-
-static bool compose_scroll_arrow(WmBoardControl control) {
-    return control == WM_BOARD_CONTROL_COMPOSE_SCROLL_UP ||
-           control == WM_BOARD_CONTROL_COMPOSE_SCROLL_DOWN;
-}
-
-static bool compose_keyboard_control(WmBoardControl control) {
-    return control >= WM_BOARD_CONTROL_COMPOSE_KEY_FIRST &&
-           control <= WM_BOARD_CONTROL_COMPOSE_KEY_LAST;
-}
-
-static void play_board_hover_cue(WmAudio *audio,
-                                 WmBoardControl control) {
-    const char *cue = wm_hover_audio_board_cue(control);
-    if (cue) wm_audio_play(audio, cue);
-}
-
 static int print_usage(const char *program) {
     fprintf(stderr, "Usage: %s [--assets DIRECTORY]\n", program);
     fprintf(stderr, "       %s --layout JSON --raw-root DIRECTORY [--animation NAME] [--hide-masks]\n",
@@ -283,35 +188,27 @@ int main(int argc, char **argv) {
 
     bool running = true;
     bool keyboard_focus = false;
-    WmHit hover = {WM_HIT_NONE, -1};
-    WmHit pressed = {WM_HIT_NONE, -1};
-    WmBoardHit board_hovered = {WM_BOARD_CONTROL_NONE, 0};
-    WmBoardHit board_pressed = {WM_BOARD_CONTROL_NONE, 0};
-    bool board_held_keyboard = false;
-    int board_press_x = 0;
-    int board_press_y = 0;
+    WmAppMenuPointer menu_pointer = {
+        .hovered = {WM_HIT_NONE, -1},
+        .pressed = {WM_HIT_NONE, -1}
+    };
+    WmAppBoardInput board_input = {0};
     int pointer_x = 0;
     int pointer_y = 0;
     bool pointer_inside = false;
     bool board_entry_hover_pending = false;
     bool board_visited = false;
-    WmOptionsControl options_hovered = WM_OPTIONS_CONTROL_NONE;
-    WmOptionsControl options_pressed = WM_OPTIONS_CONTROL_NONE;
-    bool options_held_arrow = false;
-    WmSdHit sd_pressed = {WM_SD_CONTROL_NONE, 0};
+    WmAppSceneInput scene_input = {
+        .storage_pressed = {WM_STORAGE_CONTROL_NONE, -1}
+    };
     WmHomeControl home_hovered = WM_HOME_CONTROL_NONE;
     WmHomeControl home_pressed = WM_HOME_CONTROL_NONE;
     WmStorageScene *active_storage = NULL;
-    WmStorageHit storage_pressed = {WM_STORAGE_CONTROL_NONE, -1};
     WmAppSceneFade fade = {0};
     WmBoardAction board_settings_request = WM_BOARD_ACTION_NONE;
     WmMenuRestartClock restart = {0};
     unsigned sd_page = 0;
     bool sd_help_seen = false;
-    WmPointerButton drag_button = 0;
-    float drag_previous_x = 0.0f, drag_previous_y = 0.0f;
-    float drag_pitch = 1.0f;
-    bool drag_has_previous = false;
     int focused_slot = 0;
     uint64_t previous = monotonic_nanoseconds();
     uint64_t started = previous;
@@ -352,7 +249,7 @@ int main(int argc, char **argv) {
         .board_scene = board_scene,
         .audio = audio,
         .options_scene = options_scene,
-        .options_held_arrow = &options_held_arrow,
+        .options_held_arrow = &scene_input.options_held_arrow,
         .opened_at = &home_opened_at,
         .underlay_elapsed = &home_underlay_elapsed,
         .underlay_preview_elapsed = &home_underlay_preview_elapsed,
@@ -406,8 +303,8 @@ int main(int argc, char **argv) {
                     board_entry_hover_pending = true;
                 }
             }
-            hover = (WmHit){WM_HIT_NONE, -1};
-            pressed = hover;
+            menu_pointer.hovered = (WmHit){WM_HIT_NONE, -1};
+            menu_pointer.pressed = menu_pointer.hovered;
         }
         wm_platform_set_fade_alpha(
             platform, entrance_active
@@ -423,13 +320,13 @@ int main(int argc, char **argv) {
                 wm_app_renderer_release_home_underlay(&renderer);
                 home_hovered = WM_HOME_CONTROL_NONE;
                 home_pressed = WM_HOME_CONTROL_NONE;
-                hover = (WmHit){WM_HIT_NONE, -1};
-                pressed = hover;
+                menu_pointer.hovered = (WmHit){WM_HIT_NONE, -1};
+                menu_pointer.pressed = menu_pointer.hovered;
                 keyboard_focus = false;
                 if (outcome == WM_HOME_OUTCOME_RETURN_MENU) {
                     wm_channel_drag_cancel(drag);
-                    drag_button = 0;
-                    drag_has_previous = false;
+                    menu_pointer.drag_button = 0;
+                    menu_pointer.drag_has_previous = false;
                     if (restart_scene && wm_menu_restart_start(&restart)) {
                         restart_started_this_frame = true;
                         wm_audio_reset_all(audio);
@@ -474,7 +371,7 @@ int main(int argc, char **argv) {
                 event.type == WM_EVENT_POINTER_UP &&
                 menu.screen == WM_SCREEN_BOARD &&
                 wm_board_scene_dragging(board_scene);
-            if (event.outside_viewport && drag_button == 0 &&
+            if (event.outside_viewport && menu_pointer.drag_button == 0 &&
                 !memo_release_outside &&
                 (event.type == WM_EVENT_POINTER_DOWN ||
                  event.type == WM_EVENT_POINTER_MOVE ||
@@ -482,7 +379,7 @@ int main(int argc, char **argv) {
                 event.type = WM_EVENT_POINTER_LEAVE;
             }
             if (event.type == WM_EVENT_POINTER_LEAVE &&
-                drag_button != 0 && !event.cancel_capture) {
+                menu_pointer.drag_button != 0 && !event.cancel_capture) {
                 continue;
             }
             if (event.type == WM_EVENT_POINTER_LEAVE) {
@@ -569,381 +466,116 @@ int main(int argc, char **argv) {
                 keyboard_focus = false;
                 if (menu.screen == WM_SCREEN_SD && sd_scene &&
                     !menu.home_open && !menu.notice[0]) {
-                    wm_sd_scene_hover(sd_scene,
-                        wm_sd_scene_hit(sd_scene, event.x, event.y));
+                    wm_app_sd_pointer_event(&scene_input, sd_scene, &event);
                     continue;
                 }
                 if (active_storage && menu.screen == WM_SCREEN_SETTINGS &&
                     !menu.home_open && !menu.notice[0]) {
-                    WmStorageHit next = wm_storage_scene_hit(
-                        active_storage, event.x, event.y);
-                    WmStorageSnapshot snapshot =
-                        wm_storage_scene_snapshot(active_storage);
-                    bool selected_tab =
-                        (next.control == WM_STORAGE_CONTROL_WII_TAB &&
-                         snapshot.tab == WM_STORAGE_WII) ||
-                        (next.control == WM_STORAGE_CONTROL_SD_TAB &&
-                         snapshot.tab == WM_STORAGE_SD);
-                    if (wm_storage_scene_hover(active_storage, next) &&
-                        next.control != WM_STORAGE_CONTROL_NONE &&
-                        !selected_tab) {
-                        wm_audio_play(audio,
-                            wm_hover_audio_storage_cue(next.control));
-                    }
+                    wm_app_storage_pointer_event(
+                        &scene_input, active_storage,
+                        storage_scenes[WM_STORAGE_CHANNELS], audio, &event);
                     continue;
                 }
                 if (menu.screen == WM_SCREEN_BOARD && board_scene &&
                     !menu.home_open && !menu.notice[0]) {
-                    if (board_pressed.control == WM_BOARD_CONTROL_MEMO &&
-                        !wm_board_scene_dragging(board_scene)) {
-                        int dx = event.x - board_press_x;
-                        int dy = event.y - board_press_y;
-                        if (dx * dx + dy * dy > 9 &&
-                            wm_board_scene_pointer_down(board_scene,
-                                board_pressed, board_press_x, board_press_y))
-                            wm_board_scene_pointer_move(board_scene,
-                                                        event.x, event.y);
-                    } else if (wm_board_scene_dragging(board_scene)) {
-                        wm_board_scene_pointer_move(board_scene,
-                                                    event.x, event.y);
-                    }
-                    if (wm_board_scene_dragging(board_scene)) continue;
-                    WmBoardHit next = wm_board_scene_hit(board_scene,
-                                                          event.x, event.y);
-                    if (next.control != board_hovered.control ||
-                        next.memo_index != board_hovered.memo_index) {
-                        play_board_hover_cue(audio, next.control);
-                    }
-                    board_hovered = next;
-                    wm_board_scene_hover(board_scene, next);
+                    wm_app_board_pointer_move(&board_input, board_scene,
+                                              audio, event.x, event.y);
                     continue;
                 }
                 if (menu.screen == WM_SCREEN_SETTINGS && options_scene &&
                     !menu.home_open && !menu.notice[0]) {
-                    WmOptionsControl next = wm_options_scene_hit(options_scene,
-                                                                   event.x, event.y);
-                    if (next != options_hovered && next != WM_OPTIONS_CONTROL_NONE)
-                        wm_audio_play(audio,
-                            wm_options_scene_hover_cue(options_scene, next));
-                    options_hovered = next;
-                    wm_options_scene_hover(options_scene, next);
+                    wm_app_options_pointer_event(&scene_input, options_scene,
+                                                 audio, &event);
                     continue;
                 }
-                if (drag_button != 0)
-                    drag_point(drag, resource_scene, &menu, event.x, event.y);
-                WmHit next = drag_button != 0
-                    ? drag_hover(resource_scene, &menu, event.x, event.y)
-                    : hover_menu(&menu, resource_scene, preview_scene,
-                                 event.x, event.y, hover);
-                if (!same_hit(hover, next)) play_hover_cue(audio, next);
-                hover = next;
+                wm_app_menu_pointer_move(&menu_pointer, &menu,
+                                         resource_scene, preview_scene, drag,
+                                         audio, event.x, event.y);
             } else if (event.type == WM_EVENT_POINTER_DOWN) {
                 wm_pointer_move(pointer, (float)event.x, (float)event.y);
                 keyboard_focus = false;
                 if (menu.screen == WM_SCREEN_SD && sd_scene &&
                     !menu.home_open && !menu.notice[0]) {
-                    sd_pressed = event.button == WM_POINTER_LEFT
-                        ? wm_sd_scene_hit(sd_scene, event.x, event.y)
-                        : (WmSdHit){WM_SD_CONTROL_NONE, 0};
+                    wm_app_sd_pointer_event(&scene_input, sd_scene, &event);
                     continue;
                 }
                 if (active_storage && menu.screen == WM_SCREEN_SETTINGS &&
                     !menu.home_open && !menu.notice[0]) {
-                    storage_pressed = event.button == WM_POINTER_LEFT
-                        ? wm_storage_scene_hit(active_storage, event.x, event.y)
-                        : (WmStorageHit){WM_STORAGE_CONTROL_NONE, -1};
+                    wm_app_storage_pointer_event(
+                        &scene_input, active_storage,
+                        storage_scenes[WM_STORAGE_CHANNELS], audio, &event);
                     continue;
                 }
                 if (menu.screen == WM_SCREEN_BOARD && board_scene &&
                     !menu.home_open && !menu.notice[0]) {
-                    WmBoardHit board_hit = wm_board_scene_hit(
-                        board_scene, event.x, event.y);
-                    WmBoardPhase press_phase = wm_board_scene_phase(board_scene);
-                    if (press_phase == WM_BOARD_DATE_SCROLL ||
-                        press_phase == WM_BOARD_MEMO_PAGE) {
-                        /* Hover remains live during a turn, but a press begun
-                         * while locked must not activate after it settles. */
-                        board_pressed =
-                            (WmBoardHit){WM_BOARD_CONTROL_NONE, SIZE_MAX};
-                        continue;
-                    }
-                    if (event.button == WM_POINTER_RIGHT) {
-                        wm_board_scene_hover(board_scene, board_hit);
-                        if (wm_board_scene_activate_secondary(board_scene,
-                                                               board_hit)) {
-                            board_pressed = (WmBoardHit){WM_BOARD_CONTROL_NONE, 0};
-                            wm_app_play_board_compose_cues(audio, board_scene);
-                            continue;
-                        }
-                    }
-                    if ((event.button == WM_POINTER_MIDDLE ||
-                         event.button == WM_POINTER_RIGHT) &&
-                        board_hit.control == WM_BOARD_CONTROL_MEMO &&
-                        wm_board_scene_pointer_down(board_scene, board_hit,
-                                                     event.x, event.y)) {
-                        board_pressed = (WmBoardHit){WM_BOARD_CONTROL_NONE, 0};
-                        continue;
-                    }
-                    board_pressed = event.button == WM_POINTER_LEFT
-                        ? board_hit
-                        : (WmBoardHit){WM_BOARD_CONTROL_NONE, 0};
-                    board_press_x = event.x;
-                    board_press_y = event.y;
-                    board_held_keyboard = event.button == WM_POINTER_LEFT &&
-                        compose_keyboard_control(board_pressed.control) &&
-                        wm_board_scene_hold_compose_control(
-                            board_scene, board_pressed.control);
-                    if (board_held_keyboard) {
-                        board_pressed = (WmBoardHit){WM_BOARD_CONTROL_NONE, 0};
-                        wm_app_play_board_compose_cues(audio, board_scene);
-                    }
+                    wm_app_board_pointer_down(&board_input, board_scene,
+                                              audio, event.button,
+                                              event.x, event.y);
                     continue;
                 }
                 if (menu.screen == WM_SCREEN_SETTINGS && options_scene &&
                     !menu.home_open && !menu.notice[0]) {
-                    options_pressed = event.button == WM_POINTER_LEFT
-                        ? wm_options_scene_hit(options_scene, event.x, event.y)
-                        : WM_OPTIONS_CONTROL_NONE;
-                    options_held_arrow = event.button == WM_POINTER_LEFT &&
-                        wm_options_scene_pointer_down(options_scene,
-                                                        options_pressed);
-                    if (options_held_arrow) wm_audio_play(audio, "click");
+                    wm_app_options_pointer_event(&scene_input, options_scene,
+                                                 audio, &event);
                     continue;
                 }
-                if ((event.button == WM_POINTER_MIDDLE ||
-                     event.button == WM_POINTER_RIGHT) && drag && resource_scene &&
-                    menu.screen == WM_SCREEN_GRID &&
-                    menu.transition == WM_TRANSITION_NONE &&
-                    !menu.home_open && !menu.notice[0]) {
-                    int slot = wm_resource_scene_slot_at(resource_scene, &menu,
-                                                          event.x, event.y);
-                    if (wm_channel_drag_start(drag, slot, &menu,
-                                               (float)event.x, (float)event.y)) {
-                        drag_button = event.button;
-                        drag_has_previous = false;
-                        drag_pitch = 1.0f;
-                        drag_point(drag, resource_scene, &menu,
-                                    event.x, event.y);
-                        wm_audio_play(audio, "grab");
-                        wm_audio_hold_loop(audio, "drag", 0.0f, 0.0f, 1.0f);
-                        hover = (WmHit){WM_HIT_NONE, -1};
-                        pressed = hover;
-                        continue;
-                    }
-                }
-                WmHit exact = hit_menu(&menu, resource_scene, preview_scene,
-                                       event.x, event.y);
-                WmHit next = hover_menu(&menu, resource_scene, preview_scene,
-                                        event.x, event.y, hover);
-                if (!same_hit(hover, next)) play_hover_cue(audio, next);
-                hover = next;
-                pressed = event.button == WM_POINTER_LEFT
-                              ? exact : (WmHit){WM_HIT_NONE, -1};
+                wm_app_menu_pointer_down(&menu_pointer, &menu,
+                                         resource_scene, preview_scene, drag,
+                                         audio, event.button, event.x, event.y);
             } else if (event.type == WM_EVENT_POINTER_UP) {
                 wm_pointer_move(pointer, (float)event.x, (float)event.y);
                 if (menu.screen == WM_SCREEN_SD && sd_scene &&
                     !menu.home_open && !menu.notice[0]) {
-                    WmSdHit next = wm_sd_scene_hit(sd_scene, event.x, event.y);
-                    if (event.button == WM_POINTER_LEFT &&
-                        sd_pressed.control != WM_SD_CONTROL_NONE &&
-                        next.control == sd_pressed.control &&
-                        next.slot == sd_pressed.slot)
-                        wm_sd_scene_activate(sd_scene, next);
-                    sd_pressed = (WmSdHit){WM_SD_CONTROL_NONE, 0};
+                    wm_app_sd_pointer_event(&scene_input, sd_scene, &event);
                     continue;
                 }
                 if (active_storage && menu.screen == WM_SCREEN_SETTINGS &&
                     !menu.home_open && !menu.notice[0]) {
-                    WmStorageHit next = wm_storage_scene_hit(
-                        active_storage, event.x, event.y);
-                    if (event.button == WM_POINTER_LEFT &&
-                        storage_pressed.control != WM_STORAGE_CONTROL_NONE &&
-                        next.control == storage_pressed.control &&
-                        next.slot == storage_pressed.slot &&
-                        wm_storage_scene_activate(active_storage, next)) {
-                        bool channels = active_storage ==
-                                        storage_scenes[WM_STORAGE_CHANNELS];
-                        const char *cue = storage_click_cue(next.control,
-                                                             channels);
-                        if (cue) wm_audio_play(audio, cue);
-                    }
-                    storage_pressed = (WmStorageHit){WM_STORAGE_CONTROL_NONE, -1};
+                    wm_app_storage_pointer_event(
+                        &scene_input, active_storage,
+                        storage_scenes[WM_STORAGE_CHANNELS], audio, &event);
                     continue;
                 }
                 if (menu.screen == WM_SCREEN_BOARD && board_scene &&
                     !menu.home_open && !menu.notice[0]) {
-                    if (board_held_keyboard) {
-                        wm_board_scene_release_compose_control(board_scene);
-                        board_held_keyboard = false;
-                        board_pressed = (WmBoardHit){WM_BOARD_CONTROL_NONE, 0};
-                        continue;
-                    }
-                    if (wm_board_scene_dragging(board_scene)) {
-                        wm_board_scene_pointer_up(board_scene,
-                                                  event.x, event.y);
-                        if (event.outside_viewport) wm_pointer_hide(pointer);
-                        board_pressed = (WmBoardHit){WM_BOARD_CONTROL_NONE, 0};
-                        continue;
-                    }
-                    WmBoardHit next = wm_board_scene_hit(board_scene,
-                                                          event.x, event.y);
-                    bool confirmed_board_click =
-                        event.button == WM_POINTER_LEFT &&
-                        board_pressed.control != WM_BOARD_CONTROL_NONE &&
-                        next.control == board_pressed.control &&
-                        next.memo_index == board_pressed.memo_index;
-                    if (confirmed_board_click &&
-                        (next.control == WM_BOARD_CONTROL_BACK ||
-                         next.control == WM_BOARD_CONTROL_CALENDAR ||
-                         next.control == WM_BOARD_CONTROL_CREATE)) {
-                        wm_resource_scene_dismiss_balloon(resource_scene);
-                    }
-                    if (confirmed_board_click &&
-                        wm_board_scene_activate(board_scene, next)) {
-                        const char *cue = "confirm";
-                        if (next.control == WM_BOARD_CONTROL_MEMO)
-                            cue = "WIPL_SE_BOARD_SELECT";
-                        else if (next.control == WM_BOARD_CONTROL_MEMO_BACK)
-                            cue = "WIPL_SE_BOARD_UNSELECT";
-                        else if (next.control == WM_BOARD_CONTROL_MEMO_TRASH)
-                            cue = "WIPL_SE_BT_PUSH";
-                        else if (next.control == WM_BOARD_CONTROL_CALENDAR_DAY)
-                            /* Calendar queues its date-select cue itself. */
-                            cue = NULL;
-                        else if (next.control == WM_BOARD_CONTROL_BACK)
-                            cue = "confirm";
-                        else if (next.control == WM_BOARD_CONTROL_PREVIOUS ||
-                                 next.control == WM_BOARD_CONTROL_NEXT)
-                            cue = NULL;
-                        else if (compose_scroll_arrow(next.control))
-                            cue = "WIPL_SE_LINE_SCROLL";
-                        else if (next.control ==
-                                     WM_BOARD_CONTROL_COMPOSE_ADDRESS_PREVIOUS ||
-                                 next.control ==
-                                     WM_BOARD_CONTROL_COMPOSE_ADDRESS_NEXT)
-                            cue = NULL;
-                        else if (next.control ==
-                                     WM_BOARD_CONTROL_COMPOSE_ADDRESS ||
-                                 next.control ==
-                                     WM_BOARD_CONTROL_COMPOSE_ADDRESS_WII ||
-                                 next.control ==
-                                     WM_BOARD_CONTROL_COMPOSE_ADDRESS_OTHERS)
-                            cue = "WIPL_SE_DECIDE";
-                        else if (next.control == WM_BOARD_CONTROL_MEMO_SCROLL_UP ||
-                                 next.control == WM_BOARD_CONTROL_MEMO_SCROLL_DOWN)
-                            cue = NULL;
-                        else if (next.control == WM_BOARD_CONTROL_COMPOSE_EDIT ||
-                                 next.control ==
-                                     WM_BOARD_CONTROL_COMPOSE_ADDRESS_EDIT ||
-                                 next.control ==
-                                     WM_BOARD_CONTROL_COMPOSE_ADDRESS_DIALOG_OK ||
-                                 next.control ==
-                                     WM_BOARD_CONTROL_COMPOSE_ADDRESS_MII ||
-                                 next.control ==
-                                     WM_BOARD_CONTROL_COMPOSE_ADDRESS_INFO ||
-                                 next.control ==
-                                     WM_BOARD_CONTROL_COMPOSE_ADDRESS_CHANGE_NICKNAME ||
-                                 next.control ==
-                                     WM_BOARD_CONTROL_COMPOSE_ADDRESS_ERASE ||
-                                 next.control ==
-                                     WM_BOARD_CONTROL_COMPOSE_ADDRESS_DIALOG_YES ||
-                                 next.control ==
-                                     WM_BOARD_CONTROL_COMPOSE_ADDRESS_DIALOG_NO ||
-                                 compose_keyboard_control(next.control))
-                            cue = NULL;
-                        if (!wm_app_play_board_compose_cues(audio, board_scene) && cue)
-                            wm_audio_play(audio, cue);
-                        wm_app_play_board_sound_events(audio, board_scene);
-                    }
-                    board_pressed = (WmBoardHit){WM_BOARD_CONTROL_NONE, 0};
+                    wm_app_board_pointer_up(&board_input, board_scene,
+                                            resource_scene, pointer, audio,
+                                            event.button, event.x, event.y,
+                                            event.outside_viewport);
                     continue;
                 }
                 if (menu.screen == WM_SCREEN_SETTINGS && options_scene &&
                     !menu.home_open && !menu.notice[0]) {
-                    if (options_held_arrow) {
-                        wm_options_scene_pointer_up(options_scene);
-                        options_held_arrow = false;
-                        options_pressed = WM_OPTIONS_CONTROL_NONE;
-                        continue;
-                    }
-                    WmOptionsControl next = wm_options_scene_hit(options_scene,
-                                                                   event.x, event.y);
-                    const char *click_cue =
-                        wm_options_scene_click_cue(options_scene, next);
-                    if (event.button == WM_POINTER_LEFT &&
-                        options_pressed != WM_OPTIONS_CONTROL_NONE &&
-                        options_pressed == next &&
-                        wm_options_scene_activate(options_scene, next)) {
-                        if (click_cue) wm_audio_play(audio, click_cue);
-                    }
-                    options_pressed = WM_OPTIONS_CONTROL_NONE;
+                    wm_app_options_pointer_event(&scene_input, options_scene,
+                                                 audio, &event);
                     continue;
                 }
-                if (drag_button != 0 && event.button == drag_button) {
-                    drag_point(drag, resource_scene, &menu, event.x, event.y);
-                    play_drag_sound(audio, wm_channel_drag_release(
-                        drag, &menu, menu.transition == WM_TRANSITION_PAGE));
-                    wm_audio_stop_loop(audio, "drag");
-                    drag_button = 0;
-                    drag_has_previous = false;
-                    if (event.outside_viewport) {
-                        wm_pointer_hide(pointer);
-                        hover = (WmHit){WM_HIT_NONE, -1};
-                    } else {
-                        hover = hit_menu(&menu, resource_scene, preview_scene,
-                                         event.x, event.y);
-                    }
-                    pressed = (WmHit){WM_HIT_NONE, -1};
-                    continue;
+                WmAppMenuPointerRelease release = wm_app_menu_pointer_up(
+                    &menu_pointer, &menu, resource_scene, preview_scene,
+                    drag, pointer, audio, &event);
+                if (release.released_drag) continue;
+                if (release.activated.type == WM_HIT_HOME) {
+                    try_enter_home(&home_entry, frame_start, started,
+                                   preview_started);
+                } else if (release.activated.type != WM_HIT_NONE) {
+                    wm_app_activate_hit(&menu, audio, resource_scene,
+                                        board_scene, options_scene, &fade,
+                                        release.activated);
+                    if (release.activated.type == WM_HIT_BOARD &&
+                        menu.screen == WM_SCREEN_BOARD)
+                        board_entry_hover_pending = true;
                 }
-                WmHit exact = hit_menu(&menu, resource_scene, preview_scene,
-                                       event.x, event.y);
-                hover = hover_menu(&menu, resource_scene, preview_scene,
-                                   event.x, event.y, hover);
-                if (event.button == WM_POINTER_LEFT &&
-                    pressed.type != WM_HIT_NONE && same_hit(pressed, exact)) {
-                    if (exact.type == WM_HIT_HOME) {
-                        try_enter_home(&home_entry, frame_start, started,
-                                       preview_started);
-                    } else {
-                        wm_app_activate_hit(&menu, audio, resource_scene, board_scene,
-                                     options_scene, &fade, exact);
-                        if (exact.type == WM_HIT_BOARD &&
-                            menu.screen == WM_SCREEN_BOARD)
-                            board_entry_hover_pending = true;
-                    }
-                }
-                pressed = (WmHit){WM_HIT_NONE, -1};
             } else if (event.type == WM_EVENT_POINTER_LEAVE) {
-                if (drag_button != 0) {
-                    wm_channel_drag_cancel(drag);
-                    wm_audio_stop_loop(audio, "drag");
-                    drag_button = 0;
-                    drag_has_previous = false;
-                }
+                wm_app_menu_pointer_leave(&menu_pointer, drag, audio);
                 wm_pointer_hide(pointer);
-                wm_sd_scene_hover(sd_scene, (WmSdHit){WM_SD_CONTROL_NONE, 0});
-                if (active_storage) wm_storage_scene_hover(active_storage,
-                    (WmStorageHit){WM_STORAGE_CONTROL_NONE, -1});
-                wm_board_scene_hover(board_scene,
-                    (WmBoardHit){WM_BOARD_CONTROL_NONE, 0});
-                wm_board_scene_release_compose_control(board_scene);
-                if (event.cancel_capture)
-                    wm_board_scene_cancel_pointer(board_scene);
-                else
-                    wm_board_scene_pointer_finish(board_scene);
-                board_pressed = (WmBoardHit){WM_BOARD_CONTROL_NONE, 0};
-                board_held_keyboard = false;
-                wm_options_scene_hover(options_scene, WM_OPTIONS_CONTROL_NONE);
-                if (options_held_arrow) {
-                    wm_options_scene_pointer_up(options_scene);
-                    options_held_arrow = false;
-                    options_pressed = WM_OPTIONS_CONTROL_NONE;
-                }
-                board_hovered = (WmBoardHit){WM_BOARD_CONTROL_NONE, 0};
-                options_hovered = WM_OPTIONS_CONTROL_NONE;
-                hover = (WmHit){WM_HIT_NONE, -1};
-                pressed = (WmHit){WM_HIT_NONE, -1};
+                wm_sd_scene_hover(sd_scene,
+                    (WmSdHit){WM_SD_CONTROL_NONE, 0});
+                if (active_storage)
+                    wm_storage_scene_hover(active_storage,
+                        (WmStorageHit){WM_STORAGE_CONTROL_NONE, -1});
+                wm_app_board_pointer_leave(&board_input, board_scene,
+                                           event.cancel_capture);
+                wm_app_options_pointer_leave(&scene_input, options_scene);
             } else if (event.type == WM_EVENT_KEY_DOWN) {
                 keyboard_focus = true;
                 bool composing = menu.screen == WM_SCREEN_BOARD &&
@@ -956,8 +588,8 @@ int main(int argc, char **argv) {
                      (event.key == 'h' || event.key == 'H'))) {
                     if (try_enter_home(&home_entry, frame_start, started,
                                        preview_started)) {
-                        hover = (WmHit){WM_HIT_NONE, -1};
-                        pressed = hover;
+                        menu_pointer.hovered = (WmHit){WM_HIT_NONE, -1};
+                        menu_pointer.pressed = menu_pointer.hovered;
                         keyboard_focus = false;
                     }
                     continue;
@@ -976,51 +608,9 @@ int main(int argc, char **argv) {
                     continue;
                 }
                 if (menu.screen == WM_SCREEN_BOARD && board_scene &&
-                    wm_board_scene_child(board_scene) == WM_BOARD_CHILD_COMPOSE) {
-                    bool editor_active =
-                        wm_board_scene_compose_editor_active(board_scene);
-                    if (event.key == WM_KEY_BACKSPACE &&
-                        wm_board_scene_backspace(board_scene)) {
-                        wm_audio_play(audio, "WIPL_SE_CHAR_DELETE");
-                        continue;
-                    }
-                    if (event.key == WM_KEY_BACKSPACE && editor_active) {
-                        wm_audio_play(audio, "WIPL_SE_CHAR_DELETE_ERROR");
-                        continue;
-                    }
-                    if (event.key == WM_KEY_ENTER &&
-                        wm_board_scene_address_editor_active(board_scene)) {
-                        if (wm_board_scene_finish_edit(board_scene))
-                            wm_app_play_board_compose_cues(audio, board_scene);
-                        continue;
-                    }
-                    if (event.key == WM_KEY_ENTER &&
-                        wm_board_scene_insert_text(board_scene, "\n")) {
-                        wm_app_play_board_compose_cues(audio, board_scene);
-                        wm_audio_play(audio, "WIPL_SE_CHAR_DECIDE");
-                        continue;
-                    }
-                    if (event.key == WM_KEY_ENTER && editor_active) {
-                        wm_audio_play(audio, "WIPL_SE_CHAR_DELETE_ERROR");
-                        continue;
-                    }
-                    if (event.key >= 32 && event.key <= 126) {
-                        char character[2] = {(char)event.key, '\0'};
-                        if (wm_board_scene_insert_text(board_scene, character)) {
-                            bool non_scroll_played;
-                            wm_app_play_board_compose_cues_with_non_scroll(
-                                audio, board_scene, &non_scroll_played);
-                            if (!editor_active || !non_scroll_played)
-                                wm_audio_play(audio, event.key == ' '
-                                    ? "WIPL_SE_CHAR_DECIDE" :
-                                      "WIPL_SE_CHAR_INPUT");
-                            continue;
-                        }
-                        if (editor_active) {
-                            wm_audio_play(audio, "WIPL_SE_CHAR_DELETE_ERROR");
-                            continue;
-                        }
-                    }
+                    wm_board_scene_child(board_scene) == WM_BOARD_CHILD_COMPOSE &&
+                    wm_app_board_compose_key(board_scene, audio, event.key)) {
+                    continue;
                 }
                 if (editing_nickname) {
                     if (event.key == WM_KEY_BACKSPACE) {
@@ -1044,257 +634,58 @@ int main(int argc, char **argv) {
             }
         }
         if (!running) break;
-        if (menu.screen != WM_SCREEN_BOARD)
-            board_entry_hover_pending = false;
-        if (menu.screen != WM_SCREEN_BOARD || wm_home_overlay_active(home))
-            board_hovered = (WmBoardHit){WM_BOARD_CONTROL_NONE, 0};
-        if (!layout && !health_frame && !wm_home_overlay_active(home) &&
-            !wm_menu_restart_active(&restart) &&
-            menu.screen == WM_SCREEN_BOARD && board_scene) {
-            wm_board_scene_advance(board_scene, elapsed * 60.0f);
-            wm_app_play_board_compose_cues(audio, board_scene);
-            wm_app_play_board_sound_events(audio, board_scene);
-            const char *reader_cue;
-            while ((reader_cue =
-                    wm_board_scene_take_reader_cue(board_scene)) != NULL)
-                wm_audio_play(audio, reader_cue);
-            if (board_entry_hover_pending &&
-                wm_board_scene_phase(board_scene) == WM_BOARD_READY) {
-                WmBoardHit initial = pointer_inside
-                    ? wm_board_scene_hit(board_scene, pointer_x, pointer_y)
-                    : (WmBoardHit){WM_BOARD_CONTROL_NONE, SIZE_MAX};
-                play_board_hover_cue(audio, initial.control);
-                board_hovered = initial;
-                wm_board_scene_hover(board_scene, initial);
-                board_entry_hover_pending = false;
-            }
-            WmBoardPhase board_phase = wm_board_scene_phase(board_scene);
-            /* The common arrows keep one hover owner throughout a page
-             * turn. Reconcile their source bounds without requiring a new
-             * pointer event when the page settles or an arrow disappears. */
-            if (pointer_inside && !menu.notice[0] &&
-                !wm_board_scene_dragging(board_scene) &&
-                wm_board_scene_child(board_scene) == WM_BOARD_CHILD_NONE &&
-                (board_phase == WM_BOARD_READY ||
-                 board_phase == WM_BOARD_DATE_SCROLL ||
-                 board_phase == WM_BOARD_MEMO_PAGE)) {
-                WmBoardHit next = wm_board_scene_hit(board_scene,
-                                                      pointer_x, pointer_y);
-                if (next.control != board_hovered.control ||
-                    next.memo_index != board_hovered.memo_index) {
-                    play_board_hover_cue(audio, next.control);
-                    board_hovered = next;
-                    wm_board_scene_hover(board_scene, next);
-                }
-            }
-            if (board_phase != WM_BOARD_READY &&
-                board_phase != WM_BOARD_MEMO_READ &&
-                board_phase != WM_BOARD_DATE_SCROLL &&
-                board_phase != WM_BOARD_MEMO_PAGE)
-                board_hovered = (WmBoardHit){WM_BOARD_CONTROL_NONE, 0};
-            float departing_grid_frame = 0.0f;
-            if (!wm_board_scene_grid_overlay(board_scene,
-                                             &departing_grid_frame))
-                board_visited = true;
-            WmBoardAction action = wm_board_scene_take_action(board_scene, NULL);
-            if (action == WM_BOARD_ACTION_EXITED) {
-                wm_menu_switch_screen_at_black(&menu, WM_SCREEN_GRID);
-                hover = pointer_inside
-                    ? wm_resource_scene_hit(resource_scene, &menu,
-                                            pointer_x, pointer_y)
-                    : (WmHit){WM_HIT_NONE, -1};
-                wm_audio_stop_loop(audio, "WIPL_SE_BOARD_DRAG");
-                wm_audio_stop_loop(audio, "WIPL_SE_MESSAGE_SCROLL");
-            } else if ((action == WM_BOARD_ACTION_OPEN_SETTINGS ||
-                        action == WM_BOARD_ACTION_OPEN_CONNECT24_SETTINGS) &&
-                       wm_scene_fader_start(&fade.clock)) {
-                board_settings_request = action;
-                fade.destination = WM_SCREEN_SETTINGS;
-            } else if ((action == WM_BOARD_ACTION_MEMO_POSTED ||
-                        action == WM_BOARD_ACTION_ERASE_MEMO ||
-                        action == WM_BOARD_ACTION_MEMO_READ ||
-                        action == WM_BOARD_ACTION_MEMO_MOVED) &&
-                       board_state_path) {
-                char error[160] = {0};
-                if (!wm_board_store_save(board_state_path, board_scene,
-                                         error, sizeof(error))) {
-                    fprintf(stderr, "Could not save Message Board memos: %s\n",
-                            error);
-                }
-            }
-            float cue_pan = 0.0f;
-            WmBoardDragCue cue;
-            while ((cue = wm_board_scene_take_drag_cue(board_scene,
-                                                        &cue_pan)) !=
-                   WM_BOARD_DRAG_CUE_NONE) {
-                wm_audio_play_panned(audio, cue == WM_BOARD_DRAG_CUE_HOLD
-                                              ? "WIPL_SE_BOARD_HOLD"
-                                              : "WIPL_SE_BOARD_RELEASE",
-                                     cue_pan);
-            }
-            float drag_gain = 0.0f;
-            float drag_pan = 0.0f;
-            float memo_drag_pitch = 1.0f;
-            if (wm_board_scene_drag_mix(board_scene, &drag_gain, &drag_pan,
-                                          &memo_drag_pitch)) {
-                wm_audio_hold_loop(audio, "WIPL_SE_BOARD_DRAG",
-                                  drag_gain, drag_pan, memo_drag_pitch);
-            } else {
-                wm_audio_stop_loop(audio, "WIPL_SE_BOARD_DRAG");
-            }
-            if (wm_board_scene_reader_scroll_sound_active(board_scene)) {
-                wm_audio_start_loop(audio, "WIPL_SE_MESSAGE_SCROLL");
-            } else {
-                wm_audio_stop_loop(audio, "WIPL_SE_MESSAGE_SCROLL");
-            }
-        } else if (!layout && !health_frame &&
-                   !wm_home_overlay_active(home) &&
-                   !wm_menu_restart_active(&restart) &&
-                   menu.screen == WM_SCREEN_GRID && board_scene) {
-            /* A return to today's date can leave ordered arrivals underway
-             * behind ChannelSelect. Continue their shared clock and cues
-             * once per update, including after the Board has closed. */
-            wm_board_scene_advance_parked(board_scene, elapsed * 60.0f);
-            wm_app_play_board_sound_events(audio, board_scene);
+        WmAppBoardUpdate board_update = {
+            .menu = &menu,
+            .board = board_scene,
+            .resource_scene = resource_scene,
+            .audio = audio,
+            .fade = &fade,
+            .input = &board_input,
+            .menu_hover = &menu_pointer.hovered,
+            .settings_request = &board_settings_request,
+            .state_path = board_state_path,
+            .entry_hover_pending = &board_entry_hover_pending,
+            .visited = &board_visited,
+            .pointer_inside = pointer_inside,
+            .pointer_x = pointer_x,
+            .pointer_y = pointer_y
+        };
+        bool scene_updates_active = !layout && !health_frame &&
+            !wm_home_overlay_active(home) && !wm_menu_restart_active(&restart);
+        wm_app_board_advance(&board_update, elapsed * 60.0f,
+                             scene_updates_active, !layout,
+                             wm_home_overlay_active(home));
+        if (scene_updates_active && menu.screen == WM_SCREEN_SETTINGS &&
+            (options_scene || active_storage)) {
+            WmAppSettingsUpdate settings_update = {
+                .menu = &menu,
+                .options = options_scene,
+                .storage_scenes = storage_scenes,
+                .active_storage = &active_storage,
+                .audio = audio,
+                .fade = &fade,
+                .board_settings_request = &board_settings_request,
+                .hovered = &scene_input.options_hovered,
+                .pointer_inside = pointer_inside,
+                .pointer_x = pointer_x,
+                .pointer_y = pointer_y
+            };
+            wm_app_settings_advance(&settings_update, elapsed * 60.0f);
         }
-        if (!layout && resource_scene && board_scene) {
-            if (menu.screen == WM_SCREEN_GRID &&
-                !wm_home_overlay_active(home))
-                wm_board_scene_refresh_today(board_scene, wm_app_today_date());
-            wm_resource_scene_set_message_badge(
-                resource_scene, wm_board_scene_today_count(board_scene),
-                !board_visited &&
-                    wm_board_scene_today_unread_count(board_scene) > 0);
+        if (scene_updates_active && sd_scene && menu.screen == WM_SCREEN_SD) {
+            WmAppSdUpdate sd_update = {
+                .scene = sd_scene,
+                .audio = audio,
+                .fade = &fade,
+                .page = &sd_page,
+                .help_seen = &sd_help_seen
+            };
+            wm_app_sd_advance(&sd_update, elapsed * 60.0f);
         }
-        if (!layout && !health_frame && !wm_home_overlay_active(home) &&
-            !wm_menu_restart_active(&restart) &&
-            menu.screen == WM_SCREEN_SETTINGS && options_scene) {
-            if (!wm_scene_fader_active(&fade.clock))
-                wm_options_scene_advance(options_scene, elapsed * 60.0f);
-            WmOptionsAction action = wm_options_scene_take_action(options_scene);
-            if (action == WM_OPTIONS_ACTION_EXITED &&
-                wm_scene_fader_start(&fade.clock)) {
-                fade.destination = board_settings_request != WM_BOARD_ACTION_NONE
-                    ? WM_SCREEN_BOARD : WM_SCREEN_GRID;
-                board_settings_request = WM_BOARD_ACTION_NONE;
-            }
-            else if (action == WM_OPTIONS_ACTION_CHANNEL_STORAGE ||
-                     action == WM_OPTIONS_ACTION_WII_STORAGE ||
-                     action == WM_OPTIONS_ACTION_GAMECUBE_STORAGE) {
-                WmStorageKind kind = action == WM_OPTIONS_ACTION_CHANNEL_STORAGE
-                    ? WM_STORAGE_CHANNELS : action == WM_OPTIONS_ACTION_WII_STORAGE
-                    ? WM_STORAGE_WII_SAVES : WM_STORAGE_GAMECUBE_SAVES;
-                active_storage = storage_scenes[kind];
-                if (active_storage)
-                    wm_storage_scene_open(active_storage, WM_STORAGE_WII);
-            }
-            /* A Settings page turn can finish without another pointer event.
-             * Re-hit the settled page so an arrow under a stationary hand
-             * enters its hover state immediately. */
-            if (!active_storage && !menu.notice[0] && pointer_inside &&
-                !wm_scene_fader_active(&fade.clock)) {
-                WmOptionsControl next = wm_options_scene_hit(
-                    options_scene, pointer_x, pointer_y);
-                if (next != options_hovered) {
-                    if (next != WM_OPTIONS_CONTROL_NONE)
-                        wm_audio_play(audio,
-                            wm_options_scene_hover_cue(options_scene, next));
-                    options_hovered = next;
-                    wm_options_scene_hover(options_scene, next);
-                }
-            }
-        }
-        if (!layout && !health_frame && !wm_home_overlay_active(home) &&
-            !wm_menu_restart_active(&restart) && active_storage &&
-            menu.screen == WM_SCREEN_SETTINGS) {
-            wm_storage_scene_advance(active_storage, elapsed * 60.0f);
-            WmStorageAction action = wm_storage_scene_take_action(
-                active_storage, NULL, NULL);
-            if (action == WM_STORAGE_ACTION_EXITED) {
-                active_storage = NULL;
-                wm_options_scene_back(options_scene);
-            }
-            if (wm_storage_scene_take_balloon_cue(active_storage))
-                wm_audio_play(audio, "balloon");
-        }
-        if (!layout && !health_frame && !wm_home_overlay_active(home) &&
-            !wm_menu_restart_active(&restart) && sd_scene &&
-            menu.screen == WM_SCREEN_SD) {
-            if (fade.clock.phase != WM_SCENE_FADER_OUT)
-                wm_sd_scene_advance(sd_scene, elapsed * 60.0f,
-                                     fade.clock.phase == WM_SCENE_FADER_IN);
-            WmSdEvent sd_event;
-            while (wm_sd_scene_take_event(sd_scene, &sd_event)) {
-                switch (sd_event.type) {
-                    case WM_SD_EVENT_EXIT:
-                        if (wm_scene_fader_start(&fade.clock))
-                            fade.destination = WM_SCREEN_GRID;
-                        break;
-                    case WM_SD_EVENT_PAGE_CHANGED:
-                        sd_page = wm_sd_scene_page(sd_scene);
-                        break;
-                    case WM_SD_EVENT_HELP_CLOSE:
-                        sd_help_seen = wm_sd_scene_help_seen(sd_scene);
-                        break;
-                    case WM_SD_EVENT_HOVER_SOUND:
-                        wm_audio_play(audio,
-                            wm_hover_audio_sd_cue(sd_event.control));
-                        break;
-                    case WM_SD_EVENT_CONFIRM_SOUND:
-                        wm_audio_play(audio, "confirm");
-                        break;
-                    case WM_SD_EVENT_CANCEL_SOUND:
-                        wm_audio_play(audio, "WIPL_SE_CANCEL");
-                        break;
-                    case WM_SD_EVENT_PAGE_SOUND:
-                        wm_audio_play(audio, "page");
-                        break;
-                    case WM_SD_EVENT_INFO_SOUND:
-                        wm_audio_play(audio, "infoWindow");
-                        break;
-                    case WM_SD_EVENT_BALLOON_SOUND:
-                        wm_audio_play(audio, "balloon");
-                        break;
-                    case WM_SD_EVENT_CHANNEL_SELECTED:
-                    case WM_SD_EVENT_HELP_OPEN:
-                    case WM_SD_EVENT_NONE:
-                        break;
-                }
-            }
-        }
-        if (!layout && !health_frame && !wm_home_overlay_active(home) &&
-            !wm_menu_restart_active(&restart) && drag) {
-            WmChannelDragEvents drag_events = wm_channel_drag_advance(
-                drag, elapsed * 60.0f, &menu,
-                menu.transition == WM_TRANSITION_PAGE);
-            play_drag_sound(audio, drag_events.sound);
-            if (drag_events.page && wm_menu_change_page(&menu, drag_events.page)) {
-                wm_resource_scene_press_arrow(resource_scene,
-                                               drag_events.page);
-                wm_audio_play(audio, "page");
-            }
-            if (drag_events.move &&
-                wm_menu_move_channel(&menu, drag_events.move_source,
-                                      drag_events.move_target)) {
-                wm_resource_scene_move_channel(resource_scene,
-                    drag_events.move_source, drag_events.move_target);
-                wm_preview_scene_move_channel(preview_scene,
-                    drag_events.move_source, drag_events.move_target);
-            }
-            if (drag_button != 0) {
-                WmChannelDragState state = wm_channel_drag_state(drag);
-                WmChannelDragAudioParameters parameters =
-                    wm_channel_drag_audio_for_framebuffer(
-                        true, state.pointer_x, state.pointer_y,
-                        drag_has_previous, drag_previous_x,
-                        drag_previous_y, elapsed * 60.0f);
-                if (parameters.changes_pitch) drag_pitch = parameters.pitch;
-                wm_audio_hold_loop(audio, "drag", parameters.gain,
-                                   parameters.pan, drag_pitch);
-                drag_previous_x = state.pointer_x;
-                drag_previous_y = state.pointer_y;
-                drag_has_previous = true;
-            }
+        if (scene_updates_active && drag) {
+            wm_app_menu_drag_advance(&menu_pointer, &menu, resource_scene,
+                                     preview_scene, drag, audio,
+                                     elapsed * 60.0f);
         }
         if (!layout && !health_frame && !wm_menu_restart_active(&restart)) {
             wm_audio_sync(audio, &menu);
@@ -1333,8 +724,8 @@ int main(int argc, char **argv) {
             .fade = &fade,
             .restart = &restart,
             .active_storage = active_storage,
-            .hover = hover,
-            .board_hovered = board_hovered,
+            .hover = menu_pointer.hovered,
+            .board_hovered = board_input.hovered,
             .health_frame = health_frame,
             .keyboard_focus = keyboard_focus,
             .focused_slot = focused_slot,

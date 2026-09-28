@@ -3,7 +3,7 @@
 #define _DARWIN_C_SOURCE
 #endif
 
-#include "reader.h"
+#include "reader_internal.h"
 #include "../wad/crypto.h"
 
 #include <ctype.h>
@@ -18,45 +18,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-enum {
-    WM_NAND_PAGE_SIZE = 0x800,
-    WM_NAND_PAGE_STRIDE = 0x840,
-    WM_NAND_SPARE_SIZE = 0x40,
-    WM_NAND_CLUSTER_SIZE = 0x4000,
-    WM_NAND_RAW_CLUSTER = 8 * WM_NAND_PAGE_STRIDE,
-    WM_NAND_SUPERBLOCK_SIZE = 0x40000,
-    WM_NAND_FIRST_SUPERBLOCK = 0x7f00,
-    WM_NAND_NODE_COUNT = 0x17ff,
-    WM_NAND_END_NODE = 0xffff,
-    WM_NAND_END_CLUSTER = 0xfffb,
-    WM_NAND_PATH_CAPACITY = 4096,
-    WM_NAND_PATH_HASH_SLOTS = 16384
-};
-
 static const uint64_t WM_NAND_DUMP_SIZE = UINT64_C(0x21000000);
-
-typedef struct WmNandEntry {
-    char *path;
-    uint8_t name[12];
-    uint16_t *clusters;
-    size_t cluster_count;
-    uint32_t size;
-    uint32_t owner;
-    uint32_t extra;
-    bool present;
-    bool directory;
-    bool selected;
-} WmNandEntry;
-
-typedef struct WmNandReader {
-    FILE *stream;
-    uint8_t hmac_key[20];
-    uint8_t aes_key[16];
-    WmAes128 aes;
-    uint8_t *superblock;
-    WmNandEntry *entries;
-    uint32_t generation;
-} WmNandReader;
 
 typedef struct PendingNode {
     uint16_t index;
@@ -64,7 +26,7 @@ typedef struct PendingNode {
     unsigned depth;
 } PendingNode;
 
-static void set_error(char *error, size_t capacity, const char *message)
+void wm_nand_set_error(char *error, size_t capacity, const char *message)
 {
     if (error != NULL && capacity != 0) {
         snprintf(error, capacity, "%s", message);
@@ -133,7 +95,7 @@ static bool read_keys(WmNandReader *reader, const char *source_path,
                 read_keys_file(sibling, key_data);
     }
     if (!valid) {
-        set_error(error, error_capacity,
+        wm_nand_set_error(error, error_capacity,
                   "A matching 1024-byte BootMii key footer or keys file is required.");
         memset(key_data, 0, sizeof(key_data));
         return false;
@@ -225,7 +187,7 @@ static bool load_superblock(WmNandReader *reader,
     for (uint16_t slot = 0; slot < 16; slot++) {
         uint16_t candidate = (uint16_t)(WM_NAND_FIRST_SUPERBLOCK + slot * 16);
         if (!read_cluster(reader, candidate, data, spare)) {
-            set_error(error, error_capacity, "NAND superblock is truncated.");
+            wm_nand_set_error(error, error_capacity, "NAND superblock is truncated.");
             return false;
         }
         if (memcmp(data, "SFFS", 4) != 0) continue;
@@ -237,18 +199,18 @@ static bool load_superblock(WmNandReader *reader,
         }
     }
     if (!found) {
-        set_error(error, error_capacity, "No SFFS filesystem metadata was found.");
+        wm_nand_set_error(error, error_capacity, "No SFFS filesystem metadata was found.");
         return false;
     }
     reader->superblock = malloc(WM_NAND_SUPERBLOCK_SIZE);
     if (reader->superblock == NULL) {
-        set_error(error, error_capacity, "Out of memory reading the NAND superblock.");
+        wm_nand_set_error(error, error_capacity, "Out of memory reading the NAND superblock.");
         return false;
     }
     for (uint16_t index = 0; index < 16; index++) {
         if (!read_cluster(reader, (uint16_t)(first + index),
                           data, spare)) {
-            set_error(error, error_capacity, "NAND superblock is truncated.");
+            wm_nand_set_error(error, error_capacity, "NAND superblock is truncated.");
             return false;
         }
         memcpy(reader->superblock + (size_t)index * WM_NAND_CLUSTER_SIZE,
@@ -261,7 +223,7 @@ static bool load_superblock(WmNandReader *reader,
               WM_NAND_SUPERBLOCK_SIZE, expected);
     if (!verify_spare_hmac((const uint8_t (*)[WM_NAND_SPARE_SIZE])spare,
                             expected)) {
-        set_error(error, error_capacity,
+        wm_nand_set_error(error, error_capacity,
                   "Newest NAND filesystem metadata failed HMAC authentication.");
         return false;
     }
@@ -269,7 +231,7 @@ static bool load_superblock(WmNandReader *reader,
     return true;
 }
 
-static void close_reader(WmNandReader *reader)
+void wm_nand_close_reader(WmNandReader *reader)
 {
     if (reader == NULL) return;
     if (reader->entries != NULL) {
@@ -395,7 +357,7 @@ static bool parse_entries(WmNandReader *reader,
     reader->entries = calloc(WM_NAND_NODE_COUNT, sizeof(*reader->entries));
     if (visited == NULL || used_clusters == NULL || hashes == NULL ||
         pending == NULL || reader->entries == NULL) {
-        set_error(error, error_capacity, "Out of memory reading the NAND filesystem.");
+        wm_nand_set_error(error, error_capacity, "Out of memory reading the NAND filesystem.");
         free(visited);
         free(used_clusters);
         free(hashes);
@@ -411,7 +373,7 @@ static bool parse_entries(WmNandReader *reader,
         uint16_t index = task.index;
         if (index == WM_NAND_END_NODE) continue;
         if (index >= WM_NAND_NODE_COUNT || visited[index] || task.depth > 64) {
-            set_error(error, error_capacity,
+            wm_nand_set_error(error, error_capacity,
                       "NAND filesystem has an invalid or repeated node.");
             valid = false;
             break;
@@ -423,13 +385,13 @@ static bool parse_entries(WmNandReader *reader,
         uint16_t sibling = be16(node + 16);
         bool directory = (mode & 3) == 2;
         if ((mode & 3) != 1 && !directory) {
-            set_error(error, error_capacity,
+            wm_nand_set_error(error, error_capacity,
                       "NAND filesystem has an unsupported node type.");
             valid = false;
             break;
         }
         if (index == 0 && (!directory || sibling != WM_NAND_END_NODE)) {
-            set_error(error, error_capacity, "NAND filesystem has an invalid root.");
+            wm_nand_set_error(error, error_capacity, "NAND filesystem has an invalid root.");
             valid = false;
             break;
         }
@@ -448,7 +410,7 @@ static bool parse_entries(WmNandReader *reader,
             if (task.parent >= WM_NAND_NODE_COUNT ||
                 !reader->entries[task.parent].present ||
                 !valid_component(node, &name_size)) {
-                set_error(error, error_capacity,
+                wm_nand_set_error(error, error_capacity,
                           "NAND filesystem contains an unsafe filename.");
                 valid = false;
                 break;
@@ -457,19 +419,19 @@ static bool parse_entries(WmNandReader *reader,
                                     node, name_size);
             if (entry->path != NULL &&
                 !insert_unique_path(hashes, reader->entries, index)) {
-                set_error(error, error_capacity,
+                wm_nand_set_error(error, error_capacity,
                           "NAND filesystem contains duplicate portable paths.");
                 valid = false;
                 break;
             }
         }
         if (entry->path == NULL) {
-            set_error(error, error_capacity, "NAND path exceeds the supported limit.");
+            wm_nand_set_error(error, error_capacity, "NAND path exceeds the supported limit.");
             valid = false;
             break;
         }
         if (top + 2 > WM_NAND_NODE_COUNT * 2) {
-            set_error(error, error_capacity, "NAND filesystem nesting is invalid.");
+            wm_nand_set_error(error, error_capacity, "NAND filesystem nesting is invalid.");
             valid = false;
             break;
         }
@@ -480,7 +442,7 @@ static bool parse_entries(WmNandReader *reader,
             size_t clusters = ((size_t)entry->size + WM_NAND_CLUSTER_SIZE - 1) /
                               WM_NAND_CLUSTER_SIZE;
             if (clusters > WM_NAND_FIRST_SUPERBLOCK) {
-                set_error(error, error_capacity,
+                wm_nand_set_error(error, error_capacity,
                           "NAND file exceeds the flash allocation limit.");
                 valid = false;
                 break;
@@ -488,7 +450,7 @@ static bool parse_entries(WmNandReader *reader,
             if (clusters != 0) {
                 entry->clusters = malloc(clusters * sizeof(*entry->clusters));
                 if (entry->clusters == NULL) {
-                    set_error(error, error_capacity,
+                    wm_nand_set_error(error, error_capacity,
                               "Out of memory reading a NAND allocation chain.");
                     valid = false;
                     break;
@@ -498,7 +460,7 @@ static bool parse_entries(WmNandReader *reader,
             for (size_t ordinal = 0; ordinal < clusters; ordinal++) {
                 if (cluster < 0x40 || cluster >= WM_NAND_FIRST_SUPERBLOCK ||
                     used_clusters[cluster]) {
-                    set_error(error, error_capacity,
+                    wm_nand_set_error(error, error_capacity,
                               "NAND file has an invalid or shared cluster chain.");
                     valid = false;
                     break;
@@ -510,7 +472,7 @@ static bool parse_entries(WmNandReader *reader,
             }
             if (!valid) break;
             if (clusters != 0 && cluster != WM_NAND_END_CLUSTER) {
-                set_error(error, error_capacity,
+                wm_nand_set_error(error, error_capacity,
                           "NAND file length does not match its cluster chain.");
                 valid = false;
             }
@@ -523,19 +485,19 @@ static bool parse_entries(WmNandReader *reader,
     return valid;
 }
 
-static bool open_reader(WmNandReader *reader, const char *source_path,
+bool wm_nand_open_reader(WmNandReader *reader, const char *source_path,
                         const char *keys_path,
                         char *error, size_t error_capacity)
 {
     reader->stream = fopen(source_path, "rb");
     if (reader->stream == NULL) {
-        set_error(error, error_capacity, "Could not open the NAND dump.");
+        wm_nand_set_error(error, error_capacity, "Could not open the NAND dump.");
         return false;
     }
     uint64_t size = 0;
     if (!exact_file_size(reader->stream, &size) ||
         (size != WM_NAND_DUMP_SIZE && size != WM_NAND_DUMP_SIZE + 0x400)) {
-        set_error(error, error_capacity,
+        wm_nand_set_error(error, error_capacity,
                   "Expected a 512 MiB Wii BootMii dump with spare areas.");
         return false;
     }
@@ -545,7 +507,7 @@ static bool open_reader(WmNandReader *reader, const char *source_path,
            parse_entries(reader, error, error_capacity);
 }
 
-static bool read_file_cluster(WmNandReader *reader, const WmNandEntry *entry,
+bool wm_nand_read_file_cluster(WmNandReader *reader, const WmNandEntry *entry,
                               uint16_t node_index, size_t ordinal,
                               uint8_t data[WM_NAND_CLUSTER_SIZE],
                               char *error, size_t error_capacity)
@@ -553,7 +515,7 @@ static bool read_file_cluster(WmNandReader *reader, const WmNandEntry *entry,
     uint8_t spare[8][WM_NAND_SPARE_SIZE];
     if (ordinal >= entry->cluster_count ||
         !read_cluster(reader, entry->clusters[ordinal], data, spare)) {
-        set_error(error, error_capacity, "A NAND file cluster is truncated.");
+        wm_nand_set_error(error, error_capacity, "A NAND file cluster is truncated.");
         return false;
     }
     const uint8_t zero_iv[16] = {0};
@@ -568,7 +530,7 @@ static bool read_file_cluster(WmNandReader *reader, const WmNandEntry *entry,
     hmac_sha1(reader->hmac_key, salt, data, WM_NAND_CLUSTER_SIZE, expected);
     if (!verify_spare_hmac((const uint8_t (*)[WM_NAND_SPARE_SIZE])spare,
                             expected)) {
-        set_error(error, error_capacity,
+        wm_nand_set_error(error, error_capacity,
                   "A NAND file failed HMAC authentication (wrong keys or damaged dump).");
         return false;
     }
@@ -619,12 +581,12 @@ static bool title_is_selected(const char (*titles)[17], size_t count,
     return false;
 }
 
-static bool discover_channel_titles(WmNandReader *reader, size_t *title_count,
+bool wm_nand_discover_channel_titles(WmNandReader *reader, size_t *title_count,
                                     char *error, size_t error_capacity)
 {
     char (*titles)[17] = calloc(WM_NAND_NODE_COUNT, sizeof(*titles));
     if (titles == NULL) {
-        set_error(error, error_capacity, "Out of memory discovering channel titles.");
+        wm_nand_set_error(error, error_capacity, "Out of memory discovering channel titles.");
         return false;
     }
     *title_count = 0;
@@ -642,7 +604,7 @@ static bool discover_channel_titles(WmNandReader *reader, size_t *title_count,
             !ends_with(filename, ".app")) {
             continue;
         }
-        if (!read_file_cluster(reader, entry, (uint16_t)index, 0,
+        if (!wm_nand_read_file_cluster(reader, entry, (uint16_t)index, 0,
                                data, error, error_capacity)) {
             valid = false;
             break;
@@ -707,7 +669,7 @@ static bool shared_font_member_magic(WmNandReader *reader,
     size_t position = member->offset % WM_NAND_CLUSTER_SIZE;
     if (position > WM_NAND_CLUSTER_SIZE - 4) return true;
     uint8_t data[WM_NAND_CLUSTER_SIZE];
-    if (!read_file_cluster(reader, entry, node_index, cluster,
+    if (!wm_nand_read_file_cluster(reader, entry, node_index, cluster,
                            data, error, error_capacity)) {
         return false;
     }
@@ -725,7 +687,7 @@ static bool shared_font_archive(WmNandReader *reader,
     *matches = false;
     if (entry->cluster_count == 0 || entry->size < 0x60) return true;
     uint8_t data[WM_NAND_CLUSTER_SIZE];
-    if (!read_file_cluster(reader, entry, node_index, 0,
+    if (!wm_nand_read_file_cluster(reader, entry, node_index, 0,
                            data, error, error_capacity)) {
         return false;
     }
@@ -777,7 +739,7 @@ static bool shared_font_archive(WmNandReader *reader,
     return true;
 }
 
-static bool discover_shared_fonts(WmNandReader *reader, size_t *archive_count,
+bool wm_nand_discover_shared_fonts(WmNandReader *reader, size_t *archive_count,
                                   char *error, size_t error_capacity)
 {
     *archive_count = 0;
@@ -796,7 +758,7 @@ static bool discover_shared_fonts(WmNandReader *reader, size_t *archive_count,
         }
         if (!matches) continue;
         if (*archive_count != 0) {
-            set_error(error, error_capacity,
+            wm_nand_set_error(error, error_capacity,
                       "NAND has multiple distinct shared font archives.");
             return false;
         }
@@ -804,209 +766,4 @@ static bool discover_shared_fonts(WmNandReader *reader, size_t *archive_count,
         (*archive_count)++;
     }
     return true;
-}
-
-static bool ensure_directory(const char *path)
-{
-    if (mkdir(path, 0700) == 0) return true;
-    if (errno != EEXIST) return false;
-    struct stat status;
-    return lstat(path, &status) == 0 && S_ISDIR(status.st_mode);
-}
-
-static bool ensure_parent_directories(char *path, size_t first_separator)
-{
-    for (size_t index = first_separator; path[index] != '\0'; index++) {
-        if (path[index] != '/') continue;
-        path[index] = '\0';
-        bool valid = ensure_directory(path);
-        path[index] = '/';
-        if (!valid) return false;
-    }
-    return true;
-}
-
-static bool extract_file(WmNandReader *reader, uint16_t index,
-                         const char *stage, WmNandSummary *summary,
-                         char *error, size_t error_capacity)
-{
-    const WmNandEntry *entry = &reader->entries[index];
-    char path[WM_NAND_PATH_CAPACITY];
-    int length = snprintf(path, sizeof(path), "%s/%s", stage, entry->path);
-    if (length < 0 || length >= (int)sizeof(path) ||
-        !ensure_parent_directories(path, strlen(stage) + 1)) {
-        set_error(error, error_capacity, "Could not prepare the output directory.");
-        return false;
-    }
-    int flags = O_WRONLY | O_CREAT | O_EXCL;
-#ifdef O_NOFOLLOW
-    flags |= O_NOFOLLOW;
-#endif
-    int descriptor = open(path, flags, 0600);
-    if (descriptor < 0) {
-        set_error(error, error_capacity, "Could not create an extracted file.");
-        return false;
-    }
-    FILE *output = fdopen(descriptor, "wb");
-    if (output == NULL) {
-        close(descriptor);
-        unlink(path);
-        set_error(error, error_capacity, "Could not open an extracted file.");
-        return false;
-    }
-    uint8_t data[WM_NAND_CLUSTER_SIZE];
-    size_t remaining = entry->size;
-    bool valid = true;
-    for (size_t ordinal = 0; ordinal < entry->cluster_count; ordinal++) {
-        if (!read_file_cluster(reader, entry, index, ordinal,
-                               data, error, error_capacity)) {
-            valid = false;
-            break;
-        }
-        size_t amount = remaining < WM_NAND_CLUSTER_SIZE
-                            ? remaining : WM_NAND_CLUSTER_SIZE;
-        if (fwrite(data, 1, amount, output) != amount) {
-            set_error(error, error_capacity, "Could not write an extracted file.");
-            valid = false;
-            break;
-        }
-        remaining -= amount;
-    }
-    if (fclose(output) != 0) valid = false;
-    if (!valid || remaining != 0) {
-        unlink(path);
-        if (valid) {
-            set_error(error, error_capacity, "NAND file length is inconsistent.");
-        }
-        return false;
-    }
-    summary->extracted_files++;
-    summary->extracted_bytes += entry->size;
-    return true;
-}
-
-static void remove_tree(const char *path)
-{
-    struct stat status;
-    if (lstat(path, &status) != 0) return;
-    if (!S_ISDIR(status.st_mode)) {
-        unlink(path);
-        return;
-    }
-    DIR *directory = opendir(path);
-    if (directory != NULL) {
-        struct dirent *item;
-        while ((item = readdir(directory)) != NULL) {
-            if (strcmp(item->d_name, ".") == 0 ||
-                strcmp(item->d_name, "..") == 0) {
-                continue;
-            }
-            char child[WM_NAND_PATH_CAPACITY];
-            int length = snprintf(child, sizeof(child), "%s/%s",
-                                  path, item->d_name);
-            if (length >= 0 && length < (int)sizeof(child)) {
-                remove_tree(child);
-            }
-        }
-        closedir(directory);
-    }
-    rmdir(path);
-}
-
-static bool make_stage(const char *output_directory,
-                       char stage[WM_NAND_PATH_CAPACITY],
-                       char *error, size_t error_capacity)
-{
-    struct stat status;
-    if (lstat(output_directory, &status) == 0 || errno != ENOENT) {
-        set_error(error, error_capacity,
-                  "The NAND extraction destination must not already exist.");
-        return false;
-    }
-    const char *slash = strrchr(output_directory, '/');
-    char parent[WM_NAND_PATH_CAPACITY];
-    int parent_size = slash == NULL
-        ? snprintf(parent, sizeof(parent), ".")
-        : slash == output_directory
-            ? snprintf(parent, sizeof(parent), "/")
-            : snprintf(parent, sizeof(parent), "%.*s",
-                       (int)(slash - output_directory), output_directory);
-    if (parent_size < 0 || parent_size >= (int)sizeof(parent) ||
-        lstat(parent, &status) != 0 || !S_ISDIR(status.st_mode)) {
-        set_error(error, error_capacity,
-                  "The NAND extraction parent directory must exist.");
-        return false;
-    }
-    int length = snprintf(stage, WM_NAND_PATH_CAPACITY,
-                          "%s/.wm-nand-XXXXXX", parent);
-    if (length < 0 || length >= WM_NAND_PATH_CAPACITY ||
-        mkdtemp(stage) == NULL) {
-        set_error(error, error_capacity,
-                  "Could not create a private NAND extraction stage.");
-        return false;
-    }
-    return true;
-}
-
-bool wm_nand_extract_channels(const char *source_path,
-                               const char *keys_path,
-                               const char *output_directory,
-                               WmNandSummary *summary,
-                               char *error, size_t error_capacity)
-{
-    if (error != NULL && error_capacity != 0) error[0] = '\0';
-    if (source_path == NULL || source_path[0] == '\0' ||
-        output_directory == NULL || output_directory[0] == '\0' ||
-        summary == NULL) {
-        set_error(error, error_capacity, "Invalid NAND extraction arguments.");
-        return false;
-    }
-    *summary = (WmNandSummary){0};
-    WmNandReader reader = {0};
-    if (!open_reader(&reader, source_path, keys_path,
-                     error, error_capacity)) {
-        close_reader(&reader);
-        return false;
-    }
-    summary->generation = reader.generation;
-    if (!discover_channel_titles(&reader, &summary->discovered_titles,
-                                  error, error_capacity)) {
-        close_reader(&reader);
-        return false;
-    }
-    if (!discover_shared_fonts(&reader, &summary->shared_font_archives,
-                                error, error_capacity)) {
-        close_reader(&reader);
-        return false;
-    }
-
-    char stage[WM_NAND_PATH_CAPACITY];
-    if (!make_stage(output_directory, stage, error, error_capacity)) {
-        close_reader(&reader);
-        return false;
-    }
-    bool valid = true;
-    for (size_t index = 0; index < WM_NAND_NODE_COUNT; index++) {
-        if (!reader.entries[index].selected) continue;
-        if (!extract_file(&reader, (uint16_t)index, stage, summary,
-                          error, error_capacity)) {
-            valid = false;
-            break;
-        }
-    }
-    close_reader(&reader);
-    if (valid) {
-        struct stat status;
-        if (lstat(output_directory, &status) == 0 || errno != ENOENT ||
-            rename(stage, output_directory) != 0) {
-            set_error(error, error_capacity,
-                      "Could not publish the authenticated NAND extraction.");
-            valid = false;
-        }
-    }
-    if (!valid) {
-        remove_tree(stage);
-        *summary = (WmNandSummary){0};
-    }
-    return valid;
 }

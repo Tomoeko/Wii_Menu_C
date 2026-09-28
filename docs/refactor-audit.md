@@ -1,24 +1,26 @@
 # C source refactor audit
 
-This is a whole-tree triage of the C sources and headers under `src/`,
-`tools/`, `tests/`, and `include/`, plus the Objective-C Metal adapter. It
-uses the source inventory, function boundaries, ownership paths, repeated
-helpers, and existing tests to identify *module seams*. It is not a claim of
-line-by-line verification or native Wii parity. File length alone does not
-justify a split.
+This is a whole-tree review of authored C and headers under `src/`, `tools/`,
+`tests/`, and `include/`, plus the Objective-C Metal adapter. It maps source
+ownership and module boundaries. It is not a line-by-line proof of correctness,
+a native Wii fidelity claim, or a PowerVR performance measurement. File length
+alone is not a reason to split a cohesive module.
 
-| Area | Assessment and next boundary |
+| Area | Current boundary |
 | --- | --- |
-| Application | `app/main.c` still combines a long, priority-ordered event loop with per-scene updates. Extract one event or update path at a time behind a private context; preserve health, entrance, fade, restart, HOME, then screen priority. Move balloon cue state changes out of drawing only with timing tests. |
-| Board | `board_scene.c` and `board_compose.c` still mix transitions, input, and presentation. `board_keyboard.c` combines candidates with visual state, while `board_address.c` combines field editing with contact presentation. Give each edit model and presentation code a narrow private interface before moving large draw functions. Keep memo ordering and compose cue timing covered by tests. |
-| Scenes | `settings_scene.c` has a particularly clear state/input versus drawing boundary. `resource_scene.c`, `storage_scene.c`, `sd_scene.c`, and `home_overlay.c` are also long, but their draw order and scene-specific state are tightly coupled. Split a proven state or presentation seam rather than sharing a generic scene framework. |
-| Layout and resources | `layout_runtime.c` owns JSON import, animation posing, and pane traversal. `resource_layout.c` exports both BRLAN and BRLYT with a shared JSON writer. These are good private-module candidates after their shared data contracts are made explicit. Smaller format decoders and render helpers are already reasonably focused. |
-| Audio | Sequence command parsing and PCM synthesis have separate lifetimes. The remaining renderer contains voice scheduling, envelopes, and reverb; further changes need PCM comparisons because the drag cue's fidelity is still under study. `audio.c` also combines manifest loading, voice control, and mixing. |
-| Graphics adapters | Keep window/event code separate from GPU draw submission, while preserving the common `WmPlatform` contract. Both adapters should compile independently. Neither a source move nor a passing parser test establishes visual parity or PowerVR performance. |
-| Preparation tools | `tools/preparation/prepare.c` combines staging/recovery, plan construction, and update publishing. `tools/channels/export.c` and `tools/nand/reader.c` combine several format and filesystem workflows. Their transactional and path-security behavior merits focused tests before a split. Other tools are smaller or already have format-specific files. |
-| Tests and public headers | Some Board and Settings tests are large scenario suites. Split them by feature when editing those behaviors, not merely to reduce line counts. The public headers mostly follow module folders; avoid widening them to support private refactors. |
+| Application | `app/main.c` coordinates the priority-ordered loop. Private input, update, pointer, resource, and frame modules own their corresponding paths. The event order remains health, entrance, fade, restart, HOME, then active screen. |
+| Board | Scene presentation, compose draft/scroll/presentation, address presentation, and keyboard presentation have private modules. The remaining scene and editor files own transitions, state, and input; memo ordering and cue timing remain in their established paths. |
+| Scenes | Settings, Storage, SD, HOME, and resource scene presentation have private modules. Resource interactions and balloon rendering have separate owners. Category-specific draw routines stay with their scenes to preserve pane and cue order. |
+| Layout and resources | Layout JSON import, runtime posing, and draw traversal are separate. BRLAN and BRLYT export share a bounded JSON writer through a private interface. Format decoders retain their own resource limits. |
+| Audio | Asset/manifest loading, voice control, mixing, sequence parsing, and sequence PCM rendering have distinct source files. The held drag cue's DSP parity remains an independent research gap in `docs/audio-accuracy.md`. |
+| Graphics adapters | GLES2 and Metal host/events, shaders, and draw submission have separate owners. The platform-independent render contract is shared. Backend source moves do not establish visual parity or device performance. |
+| Preparation tools | Preparation filesystem staging and recovery, channel manifest publishing, and NAND extraction have focused modules. Plan construction and update orchestration stay together so their transaction state remains visible. |
+| Tests and public headers | Tests remain grouped by feature; large scenario suites are kept intact. New helpers use private headers alongside their owners rather than widening installed interfaces. |
 
-Prioritize ownership and input safety first, then interaction/presentation
-boundaries with deterministic tests. Preserve lookup identifiers, pane order,
-GPU object lifetime, and per-frame allocation behavior. Reformat only touched
-code so reviews can distinguish behavior changes from whitespace.
+The next changes should follow observed behavior, safety findings, or measured
+costs. In particular, resource draw-time cues should move into update logic
+only with tests for their exact frame timing. Split the remaining large Board
+and Settings functions only when a feature change can establish a narrower
+state contract and verify the draw or interaction order. Native sound and
+visual parity still require original resources or retained captures with the
+provenance recorded by `AGENTS.md`.

@@ -6,6 +6,10 @@
 
 #include <assert.h>
 
+/* Recovery tests inspect the persisted format, not recovery's C structs. */
+static const char TEST_STAGE_MARKER[] = ".wm-prepare-owner";
+static const char TEST_JOURNAL_NAME[] = ".wm-prepare-journal";
+
 #define A_OLD_CONTENT "1111111111111111111111111111111111111111"
 #define B_OLD_CONTENT "2222222222222222222222222222222222222222"
 #define A_NEW_CONTENT "3333333333333333333333333333333333333333"
@@ -346,16 +350,14 @@ int main(int argc, char **argv) {
     assert(create_owned_stage(root, recovery_identity_hash, recovery_stage));
     char marker[PREPARE_PATH_CAPACITY];
     assert(path_join(marker, sizeof(marker), recovery_stage,
-                     PREPARE_STAGE_MARKER));
+                     TEST_STAGE_MARKER));
     write_text(marker, "not a matching ownership marker");
     assert(!recover_owned_stage(root, recovery_identity_hash));
     assert(lstat(recovery_stage, &metadata) == 0 && S_ISDIR(metadata.st_mode));
     char journal[PREPARE_PATH_CAPACITY];
-    PrepareRecoveryRecord record;
-    assert(path_join(journal, sizeof(journal), root, PREPARE_JOURNAL_NAME));
-    assert(read_recovery_record(journal, &record));
+    assert(path_join(journal, sizeof(journal), root, TEST_JOURNAL_NAME));
     assert(unlink(marker) == 0);
-    assert(write_recovery_record(marker, &record));
+    assert(copy_file(journal, marker));
     assert(recover_owned_stage(root, recovery_identity_hash));
 
     assert(create_owned_stage(root, recovery_identity_hash, recovery_stage));
@@ -371,7 +373,7 @@ int main(int argc, char **argv) {
     read_text(path, placement, sizeof(placement));
     assert(strcmp(placement, "committed generation") == 0);
     assert(path_join(path, sizeof(path), recovery_output,
-                     PREPARE_STAGE_MARKER));
+                     TEST_STAGE_MARKER));
     assert(lstat(path, &metadata) != 0 && errno == ENOENT);
     assert(lstat(unrelated_stage, &metadata) == 0 && S_ISDIR(metadata.st_mode));
 

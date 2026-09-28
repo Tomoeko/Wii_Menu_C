@@ -5,11 +5,13 @@ if(WM_BACKEND STREQUAL "metal")
     enable_language(OBJC)
     target_sources(wii-menu PRIVATE
         platform/metal/platform_metal.m
+        platform/metal/platform_metal_window.m
         platform/metal/shaders.m
         platform/apple/audio_platform_apple.c
     )
     set_source_files_properties(
         platform/metal/platform_metal.m
+        platform/metal/platform_metal_window.m
         platform/metal/shaders.m
         PROPERTIES
         COMPILE_OPTIONS "-fobjc-arc")

@@ -8,12 +8,15 @@ wm_enable_warnings(wm-wad-extract ERROR)
 add_executable(wm-nand-extract
     wad/crypto.c
     nand/reader.c
+    nand/reader_extract.c
     nand/extract.c
 )
 wm_enable_warnings(wm-nand-extract ERROR)
 
 add_executable(wm-prepare
     preparation/prepare.c
+    preparation/prepare_fs.c
+    preparation/prepare_recovery.c
     wad/crypto.c
     "${PROJECT_SOURCE_DIR}/src/support/json.c"
 )
@@ -58,6 +61,7 @@ target_link_libraries(wm-shared-font-export PRIVATE wii_menu_core m)
 
 add_executable(wm-channel-export
     channels/export.c
+    channels/export_manifest.c
     channels/md5.c
     wad/crypto.c
 )
