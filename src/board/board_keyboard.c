@@ -249,6 +249,8 @@ void wm_board_keyboard_set_physical_modifiers(WmBoardKeyboard *keyboard,
     bool caps_changed = keyboard->physical_caps != caps_lock_on;
     keyboard->physical_shift = shift_down;
     keyboard->physical_caps = caps_lock_on;
+    if (caps_changed && caps_lock_on) keyboard->caps = false;
+    if (shift_changed && shift_down) keyboard->shift = false;
     /* A physical modifier can press a keytop, but it cannot hover it. Only
      * pointer movement owns focus; otherwise Caps remains stuck highlighted. */
     if (shift_changed && shift_down) {
@@ -710,6 +712,11 @@ WmBoardKeyboardAction wm_board_keyboard_activate(
     if (!keyboard || !utf8 || control <= WM_KEYBOARD_NONE ||
         control > WM_KEYBOARD_CONTROL_LAST) return WM_KEYBOARD_ACTION_NONE;
     if (!profile_allows_control(keyboard, control))
+        return WM_KEYBOARD_ACTION_NONE;
+    /* Hardware modifiers own their matching keytops while active. Ignore a
+     * pointer press so it cannot leave a hidden software latch behind. */
+    if ((control == WM_KEYBOARD_CAPS && keyboard->physical_caps) ||
+        (control == WM_KEYBOARD_SHIFT && keyboard->physical_shift))
         return WM_KEYBOARD_ACTION_NONE;
     wm_board_keyboard_prediction_rollback_phone(keyboard);
     memset(utf8, 0, 5);

@@ -72,6 +72,8 @@ Memo selects the nearest UTF-8 insertion boundary and opens the keyboard at
 that position. Physical arrow keys move the caret across UTF-8 characters or
 adjacent rendered lines. Physical Shift and Caps Lock update the visible keytop
 state while held or latched, with focus easing into and out of each state. The
+matching on-screen modifier ignores pointer presses while its physical key is
+active, then works normally once the physical modifier is released. The
 editor follows the selected caret into its two-line window with
 `WIPL_SE_LINE_SCROLL` whenever following starts page movement. Visible caret
 selections stay silent, and typing sounds remain intact when a key also starts

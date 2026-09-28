@@ -458,12 +458,57 @@ int main(int argc, char **argv) {
                                       modified_character) ==
            WM_KEYBOARD_ACTION_INSERT);
     assert(strcmp(modified_character, "q") == 0);
+    wm_board_keyboard_reset(keyboard);
+    assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_SHIFT, false,
+                                      modified_character) ==
+           WM_KEYBOARD_ACTION_HANDLED);
+    wm_board_keyboard_set_physical_modifiers(keyboard, true, false);
+    assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_SHIFT, false,
+                                      modified_character) ==
+           WM_KEYBOARD_ACTION_NONE);
+    wm_board_keyboard_set_physical_modifiers(keyboard, false, false);
+    assert(wm_board_keyboard_activate(keyboard, q_key, false,
+                                      modified_character) ==
+           WM_KEYBOARD_ACTION_INSERT);
+    assert(strcmp(modified_character, "q") == 0);
+    assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_SHIFT, false,
+                                      modified_character) ==
+           WM_KEYBOARD_ACTION_HANDLED);
+    assert(wm_board_keyboard_activate(keyboard, q_key, false,
+                                      modified_character) ==
+           WM_KEYBOARD_ACTION_INSERT);
+    assert(strcmp(modified_character, "Q") == 0);
+    wm_board_keyboard_reset(keyboard);
     wm_board_keyboard_set_physical_modifiers(keyboard, false, true);
     assert(wm_board_keyboard_activate(keyboard, q_key, false,
                                       modified_character) ==
            WM_KEYBOARD_ACTION_INSERT);
     assert(strcmp(modified_character, "Q") == 0);
     wm_board_keyboard_set_physical_modifiers(keyboard, false, false);
+    wm_board_keyboard_reset(keyboard);
+    assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_CAPS, false,
+                                      modified_character) ==
+           WM_KEYBOARD_ACTION_HANDLED);
+    wm_board_keyboard_set_physical_modifiers(keyboard, false, true);
+    assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_CAPS, false,
+                                      modified_character) ==
+           WM_KEYBOARD_ACTION_NONE);
+    assert(wm_board_keyboard_activate(keyboard, q_key, false,
+                                      modified_character) ==
+           WM_KEYBOARD_ACTION_INSERT);
+    assert(strcmp(modified_character, "Q") == 0);
+    wm_board_keyboard_set_physical_modifiers(keyboard, false, false);
+    assert(wm_board_keyboard_activate(keyboard, q_key, false,
+                                      modified_character) ==
+           WM_KEYBOARD_ACTION_INSERT);
+    assert(strcmp(modified_character, "q") == 0);
+    assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_CAPS, false,
+                                      modified_character) ==
+           WM_KEYBOARD_ACTION_HANDLED);
+    assert(wm_board_keyboard_activate(keyboard, q_key, false,
+                                      modified_character) ==
+           WM_KEYBOARD_ACTION_INSERT);
+    assert(strcmp(modified_character, "Q") == 0);
 
     wm_board_keyboard_reset(keyboard);
     assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_CAPS, false,
