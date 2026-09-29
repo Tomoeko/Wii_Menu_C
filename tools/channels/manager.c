@@ -6,9 +6,9 @@
 #include "manager_import.h"
 #include "manager_package.h"
 #include "wii_menu/menu/local_catalog.h"
+#include "wii_menu/support/ascii.h"
 #include "wii_menu/support/json.h"
 
-#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdbool.h>
@@ -48,14 +48,6 @@ static bool require_open_slot(const char *assets) {
     return status == 1;
 }
 
-static bool same_name(const char *left, const char *right) {
-    while (*left && *right) {
-        if (tolower((unsigned char)*left++) != tolower((unsigned char)*right++))
-            return false;
-    }
-    return *left == *right;
-}
-
 static bool native_catalog(const char *assets, WmJson *json) {
     char path[4096];
     return wm_channels_join(path, assets, "channels.json") &&
@@ -90,7 +82,8 @@ static bool resolve_target(const char *assets, const WmLocalCatalog *local,
     bool managed = false;
     for (size_t index = 0; index < local->channel_count; index++) {
         const WmLocalChannel *channel = &local->channels[index];
-        if (strcmp(channel->id, target) != 0 && !same_name(channel->title, target))
+        if (strcmp(channel->id, target) != 0 &&
+            !wm_ascii_equal_ignore_case(channel->title, target))
             continue;
         strcpy(candidate, channel->id);
         matches++;
@@ -112,7 +105,8 @@ static bool resolve_target(const char *assets, const WmLocalCatalog *local,
                 wm_json_free(&native);
                 return true;
             }
-            if (strcmp(native_id, target) != 0 && !same_name(title, target))
+            if (strcmp(native_id, target) != 0 &&
+                !wm_ascii_equal_ignore_case(title, target))
                 continue;
             strcpy(candidate, native_id);
             matches++;

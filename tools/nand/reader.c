@@ -5,6 +5,7 @@
 
 #include "reader_internal.h"
 #include "../wad/crypto.h"
+#include "wii_menu/support/ascii.h"
 #include "wii_menu/support/endian.h"
 
 #include <ctype.h>
@@ -287,34 +288,16 @@ static char *join_path(const char *parent, const uint8_t *name, size_t size) {
     return path;
 }
 
-static uint64_t portable_hash(const char *path) {
-    uint64_t hash = UINT64_C(14695981039346656037);
-    for (; *path != '\0'; path++) {
-        hash ^= (unsigned char)tolower((unsigned char)*path);
-        hash *= UINT64_C(1099511628211);
-    }
-    return hash;
-}
-
-static bool portable_equal(const char *left, const char *right) {
-    for (;; left++, right++) {
-        if (tolower((unsigned char)*left) != tolower((unsigned char)*right))
-            return false;
-        if (*left == '\0')
-            return true;
-    }
-}
-
 static bool insert_unique_path(uint16_t hashes[WM_NAND_PATH_HASH_SLOTS],
                                WmNandEntry *entries, uint16_t index) {
     const char *path = entries[index].path;
-    size_t slot = (size_t)(portable_hash(path) % WM_NAND_PATH_HASH_SLOTS);
+    size_t slot = (size_t)(wm_ascii_hash_ignore_case(path) % WM_NAND_PATH_HASH_SLOTS);
     for (size_t attempt = 0; attempt < WM_NAND_PATH_HASH_SLOTS; attempt++) {
         if (hashes[slot] == 0) {
             hashes[slot] = (uint16_t)(index + 1);
             return true;
         }
-        if (portable_equal(path, entries[hashes[slot] - 1].path)) {
+        if (wm_ascii_equal_ignore_case(path, entries[hashes[slot] - 1].path)) {
             return false;
         }
         slot = (slot + 1) % WM_NAND_PATH_HASH_SLOTS;

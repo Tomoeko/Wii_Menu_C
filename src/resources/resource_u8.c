@@ -1,4 +1,5 @@
 #include "wii_menu/resources/resource_u8.h"
+#include "wii_menu/support/ascii.h"
 #include "wii_menu/support/utf8.h"
 #include "wii_menu/support/error.h"
 
@@ -13,34 +14,6 @@ typedef struct WmU8Directory {
     size_t end_index;
     size_t node_index;
 } WmU8Directory;
-
-static unsigned char wm_ascii_lower(unsigned char value) {
-    if (value >= 'A' && value <= 'Z') {
-        return (unsigned char)(value - 'A' + 'a');
-    }
-    return value;
-}
-
-static bool wm_same_portable_path(const char *left, const char *right) {
-    for (;; left++, right++) {
-        if (wm_ascii_lower((unsigned char)*left) !=
-            wm_ascii_lower((unsigned char)*right)) {
-            return false;
-        }
-        if (*left == '\0') {
-            return true;
-        }
-    }
-}
-
-static uint64_t wm_path_hash(const char *path) {
-    uint64_t hash = UINT64_C(14695981039346656037);
-    for (; *path != '\0'; path++) {
-        hash ^= wm_ascii_lower((unsigned char)*path);
-        hash *= UINT64_C(1099511628211);
-    }
-    return hash;
-}
 
 static bool wm_reserved_name(const uint8_t *name, size_t size) {
     size_t stem = 0;
@@ -232,9 +205,10 @@ bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive, char *e
             valid = false;
             break;
         }
-        size_t slot = (size_t)(wm_path_hash(paths[index]) & (hash_capacity - 1));
+        size_t slot =
+            (size_t)(wm_ascii_hash_ignore_case(paths[index]) & (hash_capacity - 1));
         while (seen[slot] != 0) {
-            if (wm_same_portable_path(paths[index], paths[seen[slot] - 1])) {
+            if (wm_ascii_equal_ignore_case(paths[index], paths[seen[slot] - 1])) {
                 wm_error_set(error, error_size, "Duplicate U8 entry path.");
                 valid = false;
                 break;

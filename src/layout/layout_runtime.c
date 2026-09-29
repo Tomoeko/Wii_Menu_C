@@ -1,4 +1,5 @@
 #include "layout_runtime_internal.h"
+#include "wii_menu/support/ascii.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -195,27 +196,13 @@ static const LayoutGroup *find_group(const WmLayout *layout, const char *name) {
     return NULL;
 }
 
-static unsigned ascii_lower(unsigned character) {
-    return character >= 'A' && character <= 'Z' ? character + ('a' - 'A') : character;
-}
-
-static bool ascii_equal_ignore_case(const char *left, const char *right) {
-    while (*left && *right) {
-        if (ascii_lower((unsigned char)*left) != ascii_lower((unsigned char)*right))
-            return false;
-        left++;
-        right++;
-    }
-    return *left == *right;
-}
-
 bool wm_layout_animation_info(const WmLayout *layout, const char *name,
                               WmLayoutAnimationInfo *info) {
     if (!layout || !name || !info)
         return false;
     for (size_t index = 0; index < layout->animation_count; index++) {
         const LayoutAnimation *animation = &layout->animations[index];
-        if (!ascii_equal_ignore_case(animation->name, name))
+        if (!wm_ascii_equal_ignore_case(animation->name, name))
             continue;
         *info = (WmLayoutAnimationInfo){.name = animation->name,
                                         .frames = animation->frames,

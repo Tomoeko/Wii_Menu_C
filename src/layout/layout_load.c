@@ -80,7 +80,7 @@ static bool json_bytes(const WmJson *json, size_t array, uint8_t *bytes, size_t 
 }
 
 int wm_layout_find_pane(const WmLayout *layout, const char *name) {
-    /* JS Map lookup in the source project keeps the last duplicate name. */
+    /* Duplicate pane names resolve to their final definition. */
     for (size_t index = layout->pane_count; index > 0; index--) {
         if (strcmp(layout->base_panes[index - 1].name, name) == 0)
             return (int)index - 1;
