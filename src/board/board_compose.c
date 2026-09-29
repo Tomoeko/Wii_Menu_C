@@ -4,18 +4,14 @@
 #include "board_compose_presentation.h"
 #include "board_text.h"
 
+#include "wii_menu/layout/layout_assets.h"
 #include "wii_menu/layout/layout_runtime.h"
 #include "wii_menu/render/material_prepare.h"
 
 #include <math.h>
-#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
-enum {
-    COMPOSE_PATH_CAPACITY = 4096
-};
 
 static bool close_address_keyboard(WmBoardCompose *compose, bool accepting);
 
@@ -78,16 +74,7 @@ static float focus_duration(WmBoardComposeControl control, bool entering) {
 }
 
 static WmLayout *load_layout(const char *directory, const char *relative) {
-    char path[COMPOSE_PATH_CAPACITY];
-    int length = snprintf(path, sizeof(path), "%s/%s", directory, relative);
-    if (length < 0 || length >= (int)sizeof(path)) return NULL;
-    char error[160] = {0};
-    WmLayout *layout = wm_layout_load_json(path, error, sizeof(error));
-    if (!layout) {
-        fprintf(stderr, "Could not load Create Message layout %s: %s\n",
-                relative, error);
-    }
-    return layout;
+    return wm_layout_load_asset(directory, relative, "Create Message");
 }
 
 static size_t memo_line_count(WmBoardCompose *compose) {
@@ -177,48 +164,12 @@ bool wm_board_compose_move_caret(WmBoardCompose *compose, WmKey direction) {
                 wm_font_text_layout_caret(layout, caret, &x, &y)) {
                 float column = compose->memo_vertical_x_valid
                     ? compose->memo_vertical_x : x;
-                float target_y = 0.0f;
-                bool found_line = false;
                 /* Source line spacing need not equal the editor's scroll
-                 * increment. Find the nearest rendered line, including wraps. */
-                for (size_t index = 0; index <= compose->draft.text_bytes;
-                     index++) {
-                    if (index < compose->draft.text_bytes &&
-                        ((unsigned char)compose->draft.text[index] & 0xc0u) == 0x80u)
-                        continue;
-                    float point_x, point_y;
-                    if (!wm_font_text_layout_caret(layout, index,
-                                                    &point_x, &point_y))
-                        continue;
-                    bool adjacent = direction == WM_KEY_UP
-                        ? point_y > y + 0.5f &&
-                          (!found_line || point_y < target_y)
-                        : point_y < y - 0.5f &&
-                          (!found_line || point_y > target_y);
-                    if (adjacent) {
-                        target_y = point_y;
-                        found_line = true;
-                    }
-                }
-                float nearest_x = INFINITY;
-                for (size_t index = 0;
-                     found_line && index <= compose->draft.text_bytes;
-                     index++) {
-                    if (index < compose->draft.text_bytes &&
-                        ((unsigned char)compose->draft.text[index] & 0xc0u) == 0x80u)
-                        continue;
-                    float point_x, point_y;
-                    if (!wm_font_text_layout_caret(layout, index,
-                                                    &point_x, &point_y) ||
-                        fabsf(point_y - target_y) > 0.5f)
-                        continue;
-                    float distance = fabsf(point_x - column);
-                    if (distance < nearest_x) {
-                        nearest_x = distance;
-                        selected = index;
-                    }
-                }
-                if (isfinite(nearest_x)) {
+                 * increment. The layout selects the next rendered line,
+                 * including automatic wraps, in one pass. */
+                if (wm_font_text_layout_move_caret_vertical(
+                        layout, caret, direction == WM_KEY_UP,
+                        column, &selected)) {
                     compose->memo_vertical_x = column;
                     compose->memo_vertical_x_valid = true;
                 } else {
@@ -545,7 +496,10 @@ void wm_board_compose_advance(WmBoardCompose *compose, float frames) {
         float amount = fminf(remaining, duration - compose->frame);
         compose->frame += amount;
         remaining -= amount;
-        if (compose->phase == WM_COMPOSE_LEAVE_EDIT) {
+        if (compose->phase == WM_COMPOSE_ENTER_EDIT) {
+            board_compose_scroll_enter_edit_frame(&compose->scroll,
+                                                   compose->frame);
+        } else if (compose->phase == WM_COMPOSE_LEAVE_EDIT) {
             board_compose_scroll_leave_edit(&compose->scroll, compose->frame);
         }
         if (compose->frame < duration) return;
@@ -654,7 +608,8 @@ bool wm_board_compose_back(WmBoardCompose *compose) {
         wm_board_keyboard_finish_composition(compose->keyboard);
         compose->scroll.lines = memo_line_count(compose);
         compose->scroll.start = compose->scroll.offset;
-        compose->scroll.target = fminf(compose->scroll.offset,
+        compose->scroll.target = fminf(fmaxf(compose->scroll.offset,
+            compose->scroll.display_return_offset),
             board_compose_scroll_maximum(&compose->scroll, COMPOSE_SCROLL_DISPLAY));
         compose->scroll.moving = false;
         compose->scroll.follow_caret_pending = false;
@@ -1160,6 +1115,7 @@ static bool activate_memo_control(WmBoardCompose *compose,
             compose->key_cue_count = 0;
             queue_key_cue(compose, "WIPL_SE_SK_OPEN");
             board_compose_scroll_refresh(&compose->scroll, compose->phase);
+            board_compose_scroll_begin_enter_edit(&compose->scroll);
             compose->scroll.follow_caret_pending = true;
             return true;
         }
@@ -1360,6 +1316,8 @@ bool wm_board_compose_insert_text(WmBoardCompose *compose,
     compose->keyboard_age = 0.0f;
     compose->scroll.lines = memo_line_count(compose);
     board_compose_scroll_refresh(&compose->scroll, compose->phase);
+    if (compose->phase == WM_COMPOSE_ENTER_EDIT)
+        board_compose_scroll_begin_enter_edit(&compose->scroll);
     compose->scroll.follow_caret_pending = true;
     follow_memo_caret(compose);
     return true;

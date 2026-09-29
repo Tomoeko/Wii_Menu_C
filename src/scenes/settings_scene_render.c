@@ -826,15 +826,32 @@ static void draw_sensitivity_screen(WmSettingsScene *scene) {
               24.0f, white, 1.0f, WM_FONT_ALIGN_CENTER);
 }
 
+static void draw_centered_lines_sized(WmSettingsScene *scene,
+                                      const char *const *lines,
+                                      unsigned count, float first_y,
+                                      float line_height, float font_height) {
+    const WmColor white = {1, 1, 1, 1};
+    for (unsigned line = 0; line < count; line++)
+        draw_text(scene, lines[line], 320.0f,
+                  first_y + line_height * line, font_height,
+                  white, 1.0f, WM_FONT_ALIGN_CENTER);
+}
+
 static void draw_centered_lines(WmSettingsScene *scene,
                                 const char *const *lines,
                                 unsigned count, float first_y,
                                 float line_height) {
-    const WmColor white = {1, 1, 1, 1};
-    for (unsigned line = 0; line < count; line++)
-        draw_text(scene, lines[line], 320.0f,
-                  first_y + line_height * line, 23.0f,
-                  white, 1.0f, WM_FONT_ALIGN_CENTER);
+    draw_centered_lines_sized(scene, lines, count, first_y, line_height,
+                              23.0f);
+}
+
+static void draw_format_lines(WmSettingsScene *scene,
+                              const char *const *lines, unsigned count) {
+    const float line_height = 33.0f;
+    const float middle_y = 198.0f;
+    float first_y = middle_y - (float)(count - 1) * line_height * 0.5f;
+    draw_centered_lines_sized(scene, lines, count, first_y,
+                              line_height, 24.0f);
 }
 
 static void draw_usb_prompt_lines(WmSettingsScene *scene,
@@ -1125,17 +1142,13 @@ static void draw_extended_category(WmSettingsScene *scene,
             break;
         case SETTINGS_FORMAT:
             if (!scene->detail)
-                draw_centered_lines(scene, format_intro,
-                                    7, 84.0f, 34.0f);
+                draw_format_lines(scene, format_intro, 7);
             else if (scene->detail == 1)
-                draw_centered_lines(scene, format_shop,
-                                    7, 84.0f, 34.0f);
+                draw_format_lines(scene, format_shop, 7);
             else if (scene->detail == 2)
-                draw_centered_lines(scene, format_final,
-                                    5, 120.0f, 34.0f);
+                draw_format_lines(scene, format_final, 5);
             else
-                draw_centered_lines(scene, format_local,
-                                    2, 177.0f, 34.0f);
+                draw_format_lines(scene, format_local, 2);
             *left_label = scene->detail == 2 ? "Format" :
                           scene->detail == 3 ? NULL : "Cancel";
             *right_label = scene->detail == 2 ? "No" :
@@ -1493,6 +1506,47 @@ static void draw_page_content(WmSettingsScene *scene,
     wm_platform_set_clip(scene->platform, NULL);
 }
 
+static WmSettingsScene prior_page_view(const WmSettingsScene *scene) {
+    const SettingsPageSnapshot *snapshot = &scene->prior_page;
+    WmSettingsScene prior = {
+        .platform = scene->platform,
+        .textures = scene->textures,
+        .fonts = scene->fonts,
+        .font = scene->font,
+        .outline_font = scene->outline_font,
+        .scroll_layout = scene->scroll_layout,
+        .phase = snapshot->phase,
+        .hover = snapshot->hover,
+        .page = snapshot->page,
+        .previous_page = snapshot->previous_page,
+        .active_category = snapshot->active_category,
+        .detail = snapshot->detail,
+        .selection = snapshot->selection,
+        .language_choice = snapshot->language_choice,
+        .edit_year = snapshot->edit_year,
+        .edit_month = snapshot->edit_month,
+        .edit_day = snapshot->edit_day,
+        .edit_hour = snapshot->edit_hour,
+        .edit_minute = snapshot->edit_minute,
+        .edit_sensitivity = snapshot->edit_sensitivity,
+        .connection_slot = snapshot->connection_slot,
+        .country_page = snapshot->country_page,
+        .edit_country_choice = snapshot->edit_country_choice,
+        .connect24_enabled = snapshot->connect24_enabled,
+        .sensitivity_instructions = snapshot->sensitivity_instructions,
+        .wide = snapshot->wide,
+        .direction = snapshot->direction,
+        .phase_frame = snapshot->phase_frame,
+        .page_frame = snapshot->page_frame,
+        .nickname_keyboard_phase = snapshot->nickname_keyboard_phase,
+        .nickname_caret = snapshot->nickname_caret,
+        .draw_opacity = 1.0f
+    };
+    memcpy(prior.edit_nickname, snapshot->edit_nickname,
+           sizeof(prior.edit_nickname));
+    return prior;
+}
+
 bool wm_settings_scene_draw(WmSettingsScene *scene) {
     if (!scene || scene->phase == WM_SETTINGS_CLOSED) return false;
     WmSettingsProjection projection = wm_settings_scene_projection(scene);
@@ -1500,12 +1554,10 @@ bool wm_settings_scene_draw(WmSettingsScene *scene) {
         projection.document_x, 0.0f,
         projection.document_width, 456.0f
     };
-    if (scene->page_crossfade && scene->phase == WM_SETTINGS_READY &&
-        scene->prior_page) {
-        WmSettingsScene *prior = scene->prior_page;
-        prior->draw_opacity = 1.0f;
-        draw_background(prior);
-        draw_page_content(prior, &clip);
+    if (scene->page_crossfade && scene->phase == WM_SETTINGS_READY) {
+        WmSettingsScene prior = prior_page_view(scene);
+        draw_background(&prior);
+        draw_page_content(&prior, &clip);
         scene->draw_opacity = wm_settings_page_opacity(scene);
         if (scene->draw_opacity > 0.0f) {
             /* Cover the previous foreground with the incoming page's fade,

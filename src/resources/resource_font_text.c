@@ -297,6 +297,64 @@ bool wm_font_text_layout_caret(const WmFontTextLayout *layout,
     return true;
 }
 
+bool wm_font_text_layout_move_caret_vertical(
+    const WmFontTextLayout *layout, size_t from_byte, bool up,
+    float preferred_x, size_t *to_byte) {
+    if (!layout || !layout->line_count || !to_byte ||
+        !isfinite(preferred_x)) return false;
+    size_t text_bytes = strlen(layout->text);
+    if (from_byte > text_bytes) from_byte = text_bytes;
+    while (from_byte > 0 && from_byte < text_bytes &&
+           ((unsigned char)layout->text[from_byte] & 0xc0u) == 0x80u)
+        from_byte--;
+
+    size_t current = 0;
+    for (size_t index = 1; index < layout->line_count; index++) {
+        if (layout->lines[index].first_byte > from_byte) break;
+        current = index;
+    }
+    float current_y = layout->lines[current].y;
+    size_t target = layout->line_count;
+    for (size_t index = 0; index < layout->line_count; index++) {
+        float y = layout->lines[index].y;
+        bool adjacent = up ? y > current_y + 0.5f
+                           : y < current_y - 0.5f;
+        if (!adjacent) continue;
+        if (target == layout->line_count ||
+            (up ? y < layout->lines[target].y
+                : y > layout->lines[target].y))
+            target = index;
+    }
+    if (target == layout->line_count) return false;
+
+    const FontLine *line = &layout->lines[target];
+    size_t position = line->first_byte;
+    size_t end = position + line->byte_count;
+    size_t nearest = position;
+    float nearest_distance = fabsf(line->x - preferred_x);
+    float prefix_width = 0.0f;
+    size_t characters = 0;
+    float scale = layout->pane.font_size[0] / layout->font->metrics.width;
+    while (position < end) {
+        uint32_t codepoint = next_codepoint(layout->text, end, &position);
+        const WmFontGlyph *glyph = wm_font_glyph(layout->font, codepoint);
+        if (characters++) prefix_width += layout->pane.char_space;
+        if (glyph) prefix_width += glyph->advance * scale;
+        /* At an automatic wrap, this boundary belongs to the next line. */
+        if (target + 1 < layout->line_count &&
+            position == layout->lines[target + 1].first_byte)
+            continue;
+        float x = line->x + prefix_width + layout->pane.char_space;
+        float distance = fabsf(x - preferred_x);
+        if (distance < nearest_distance) {
+            nearest_distance = distance;
+            nearest = position;
+        }
+    }
+    *to_byte = nearest;
+    return true;
+}
+
 bool wm_font_text_layout_hit_caret(const WmFontTextLayout *layout,
                                    float x, float y, size_t *byte_index) {
     if (!layout || !layout->line_count || !byte_index ||

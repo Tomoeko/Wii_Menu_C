@@ -276,7 +276,6 @@ wm_add_test(wii-menu-audio
 wm_add_test(wii-menu-scene-assets
     SOURCES scenes/scene_assets_test.c
     LIBRARIES wii_menu_core
-    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/scenes"
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
 )
 wm_add_test(wii-menu-home-overlay

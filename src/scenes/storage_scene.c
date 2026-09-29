@@ -76,7 +76,7 @@ static void sort_wii_channels(WmStorageRecord *records, size_t count) {
 }
 
 static WmLayout *load_layout(const char *directory, const char *relative) {
-    return wm_scene_load_layout(directory, relative, "Data Management");
+    return wm_layout_load_asset(directory, relative, "Data Management");
 }
 
 static bool record_valid(const WmStorageRecord *record) {

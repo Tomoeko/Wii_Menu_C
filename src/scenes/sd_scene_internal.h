@@ -6,7 +6,7 @@
 #include "wii_menu/layout/layout_runtime.h"
 #include "wii_menu/render/texture_cache.h"
 #include "wii_menu/fonts/font_cache.h"
-#include "scene_assets.h"
+#include "wii_menu/layout/layout_assets.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -67,7 +67,7 @@ typedef enum SdLoaderPhase {
 } SdLoaderPhase;
 
 struct WmSdScene {
-    char assets_directory[WM_SCENE_ASSET_PATH_CAPACITY];
+    char assets_directory[WM_LAYOUT_ASSET_PATH_CAPACITY];
     WmPlatform *platform;
     WmTextureCache *textures;
     WmFontCache *fonts;

@@ -3,6 +3,7 @@
 #include "board_keyboard_internal.h"
 #include "board_keyboard_prediction.h"
 
+#include "wii_menu/layout/layout_assets.h"
 #include "wii_menu/render/material_prepare.h"
 
 #include <math.h>
@@ -13,7 +14,6 @@
 #include <string.h>
 
 enum {
-    KEYBOARD_PATH_CAPACITY = 4096,
     MAX_HOLD_REPEATS_PER_ADVANCE = 4096
 };
 
@@ -117,17 +117,11 @@ char wm_board_keyboard_key_character(const WmBoardKeyboard *keyboard, unsigned i
 }
 
 static WmLayout *load_layout(const char *directory, const char *name) {
-    char path[KEYBOARD_PATH_CAPACITY];
-    int length = snprintf(path, sizeof(path),
-                          "%s/layouts/sofkeybd/%s.json", directory, name);
-    if (length < 0 || length >= (int)sizeof(path)) return NULL;
-    char error[160] = {0};
-    WmLayout *layout = wm_layout_load_json(path, error, sizeof(error));
-    if (!layout) {
-        fprintf(stderr, "Could not load software keyboard %s: %s\n",
-                name, error);
-    }
-    return layout;
+    char relative[128];
+    int length = snprintf(relative, sizeof(relative),
+                          "layouts/sofkeybd/%s.json", name);
+    if (length < 0 || length >= (int)sizeof(relative)) return NULL;
+    return wm_layout_load_asset(directory, relative, "software keyboard");
 }
 
 WmBoardKeyboard *wm_board_keyboard_create(WmPlatform *platform,

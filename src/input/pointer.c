@@ -1,5 +1,6 @@
 #include "wii_menu/input/pointer.h"
 
+#include "wii_menu/layout/layout_assets.h"
 #include "wii_menu/layout/layout_present.h"
 #include "wii_menu/layout/layout_runtime.h"
 #include "wii_menu/render/material_prepare.h"
@@ -7,8 +8,6 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-enum { WM_POINTER_PATH_CAPACITY = 4096 };
 
 struct WmPointer {
     WmPlatform *platform;
@@ -23,12 +22,11 @@ struct WmPointer {
 
 static WmLayout *load_pointer_layout(const char *assets_directory,
                                       const char *name) {
-    char path[WM_POINTER_PATH_CAPACITY];
-    int length = snprintf(path, sizeof(path), "%s/layouts/cursor/%s.json",
-                          assets_directory, name);
-    if (length < 0 || length >= (int)sizeof(path)) return NULL;
-    char error[160];
-    return wm_layout_load_json(path, error, sizeof(error));
+    char relative[128];
+    int length = snprintf(relative, sizeof(relative),
+                          "layouts/cursor/%s.json", name);
+    if (length < 0 || length >= (int)sizeof(relative)) return NULL;
+    return wm_layout_load_asset(assets_directory, relative, NULL);
 }
 
 WmPointer *wm_pointer_create(WmPlatform *platform, const char *assets_directory,

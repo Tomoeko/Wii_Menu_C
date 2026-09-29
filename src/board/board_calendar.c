@@ -2,28 +2,17 @@
 
 #include "board_calendar_internal.h"
 
+#include "wii_menu/layout/layout_assets.h"
 #include "wii_menu/render/material_prepare.h"
 #include "wii_menu/input/source_hit.h"
 
 #include <math.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
-enum { CALENDAR_PATH_CAPACITY = 4096 };
-
 static WmLayout *load_layout(const char *directory, const char *relative) {
-    char path[CALENDAR_PATH_CAPACITY];
-    int length = snprintf(path, sizeof(path), "%s/%s", directory, relative);
-    if (length < 0 || length >= (int)sizeof(path)) return NULL;
-    char error[160] = {0};
-    WmLayout *layout = wm_layout_load_json(path, error, sizeof(error));
-    if (!layout) {
-        fprintf(stderr, "Could not load Calendar layout %s: %s\n",
-                relative, error);
-    }
-    return layout;
+    return wm_layout_load_asset(directory, relative, "Calendar");
 }
 
 static void reset_day_order(WmBoardCalendar *calendar) {

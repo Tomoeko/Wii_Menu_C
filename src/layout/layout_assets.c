@@ -1,9 +1,9 @@
-#include "scene_assets.h"
+#include "wii_menu/layout/layout_assets.h"
 
 #include <limits.h>
 #include <stdio.h>
 
-enum { WM_SCENE_LAYOUT_ERROR_CAPACITY = 160 };
+enum { WM_LAYOUT_ERROR_CAPACITY = 160 };
 
 static bool valid_relative_path(const char *relative) {
     if (relative == NULL || relative[0] == '\0') {
@@ -30,8 +30,8 @@ static bool valid_relative_path(const char *relative) {
     }
 }
 
-bool wm_scene_asset_path(char *path, size_t capacity, const char *root,
-                         const char *relative) {
+bool wm_layout_asset_path(char *path, size_t capacity, const char *root,
+                          const char *relative) {
     if (path == NULL || capacity == 0 || capacity > INT_MAX || root == NULL ||
         root[0] == '\0' || !valid_relative_path(relative)) {
         return false;
@@ -41,17 +41,17 @@ bool wm_scene_asset_path(char *path, size_t capacity, const char *root,
     return length >= 0 && (size_t)length < capacity;
 }
 
-WmLayout *wm_scene_load_layout(const char *root, const char *relative,
-                               const char *scene_name) {
-    char path[WM_SCENE_ASSET_PATH_CAPACITY];
-    if (!wm_scene_asset_path(path, sizeof(path), root, relative)) {
+WmLayout *wm_layout_load_asset(const char *root, const char *relative,
+                               const char *owner_name) {
+    char path[WM_LAYOUT_ASSET_PATH_CAPACITY];
+    if (!wm_layout_asset_path(path, sizeof(path), root, relative)) {
         return NULL;
     }
 
-    char error[WM_SCENE_LAYOUT_ERROR_CAPACITY] = {0};
+    char error[WM_LAYOUT_ERROR_CAPACITY] = {0};
     WmLayout *layout = wm_layout_load_json(path, error, sizeof(error));
-    if (layout == NULL && scene_name != NULL) {
-        fprintf(stderr, "Could not load %s layout %s: %s\n", scene_name, relative,
+    if (layout == NULL && owner_name != NULL) {
+        fprintf(stderr, "Could not load %s layout %s: %s\n", owner_name, relative,
                 error);
     }
     return layout;

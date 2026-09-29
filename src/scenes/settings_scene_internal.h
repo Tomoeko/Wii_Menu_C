@@ -52,9 +52,39 @@ enum InternetDetail {
     INTERNET_USB_EXISTING_CONNECTOR = 11
 };
 
+/* Crossfades retain only the values used to draw the outgoing page. The live
+ * scene continues to own every layout, font, keyboard, and asset path. */
+typedef struct SettingsPageSnapshot {
+    WmSettingsPhase phase;
+    WmSettingsControl hover;
+    unsigned page;
+    unsigned previous_page;
+    unsigned active_category;
+    unsigned detail;
+    unsigned selection;
+    unsigned language_choice;
+    unsigned edit_year;
+    unsigned edit_month;
+    unsigned edit_day;
+    unsigned edit_hour;
+    unsigned edit_minute;
+    unsigned edit_sensitivity;
+    unsigned connection_slot;
+    unsigned country_page;
+    unsigned edit_country_choice;
+    bool connect24_enabled;
+    bool sensitivity_instructions;
+    bool wide;
+    int direction;
+    float phase_frame;
+    float page_frame;
+    SettingsNicknameKeyboardPhase nickname_keyboard_phase;
+    unsigned nickname_caret;
+    char edit_nickname[SETTINGS_NICKNAME_LIMIT + 1];
+} SettingsPageSnapshot;
+
 /* Shared state is private to the Settings scene's interaction and drawing
- * modules. The prior-page snapshot owns no resources; destroy it before the
- * live scene's resources. */
+ * modules. */
 struct WmSettingsScene {
     WmPlatform *platform;
     WmTextureCache *textures;
@@ -120,7 +150,7 @@ struct WmSettingsScene {
     float draw_opacity;
     bool page_crossfade;
     bool wide;
-    WmSettingsScene *prior_page;
+    SettingsPageSnapshot prior_page;
     bool exit_pending;
     bool direct_entry;
 };

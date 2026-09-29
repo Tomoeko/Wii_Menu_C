@@ -724,6 +724,46 @@ int main(int argc, char **argv) {
     wm_board_compose_advance(compose, 39.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_MEMO));
     wm_board_compose_advance(compose, 26.0f);
+    assert(wm_board_compose_insert_text(compose, "Alpha"));
+    wm_board_compose_advance(compose, 30.0f);
+    assert(wm_board_compose_finish_edit(compose));
+    wm_board_compose_advance(compose, 30.0f);
+    assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_SCROLL_DOWN));
+    wm_board_compose_advance(compose, 15.0f);
+    WmBoardComposeScrollState scrolled_memo;
+    assert(wm_board_compose_scroll_state(compose, &scrolled_memo));
+    assert(fabsf(scrolled_memo.offset - 68.0f) < 0.01f);
+    int pointer_x, pointer_y;
+    memo_pointer_for_caret(source, letter_face, "Alpha", 2,
+                            scrolled_memo.offset, false,
+                            &pointer_x, &pointer_y);
+    assert(wm_board_compose_hit(compose, pointer_x, pointer_y) ==
+           WM_COMPOSE_CONTROL_EDIT);
+    assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_EDIT));
+    assert(wm_board_compose_caret(compose) == 2);
+    assert(wm_board_compose_scroll_state(compose, &scrolled_memo));
+    assert(fabsf(scrolled_memo.offset - 68.0f) < 0.01f);
+    wm_board_compose_advance(compose, 15.0f);
+    assert(wm_board_compose_scroll_state(compose, &scrolled_memo));
+    assert(fabsf(scrolled_memo.offset - 34.0f) < 0.01f);
+    wm_board_compose_advance(compose, 15.0f);
+    assert(wm_board_compose_scroll_state(compose, &scrolled_memo));
+    assert(fabsf(scrolled_memo.offset) < 0.01f);
+    assert(wm_board_compose_caret(compose) == 2);
+    assert(wm_board_compose_finish_edit(compose));
+    wm_board_compose_advance(compose, 15.0f);
+    assert(wm_board_compose_scroll_state(compose, &scrolled_memo));
+    assert(fabsf(scrolled_memo.offset - 34.0f) < 0.01f);
+    wm_board_compose_advance(compose, 15.0f);
+    assert(wm_board_compose_scroll_state(compose, &scrolled_memo));
+    assert(fabsf(scrolled_memo.offset - 68.0f) < 0.01f);
+    wm_board_compose_destroy(compose);
+
+    compose = wm_board_compose_create((WmPlatform *)1, assets, textures, fonts);
+    assert(compose && wm_board_compose_open(compose));
+    wm_board_compose_advance(compose, 39.0f);
+    assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_MEMO));
+    wm_board_compose_advance(compose, 26.0f);
     const char *draft = "Alpha \303\251\nBravo\nCharlie\nDelta\nEcho\nFoxtrot";
     assert(wm_board_compose_insert_text(compose, draft));
     assert(take_scroll_cues(compose) == 0);
@@ -740,7 +780,6 @@ int main(int argc, char **argv) {
     WmBoardComposeScrollState scroll;
     assert(wm_board_compose_scroll_state(compose, &scroll));
     size_t selected = (size_t)(strstr(draft, "Delta") - draft) + 2;
-    int pointer_x, pointer_y;
     memo_pointer_for_caret(source, letter_face, draft, selected,
                             scroll.offset, false, &pointer_x, &pointer_y);
     assert(wm_board_compose_hit(compose, pointer_x, pointer_y) ==

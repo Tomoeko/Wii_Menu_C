@@ -115,6 +115,48 @@ static void capture_quad(void *context, const WmFontQuad *quad) {
     assert(quad->format == 0);
 }
 
+/* Preserve the earlier two-scan selection rule while the runtime uses the
+ * layout's line boundaries to avoid measuring every text prefix. */
+static bool reference_vertical_caret(const WmFontTextLayout *layout,
+                                      const char *text, size_t from,
+                                      bool up, float preferred_x,
+                                      size_t *result) {
+    float from_x, from_y;
+    if (!wm_font_text_layout_caret(layout, from, &from_x, &from_y))
+        return false;
+    size_t bytes = strlen(text);
+    float target_y = 0.0f;
+    bool found_line = false;
+    for (size_t index = 0; index <= bytes; index++) {
+        if (index < bytes &&
+            ((unsigned char)text[index] & 0xc0u) == 0x80u) continue;
+        float x, y;
+        if (!wm_font_text_layout_caret(layout, index, &x, &y)) continue;
+        bool adjacent = up ? y > from_y + 0.5f &&
+                              (!found_line || y < target_y)
+                           : y < from_y - 0.5f &&
+                              (!found_line || y > target_y);
+        if (adjacent) {
+            target_y = y;
+            found_line = true;
+        }
+    }
+    float nearest = INFINITY;
+    for (size_t index = 0; found_line && index <= bytes; index++) {
+        if (index < bytes &&
+            ((unsigned char)text[index] & 0xc0u) == 0x80u) continue;
+        float x, y;
+        if (!wm_font_text_layout_caret(layout, index, &x, &y) ||
+            fabsf(y - target_y) > 0.5f) continue;
+        float distance = fabsf(x - preferred_x);
+        if (distance < nearest) {
+            nearest = distance;
+            *result = index;
+        }
+    }
+    return isfinite(nearest);
+}
+
 int main(void) {
     uint8_t bytes[TEST_FONT_SIZE];
     make_font(bytes);
@@ -205,6 +247,29 @@ int main(void) {
                                              &caret_byte));
         assert(caret_byte == boundaries[index]);
     }
+    const char *wrapped_text = "AA\303\251A\nA";
+    const float preferred_columns[] = {-8.0f, 0.0f, 4.0f, 12.0f};
+    for (size_t boundary = 0;
+         boundary < sizeof(boundaries) / sizeof(boundaries[0]); boundary++) {
+        for (size_t column = 0;
+             column < sizeof(preferred_columns) /
+                          sizeof(preferred_columns[0]); column++) {
+            for (unsigned direction = 0; direction < 2; direction++) {
+                size_t expected = SIZE_MAX;
+                size_t actual = SIZE_MAX;
+                bool up = direction == 0;
+                bool found = reference_vertical_caret(
+                    layout, wrapped_text, boundaries[boundary], up,
+                    preferred_columns[column], &expected);
+                assert(wm_font_text_layout_move_caret_vertical(
+                    layout, boundaries[boundary], up,
+                    preferred_columns[column], &actual) == found);
+                if (found) assert(actual == expected);
+            }
+        }
+    }
+    assert(!wm_font_text_layout_move_caret_vertical(
+        layout, 0, true, NAN, &caret_byte));
     assert(!wm_font_text_layout_hit_caret(layout, NAN, 0, &caret_byte));
     wm_font_text_layout_destroy(layout);
     wm_font_destroy(font);

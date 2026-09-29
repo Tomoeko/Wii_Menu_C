@@ -4,7 +4,7 @@
 #include "wii_menu/scenes/storage_scene.h"
 
 #include "wii_menu/layout/layout_runtime.h"
-#include "scene_assets.h"
+#include "wii_menu/layout/layout_assets.h"
 
 enum {
     STORAGE_PAGE_SIZE = 15,
@@ -42,7 +42,7 @@ struct WmStorageScene {
     WmLayout *balloon;
     WmLayout *icons[STORAGE_PAGE_SIZE];
     char icon_paths[STORAGE_PAGE_SIZE][256];
-    char assets_directory[WM_SCENE_ASSET_PATH_CAPACITY];
+    char assets_directory[WM_LAYOUT_ASSET_PATH_CAPACITY];
     char base_stem[40];
     char box_stem[40];
     char detail_stem[48];

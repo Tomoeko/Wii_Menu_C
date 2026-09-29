@@ -1,5 +1,6 @@
 #include "channel_drag_internal.h"
 
+#include "wii_menu/layout/layout_assets.h"
 #include "wii_menu/layout/layout_present.h"
 #include "wii_menu/layout/layout_runtime.h"
 #include "wii_menu/render/material_prepare.h"
@@ -21,16 +22,12 @@ struct WmChannelDragPresentation {
     bool wide;
 };
 
-enum { CHANNEL_DRAG_PATH_CAPACITY = 4096 };
-
 static WmLayout *load_layout(const char *assets_directory, const char *name) {
-    char path[CHANNEL_DRAG_PATH_CAPACITY];
-    int count = snprintf(path, sizeof(path), "%s/layouts/chanSel/%s.json",
-                         assets_directory, name);
-    if (count < 0 || count >= (int)sizeof(path))
-        return NULL;
-    char error[160];
-    return wm_layout_load_json(path, error, sizeof(error));
+    char relative[128];
+    int count = snprintf(relative, sizeof(relative),
+                         "layouts/chanSel/%s.json", name);
+    if (count < 0 || count >= (int)sizeof(relative)) return NULL;
+    return wm_layout_load_asset(assets_directory, relative, NULL);
 }
 
 static bool animation_length(const WmLayout *layout, const char *name, float *length) {

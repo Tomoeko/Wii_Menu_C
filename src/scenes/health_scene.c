@@ -1,5 +1,6 @@
 #include "wii_menu/scenes/health_scene.h"
 
+#include "wii_menu/layout/layout_assets.h"
 #include "wii_menu/layout/layout_present.h"
 #include "wii_menu/render/material_prepare.h"
 
@@ -9,7 +10,6 @@
 #include <string.h>
 
 enum {
-    HEALTH_PATH_CAPACITY = 4096,
     HEALTH_LOCALE_CAPACITY = 32
 };
 
@@ -48,16 +48,9 @@ WmHealthScene *wm_health_scene_create(WmPlatform *platform,
                                         const char *locale) {
     if (!platform || !assets_directory || !assets_directory[0] ||
         !textures || !fonts) return NULL;
-    char path[HEALTH_PATH_CAPACITY];
-    int length = snprintf(path, sizeof(path), "%s/layouts/health/it_Has_a.json",
-                          assets_directory);
-    if (length < 0 || length >= (int)sizeof(path)) return NULL;
-    char error[160] = {0};
-    WmLayout *layout = wm_layout_load_json(path, error, sizeof(error));
-    if (!layout) {
-        fprintf(stderr, "Could not load Health and Safety layout: %s\n", error);
-        return NULL;
-    }
+    WmLayout *layout = wm_layout_load_asset(
+        assets_directory, "layouts/health/it_Has_a.json", "Health and Safety");
+    if (!layout) return NULL;
     WmLayoutAnimationInfo enter;
     WmLayoutAnimationInfo exit;
     WmLayoutAnimationInfo push;

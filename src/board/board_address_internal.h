@@ -7,7 +7,6 @@
 #include <math.h>
 
 enum {
-    ADDRESS_PATH_CAPACITY = 4096,
     ADDRESS_PAGE_COUNT = 20,
     ADDRESS_TEXT_CAPACITY = 400
 };

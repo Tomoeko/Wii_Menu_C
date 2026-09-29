@@ -1407,11 +1407,18 @@ static void test_compose_memo_scroll_transitions(int argc, char **argv) {
     assert(wm_board_compose_scroll_state(compose, &scroll));
     assert(scroll.editing && scroll.editor_opacity == 0.0f &&
            !scroll.up_target_visible && !scroll.down_target_visible);
-    wm_board_compose_advance(compose, 29.0f);
+    assert(fabsf(scroll.offset - 68.0f) < 0.01f);
+    wm_board_compose_advance(compose, 15.0f);
     assert(wm_board_compose_scroll_state(compose, &scroll));
+    assert(fabsf(scroll.offset - 34.0f) < 0.01f);
+    wm_board_compose_advance(compose, 14.0f);
+    assert(wm_board_compose_scroll_state(compose, &scroll));
+    assert(scroll.offset > 0.0f && scroll.offset < 1.0f);
     assert(scroll.editor_opacity == 0.0f);
     wm_board_compose_advance(compose, 1.0f);
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_EDIT);
+    assert(wm_board_compose_scroll_state(compose, &scroll));
+    assert(fabsf(scroll.offset) < 0.01f);
     assert(wm_board_compose_insert_text(
         compose, "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL"));
     assert(wm_board_compose_scroll_state(compose, &scroll));

@@ -39,6 +39,7 @@ typedef struct BoardComposeScroll {
     float line_height;
     float start;
     float target;
+    float display_return_offset;
     float frame;
     size_t lines;
     bool moving;
@@ -54,6 +55,8 @@ void board_compose_scroll_refresh(BoardComposeScroll *scroll,
 bool board_compose_scroll_start(BoardComposeScroll *scroll, float target);
 void board_compose_scroll_advance(BoardComposeScroll *scroll, float frames,
                                   WmBoardComposePhase phase);
+void board_compose_scroll_begin_enter_edit(BoardComposeScroll *scroll);
+void board_compose_scroll_enter_edit_frame(BoardComposeScroll *scroll, float frame);
 void board_compose_scroll_leave_edit(BoardComposeScroll *scroll, float frame);
 void board_compose_scroll_finish_leave_edit(BoardComposeScroll *scroll);
 void board_compose_scroll_enter_edit(BoardComposeScroll *scroll);

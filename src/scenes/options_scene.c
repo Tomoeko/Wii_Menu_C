@@ -4,7 +4,7 @@
 #include "wii_menu/render/material_prepare.h"
 #include "wii_menu/animation/scene_fader.h"
 #include "wii_menu/scenes/settings_scene.h"
-#include "scene_assets.h"
+#include "wii_menu/layout/layout_assets.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -27,7 +27,7 @@ const OptionButton options_scene_buttons[OPTIONS_BUTTON_COUNT] = {
 };
 
 static WmLayout *load_layout(const char *directory, const char *relative) {
-    return wm_scene_load_layout(directory, relative, "Wii Options");
+    return wm_layout_load_asset(directory, relative, "Wii Options");
 }
 
 static int button_index(WmOptionsControl control) {

@@ -124,6 +124,12 @@ size_t wm_font_text_layout_line_count(const WmFontTextLayout *layout);
  * line, while an explicit newline chooses the preceding line's end. */
 bool wm_font_text_layout_caret(const WmFontTextLayout *layout,
                                size_t byte_index, float *x, float *y);
+/* Find the nearest insertion point on the next rendered line in the chosen
+ * direction. A retained preferred_x keeps repeated up/down movement in one
+ * visual column. Returns false at the first or last line. */
+bool wm_font_text_layout_move_caret_vertical(
+    const WmFontTextLayout *layout, size_t from_byte, bool up,
+    float preferred_x, size_t *to_byte);
 /* Select the nearest insertion boundary on the nearest drawn line. Coordinates
  * are local to the text pane; the returned index is a UTF-8 byte boundary. */
 bool wm_font_text_layout_hit_caret(const WmFontTextLayout *layout,

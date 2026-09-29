@@ -1,5 +1,5 @@
 #include "resource_scene_internal.h"
-#include "scene_assets.h"
+#include "wii_menu/layout/layout_assets.h"
 
 #include "wii_menu/input/source_hit.h"
 #include "wii_menu/render/material_prepare.h"
@@ -9,7 +9,7 @@
 #include <string.h>
 
 static WmLayout *load_layout(const char *root, const char *relative) {
-    return wm_scene_load_layout(root, relative, NULL);
+    return wm_layout_load_asset(root, relative, NULL);
 }
 
 static bool prepare_widescreen_grid(WmLayout *grid) {

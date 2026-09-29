@@ -47,7 +47,7 @@ bool wm_sd_scene_take_event(WmSdScene *scene, WmSdEvent *event) {
 }
 
 static WmLayout *load_layout(const char *root, const char *relative) {
-    return wm_scene_load_layout(root, relative, "SD");
+    return wm_layout_load_asset(root, relative, "SD");
 }
 
 static bool prepare_wide_grid(WmLayout *grid) {

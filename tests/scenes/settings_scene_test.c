@@ -2426,6 +2426,30 @@ static void test_update_initial_footer(const char *assets) {
     wm_texture_cache_destroy(textures);
 }
 
+static void assert_format_warning_layout(float first_low, float first_high,
+                                         float last_low, float last_high) {
+    float first_warning_ink = INFINITY;
+    float last_warning_ink = -INFINITY;
+    unsigned preview_glyphs = 0;
+    for (size_t index = 0; index < drawn_quad_count; index++) {
+        const WmQuad *quad = &drawn_quads[index];
+        if (!quad->texture || quad->width >= 35.0f ||
+            quad->height >= 35.0f) continue;
+        if (quad->color.r == 1.0f && quad->color.g == 1.0f &&
+            quad->color.b == 1.0f && quad->y >= 90.0f &&
+            quad->y < 330.0f) {
+            first_warning_ink = fminf(first_warning_ink, quad->y);
+            last_warning_ink = fmaxf(last_warning_ink, quad->y);
+        }
+        if (quad->color.r == 0.8f && quad->y >= 335.0f &&
+            quad->y < 365.0f)
+            preview_glyphs++;
+    }
+    assert(first_warning_ink >= first_low && first_warning_ink <= first_high);
+    assert(last_warning_ink >= last_low && last_warning_ink <= last_high);
+    assert(preview_glyphs > 20);
+}
+
 static void test_format_red_action_rollover(const char *assets) {
     WmTextureCache *textures = wm_texture_cache_create(
         (WmPlatform *)1, assets, 64u * 1024u * 1024u);
@@ -2463,6 +2487,7 @@ static void test_format_red_action_rollover(const char *assets) {
     wm_texture_cache_begin_frame(textures);
     wm_font_cache_begin_frame(fonts);
     assert(wm_settings_scene_draw(scene));
+    assert_format_warning_layout(98.0f, 110.0f, 295.0f, 315.0f);
     WmQuad red = {0};
     assert(count_drawn_texture(footer, NULL) == 2);
     assert(count_drawn_texture(red_focus, &red) == 1);
@@ -2492,6 +2517,7 @@ static void test_format_red_action_rollover(const char *assets) {
     wm_texture_cache_begin_frame(textures);
     wm_font_cache_begin_frame(fonts);
     assert(wm_settings_scene_draw(scene));
+    assert_format_warning_layout(98.0f, 110.0f, 295.0f, 315.0f);
     assert(count_drawn_texture(red_focus, &red) == 1);
     assert(red.x == 324.0f && red.color.a == 1.0f);
 
@@ -2503,6 +2529,7 @@ static void test_format_red_action_rollover(const char *assets) {
     wm_texture_cache_begin_frame(textures);
     wm_font_cache_begin_frame(fonts);
     assert(wm_settings_scene_draw(scene));
+    assert_format_warning_layout(130.0f, 145.0f, 260.0f, 280.0f);
     assert(count_drawn_texture(red_focus, &red) == 1);
     assert(red.x == 44.0f && red.color.a == 1.0f);
     assert(count_drawn_texture(normal_focus, NULL) == 0);

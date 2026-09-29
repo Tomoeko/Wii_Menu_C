@@ -11,7 +11,6 @@
 #include <stddef.h>
 
 enum {
-    HOME_PATH_CAPACITY = 4096,
     HOME_CLIP_CAPACITY = 80,
     HOME_EFFECT_CAPACITY = 16,
     HOME_ANIMATION_COUNT = 40

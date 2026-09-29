@@ -453,7 +453,7 @@ static WmLayout *slot_icon(WmStorageScene *scene, int slot) {
         snprintf(scene->icon_paths[slot], sizeof(scene->icon_paths[slot]),
                  "%s", path);
         if (path[0]) {
-            scene->icons[slot] = wm_scene_load_layout(
+            scene->icons[slot] = wm_layout_load_asset(
                 scene->assets_directory, path, "Data Management");
             if (scene->icons[slot]) {
                 wm_layout_prepare_materials(scene->platform,

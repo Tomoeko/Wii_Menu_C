@@ -2,17 +2,15 @@
 
 #include "wii_menu/board/board_erase.h"
 
+#include "wii_menu/layout/layout_assets.h"
 #include "wii_menu/layout/layout_present.h"
 #include "wii_menu/layout/layout_runtime.h"
 #include "wii_menu/render/material_prepare.h"
 #include "wii_menu/input/source_hit.h"
 
 #include <math.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-enum { ERASE_PATH_CAPACITY = 4096 };
 
 typedef struct EraseFocus {
     bool active;
@@ -48,17 +46,10 @@ WmBoardErase *wm_board_erase_create(WmPlatform *platform,
     erase->platform = platform;
     erase->textures = textures;
     erase->fonts = fonts;
-    char path[ERASE_PATH_CAPACITY];
-    int length = snprintf(path, sizeof(path), "%s/%s", assets_directory,
-                          "layouts/dlgWdw/my_DialogWindow_b.json");
-    if (length < 0 || length >= (int)sizeof(path)) {
-        wm_board_erase_destroy(erase);
-        return NULL;
-    }
-    char error[160] = {0};
-    erase->layout = wm_layout_load_json(path, error, sizeof(error));
+    erase->layout = wm_layout_load_asset(
+        assets_directory, "layouts/dlgWdw/my_DialogWindow_b.json",
+        "Memo erase");
     if (!erase->layout) {
-        fprintf(stderr, "Could not load Memo erase layout: %s\n", error);
         wm_board_erase_destroy(erase);
         return NULL;
     }

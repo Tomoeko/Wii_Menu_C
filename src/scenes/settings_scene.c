@@ -1,14 +1,12 @@
 #include "settings_scene_internal.h"
 
+#include "wii_menu/layout/layout_assets.h"
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-enum {
-    SETTINGS_PATH_CAPACITY = 4096
-};
 
 const unsigned wm_settings_country_page_start[10] = {
     0, 4, 9, 14, 19, 24, 29, 34, 39, 44
@@ -26,13 +24,42 @@ static void clear_hover_presentation(WmSettingsScene *scene) {
     scene->hover = WM_SETTINGS_CONTROL_NONE;
 }
 
+static SettingsPageSnapshot page_snapshot(const WmSettingsScene *scene) {
+    SettingsPageSnapshot snapshot = {
+        .phase = scene->phase,
+        .hover = scene->hover,
+        .page = scene->page,
+        .previous_page = scene->previous_page,
+        .active_category = scene->active_category,
+        .detail = scene->detail,
+        .selection = scene->selection,
+        .language_choice = scene->language_choice,
+        .edit_year = scene->edit_year,
+        .edit_month = scene->edit_month,
+        .edit_day = scene->edit_day,
+        .edit_hour = scene->edit_hour,
+        .edit_minute = scene->edit_minute,
+        .edit_sensitivity = scene->edit_sensitivity,
+        .connection_slot = scene->connection_slot,
+        .country_page = scene->country_page,
+        .edit_country_choice = scene->edit_country_choice,
+        .connect24_enabled = scene->connect24_enabled,
+        .sensitivity_instructions = scene->sensitivity_instructions,
+        .wide = scene->wide,
+        .direction = scene->direction,
+        .phase_frame = scene->phase_frame,
+        .page_frame = scene->page_frame,
+        .nickname_keyboard_phase = scene->nickname_keyboard_phase,
+        .nickname_caret = scene->nickname_caret
+    };
+    memcpy(snapshot.edit_nickname, scene->edit_nickname,
+           sizeof(snapshot.edit_nickname));
+    return snapshot;
+}
+
 static void start_page_crossfade(WmSettingsScene *scene,
-                                 const WmSettingsScene *before) {
-    if (!scene->prior_page) return;
-    *scene->prior_page = *before;
-    scene->prior_page->prior_page = NULL;
-    scene->prior_page->page_crossfade = false;
-    scene->prior_page->draw_opacity = 1.0f;
+                                 const SettingsPageSnapshot *before) {
+    scene->prior_page = *before;
     scene->page_frame = 0.0f;
     scene->page_crossfade = true;
 }
@@ -281,19 +308,10 @@ WmSettingsScene *wm_settings_scene_create(WmPlatform *platform,
     memcpy(scene->assets_directory, assets_directory, assets_length);
     scene->phase = WM_SETTINGS_CLOSED;
     settings_scene_reset_local_values(scene);
-    char path[SETTINGS_PATH_CAPACITY];
-    int length = snprintf(path, sizeof(path),
-                          "%s/layouts/setting/SceenChange_b.json",
-                          assets_directory);
-    if (length < 0 || length >= (int)sizeof(path)) {
-        wm_settings_scene_destroy(scene);
-        return NULL;
-    }
-    char error[160] = {0};
-    scene->scroll_layout = wm_layout_load_json(path, error, sizeof(error));
+    scene->scroll_layout = wm_layout_load_asset(
+        assets_directory, "layouts/setting/SceenChange_b.json",
+        "Wii Settings page transition");
     if (!scene->scroll_layout) {
-        fprintf(stderr, "Could not load Wii Settings page transition: %s\n",
-                error);
         wm_settings_scene_destroy(scene);
         return NULL;
     }
@@ -306,22 +324,16 @@ WmSettingsScene *wm_settings_scene_create(WmPlatform *platform,
         wm_settings_scene_destroy(scene);
         return NULL;
     }
-    scene->prior_page = calloc(1, sizeof(*scene));
-    if (!scene->prior_page) {
-        wm_settings_scene_destroy(scene);
-        return NULL;
-    }
     scene->draw_opacity = 1.0f;
-    length = snprintf(path, sizeof(path), "%s/fonts/settings-latin.ttc",
-                      assets_directory);
-    if (length > 0 && length < (int)sizeof(path))
+    char path[WM_LAYOUT_ASSET_PATH_CAPACITY];
+    if (wm_layout_asset_path(path, sizeof(path), assets_directory,
+                             "fonts/settings-latin.ttc"))
         scene->outline_font = wm_outline_font_load(path, 1);
     return scene;
 }
 
 void wm_settings_scene_destroy(WmSettingsScene *scene) {
     if (!scene) return;
-    free(scene->prior_page);
     wm_board_keyboard_destroy(scene->nickname_keyboard);
     free(scene->assets_directory);
     wm_outline_font_destroy(scene->outline_font, scene->platform);
@@ -443,7 +455,7 @@ void wm_settings_scene_advance(WmSettingsScene *scene, float frames) {
             /* The local search reports no access point after 60 frames. */
             scene->connection_search_frames += frames;
             if (scene->connection_search_frames >= 60.0f) {
-                WmSettingsScene before = *scene;
+                SettingsPageSnapshot before = page_snapshot(scene);
                 scene->detail = INTERNET_NO_ACCESS_POINT;
                 scene->hover = WM_SETTINGS_CONTROL_NONE;
                 clear_hover_presentation(scene);
@@ -456,7 +468,7 @@ void wm_settings_scene_advance(WmSettingsScene *scene, float frames) {
              * 60 frames; no connector service is available. */
             scene->connection_search_frames += frames;
             if (scene->connection_search_frames >= 60.0f) {
-                WmSettingsScene before = *scene;
+                SettingsPageSnapshot before = page_snapshot(scene);
                 scene->detail = INTERNET_USB_EXISTING_CONNECTOR;
                 scene->hover = WM_SETTINGS_CONTROL_NONE;
                 clear_hover_presentation(scene);
@@ -523,7 +535,7 @@ bool wm_settings_scene_back(WmSettingsScene *scene) {
     if (!scene) return false;
     if (wm_settings_scene_nickname_keyboard_visible(scene))
         return wm_settings_scene_keyboard_close(scene, false) != NULL;
-    WmSettingsScene before = *scene;
+    SettingsPageSnapshot before = page_snapshot(scene);
     bool backed = settings_scene_back_control(scene);
     if (backed && (before.active_category != scene->active_category ||
                    before.detail != scene->detail))
@@ -625,7 +637,7 @@ static bool activate_control(WmSettingsScene *scene,
 bool wm_settings_scene_activate(WmSettingsScene *scene,
                                 WmSettingsControl control) {
     if (!scene) return false;
-    WmSettingsScene before = *scene;
+    SettingsPageSnapshot before = page_snapshot(scene);
     bool activated = activate_control(scene, control);
     /* Changing Language selects its localized settings page. */
     bool page_changed = before.page != scene->page ||

@@ -1,6 +1,7 @@
 #include "board_address_internal.h"
 #include "board_text.h"
 
+#include "wii_menu/layout/layout_assets.h"
 #include "wii_menu/layout/layout_runtime.h"
 #include "wii_menu/render/material_prepare.h"
 
@@ -13,18 +14,11 @@
 static WmLayout *load_layout_in(const char *assets_directory,
                                 const char *subdirectory,
                                 const char *layout_name) {
-    char path[ADDRESS_PATH_CAPACITY];
-    int count = snprintf(path, sizeof(path),
-                         "%s/layouts/%s/%s.json",
-                         assets_directory, subdirectory, layout_name);
-    if (count < 0 || count >= (int)sizeof(path)) return NULL;
-    char error[160] = {0};
-    WmLayout *layout = wm_layout_load_json(path, error, sizeof(error));
-    if (!layout) {
-        fprintf(stderr, "Could not load Address Book layout %s: %s\n",
-                layout_name, error);
-    }
-    return layout;
+    char relative[128];
+    int count = snprintf(relative, sizeof(relative),
+                         "layouts/%s/%s.json", subdirectory, layout_name);
+    if (count < 0 || count >= (int)sizeof(relative)) return NULL;
+    return wm_layout_load_asset(assets_directory, relative, "Address Book");
 }
 
 static WmLayout *load_layout(const char *assets_directory,

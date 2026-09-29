@@ -17,6 +17,7 @@ void board_compose_scroll_reset(BoardComposeScroll *scroll) {
     scroll->maximum = 0.0f;
     scroll->start = 0.0f;
     scroll->target = 0.0f;
+    scroll->display_return_offset = 0.0f;
     scroll->frame = 0.0f;
     scroll->lines = 1;
     scroll->moving = false;
@@ -63,7 +64,8 @@ void board_compose_scroll_refresh(BoardComposeScroll *scroll,
         scroll->target = scroll->maximum;
         scroll->frame = 0.0f;
         scroll->moving = true;
-    } else if (phase != WM_COMPOSE_EDIT && phase != WM_COMPOSE_LEAVE_EDIT) {
+    } else if (phase != WM_COMPOSE_EDIT && phase != WM_COMPOSE_ENTER_EDIT &&
+               phase != WM_COMPOSE_LEAVE_EDIT) {
         scroll->offset = fminf(scroll->offset, scroll->maximum);
     }
     if (scroll->moving) {
@@ -131,6 +133,25 @@ void board_compose_scroll_advance(BoardComposeScroll *scroll, float frames,
     }
 }
 
+void board_compose_scroll_begin_enter_edit(BoardComposeScroll *scroll) {
+    /* A display page can scroll farther than a two-line editor. Keep the
+     * visible pose at the click and settle into the editor's valid range as
+     * the keyboard rises, instead of clamping the memo on the first frame. */
+    scroll->display_return_offset = scroll->offset;
+    scroll->start = scroll->offset;
+    scroll->target = fminf(scroll->maximum,
+        roundf(scroll->offset / scroll->line_height) * scroll->line_height);
+    scroll->moving = false;
+}
+
+void board_compose_scroll_enter_edit_frame(BoardComposeScroll *scroll,
+                                            float frame) {
+    float progress = fminf(fmaxf(frame, 0.0f), 30.0f) / 30.0f;
+    float eased = progress * progress * (3.0f - 2.0f * progress);
+    scroll->offset = scroll->start +
+                     (scroll->target - scroll->start) * eased;
+}
+
 void board_compose_scroll_leave_edit(BoardComposeScroll *scroll, float frame) {
     float progress = fminf(fmaxf(frame, 0.0f), 30.0f) / 30.0f;
     float eased = progress * progress * (3.0f - 2.0f * progress);
@@ -152,9 +173,7 @@ void board_compose_scroll_finish_leave_edit(BoardComposeScroll *scroll) {
 }
 
 void board_compose_scroll_enter_edit(BoardComposeScroll *scroll) {
-    scroll->offset = fminf(
-        scroll->maximum,
-        roundf(scroll->offset / scroll->line_height) * scroll->line_height);
+    scroll->offset = scroll->target;
     scroll->moving = false;
 }
 

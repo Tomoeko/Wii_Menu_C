@@ -1,5 +1,6 @@
 #include "home_overlay_internal.h"
 
+#include "wii_menu/layout/layout_assets.h"
 #include "wii_menu/render/material_prepare.h"
 
 #include <math.h>
@@ -169,22 +170,14 @@ WmHomeOverlay *wm_home_overlay_create(WmPlatform *platform,
         .delay_frames = 180.0f,
         .interval_frames = 24.0f
     };
-    char path[HOME_PATH_CAPACITY];
-    int length = snprintf(path, sizeof(path), "%s/layouts/homeBtn1/th_HomeBtn_d.json",
-                          assets_directory);
-    if (length < 0 || length >= (int)sizeof(path)) {
-        free(home);
-        return NULL;
-    }
-    char error[160] = {0};
-    home->layout = wm_layout_load_json(path, error, sizeof(error));
+    home->layout = wm_layout_load_asset(
+        assets_directory, "layouts/homeBtn1/th_HomeBtn_d.json", "HOME");
     if (!home->layout) {
-        fprintf(stderr, "Could not load HOME layout: %s\n", error);
         free(home);
         return NULL;
     }
     for (size_t index = 0; index < HOME_ANIMATION_COUNT; index++) {
-        length = snprintf(home->animation_names[index],
+        int length = snprintf(home->animation_names[index],
                           sizeof(home->animation_names[index]),
                           "th_HomeBtn_d_%s", animation_suffixes[index]);
         WmLayoutAnimationInfo info;

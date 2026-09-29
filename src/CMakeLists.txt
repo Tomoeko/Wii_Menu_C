@@ -49,6 +49,7 @@ add_library(wii_menu_core STATIC
 
     layout/layout_present.c
     layout/layout_draw.c
+    layout/layout_assets.c
     layout/layout_load.c
     layout/layout_runtime.c
 
@@ -93,7 +94,6 @@ add_library(wii_menu_core STATIC
     scenes/resource_scene_interactions.c
     scenes/resource_scene_render.c
     scenes/resource_scene_balloon_render.c
-    scenes/scene_assets.c
     scenes/sd_scene.c
     scenes/sd_scene_render.c
     scenes/settings_scene.c

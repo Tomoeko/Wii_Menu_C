@@ -1,6 +1,6 @@
 #include "preview_scene_internal.h"
 
-#include "scene_assets.h"
+#include "wii_menu/layout/layout_assets.h"
 #include "wii_menu/layout/layout_runtime.h"
 #include "wii_menu/render/material_prepare.h"
 #include "wii_menu/render/texture_cache.h"
@@ -11,7 +11,7 @@
 #include <string.h>
 
 static WmLayout *load_layout(const char *directory, const char *relative_path) {
-    return wm_scene_load_layout(directory, relative_path, "Disc preview");
+    return wm_layout_load_asset(directory, relative_path, "Disc preview");
 }
 
 void preview_scene_preload_banner_textures(WmPreviewScene *scene,

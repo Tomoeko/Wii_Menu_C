@@ -3,6 +3,7 @@
 #include "board_scene_internal.h"
 
 #include "wii_menu/input/source_hit.h"
+#include "wii_menu/layout/layout_assets.h"
 #include "wii_menu/layout/layout_runtime.h"
 #include "wii_menu/render/material_prepare.h"
 
@@ -14,7 +15,6 @@
 #include <time.h>
 
 enum {
-    BOARD_PATH_CAPACITY = 4096,
     /* Local arrival spacing is independent of the authored animation length.
      * Native asynchronous I/O has no fixed cadence. */
     BOARD_MEMO_ARRIVAL_INTERVAL = 5
@@ -85,16 +85,7 @@ static WmBoardDate local_today(void) {
 }
 
 static WmLayout *load_layout(const char *directory, const char *relative) {
-    char path[BOARD_PATH_CAPACITY];
-    int length = snprintf(path, sizeof(path), "%s/%s", directory, relative);
-    if (length < 0 || length >= (int)sizeof(path)) return NULL;
-    char error[160] = {0};
-    WmLayout *layout = wm_layout_load_json(path, error, sizeof(error));
-    if (!layout) {
-        fprintf(stderr, "Could not load Message Board layout %s: %s\n",
-                relative, error);
-    }
-    return layout;
+    return wm_layout_load_asset(directory, relative, "Message Board");
 }
 
 static void update_visible(WmBoardScene *board) {
