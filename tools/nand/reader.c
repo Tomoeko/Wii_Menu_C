@@ -322,6 +322,45 @@ static bool insert_unique_path(uint16_t hashes[WM_NAND_PATH_HASH_SLOTS],
     return false;
 }
 
+static bool read_entry_clusters(const WmNandReader *reader, WmNandEntry *entry,
+                                uint16_t first, bool *used_clusters, char *error,
+                                size_t error_capacity) {
+    size_t clusters = (size_t)(entry->size / WM_NAND_CLUSTER_SIZE) +
+                      (entry->size % WM_NAND_CLUSTER_SIZE != 0);
+    if (clusters > WM_NAND_FIRST_SUPERBLOCK) {
+        wm_nand_set_error(error, error_capacity,
+                          "NAND file exceeds the flash allocation limit.");
+        return false;
+    }
+    if (clusters != 0) {
+        entry->clusters = malloc(clusters * sizeof(*entry->clusters));
+        if (entry->clusters == NULL) {
+            wm_nand_set_error(error, error_capacity,
+                              "Out of memory reading a NAND allocation chain.");
+            return false;
+        }
+    }
+    uint16_t cluster = first;
+    for (size_t ordinal = 0; ordinal < clusters; ordinal++) {
+        if (cluster < 0x40 || cluster >= WM_NAND_FIRST_SUPERBLOCK ||
+            used_clusters[cluster]) {
+            wm_nand_set_error(error, error_capacity,
+                              "NAND file has an invalid or shared cluster chain.");
+            return false;
+        }
+        used_clusters[cluster] = true;
+        entry->clusters[ordinal] = cluster;
+        entry->cluster_count++;
+        cluster = wm_read_be16(reader->superblock + 12 + (size_t)cluster * 2);
+    }
+    if (clusters != 0 && cluster != WM_NAND_END_CLUSTER) {
+        wm_nand_set_error(error, error_capacity,
+                          "NAND file length does not match its cluster chain.");
+        return false;
+    }
+    return true;
+}
+
 static bool parse_entries(WmNandReader *reader, char *error, size_t error_capacity) {
     bool *visited = calloc(WM_NAND_NODE_COUNT, sizeof(*visited));
     bool *used_clusters = calloc(WM_NAND_FIRST_SUPERBLOCK, sizeof(*used_clusters));
@@ -416,46 +455,9 @@ static bool parse_entries(WmNandReader *reader, char *error, size_t error_capaci
         pending[top++] = (PendingNode){sibling, task.parent, task.depth};
         if (directory) {
             pending[top++] = (PendingNode){first, index, task.depth + 1};
-        } else {
-            size_t clusters =
-                ((size_t)entry->size + WM_NAND_CLUSTER_SIZE - 1) / WM_NAND_CLUSTER_SIZE;
-            if (clusters > WM_NAND_FIRST_SUPERBLOCK) {
-                wm_nand_set_error(error, error_capacity,
-                                  "NAND file exceeds the flash allocation limit.");
-                valid = false;
-                break;
-            }
-            if (clusters != 0) {
-                entry->clusters = malloc(clusters * sizeof(*entry->clusters));
-                if (entry->clusters == NULL) {
-                    wm_nand_set_error(error, error_capacity,
-                                      "Out of memory reading a NAND allocation chain.");
-                    valid = false;
-                    break;
-                }
-            }
-            uint16_t cluster = first;
-            for (size_t ordinal = 0; ordinal < clusters; ordinal++) {
-                if (cluster < 0x40 || cluster >= WM_NAND_FIRST_SUPERBLOCK ||
-                    used_clusters[cluster]) {
-                    wm_nand_set_error(
-                        error, error_capacity,
-                        "NAND file has an invalid or shared cluster chain.");
-                    valid = false;
-                    break;
-                }
-                used_clusters[cluster] = true;
-                entry->clusters[ordinal] = cluster;
-                entry->cluster_count++;
-                cluster = wm_read_be16(reader->superblock + 12 + (size_t)cluster * 2);
-            }
-            if (!valid)
-                break;
-            if (clusters != 0 && cluster != WM_NAND_END_CLUSTER) {
-                wm_nand_set_error(error, error_capacity,
-                                  "NAND file length does not match its cluster chain.");
-                valid = false;
-            }
+        } else if (!read_entry_clusters(reader, entry, first, used_clusters, error,
+                                        error_capacity)) {
+            valid = false;
         }
     }
     free(visited);
