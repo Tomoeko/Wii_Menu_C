@@ -1,15 +1,10 @@
 #include "layout_runtime_internal.h"
+#include "wii_menu/support/error.h"
 #include "wii_menu/support/json.h"
 
 #include <math.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static void set_error(char *error, size_t capacity, const char *message) {
-    if (error && capacity)
-        snprintf(error, capacity, "%s", message);
-}
 
 static bool json_float(const WmJson *json, size_t token, float *value) {
     if (token >= json->count || json->tokens[token].type != WM_JSON_NUMBER)
@@ -747,20 +742,20 @@ static bool parse_animations(WmLayout *layout, const WmJson *json) {
 }
 
 WmLayout *wm_layout_load_json(const char *path, char *error, size_t error_capacity) {
-    set_error(error, error_capacity, "");
+    wm_error_set(error, error_capacity, "");
     if (!path || !*path) {
-        set_error(error, error_capacity, "Missing layout path");
+        wm_error_set(error, error_capacity, "Missing layout path");
         return NULL;
     }
     WmJson json;
     if (!wm_json_load(&json, path, WM_LAYOUT_JSON_LIMIT)) {
-        set_error(error, error_capacity, "Unable to read layout JSON");
+        wm_error_set(error, error_capacity, "Unable to read layout JSON");
         return NULL;
     }
     WmLayout *layout = calloc(1, sizeof(*layout));
     if (!layout) {
         wm_json_free(&json);
-        set_error(error, error_capacity, "Out of memory");
+        wm_error_set(error, error_capacity, "Out of memory");
         return NULL;
     }
     bool success = parse_textures(layout, &json) && parse_fonts(layout, &json) &&
@@ -768,7 +763,7 @@ WmLayout *wm_layout_load_json(const char *path, char *error, size_t error_capaci
                    parse_groups(layout, &json) && parse_animations(layout, &json);
     wm_json_free(&json);
     if (!success) {
-        set_error(error, error_capacity, "Invalid or unsupported layout JSON");
+        wm_error_set(error, error_capacity, "Invalid or unsupported layout JSON");
         wm_layout_destroy(layout);
         return NULL;
     }

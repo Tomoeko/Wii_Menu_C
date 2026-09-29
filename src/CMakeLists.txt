@@ -107,6 +107,7 @@ add_library(wii_menu_core STATIC
     scenes/storage_scene_presentation.c
 
     support/atomic_file.c
+    support/error.c
     support/asset_manifest.c
     support/json.c
     support/regular_file.c

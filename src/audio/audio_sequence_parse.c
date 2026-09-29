@@ -1,4 +1,6 @@
 #include "wii_menu/audio/audio_sequence.h"
+#include "wii_menu/support/error.h"
+#include "audio_sequence_bounds.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,19 +27,9 @@ typedef struct Visit {
     uint32_t event_order;
 } Visit;
 
-static void set_error(char *error, size_t capacity, const char *message) {
-    if (error && capacity)
-        snprintf(error, capacity, "%s", message);
-}
-
-static bool has_bytes(const WmRsarSequence *sequence, size_t offset, size_t length) {
-    return sequence && sequence->data && offset <= sequence->size &&
-           length <= sequence->size - offset;
-}
-
 static bool take_byte(const WmRsarSequence *sequence, uint32_t *offset,
                       uint8_t *value) {
-    if (!has_bytes(sequence, *offset, 1))
+    if (!wm_sequence_has_bytes(sequence, *offset, 1))
         return false;
     *value = sequence->data[(*offset)++];
     return true;
@@ -63,12 +55,12 @@ static bool take_variable(const WmRsarSequence *sequence, uint32_t *offset,
 
 static bool take_address(const WmRsarSequence *sequence, uint32_t *offset,
                          uint32_t *address) {
-    if (!has_bytes(sequence, *offset, 3))
+    if (!wm_sequence_has_bytes(sequence, *offset, 3))
         return false;
     const uint8_t *bytes = sequence->data + *offset;
     *address = ((uint32_t)bytes[0] << 16) | ((uint32_t)bytes[1] << 8) | bytes[2];
     *offset += 3;
-    return has_bytes(sequence, *address, 1);
+    return wm_sequence_has_bytes(sequence, *address, 1);
 }
 
 static bool append_event(WmSequenceTimeline *timeline, size_t *capacity,
@@ -143,7 +135,7 @@ static bool scan_track(const WmRsarSequence *sequence, WmSequenceTimeline *timel
                        size_t error_capacity) {
     Visit *visits = calloc(WM_SEQUENCE_VISIT_SLOTS, sizeof(*visits));
     if (!visits) {
-        set_error(error, error_capacity, "Out of memory scanning sequence.");
+        wm_error_set(error, error_capacity, "Out of memory scanning sequence.");
         return false;
     }
     uint32_t calls[16];
@@ -160,15 +152,16 @@ static bool scan_track(const WmRsarSequence *sequence, WmSequenceTimeline *timel
     bool terminated = false;
     for (size_t command_count = 0; command_count < WM_SEQUENCE_MAX_EVENTS;
          command_count++) {
-        if (tick > WM_SEQUENCE_MAX_TICK || !has_bytes(sequence, offset, 1)) {
-            set_error(error, error_capacity,
-                      "Sequence clock or address exceeds bounds.");
+        if (tick > WM_SEQUENCE_MAX_TICK ||
+            !wm_sequence_has_bytes(sequence, offset, 1)) {
+            wm_error_set(error, error_capacity,
+                         "Sequence clock or address exceeds bounds.");
             valid = false;
             break;
         }
         if (!visit_tick(visits, offset, tick, variable_epoch,
                         (uint32_t)timeline->count)) {
-            set_error(error, error_capacity, "Sequence command map is full.");
+            wm_error_set(error, error_capacity, "Sequence command map is full.");
             valid = false;
             break;
         }
@@ -274,7 +267,7 @@ static bool scan_track(const WmRsarSequence *sequence, WmSequenceTimeline *timel
             break;
         } else if (command == 0xfe || command == 0xe0 || command == 0xe3) {
             /* The original parser accepts these two-byte control values. */
-            if (!has_bytes(sequence, offset, 2)) {
+            if (!wm_sequence_has_bytes(sequence, offset, 2)) {
                 valid = false;
                 break;
             }
@@ -304,7 +297,8 @@ static bool scan_track(const WmRsarSequence *sequence, WmSequenceTimeline *timel
             /* Use the center of the encoded randomized-pitch range for these
              * cues. The five bytes include target and bounds; random
              * modulation is intentionally omitted. */
-            if (!has_bytes(sequence, offset, 5) || sequence->data[offset] != 0xc4) {
+            if (!wm_sequence_has_bytes(sequence, offset, 5) ||
+                sequence->data[offset] != 0xc4) {
                 valid = false;
                 break;
             }
@@ -456,13 +450,13 @@ static bool scan_track(const WmRsarSequence *sequence, WmSequenceTimeline *timel
 
 bool wm_sequence_parse(const WmRsarSequence *sequence, WmSequenceTimeline *timeline,
                        char *error, size_t error_capacity) {
-    set_error(error, error_capacity, "");
+    wm_error_set(error, error_capacity, "");
     if (!timeline)
         return false;
     *timeline = (WmSequenceTimeline){0};
-    if (!sequence || !has_bytes(sequence, sequence->start_offset, 1) ||
+    if (!sequence || !wm_sequence_has_bytes(sequence, sequence->start_offset, 1) ||
         sequence->size > 128u * 1024u * 1024u) {
-        set_error(error, error_capacity, "Invalid RSEQ source span.");
+        wm_error_set(error, error_capacity, "Invalid RSEQ source span.");
         return false;
     }
     TrackStart pending[16] = {{sequence->start_offset, 0, 0}};
@@ -477,7 +471,7 @@ bool wm_sequence_parse(const WmRsarSequence *sequence, WmSequenceTimeline *timel
         }
     }
     if (timeline->count == 0) {
-        set_error(error, error_capacity, "Sequence has no playable events.");
+        wm_error_set(error, error_capacity, "Sequence has no playable events.");
         wm_sequence_timeline_free(timeline);
         return false;
     }

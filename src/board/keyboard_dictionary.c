@@ -1,5 +1,6 @@
 #include "wii_menu/board/keyboard_dictionary.h"
 #include "wii_menu/support/endian.h"
+#include "wii_menu/support/error.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,8 +14,7 @@ enum {
 };
 
 static bool fail(char *error, size_t capacity, const char *message) {
-    if (error && capacity)
-        snprintf(error, capacity, "%s", message);
+    wm_error_set(error, capacity, message);
     return false;
 }
 

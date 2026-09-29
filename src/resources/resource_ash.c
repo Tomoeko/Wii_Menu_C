@@ -1,8 +1,8 @@
 #include "wii_menu/resources/resource_ash.h"
+#include "wii_menu/support/error.h"
 
 #include "resource_bytes.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -24,12 +24,6 @@ typedef struct WmAshTree {
     WmAshNode *nodes;
     size_t count;
 } WmAshTree;
-
-static void wm_error(char *error, size_t error_size, const char *message) {
-    if (error != NULL && error_size != 0) {
-        snprintf(error, error_size, "%s", message);
-    }
-}
 
 static bool wm_read_bits(WmAshBits *bits, unsigned count, uint32_t *value) {
     uint32_t result = 0;
@@ -96,7 +90,7 @@ static bool wm_decode_symbol(WmAshBits *bits, const WmAshTree *tree, int root,
 bool wm_ash_decode(const uint8_t *data, size_t size, uint8_t **output,
                    size_t *output_size, char *error, size_t error_size) {
     if (output == NULL || output_size == NULL || data == NULL) {
-        wm_error(error, error_size, "Invalid ASH input or output.");
+        wm_error_set(error, error_size, "Invalid ASH input or output.");
         return false;
     }
     *output = NULL;
@@ -105,7 +99,7 @@ bool wm_ash_decode(const uint8_t *data, size_t size, uint8_t **output,
     if (size < 4 || memcmp(data, "ASH0", 4) != 0) {
         uint8_t *copy = malloc(size != 0 ? size : 1);
         if (copy == NULL) {
-            wm_error(error, error_size, "Out of memory copying resource.");
+            wm_error_set(error, error_size, "Out of memory copying resource.");
             return false;
         }
         if (size != 0) {
@@ -116,14 +110,14 @@ bool wm_ash_decode(const uint8_t *data, size_t size, uint8_t **output,
         return true;
     }
     if (size < 12) {
-        wm_error(error, error_size, "Truncated ASH header.");
+        wm_error_set(error, error_size, "Truncated ASH header.");
         return false;
     }
 
     size_t decoded_size = wm_resource_be32(data + 4) & 0x00ffffffu;
     size_t distance_offset = wm_resource_be32(data + 8);
     if (distance_offset >= size || size > SIZE_MAX / 8) {
-        wm_error(error, error_size, "Invalid ASH bitstream offset.");
+        wm_error_set(error, error_size, "Invalid ASH bitstream offset.");
         return false;
     }
 
@@ -133,7 +127,7 @@ bool wm_ash_decode(const uint8_t *data, size_t size, uint8_t **output,
     distances.nodes = calloc(WM_ASH_MAX_NODES, sizeof(*distances.nodes));
     uint8_t *decoded = malloc(decoded_size != 0 ? decoded_size : 1);
     if (literals.nodes == NULL || distances.nodes == NULL || decoded == NULL) {
-        wm_error(error, error_size, "Out of memory decoding ASH resource.");
+        wm_error_set(error, error_size, "Out of memory decoding ASH resource.");
         free(literals.nodes);
         free(distances.nodes);
         free(decoded);
@@ -147,14 +141,14 @@ bool wm_ash_decode(const uint8_t *data, size_t size, uint8_t **output,
     bool valid = wm_parse_node(&literal_bits, &literals, 9, 0, &literal_root) &&
                  wm_parse_node(&distance_bits, &distances, 11, 0, &distance_root);
     if (!valid) {
-        wm_error(error, error_size, "Truncated or oversized ASH Huffman tree.");
+        wm_error_set(error, error_size, "Truncated or oversized ASH Huffman tree.");
     }
 
     size_t produced = 0;
     while (valid && produced < decoded_size) {
         uint32_t symbol;
         if (!wm_decode_symbol(&literal_bits, &literals, literal_root, &symbol)) {
-            wm_error(error, error_size, "Truncated ASH literal stream.");
+            wm_error_set(error, error_size, "Truncated ASH literal stream.");
             valid = false;
             break;
         }
@@ -166,13 +160,13 @@ bool wm_ash_decode(const uint8_t *data, size_t size, uint8_t **output,
         uint32_t distance_symbol;
         if (!wm_decode_symbol(&distance_bits, &distances, distance_root,
                               &distance_symbol)) {
-            wm_error(error, error_size, "Truncated ASH distance stream.");
+            wm_error_set(error, error_size, "Truncated ASH distance stream.");
             valid = false;
             break;
         }
         size_t distance = (size_t)distance_symbol + 1;
         if (distance > produced) {
-            wm_error(error, error_size, "ASH back-reference precedes output.");
+            wm_error_set(error, error_size, "ASH back-reference precedes output.");
             valid = false;
             break;
         }

@@ -1,8 +1,8 @@
 #include "wii_menu/resources/resource_tpl.h"
+#include "wii_menu/support/error.h"
 
 #include "resource_bytes.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -18,12 +18,6 @@ typedef struct WmTplShape {
     int height;
     int bytes;
 } WmTplShape;
-
-static void wm_error(char *error, size_t error_size, const char *message) {
-    if (error != NULL && error_size != 0) {
-        snprintf(error, error_size, "%s", message);
-    }
-}
 
 static void wm_rgb565(uint16_t value, uint8_t color[4]) {
     unsigned red = value >> 11;
@@ -83,20 +77,20 @@ static bool wm_read_palette(const uint8_t *data, size_t size, size_t header_offs
                             uint8_t **palette, size_t *palette_count, char *error,
                             size_t error_size) {
     if (!wm_resource_range_fits(size, header_offset, 12)) {
-        wm_error(error, error_size, "Truncated TPL palette header.");
+        wm_error_set(error, error_size, "Truncated TPL palette header.");
         return false;
     }
     size_t count = wm_resource_be16(data + header_offset);
     uint32_t format = wm_resource_be32(data + header_offset + 4);
     size_t offset = wm_resource_be32(data + header_offset + 8);
     if (count == 0 || format > 2 || !wm_resource_range_fits(size, offset, count * 2)) {
-        wm_error(error, error_size, "Invalid TPL palette.");
+        wm_error_set(error, error_size, "Invalid TPL palette.");
         return false;
     }
 
     uint8_t *colors = malloc(count * 4);
     if (colors == NULL) {
-        wm_error(error, error_size, "Out of memory decoding TPL palette.");
+        wm_error_set(error, error_size, "Out of memory decoding TPL palette.");
         return false;
     }
     for (size_t index = 0; index < count; index++) {
@@ -212,7 +206,7 @@ static bool wm_decode_image(const uint8_t *data, size_t size, size_t image_heade
                             size_t palette_header, WmTplImage *image, char *error,
                             size_t error_size) {
     if (!wm_resource_range_fits(size, image_header, 12)) {
-        wm_error(error, error_size, "Truncated TPL image header.");
+        wm_error_set(error, error_size, "Truncated TPL image header.");
         return false;
     }
     uint16_t height = wm_resource_be16(data + image_header);
@@ -221,7 +215,7 @@ static bool wm_decode_image(const uint8_t *data, size_t size, size_t image_heade
     size_t offset = wm_resource_be32(data + image_header + 8);
     WmTplShape shape;
     if (height == 0 || width == 0 || !wm_shape(format, &shape)) {
-        wm_error(error, error_size, "Unsupported TPL image dimensions or format.");
+        wm_error_set(error, error_size, "Unsupported TPL image dimensions or format.");
         return false;
     }
 
@@ -232,7 +226,7 @@ static bool wm_decode_image(const uint8_t *data, size_t size, size_t image_heade
         !wm_resource_range_fits(size, offset,
                                 tiles_x * tiles_y * (size_t)shape.bytes) ||
         (size_t)width > WM_TPL_MAX_RGBA_BYTES / 4 / (size_t)height) {
-        wm_error(error, error_size, "TPL image data is truncated or too large.");
+        wm_error_set(error, error_size, "TPL image data is truncated or too large.");
         return false;
     }
 
@@ -243,7 +237,7 @@ static bool wm_decode_image(const uint8_t *data, size_t size, size_t image_heade
             !wm_read_palette(data, size, palette_header, &palette, &palette_count,
                              error, error_size)) {
             if (palette_header == 0) {
-                wm_error(error, error_size, "Indexed TPL image has no palette.");
+                wm_error_set(error, error_size, "Indexed TPL image has no palette.");
             }
             return false;
         }
@@ -251,7 +245,7 @@ static bool wm_decode_image(const uint8_t *data, size_t size, size_t image_heade
 
     uint8_t *rgba = malloc((size_t)width * height * 4);
     if (rgba == NULL) {
-        wm_error(error, error_size, "Out of memory decoding TPL image.");
+        wm_error_set(error, error_size, "Out of memory decoding TPL image.");
         free(palette);
         return false;
     }
@@ -270,7 +264,7 @@ static bool wm_decode_image(const uint8_t *data, size_t size, size_t image_heade
                     uint8_t color[4];
                     if (!wm_decode_pixel(tile, format, x, y, shape.width, palette,
                                          palette_count, color)) {
-                        wm_error(error, error_size, "Invalid TPL palette index.");
+                        wm_error_set(error, error_size, "Invalid TPL palette index.");
                         valid = false;
                         break;
                     }
@@ -305,7 +299,7 @@ bool wm_tpl_decode(const uint8_t *data, size_t size, WmTpl *tpl, char *error,
                    size_t error_size) {
     if (data == NULL || tpl == NULL || size < 12 ||
         wm_resource_be32(data) != 0x0020af30u) {
-        wm_error(error, error_size, "Expected a TPL texture archive.");
+        wm_error_set(error, error_size, "Expected a TPL texture archive.");
         return false;
     }
     *tpl = (WmTpl){0};
@@ -314,7 +308,7 @@ bool wm_tpl_decode(const uint8_t *data, size_t size, WmTpl *tpl, char *error,
     size_t table = wm_resource_be32(data + 8);
     if (count == 0 || count > WM_TPL_MAX_IMAGES ||
         !wm_resource_range_fits(size, table, count * 8)) {
-        wm_error(error, error_size, "Invalid TPL texture table.");
+        wm_error_set(error, error_size, "Invalid TPL texture table.");
         return false;
     }
 
@@ -322,14 +316,15 @@ bool wm_tpl_decode(const uint8_t *data, size_t size, WmTpl *tpl, char *error,
     for (size_t index = 0; index < count; index++) {
         size_t image_header = wm_resource_be32(data + table + index * 8);
         if (!wm_resource_range_fits(size, image_header, 12)) {
-            wm_error(error, error_size, "Truncated TPL image header.");
+            wm_error_set(error, error_size, "Truncated TPL image header.");
             return false;
         }
         uint64_t height = wm_resource_be16(data + image_header);
         uint64_t width = wm_resource_be16(data + image_header + 2);
         uint64_t image_bytes = width * height * 4;
         if (image_bytes > WM_TPL_MAX_RGBA_BYTES - total_rgba_bytes) {
-            wm_error(error, error_size, "TPL decoded images exceed the memory limit.");
+            wm_error_set(error, error_size,
+                         "TPL decoded images exceed the memory limit.");
             return false;
         }
         total_rgba_bytes += image_bytes;
@@ -337,7 +332,7 @@ bool wm_tpl_decode(const uint8_t *data, size_t size, WmTpl *tpl, char *error,
 
     tpl->images = calloc(count, sizeof(*tpl->images));
     if (tpl->images == NULL) {
-        wm_error(error, error_size, "Out of memory decoding TPL archive.");
+        wm_error_set(error, error_size, "Out of memory decoding TPL archive.");
         return false;
     }
     tpl->count = count;

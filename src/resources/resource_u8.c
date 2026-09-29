@@ -1,9 +1,9 @@
 #include "wii_menu/resources/resource_u8.h"
 #include "wii_menu/support/utf8.h"
+#include "wii_menu/support/error.h"
 
 #include "resource_bytes.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -13,12 +13,6 @@ typedef struct WmU8Directory {
     size_t end_index;
     size_t node_index;
 } WmU8Directory;
-
-static void wm_error(char *error, size_t error_size, const char *message) {
-    if (error != NULL && error_size != 0) {
-        snprintf(error, error_size, "%s", message);
-    }
-}
 
 static unsigned char wm_ascii_lower(unsigned char value) {
     if (value >= 'A' && value <= 'Z') {
@@ -139,7 +133,7 @@ bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive, char *e
                "U\xaa"
                "8-",
                4) != 0) {
-        wm_error(error, error_size, "Expected a U8 archive.");
+        wm_error_set(error, error_size, "Expected a U8 archive.");
         return false;
     }
     *archive = (WmU8Archive){0};
@@ -149,7 +143,7 @@ bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive, char *e
     size_t data_offset = wm_resource_be32(data + 12);
     if (root < 32 || !wm_resource_range_fits(size, root, 12) ||
         !wm_resource_range_fits(size, root, header_size)) {
-        wm_error(error, error_size, "Invalid U8 header bounds.");
+        wm_error_set(error, error_size, "Invalid U8 header bounds.");
         return false;
     }
 
@@ -158,14 +152,14 @@ bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive, char *e
     size_t node_count = wm_resource_be32(data + root + 8);
     if ((root_kind >> 24) != 1 || root_parent != 0 || node_count == 0 ||
         node_count > WM_U8_MAX_NODES || node_count > (size - root) / 12) {
-        wm_error(error, error_size, "Invalid U8 root node.");
+        wm_error_set(error, error_size, "Invalid U8 root node.");
         return false;
     }
 
     size_t names_start = root + node_count * 12;
     size_t names_end = root + header_size;
     if (names_start > names_end || names_end > data_offset || data_offset > size) {
-        wm_error(error, error_size, "Invalid U8 archive table.");
+        wm_error_set(error, error_size, "Invalid U8 archive table.");
         return false;
     }
 
@@ -180,7 +174,7 @@ bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive, char *e
     size_t *seen = calloc(hash_capacity, sizeof(*seen));
     if (paths == NULL || directories == NULL || stack == NULL || entries == NULL ||
         seen == NULL) {
-        wm_error(error, error_size, "Out of memory parsing U8 archive.");
+        wm_error_set(error, error_size, "Out of memory parsing U8 archive.");
         free(paths);
         free(directories);
         free(stack);
@@ -200,7 +194,7 @@ bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive, char *e
             depth--;
         }
         if (depth == 0) {
-            wm_error(error, error_size, "Invalid U8 directory boundary.");
+            wm_error_set(error, error_size, "Invalid U8 directory boundary.");
             valid = false;
             break;
         }
@@ -212,7 +206,7 @@ bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive, char *e
         size_t offset = wm_resource_be32(node + 4);
         size_t length = wm_resource_be32(node + 8);
         if ((kind != 0 && kind != 1) || name_offset >= names_end - names_start) {
-            wm_error(error, error_size, "Invalid U8 entry.");
+            wm_error_set(error, error_size, "Invalid U8 entry.");
             valid = false;
             break;
         }
@@ -224,7 +218,7 @@ bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive, char *e
         }
         size_t name_size = name_end - name_start;
         if (name_end == names_end || !wm_valid_name(data + name_start, name_size)) {
-            wm_error(error, error_size, "Invalid U8 entry name.");
+            wm_error_set(error, error_size, "Invalid U8 entry name.");
             valid = false;
             break;
         }
@@ -233,14 +227,15 @@ bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive, char *e
         paths[index] =
             wm_join_path(parent != NULL ? parent : "", data + name_start, name_size);
         if (paths[index] == NULL) {
-            wm_error(error, error_size, "U8 path is too long or memory is exhausted.");
+            wm_error_set(error, error_size,
+                         "U8 path is too long or memory is exhausted.");
             valid = false;
             break;
         }
         size_t slot = (size_t)(wm_path_hash(paths[index]) & (hash_capacity - 1));
         while (seen[slot] != 0) {
             if (wm_same_portable_path(paths[index], paths[seen[slot] - 1])) {
-                wm_error(error, error_size, "Duplicate U8 entry path.");
+                wm_error_set(error, error_size, "Duplicate U8 entry path.");
                 valid = false;
                 break;
             }
@@ -253,7 +248,7 @@ bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive, char *e
 
         if (kind == 1) {
             if (length <= index || length > stack[depth - 1].end_index) {
-                wm_error(error, error_size, "Invalid U8 directory boundary.");
+                wm_error_set(error, error_size, "Invalid U8 directory boundary.");
                 valid = false;
                 break;
             }
@@ -261,7 +256,7 @@ bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive, char *e
             stack[depth++] = (WmU8Directory){length, index};
         } else {
             if (!wm_resource_range_fits(size, offset, length)) {
-                wm_error(error, error_size, "Truncated U8 file.");
+                wm_error_set(error, error_size, "Truncated U8 file.");
                 valid = false;
                 break;
             }

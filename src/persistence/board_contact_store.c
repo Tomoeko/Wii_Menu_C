@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "board_contact_format.h"
+#include "wii_menu/support/error.h"
 
 #include "wii_menu/support/json.h"
 
@@ -22,11 +23,6 @@ struct WmBoardContactStore {
     StoredContact slots[WM_BOARD_CONTACT_CAPACITY];
 };
 
-static void set_error(char *error, size_t capacity, const char *message) {
-    if (error && capacity)
-        snprintf(error, capacity, "%s", message);
-}
-
 void wm_board_contact_store_destroy(WmBoardContactStore *store) {
     if (!store)
         return;
@@ -43,17 +39,17 @@ WmBoardContactStore *wm_board_contact_store_open(const char *path,
     if (status)
         *status = WM_BOARD_CONTACT_STORE_ERROR;
     if (!path || !path[0] || strlen(path) >= 4096) {
-        set_error(error, error_capacity, "Invalid Address Book path");
+        wm_error_set(error, error_capacity, "Invalid Address Book path");
         return NULL;
     }
     WmBoardContactStore *store = calloc(1, sizeof(*store));
     if (!store) {
-        set_error(error, error_capacity, "Could not allocate Address Book");
+        wm_error_set(error, error_capacity, "Could not allocate Address Book");
         return NULL;
     }
     store->path = strdup(path);
     if (!store->path) {
-        set_error(error, error_capacity, "Could not allocate Address Book path");
+        wm_error_set(error, error_capacity, "Could not allocate Address Book path");
         wm_board_contact_store_destroy(store);
         return NULL;
     }
@@ -64,11 +60,11 @@ WmBoardContactStore *wm_board_contact_store_open(const char *path,
     if (read_status == WM_REGULAR_FILE_MISSING) {
         if (status)
             *status = WM_BOARD_CONTACT_STORE_MISSING;
-        set_error(error, error_capacity, "");
+        wm_error_set(error, error_capacity, "");
         return store;
     }
     if (read_status != WM_REGULAR_FILE_OK) {
-        set_error(error, error_capacity, "Invalid Address Book file");
+        wm_error_set(error, error_capacity, "Invalid Address Book file");
         wm_board_contact_store_destroy(store);
         return NULL;
     }
@@ -76,7 +72,7 @@ WmBoardContactStore *wm_board_contact_store_open(const char *path,
     bool parsed = wm_json_parse(&json, contents, length);
     free(contents);
     if (!parsed) {
-        set_error(error, error_capacity, "Malformed Address Book JSON");
+        wm_error_set(error, error_capacity, "Malformed Address Book JSON");
         wm_board_contact_store_destroy(store);
         return NULL;
     }
@@ -96,7 +92,7 @@ WmBoardContactStore *wm_board_contact_store_open(const char *path,
         }
     }
     if (!valid) {
-        set_error(error, error_capacity, "Invalid Address Book contacts");
+        wm_error_set(error, error_capacity, "Invalid Address Book contacts");
         wm_json_free(&json);
         wm_board_contact_store_destroy(store);
         return NULL;
@@ -108,7 +104,7 @@ WmBoardContactStore *wm_board_contact_store_open(const char *path,
     wm_json_free(&json);
     if (status)
         *status = WM_BOARD_CONTACT_STORE_OK;
-    set_error(error, error_capacity, "");
+    wm_error_set(error, error_capacity, "");
     return store;
 }
 
@@ -154,16 +150,17 @@ static bool write_replaced_slot(WmBoardContactStore *store, size_t slot,
     size_t output_length = 0;
     if (!contact_build_array(store->slots, store->length, slot, replacement, &output,
                              &output_length)) {
-        set_error(error, error_capacity, "Address Book is too large");
+        wm_error_set(error, error_capacity, "Address Book is too large");
         return false;
     }
     if (!baseline_unchanged(store)) {
-        set_error(error, error_capacity, "Address Book changed; reload before saving");
+        wm_error_set(error, error_capacity,
+                     "Address Book changed; reload before saving");
         free(output);
         return false;
     }
     if (!wm_atomic_file_replace(store->path, output, output_length)) {
-        set_error(error, error_capacity, "Could not save Address Book");
+        wm_error_set(error, error_capacity, "Could not save Address Book");
         free(output);
         return false;
     }
@@ -171,7 +168,7 @@ static bool write_replaced_slot(WmBoardContactStore *store, size_t slot,
     store->baseline = output;
     store->baseline_length = output_length;
     store->had_file = true;
-    set_error(error, error_capacity, "");
+    wm_error_set(error, error_capacity, "");
     return true;
 }
 
@@ -180,7 +177,7 @@ bool wm_board_contact_store_rename(WmBoardContactStore *store, size_t slot,
                                    size_t error_capacity) {
     if (!store || slot >= store->length || !store->slots[slot].occupied ||
         !contact_nickname_valid(nickname)) {
-        set_error(error, error_capacity, "Invalid Address Book nickname");
+        wm_error_set(error, error_capacity, "Invalid Address Book nickname");
         return false;
     }
     const char *original = store->slots[slot].source_json;
@@ -188,11 +185,11 @@ bool wm_board_contact_store_rename(WmBoardContactStore *store, size_t slot,
     ContactRewriteStatus rewrite =
         contact_rewrite_nickname(original, nickname, &changed);
     if (rewrite == CONTACT_REWRITE_INVALID_SOURCE) {
-        set_error(error, error_capacity, "Invalid Address Book contact");
+        wm_error_set(error, error_capacity, "Invalid Address Book contact");
         return false;
     }
     if (rewrite != CONTACT_REWRITE_OK) {
-        set_error(error, error_capacity, "Could not update Address Book nickname");
+        wm_error_set(error, error_capacity, "Could not update Address Book nickname");
         return false;
     }
     if (!write_replaced_slot(store, slot, changed, error, error_capacity)) {
@@ -209,7 +206,7 @@ bool wm_board_contact_store_rename(WmBoardContactStore *store, size_t slot,
 bool wm_board_contact_store_erase(WmBoardContactStore *store, size_t slot, char *error,
                                   size_t error_capacity) {
     if (!store || slot >= store->length || !store->slots[slot].occupied) {
-        set_error(error, error_capacity, "Invalid Address Book slot");
+        wm_error_set(error, error_capacity, "Invalid Address Book slot");
         return false;
     }
     if (!write_replaced_slot(store, slot, "null", error, error_capacity))
@@ -225,11 +222,11 @@ bool wm_board_contact_store_register(WmBoardContactStore *store, WmBoardContact 
     if (!store || !contact.address || !contact.nickname ||
         !contact_stored_address_valid(contact.wii, contact.address) ||
         !contact_nickname_valid(contact.nickname)) {
-        set_error(error, error_capacity, "Invalid Address Book contact");
+        wm_error_set(error, error_capacity, "Invalid Address Book contact");
         return false;
     }
     if (store->occupied >= WM_BOARD_CONTACT_CAPACITY) {
-        set_error(error, error_capacity, "Address Book is full");
+        wm_error_set(error, error_capacity, "Address Book is full");
         return false;
     }
     size_t target = store->length;
@@ -238,17 +235,17 @@ bool wm_board_contact_store_register(WmBoardContactStore *store, WmBoardContact 
             target = index;
         if (store->slots[index].occupied && store->slots[index].wii == contact.wii &&
             strcmp(store->slots[index].address, contact.address) == 0) {
-            set_error(error, error_capacity, "Address Book contact already exists");
+            wm_error_set(error, error_capacity, "Address Book contact already exists");
             return false;
         }
     }
     if (target >= WM_BOARD_CONTACT_CAPACITY) {
-        set_error(error, error_capacity, "Address Book is full");
+        wm_error_set(error, error_capacity, "Address Book is full");
         return false;
     }
     char *canonical = NULL;
     if (!contact_serialize(contact, &canonical)) {
-        set_error(error, error_capacity, "Address Book is too large");
+        wm_error_set(error, error_capacity, "Address Book is too large");
         return false;
     }
     if (!write_replaced_slot(store, target, canonical, error, error_capacity)) {
@@ -267,6 +264,6 @@ bool wm_board_contact_store_register(WmBoardContactStore *store, WmBoardContact 
     store->occupied++;
     if (slot)
         *slot = target;
-    set_error(error, error_capacity, "");
+    wm_error_set(error, error_capacity, "");
     return true;
 }

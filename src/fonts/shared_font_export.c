@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "wii_menu/fonts/shared_font_export.h"
+#include "wii_menu/support/error.h"
 
 #include "wii_menu/resources/resource_font.h"
 #include "wii_menu/resources/resource_u8.h"
@@ -30,11 +31,6 @@ static const FontAlias WM_FONT_ALIASES[] = {
     {1, "wbf2.brfna"},
     {1, "RevoIpl_UtrilloProGrecoStd_M_32_I4.brfnt"},
     {1, "WiiBitmapFontType2.brfnt"}};
-
-static void set_error(char *error, size_t capacity, const char *message) {
-    if (error && capacity)
-        snprintf(error, capacity, "%s", message);
-}
 
 static bool ensure_directory(const char *path) {
     size_t length = strnlen(path, WM_SHARED_FONT_PATH_CAPACITY);
@@ -74,11 +70,11 @@ static bool write_atomic(const char *directory, const char *name, const uint8_t 
 bool wm_shared_font_export(const uint8_t *archive_bytes, size_t archive_size,
                            const char *assets_directory, char *error,
                            size_t error_capacity) {
-    set_error(error, error_capacity, "");
+    wm_error_set(error, error_capacity, "");
     if (!archive_bytes || archive_size < 32 ||
         archive_size > WM_SHARED_FONT_ARCHIVE_LIMIT || !assets_directory ||
         !assets_directory[0]) {
-        set_error(error, error_capacity, "Invalid archive or output directory.");
+        wm_error_set(error, error_capacity, "Invalid archive or output directory.");
         return false;
     }
     WmU8Archive archive = {0};
@@ -88,8 +84,8 @@ bool wm_shared_font_export(const uint8_t *archive_bytes, size_t archive_size,
                                    wm_u8_find(&archive, "wbf2.brfna")};
     bool valid = sources[0] && sources[1];
     if (!valid) {
-        set_error(error, error_capacity,
-                  "Shared archive must contain wbf1.brfna and wbf2.brfna.");
+        wm_error_set(error, error_capacity,
+                     "Shared archive must contain wbf1.brfna and wbf2.brfna.");
     }
     for (size_t index = 0; index < 2 && valid; index++) {
         WmFont *font = wm_font_decode(sources[index]->data, sources[index]->size, error,
@@ -102,7 +98,8 @@ bool wm_shared_font_export(const uint8_t *archive_bytes, size_t archive_size,
     if (valid &&
         (!output_path(fonts_directory, assets_directory, "fonts") ||
          !ensure_directory(assets_directory) || !ensure_directory(fonts_directory))) {
-        set_error(error, error_capacity, "Could not create the font output directory.");
+        wm_error_set(error, error_capacity,
+                     "Could not create the font output directory.");
         valid = false;
     }
     for (size_t index = 0;
@@ -111,7 +108,7 @@ bool wm_shared_font_export(const uint8_t *archive_bytes, size_t archive_size,
         const FontAlias *alias = &WM_FONT_ALIASES[index];
         const WmU8Entry *source = sources[alias->source];
         if (!write_atomic(fonts_directory, alias->name, source->data, source->size)) {
-            set_error(error, error_capacity, "Could not write a shared font alias.");
+            wm_error_set(error, error_capacity, "Could not write a shared font alias.");
             valid = false;
         }
     }

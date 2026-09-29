@@ -1,7 +1,7 @@
 #include "audio_sequence_render_internal.h"
+#include "wii_menu/support/error.h"
 
 #include <math.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -9,11 +9,6 @@ enum {
     WM_SEQUENCE_MAX_TICK = 1000000,
     WM_SEQUENCE_MAX_FRAMES = WM_SEQUENCE_RATE * 600
 };
-
-static void set_error(char *error, size_t capacity, const char *message) {
-    if (error && capacity)
-        snprintf(error, capacity, "%s", message);
-}
 
 static void release_waves(SequenceWave *waves, size_t count) {
     for (size_t index = 0; index < count; index++) {
@@ -67,7 +62,7 @@ static bool prepare_notes(const WmRsar *archive, uint32_t bank_index,
                           char *error, size_t error_capacity) {
     PreparedNote *prepared = calloc(timeline->count, sizeof(*prepared));
     if (!prepared) {
-        set_error(error, error_capacity, "Out of memory preparing notes.");
+        wm_error_set(error, error_capacity, "Out of memory preparing notes.");
         return false;
     }
     for (size_t index = 0; index < timeline->count; index++) {
@@ -88,8 +83,8 @@ static bool prepare_notes(const WmRsar *archive, uint32_t bank_index,
                                           &waves[slot].pcm, error, error_capacity))
                 goto failed;
             if (waves[slot].pcm.looping) {
-                set_error(error, error_capacity,
-                          "Looping bank waves need an audited voice path.");
+                wm_error_set(error, error_capacity,
+                             "Looping bank waves need an audited voice path.");
                 wm_audio_pcm_free(&waves[slot].pcm);
                 goto failed;
             }
@@ -419,7 +414,7 @@ static bool reserve_pcm(int16_t **samples, size_t *capacity, size_t count) {
 bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
                         const uint8_t *system_menu_dol, size_t dol_size,
                         WmAudioPcm *output, char *error, size_t error_capacity) {
-    set_error(error, error_capacity, "");
+    wm_error_set(error, error_capacity, "");
     if (!output)
         return false;
     *output = (WmAudioPcm){0};
@@ -435,17 +430,17 @@ bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
         wm_sequence_timeline_free(&timeline);
         return true;
     }
-    set_error(error, error_capacity, "");
+    wm_error_set(error, error_capacity, "");
     if (!wm_sequence_driver_load_tables(system_menu_dol, dol_size, &tables)) {
         wm_sequence_timeline_free(&timeline);
-        set_error(error, error_capacity,
-                  "Matching USA 4.3 System Menu audio tables are unavailable.");
+        wm_error_set(error, error_capacity,
+                     "Matching USA 4.3 System Menu audio tables are unavailable.");
         return false;
     }
     if (timeline.looping && timeline.has_wait_for_end && !timeline.voice_wait_loop) {
         wm_sequence_timeline_free(&timeline);
-        set_error(error, error_capacity,
-                  "Looping sequence with voice-finish waits is unsupported.");
+        wm_error_set(error, error_capacity,
+                     "Looping sequence with voice-finish waits is unsupported.");
         return false;
     }
     SequenceWave *waves = calloc(WM_SEQUENCE_MAX_WAVES, sizeof(*waves));
@@ -467,18 +462,19 @@ bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
             has_aux = true;
     }
     if (!has_note) {
-        set_error(error, error_capacity, "Sequence contains no notes.");
+        wm_error_set(error, error_capacity, "Sequence contains no notes.");
         goto failed;
     }
     SequenceReverb reverb;
     if (!wm_sequence_reverb_initialize(&reverb, &tables, has_aux)) {
-        set_error(error, error_capacity, "Out of memory initializing sequence reverb.");
+        wm_error_set(error, error_capacity,
+                     "Out of memory initializing sequence reverb.");
         goto failed;
     }
     SequencePlayer *player = malloc(sizeof(*player));
     if (!player) {
         wm_sequence_reverb_free(&reverb);
-        set_error(error, error_capacity, "Out of memory creating sequence player.");
+        wm_error_set(error, error_capacity, "Out of memory creating sequence player.");
         goto failed;
     }
     initialize_player(player, &timeline, prepared, waves, &tables, sound);
@@ -499,8 +495,8 @@ bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
             !final_frame) {
             free(player);
             wm_sequence_reverb_free(&reverb);
-            set_error(error, error_capacity,
-                      "Sequence loop exceeds the ten-minute render budget.");
+            wm_error_set(error, error_capacity,
+                         "Sequence loop exceeds the ten-minute render budget.");
             goto failed;
         }
         if (target == 120 && timeline.loop_start_tick == 0)
@@ -559,8 +555,8 @@ bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
         (timeline.looping && !timeline.voice_wait_loop && frame_count != final_frame) ||
         (!timeline.looping && frame_count >= WM_SEQUENCE_MAX_FRAMES)) {
         free(samples);
-        set_error(error, error_capacity,
-                  "Sequence voice or PCM allocation budget exceeded.");
+        wm_error_set(error, error_capacity,
+                     "Sequence voice or PCM allocation budget exceeded.");
         goto failed;
     }
     if (!timeline.looping)
@@ -568,8 +564,8 @@ bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
     if (timeline.voice_wait_loop) {
         if (!voice_loop_started || voice_loop_start_frame >= frame_count) {
             free(samples);
-            set_error(error, error_capacity,
-                      "Sequence voice-finish loop has no repeatable region.");
+            wm_error_set(error, error_capacity,
+                         "Sequence voice-finish loop has no repeatable region.");
             goto failed;
         }
         loop_frame = voice_loop_start_frame;

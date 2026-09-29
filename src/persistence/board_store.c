@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "wii_menu/persistence/board_store.h"
+#include "wii_menu/support/error.h"
 
 #include "wii_menu/support/json.h"
 #include "wii_menu/support/utf8.h"
@@ -20,11 +21,6 @@ enum {
     STORE_MAX_TEXT_BYTES = 16 * 1024 * 1024,
     STORE_MAX_JSON_BYTES = 64 * 1024 * 1024
 };
-
-static void set_error(char *error, size_t capacity, const char *message) {
-    if (error && capacity)
-        snprintf(error, capacity, "%s", message);
-}
 
 static bool token_is(const WmJson *json, size_t token, WmJsonType type) {
     return token < json->count && json->tokens[token].type == type;
@@ -184,7 +180,7 @@ static bool parse_record(const WmJson *json, size_t token, WmBoardMemo *memo,
 WmBoardStoreStatus wm_board_store_load(const char *path, WmBoardScene *board,
                                        char *error, size_t error_capacity) {
     if (!path || !path[0] || !board) {
-        set_error(error, error_capacity, "Invalid Board store input");
+        wm_error_set(error, error_capacity, "Invalid Board store input");
         return WM_BOARD_STORE_ERROR;
     }
     char *contents;
@@ -192,18 +188,18 @@ WmBoardStoreStatus wm_board_store_load(const char *path, WmBoardScene *board,
     WmRegularFileStatus status =
         wm_regular_file_read(path, STORE_MAX_JSON_BYTES, &contents, &length);
     if (status == WM_REGULAR_FILE_MISSING) {
-        set_error(error, error_capacity, "");
+        wm_error_set(error, error_capacity, "");
         return WM_BOARD_STORE_MISSING;
     }
     if (status != WM_REGULAR_FILE_OK) {
-        set_error(error, error_capacity, "Invalid Board store file");
+        wm_error_set(error, error_capacity, "Invalid Board store file");
         return WM_BOARD_STORE_ERROR;
     }
     WmJson json;
     bool parsed = wm_json_parse(&json, contents, length);
     free(contents);
     if (!parsed) {
-        set_error(error, error_capacity, "Invalid or oversized Board JSON");
+        wm_error_set(error, error_capacity, "Invalid or oversized Board JSON");
         return WM_BOARD_STORE_ERROR;
     }
     int version = 0;
@@ -232,10 +228,10 @@ WmBoardStoreStatus wm_board_store_load(const char *path, WmBoardScene *board,
     free_records(records, count);
     wm_json_free(&json);
     if (!valid) {
-        set_error(error, error_capacity, "Malformed Board memo record");
+        wm_error_set(error, error_capacity, "Malformed Board memo record");
         return WM_BOARD_STORE_ERROR;
     }
-    set_error(error, error_capacity, "");
+    wm_error_set(error, error_capacity, "");
     return WM_BOARD_STORE_OK;
 }
 
@@ -286,12 +282,12 @@ static bool json_number(float value, char output[32]) {
 bool wm_board_store_save(const char *path, const WmBoardScene *board, char *error,
                          size_t error_capacity) {
     if (!path || !path[0] || !board) {
-        set_error(error, error_capacity, "Invalid Board store input");
+        wm_error_set(error, error_capacity, "Invalid Board store input");
         return false;
     }
     size_t count = wm_board_scene_memo_count(board);
     if (count > STORE_MAX_MEMOS) {
-        set_error(error, error_capacity, "Too many Board memos");
+        wm_error_set(error, error_capacity, "Too many Board memos");
         return false;
     }
     size_t json_size = 64, text_size = 0;
@@ -303,27 +299,27 @@ bool wm_board_store_save(const char *path, const WmBoardScene *board, char *erro
             memo.created_at_ms < 0 || memo.created_at_ms > INT64_C(253402300799999) ||
             !isfinite(memo.x) || !isfinite(memo.y) || memo.x < -230.0f ||
             memo.x > 230.0f || memo.y < -80.0f || memo.y > 180.0f) {
-            set_error(error, error_capacity, "Invalid Board memo");
+            wm_error_set(error, error_capacity, "Invalid Board memo");
             return false;
         }
         for (size_t previous = 0; previous < index; previous++) {
             WmBoardMemo earlier;
             if (!wm_board_scene_get_memo(board, previous, &earlier) ||
                 strcmp(earlier.id, memo.id) == 0) {
-                set_error(error, error_capacity, "Duplicate Board memo ID");
+                wm_error_set(error, error_capacity, "Duplicate Board memo ID");
                 return false;
             }
         }
         size_t id_bytes = strlen(memo.id), text_bytes = strlen(memo.text);
         if (id_bytes > STORE_MAX_TEXT_BYTES - text_size ||
             text_bytes > STORE_MAX_TEXT_BYTES - text_size - id_bytes) {
-            set_error(error, error_capacity, "Board memo text limit exceeded");
+            wm_error_set(error, error_capacity, "Board memo text limit exceeded");
             return false;
         }
         text_size += id_bytes + text_bytes;
         size_t estimated = 224 + escaped_length(memo.id) + escaped_length(memo.text);
         if (estimated > STORE_MAX_JSON_BYTES - json_size) {
-            set_error(error, error_capacity, "Board store size limit exceeded");
+            wm_error_set(error, error_capacity, "Board store size limit exceeded");
             return false;
         }
         json_size += estimated;
@@ -346,7 +342,7 @@ bool wm_board_store_save(const char *path, const WmBoardScene *board, char *erro
                 message = "Could not open Board store temporary file";
                 break;
         }
-        set_error(error, error_capacity, message);
+        wm_error_set(error, error_capacity, message);
         return false;
     }
     FILE *file = temporary.stream;
@@ -357,7 +353,7 @@ bool wm_board_store_save(const char *path, const WmBoardScene *board, char *erro
         char x[32], y[32];
         if (!json_number(memo.x, x) || !json_number(memo.y, y)) {
             wm_atomic_file_discard(&temporary);
-            set_error(error, error_capacity, "Invalid Board memo position");
+            wm_error_set(error, error_capacity, "Invalid Board memo position");
             return false;
         }
         fputs("        {\"id\": ", file);
@@ -373,7 +369,7 @@ bool wm_board_store_save(const char *path, const WmBoardScene *board, char *erro
     }
     fputs("    ]\n}\n", file);
     bool success = wm_atomic_file_commit(&temporary, path);
-    set_error(error, error_capacity,
-              success ? "" : "Could not atomically save Board memos");
+    wm_error_set(error, error_capacity,
+                 success ? "" : "Could not atomically save Board memos");
     return success;
 }

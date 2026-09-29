@@ -1,8 +1,9 @@
 #include "resource_font_internal.h"
 #include "resource_bytes.h"
 #include "wii_menu/resources/resource_tpl.h"
+#include "wii_menu/support/endian.h"
+#include "wii_menu/support/error.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,26 +13,9 @@ enum {
     WM_FONT_MAX_CHAINS = 1024
 };
 
-static void font_error(char *error, size_t capacity, const char *message) {
-    if (error && capacity)
-        snprintf(error, capacity, "%s", message);
-}
-
 static uint32_t le32(const uint8_t *bytes) {
     return (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8) | ((uint32_t)bytes[2] << 16) |
            ((uint32_t)bytes[3] << 24);
-}
-
-static void write_be16(uint8_t *bytes, uint16_t value) {
-    bytes[0] = (uint8_t)(value >> 8);
-    bytes[1] = (uint8_t)value;
-}
-
-static void write_be32(uint8_t *bytes, uint32_t value) {
-    bytes[0] = (uint8_t)(value >> 24);
-    bytes[1] = (uint8_t)(value >> 16);
-    bytes[2] = (uint8_t)(value >> 8);
-    bytes[3] = (uint8_t)value;
 }
 
 static bool seen_offset(const size_t *visited, size_t count, size_t offset) {
@@ -157,12 +141,12 @@ static bool parse_sheets(WmFont *font, size_t image_offset, uint16_t width,
 
 WmFont *wm_font_decode(const uint8_t *data, size_t size, char *error,
                        size_t error_capacity) {
-    font_error(error, error_capacity, "");
+    wm_error_set(error, error_capacity, "");
     if (!data || size < 16 || size > WM_FONT_MAX_FILE ||
         (memcmp(data, "RFNT", 4) != 0 && memcmp(data, "RFNA", 4) != 0) ||
         data[4] != 0xfe || data[5] != 0xff) {
-        font_error(error, error_capacity,
-                   "Expected bounded big-endian RFNT/RFNA font.");
+        wm_error_set(error, error_capacity,
+                     "Expected bounded big-endian RFNT/RFNA font.");
         return NULL;
     }
     size_t declared = wm_resource_be32(data + 8);
@@ -170,18 +154,18 @@ WmFont *wm_font_decode(const uint8_t *data, size_t size, char *error,
     size_t section_count = wm_resource_be16(data + 14);
     if (declared > size || offset < 16 || offset >= declared || section_count == 0 ||
         section_count > 1024) {
-        font_error(error, error_capacity, "Invalid font section header.");
+        wm_error_set(error, error_capacity, "Invalid font section header.");
         return NULL;
     }
     size_t finf = 0, finf_length = 0;
     for (size_t index = 0; index < section_count; index++) {
         if (!wm_resource_range_fits(declared, offset, 8)) {
-            font_error(error, error_capacity, "Truncated font section.");
+            wm_error_set(error, error_capacity, "Truncated font section.");
             return NULL;
         }
         size_t length = wm_resource_be32(data + offset + 4);
         if (length < 8 || !wm_resource_range_fits(declared, offset, length)) {
-            font_error(error, error_capacity, "Invalid font section size.");
+            wm_error_set(error, error_capacity, "Invalid font section size.");
             return NULL;
         }
         if (memcmp(data + offset, "FINF", 4) == 0) {
@@ -191,13 +175,13 @@ WmFont *wm_font_decode(const uint8_t *data, size_t size, char *error,
         offset += length;
     }
     if (!finf || finf_length < 31 || !wm_resource_range_fits(declared, finf, 31)) {
-        font_error(error, error_capacity, "Font information section is missing.");
+        wm_error_set(error, error_capacity, "Font information section is missing.");
         return NULL;
     }
 
     WmFont *font = calloc(1, sizeof(*font));
     if (!font) {
-        font_error(error, error_capacity, "Out of memory.");
+        wm_error_set(error, error_capacity, "Out of memory.");
         return NULL;
     }
     font->data = malloc(declared);
@@ -281,7 +265,7 @@ WmFont *wm_font_decode(const uint8_t *data, size_t size, char *error,
     return font;
 
 invalid:
-    font_error(error, error_capacity, "Invalid or unsupported font resource.");
+    wm_error_set(error, error_capacity, "Invalid or unsupported font resource.");
     wm_font_destroy(font);
     return NULL;
 }
@@ -384,9 +368,9 @@ static bool decode_huffman(const uint8_t *stream, size_t size, uint8_t *output,
 
 bool wm_font_decode_sheet(const WmFont *font, size_t sheet_index, WmImage *image,
                           char *error, size_t error_capacity) {
-    font_error(error, error_capacity, "");
+    wm_error_set(error, error_capacity, "");
     if (!font || !image || sheet_index >= font->sheet_count) {
-        font_error(error, error_capacity, "Invalid font sheet index.");
+        wm_error_set(error, error_capacity, "Invalid font sheet index.");
         return false;
     }
     *image = (WmImage){0};
@@ -398,7 +382,7 @@ bool wm_font_decode_sheet(const WmFont *font, size_t sheet_index, WmImage *image
         if (!expanded ||
             !decode_huffman(pixels, sheet->stored_size, expanded, font->sheet_size)) {
             free(expanded);
-            font_error(error, error_capacity, "Invalid compressed font sheet.");
+            wm_error_set(error, error_capacity, "Invalid compressed font sheet.");
             return false;
         }
         pixels = expanded;
@@ -406,24 +390,24 @@ bool wm_font_decode_sheet(const WmFont *font, size_t sheet_index, WmImage *image
 
     if (font->sheet_size > SIZE_MAX - 32) {
         free(expanded);
-        font_error(error, error_capacity, "Font sheet is too large.");
+        wm_error_set(error, error_capacity, "Font sheet is too large.");
         return false;
     }
     size_t wrapped_size = 32 + font->sheet_size;
     uint8_t *wrapped = calloc(wrapped_size, 1);
     if (!wrapped) {
         free(expanded);
-        font_error(error, error_capacity, "Out of memory decoding font sheet.");
+        wm_error_set(error, error_capacity, "Out of memory decoding font sheet.");
         return false;
     }
-    write_be32(wrapped, 0x0020af30);
-    write_be32(wrapped + 4, 1);
-    write_be32(wrapped + 8, 12);
-    write_be32(wrapped + 12, 20);
-    write_be16(wrapped + 20, sheet->info.height);
-    write_be16(wrapped + 22, sheet->info.width);
-    write_be32(wrapped + 24, sheet->info.format);
-    write_be32(wrapped + 28, 32);
+    wm_write_be32(wrapped, 0x0020af30);
+    wm_write_be32(wrapped + 4, 1);
+    wm_write_be32(wrapped + 8, 12);
+    wm_write_be32(wrapped + 12, 20);
+    wm_write_be16(wrapped + 20, sheet->info.height);
+    wm_write_be16(wrapped + 22, sheet->info.width);
+    wm_write_be32(wrapped + 24, sheet->info.format);
+    wm_write_be32(wrapped + 28, 32);
     memcpy(wrapped + 32, pixels, font->sheet_size);
     free(expanded);
 
@@ -435,7 +419,7 @@ bool wm_font_decode_sheet(const WmFont *font, size_t sheet_index, WmImage *image
         return false;
     if (decoded.count != 1) {
         wm_tpl_free(&decoded);
-        font_error(error, error_capacity, "Invalid font sheet image count.");
+        wm_error_set(error, error_capacity, "Invalid font sheet image count.");
         return false;
     }
     image->width = decoded.images[0].width;

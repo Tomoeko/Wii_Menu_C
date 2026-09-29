@@ -1,6 +1,6 @@
 #include "wii_menu/persistence/saved_layout.h"
+#include "wii_menu/support/error.h"
 
-#include <stdio.h>
 #include <string.h>
 
 static const uint32_t md5_constants[64] = {
@@ -99,26 +99,21 @@ static void md5_digest(const uint8_t *bytes, size_t size, uint8_t digest[16]) {
     memset(state, 0, sizeof(state));
 }
 
-static void set_error(char *error, size_t capacity, const char *message) {
-    if (error && capacity)
-        snprintf(error, capacity, "%s", message);
-}
-
 bool wm_saved_layout_parse(const uint8_t *bytes, size_t size, WmSavedLayout *layout,
                            char *error, size_t error_capacity) {
     if (!bytes || !layout || size != WM_SAVED_LAYOUT_BYTES) {
-        set_error(error, error_capacity, "Expected a 0x4c0-byte RIPL save");
+        wm_error_set(error, error_capacity, "Expected a 0x4c0-byte RIPL save");
         return false;
     }
     if (memcmp(bytes, "RIPL", 4) != 0 || big_u32(bytes + 4) != WM_SAVED_LAYOUT_BYTES ||
         big_u32(bytes + 8) != 3) {
-        set_error(error, error_capacity, "Unsupported RIPL save size/version");
+        wm_error_set(error, error_capacity, "Unsupported RIPL save size/version");
         return false;
     }
     uint8_t checksum[16];
     md5_digest(bytes, size - sizeof(checksum), checksum);
     if (memcmp(checksum, bytes + size - sizeof(checksum), sizeof(checksum)) != 0) {
-        set_error(error, error_capacity, "RIPL checksum mismatch");
+        wm_error_set(error, error_capacity, "RIPL checksum mismatch");
         return false;
     }
     WmSavedLayout result = {0};

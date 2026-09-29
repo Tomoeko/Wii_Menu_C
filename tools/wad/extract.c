@@ -4,6 +4,7 @@
 #include "crypto.h"
 #include "retail_keys.h"
 #include "wii_menu/support/endian.h"
+#include "wii_menu/support/bounds.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -77,7 +78,7 @@ static bool aligned_size(size_t size, size_t alignment, size_t *aligned) {
 }
 
 static bool slice_fits(size_t offset, size_t length, size_t total) {
-    return offset <= total && length <= total - offset;
+    return wm_bounds_contains(total, offset, length);
 }
 
 static void wipe(void *memory, size_t length) {

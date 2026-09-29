@@ -1,4 +1,5 @@
 #include "wii_menu/audio/audio_wave.h"
+#include "wii_menu/support/error.h"
 #include "wii_menu/support/regular_file.h"
 
 #include "../support/atomic_file.h"
@@ -8,11 +9,6 @@
 #include <string.h>
 
 enum { WM_WAV_MAX_BYTES = 128 * 1024 * 1024, WM_WAV_MAX_FRAMES = 20000000 };
-
-static void set_error(char *error, size_t capacity, const char *message) {
-    if (error && capacity)
-        snprintf(error, capacity, "%s", message);
-}
 
 static uint16_t le16(const uint8_t *bytes) {
     return (uint16_t)(bytes[0] | ((uint16_t)bytes[1] << 8));
@@ -41,25 +37,25 @@ static bool write_bytes(FILE *file, const void *data, size_t size) {
 
 bool wm_audio_wav_write(const char *path, const WmAudioPcm *audio, char *error,
                         size_t error_capacity) {
-    set_error(error, error_capacity, "");
+    wm_error_set(error, error_capacity, "");
     if (!path || !audio || !audio->samples ||
         (audio->channels != 1 && audio->channels != 2) || !audio->sample_rate ||
         audio->sample_rate > 192000 || !audio->frame_count ||
         audio->frame_count > WM_WAV_MAX_FRAMES ||
         (audio->looping && (audio->loop_start >= audio->loop_end ||
                             audio->loop_end > audio->frame_count))) {
-        set_error(error, error_capacity, "Invalid PCM data for WAV export.");
+        wm_error_set(error, error_capacity, "Invalid PCM data for WAV export.");
         return false;
     }
     size_t payload = (size_t)audio->frame_count * audio->channels * 2;
     size_t extra = audio->looping ? 68 : 0;
     if (payload > UINT32_MAX - 36 - extra || payload > WM_WAV_MAX_BYTES) {
-        set_error(error, error_capacity, "WAV output is too large.");
+        wm_error_set(error, error_capacity, "WAV output is too large.");
         return false;
     }
     WmAtomicFile output;
     if (wm_atomic_file_open(&output, path) != WM_ATOMIC_FILE_OK) {
-        set_error(error, error_capacity, "Could not create WAV output.");
+        wm_error_set(error, error_capacity, "Could not create WAV output.");
         return false;
     }
     FILE *file = output.stream;
@@ -104,14 +100,14 @@ bool wm_audio_wav_write(const char *path, const WmAudioPcm *audio, char *error,
         wm_atomic_file_discard(&output);
     }
     if (!valid) {
-        set_error(error, error_capacity, "Could not write WAV output.");
+        wm_error_set(error, error_capacity, "Could not write WAV output.");
     }
     return valid;
 }
 
 bool wm_audio_wav_read(const char *path, WmAudioPcm *audio, char *error,
                        size_t error_capacity) {
-    set_error(error, error_capacity, "");
+    wm_error_set(error, error_capacity, "");
     if (!path || !audio)
         return false;
     *audio = (WmAudioPcm){0};
@@ -121,14 +117,14 @@ bool wm_audio_wav_read(const char *path, WmAudioPcm *audio, char *error,
         wm_regular_file_read_bytes(path, 44, WM_WAV_MAX_BYTES, &bytes, &size);
     if (status != WM_REGULAR_FILE_OK) {
         if (status == WM_REGULAR_FILE_MISSING)
-            set_error(error, error_capacity, "Could not open WAV input.");
+            wm_error_set(error, error_capacity, "Could not open WAV input.");
         return false;
     }
     bool valid = true;
     if (memcmp(bytes, "RIFF", 4) != 0 || memcmp(bytes + 8, "WAVE", 4) != 0 ||
         le32(bytes + 4) > size - 8 || le32(bytes + 4) < 36) {
         free(bytes);
-        set_error(error, error_capacity, "Invalid RIFF/WAVE header.");
+        wm_error_set(error, error_capacity, "Invalid RIFF/WAVE header.");
         return false;
     }
     size_t end = 8 + le32(bytes + 4);
@@ -164,14 +160,14 @@ bool wm_audio_wav_read(const char *path, WmAudioPcm *audio, char *error,
         le32(format + 8) != le32(format + 4) * le16(format + 12) ||
         pcm_size % le16(format + 12) != 0) {
         free(bytes);
-        set_error(error, error_capacity, "Unsupported or invalid PCM16 WAV.");
+        wm_error_set(error, error_capacity, "Unsupported or invalid PCM16 WAV.");
         return false;
     }
     uint16_t channels = le16(format + 2);
     size_t frames = pcm_size / (channels * 2);
     if (!frames || frames > WM_WAV_MAX_FRAMES) {
         free(bytes);
-        set_error(error, error_capacity, "Invalid WAV frame count.");
+        wm_error_set(error, error_capacity, "Invalid WAV frame count.");
         return false;
     }
     int16_t *samples = malloc(pcm_size);

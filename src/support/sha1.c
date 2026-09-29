@@ -7,13 +7,6 @@ static uint32_t rotate_word(uint32_t value, unsigned distance) {
     return (value << distance) | (value >> (32 - distance));
 }
 
-static void write_be32(uint8_t *bytes, uint32_t value) {
-    bytes[0] = (uint8_t)(value >> 24);
-    bytes[1] = (uint8_t)(value >> 16);
-    bytes[2] = (uint8_t)(value >> 8);
-    bytes[3] = (uint8_t)value;
-}
-
 static void sha1_compress(WmSha1 *sha1, const uint8_t block[64]) {
     uint32_t words[80];
     for (int index = 0; index < 16; ++index) {
@@ -101,7 +94,7 @@ void wm_sha1_final(WmSha1 *sha1, uint8_t digest[20]) {
     }
     wm_sha1_update(sha1, length, sizeof(length));
     for (int index = 0; index < 5; ++index) {
-        write_be32(digest + index * 4, sha1->words[index]);
+        wm_write_be32(digest + index * 4, sha1->words[index]);
     }
     memset(sha1, 0, sizeof(*sha1));
 }

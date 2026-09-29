@@ -33,13 +33,6 @@ void wm_nand_set_error(char *error, size_t capacity, const char *message) {
     }
 }
 
-static void write_be32(uint8_t *bytes, uint32_t value) {
-    bytes[0] = (uint8_t)(value >> 24);
-    bytes[1] = (uint8_t)(value >> 16);
-    bytes[2] = (uint8_t)(value >> 8);
-    bytes[3] = (uint8_t)value;
-}
-
 static bool exact_file_size(FILE *stream, uint64_t *size) {
     if (fseeko(stream, 0, SEEK_END) != 0)
         return false;
@@ -202,7 +195,7 @@ static bool load_superblock(WmNandReader *reader, char *error, size_t error_capa
     }
     uint8_t salt[64] = {0};
     uint8_t expected[20];
-    write_be32(salt + 16, first);
+    wm_write_be32(salt + 16, first);
     hmac_sha1(reader->hmac_key, salt, reader->superblock, WM_NAND_SUPERBLOCK_SIZE,
               expected);
     if (!verify_spare_hmac((const uint8_t(*)[WM_NAND_SPARE_SIZE])spare, expected)) {
@@ -505,11 +498,11 @@ bool wm_nand_read_file_cluster(WmNandReader *reader, const WmNandEntry *entry,
     wm_aes128_cbc_decrypt(&reader->aes, data, WM_NAND_CLUSTER_SIZE, zero_iv);
     uint8_t salt[64] = {0};
     uint8_t expected[20];
-    write_be32(salt, entry->owner);
+    wm_write_be32(salt, entry->owner);
     memcpy(salt + 4, entry->name, 12);
-    write_be32(salt + 16, (uint32_t)ordinal);
-    write_be32(salt + 20, node_index);
-    write_be32(salt + 24, entry->extra);
+    wm_write_be32(salt + 16, (uint32_t)ordinal);
+    wm_write_be32(salt + 20, node_index);
+    wm_write_be32(salt + 24, entry->extra);
     hmac_sha1(reader->hmac_key, salt, data, WM_NAND_CLUSTER_SIZE, expected);
     if (!verify_spare_hmac((const uint8_t(*)[WM_NAND_SPARE_SIZE])spare, expected)) {
         wm_nand_set_error(

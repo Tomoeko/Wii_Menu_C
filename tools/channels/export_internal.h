@@ -3,6 +3,8 @@
 
 #include "wii_menu/persistence/saved_layout.h"
 #include "wii_menu/resources/resource_u8.h"
+#include "wii_menu/support/bounds.h"
+#include "wii_menu/support/endian.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -11,16 +13,15 @@
 enum { WM_PATH_CAP = 4096, WM_MAX_CONTENT = 64 * 1024 * 1024 };
 
 static inline uint16_t wm_be16(const uint8_t *bytes) {
-    return (uint16_t)(((uint16_t)bytes[0] << 8) | bytes[1]);
+    return wm_read_be16(bytes);
 }
 
 static inline uint32_t wm_be32(const uint8_t *bytes) {
-    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
-           ((uint32_t)bytes[2] << 8) | bytes[3];
+    return wm_read_be32(bytes);
 }
 
 static inline bool wm_fits(size_t size, size_t offset, size_t length) {
-    return offset <= size && length <= size - offset;
+    return wm_bounds_contains(size, offset, length);
 }
 
 typedef struct WmChannelExport {

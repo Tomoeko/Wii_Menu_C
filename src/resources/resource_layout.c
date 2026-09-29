@@ -1,6 +1,7 @@
 #include "resource_layout_internal.h"
 #include "resource_bytes.h"
 #include "wii_menu/support/utf8.h"
+#include "wii_menu/support/error.h"
 
 #include <math.h>
 #include <stdarg.h>
@@ -26,9 +27,7 @@ bool wm_range(size_t size, size_t offset, size_t length) {
 }
 
 void wm_set_error(char *error, size_t error_size, const char *message) {
-    if (error != NULL && error_size != 0) {
-        snprintf(error, error_size, "%s", message);
-    }
+    wm_error_set(error, error_size, message);
 }
 
 bool wm_float(const uint8_t *bytes, size_t size, size_t offset, float *value) {

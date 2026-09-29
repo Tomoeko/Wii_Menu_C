@@ -1,26 +1,22 @@
 #include "wii_menu/resources/resource_rsar.h"
+#include "wii_menu/support/bounds.h"
+#include "wii_menu/support/endian.h"
+#include "wii_menu/support/error.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 enum { WM_RSAR_MAX_SOUNDS = 65536, WM_RSAR_MAX_SAMPLES = 20000000 };
 
-static void set_error(char *error, size_t capacity, const char *message) {
-    if (error && capacity)
-        snprintf(error, capacity, "%s", message);
-}
-
 static bool fits(const WmRsar *archive, size_t offset, size_t length) {
-    return archive && offset <= archive->size && length <= archive->size - offset;
+    return archive && wm_bounds_contains(archive->size, offset, length);
 }
 
 static bool read_u32(const WmRsar *archive, size_t offset, uint32_t *value) {
     if (!fits(archive, offset, 4))
         return false;
     const uint8_t *source = archive->data + offset;
-    *value = ((uint32_t)source[0] << 24) | ((uint32_t)source[1] << 16) |
-             ((uint32_t)source[2] << 8) | source[3];
+    *value = wm_read_be32(source);
     return true;
 }
 
@@ -64,13 +60,13 @@ static bool checked_block_offset(const WmRsar *archive, size_t base, uint32_t re
 
 bool wm_rsar_open(const uint8_t *data, size_t size, WmRsar *archive, char *error,
                   size_t error_capacity) {
-    set_error(error, error_capacity, "");
+    wm_error_set(error, error_capacity, "");
     if (!archive)
         return false;
     *archive = (WmRsar){0};
     if (!data || size < 64 || size > 128u * 1024u * 1024u ||
         memcmp(data, "RSAR\xfe\xff\x01\x01", 8) != 0) {
-        set_error(error, error_capacity, "Expected bounded big-endian RSAR 1.1.");
+        wm_error_set(error, error_capacity, "Expected bounded big-endian RSAR 1.1.");
         return false;
     }
     WmRsar parsed = {.data = data, .size = size};
@@ -84,7 +80,7 @@ bool wm_rsar_open(const uint8_t *data, size_t size, WmRsar *archive, char *error
         !fits(&parsed, info_offset, info_length) || symbol_length < 8 ||
         info_length < 48 || memcmp(data + symbol_offset, "SYMB", 4) != 0 ||
         memcmp(data + info_offset, "INFO", 4) != 0) {
-        set_error(error, error_capacity, "Invalid RSAR block directory.");
+        wm_error_set(error, error_capacity, "Invalid RSAR block directory.");
         return false;
     }
     parsed.symbol_block = (size_t)symbol_offset + 8;
@@ -102,7 +98,7 @@ bool wm_rsar_open(const uint8_t *data, size_t size, WmRsar *archive, char *error
         !read_reference(&parsed, parsed.info_block + 32, parsed.info_block,
                         &parsed.group_table) ||
         !fits(&parsed, parsed.symbol_table, 4)) {
-        set_error(error, error_capacity, "Invalid RSAR symbol or INFO references.");
+        wm_error_set(error, error_capacity, "Invalid RSAR symbol or INFO references.");
         return false;
     }
     uint32_t name_count, sound_count, bank_count, file_count, group_count;
@@ -119,7 +115,7 @@ bool wm_rsar_open(const uint8_t *data, size_t size, WmRsar *archive, char *error
         !fits(&parsed, parsed.bank_table + 4, (size_t)bank_count * 8) ||
         !fits(&parsed, parsed.file_table + 4, (size_t)file_count * 8) ||
         !fits(&parsed, parsed.group_table + 4, (size_t)group_count * 8)) {
-        set_error(error, error_capacity, "Invalid RSAR table counts.");
+        wm_error_set(error, error_capacity, "Invalid RSAR table counts.");
         return false;
     }
     *archive = parsed;
@@ -226,7 +222,7 @@ static bool file_locations(const WmRsar *archive, uint32_t file_index, size_t *h
 static bool decode_wave(const WmRsar *archive, size_t info, size_t wave_base,
                         WmAudioPcm *output, char *error, size_t error_capacity) {
     if (!fits(archive, info, 24)) {
-        set_error(error, error_capacity, "Truncated RSAR wave metadata.");
+        wm_error_set(error, error_capacity, "Truncated RSAR wave metadata.");
         return false;
     }
     uint8_t codec = archive->data[info];
@@ -247,19 +243,19 @@ static bool decode_wave(const WmRsar *archive, size_t info, size_t wave_base,
         (channels != 1 && channels != 2) || rate == 0 || rate > 192000 || frames <= 0 ||
         frames > WM_RSAR_MAX_SAMPLES ||
         (size_t)frames > SIZE_MAX / (sizeof(int16_t) * channels)) {
-        set_error(error, error_capacity, "Unsupported or excessive RSAR wave.");
+        wm_error_set(error, error_capacity, "Unsupported or excessive RSAR wave.");
         return false;
     }
     size_t channel_table, data_base;
     if (!checked_sum(info, channel_table_relative, &channel_table) ||
         !checked_sum(wave_base, data_relative, &data_base) ||
         !fits(archive, channel_table, (size_t)channels * 4)) {
-        set_error(error, error_capacity, "Invalid RSAR wave channel table.");
+        wm_error_set(error, error_capacity, "Invalid RSAR wave channel table.");
         return false;
     }
     int16_t *pcm = malloc((size_t)frames * channels * sizeof(*pcm));
     if (!pcm) {
-        set_error(error, error_capacity, "Out of memory decoding RSAR wave.");
+        wm_error_set(error, error_capacity, "Out of memory decoding RSAR wave.");
         return false;
     }
     bool valid = true;
@@ -320,7 +316,7 @@ static bool decode_wave(const WmRsar *archive, size_t info, size_t wave_base,
     }
     if (!valid) {
         free(pcm);
-        set_error(error, error_capacity, "Invalid or truncated RSAR wave data.");
+        wm_error_set(error, error_capacity, "Invalid or truncated RSAR wave data.");
         return false;
     }
     output->samples = pcm;
@@ -342,7 +338,7 @@ bool wm_rsar_decode_direct_wave(const WmRsar *archive, const WmRsarSound *sound,
                                 WmAudioPcm *output, char *error,
                                 size_t error_capacity) {
     if (!archive || !sound || !output || sound->type != 3) {
-        set_error(error, error_capacity, "Expected direct-wave RSAR sound.");
+        wm_error_set(error, error_capacity, "Expected direct-wave RSAR sound.");
         return false;
     }
     *output = (WmAudioPcm){0};
@@ -363,7 +359,7 @@ bool wm_rsar_decode_direct_wave(const WmRsar *archive, const WmRsarSound *sound,
         note_index > (SIZE_MAX - wave_table - 12) / 4 ||
         !read_u32(archive, wave_table + 12 + (size_t)note_index * 4, &wave_relative) ||
         !checked_sum(wave_table, wave_relative, &info)) {
-        set_error(error, error_capacity, "Invalid RSAR direct-wave references.");
+        wm_error_set(error, error_capacity, "Invalid RSAR direct-wave references.");
         return false;
     }
     return decode_wave(archive, info, wave_base, output, error, error_capacity);
@@ -373,7 +369,7 @@ bool wm_rsar_get_sequence(const WmRsar *archive, const WmRsarSound *sound,
                           WmRsarSequence *sequence, char *error,
                           size_t error_capacity) {
     if (!archive || !sound || !sequence || sound->type != 1) {
-        set_error(error, error_capacity, "Expected sequenced RSAR sound.");
+        wm_error_set(error, error_capacity, "Expected sequenced RSAR sound.");
         return false;
     }
     size_t header, wave, data, base;
@@ -391,7 +387,7 @@ bool wm_rsar_get_sequence(const WmRsar *archive, const WmRsarSound *sound,
         !read_u32(archive, sound->extra + 4, &bank_index) ||
         base >= header + file_size ||
         (size_t)start_offset >= header + file_size - base) {
-        set_error(error, error_capacity, "Invalid RSAR sequence references.");
+        wm_error_set(error, error_capacity, "Invalid RSAR sequence references.");
         return false;
     }
     *sequence = (WmRsarSequence){.data = archive->data + base,
@@ -424,7 +420,7 @@ bool wm_rsar_decode_bank_wave(const WmRsar *archive, uint32_t bank_index,
         !checked_block_offset(archive, header, relative, 8, &table) ||
         wave_index > (SIZE_MAX - table - 4) / 8 ||
         !read_reference(archive, table + 4 + (size_t)wave_index * 8, table, &info)) {
-        set_error(error, error_capacity, "Invalid RSAR bank wave index.");
+        wm_error_set(error, error_capacity, "Invalid RSAR bank wave index.");
         return false;
     }
     return decode_wave(archive, info, wave_base, output, error, error_capacity);
@@ -487,7 +483,7 @@ bool wm_rsar_get_instrument(const WmRsar *archive, uint32_t bank_index,
             break;
         }
     }
-    set_error(error, error_capacity, "Unsupported RSAR instrument region.");
+    wm_error_set(error, error_capacity, "Unsupported RSAR instrument region.");
     return false;
 }
 

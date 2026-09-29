@@ -1,5 +1,6 @@
 #include "cff_font.h"
 #include "wii_menu/support/endian.h"
+#include "wii_menu/support/bounds.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -59,13 +60,9 @@ typedef struct Type2State {
     bool stopped;
 } Type2State;
 
-static bool fits(size_t size, size_t offset, size_t length) {
-    return offset <= size && length <= size - offset;
-}
-
 static bool offset_value(const uint8_t *bytes, size_t size, size_t position,
                          unsigned width, size_t *value) {
-    if (width < 1 || width > 4 || !fits(size, position, width))
+    if (width < 1 || width > 4 || !wm_bounds_contains(size, position, width))
         return false;
     size_t result = 0;
     for (unsigned index = 0; index < width; index++)
@@ -76,22 +73,23 @@ static bool offset_value(const uint8_t *bytes, size_t size, size_t position,
 
 static bool parse_index(const uint8_t *bytes, size_t size, size_t offset,
                         CffIndex *index) {
-    if (!fits(size, offset, 2))
+    if (!wm_bounds_contains(size, offset, 2))
         return false;
     unsigned count = wm_read_be16(bytes + offset);
     *index = (CffIndex){.count = count, .end = offset + 2};
     if (!count)
         return true;
-    if (!fits(size, offset + 2, 1))
+    if (!wm_bounds_contains(size, offset + 2, 1))
         return false;
     unsigned width = bytes[offset + 2];
-    if (width < 1 || width > 4 || !fits(size, offset + 3, ((size_t)count + 1) * width))
+    if (width < 1 || width > 4 ||
+        !wm_bounds_contains(size, offset + 3, ((size_t)count + 1) * width))
         return false;
     size_t data = offset + 3 + ((size_t)count + 1) * width;
     size_t first, last;
     if (!offset_value(bytes, size, offset + 3, width, &first) ||
         !offset_value(bytes, size, offset + 3 + (size_t)count * width, width, &last) ||
-        first != 1 || last < first || !fits(size, data, last - 1))
+        first != 1 || last < first || !wm_bounds_contains(size, data, last - 1))
         return false;
     size_t previous = first;
     for (unsigned item = 1; item <= count; item++) {
@@ -119,7 +117,7 @@ static bool index_item(const uint8_t *bytes, size_t size, const CffIndex *index,
         !offset_value(bytes, size, position + index->offset_size, index->offset_size,
                       &last) ||
         first < 1 || last < first ||
-        !fits(index->end, index->data + first - 1, last - first))
+        !wm_bounds_contains(index->end, index->data + first - 1, last - first))
         return false;
     *offset = index->data + first - 1;
     *length = last - first;
@@ -127,38 +125,38 @@ static bool index_item(const uint8_t *bytes, size_t size, const CffIndex *index,
 }
 
 static bool number(const uint8_t *bytes, size_t size, size_t *cursor, float *value) {
-    if (!fits(size, *cursor, 1))
+    if (!wm_bounds_contains(size, *cursor, 1))
         return false;
     uint8_t first = bytes[(*cursor)++];
     if (first >= 32 && first <= 246) {
         *value = (float)((int)first - 139);
     } else if (first >= 247 && first <= 250) {
-        if (!fits(size, *cursor, 1))
+        if (!wm_bounds_contains(size, *cursor, 1))
             return false;
         *value = (float)((first - 247) * 256 + bytes[(*cursor)++] + 108);
     } else if (first >= 251 && first <= 254) {
-        if (!fits(size, *cursor, 1))
+        if (!wm_bounds_contains(size, *cursor, 1))
             return false;
         *value = (float)(-((int)first - 251) * 256 - bytes[(*cursor)++] - 108);
     } else if (first == 28) {
-        if (!fits(size, *cursor, 2))
+        if (!wm_bounds_contains(size, *cursor, 2))
             return false;
         *value = (float)(int16_t)wm_read_be16(bytes + *cursor);
         *cursor += 2;
     } else if (first == 29) {
-        if (!fits(size, *cursor, 4))
+        if (!wm_bounds_contains(size, *cursor, 4))
             return false;
         *value = (float)(int32_t)wm_read_be32(bytes + *cursor);
         *cursor += 4;
     } else if (first == 255) {
-        if (!fits(size, *cursor, 4))
+        if (!wm_bounds_contains(size, *cursor, 4))
             return false;
         *value = (float)(int32_t)wm_read_be32(bytes + *cursor) / 65536.0f;
         *cursor += 4;
     } else if (first == 30) {
         /* Real numbers are used by FontMatrix, not the offsets we need. */
         bool ended = false;
-        while (fits(size, *cursor, 1)) {
+        while (wm_bounds_contains(size, *cursor, 1)) {
             uint8_t pair = bytes[(*cursor)++];
             if ((pair >> 4) == 15 || (pair & 15) == 15) {
                 ended = true;
@@ -183,7 +181,7 @@ static bool dict_offset(float value, size_t limit, size_t *output) {
 
 static bool parse_dict(const uint8_t *bytes, size_t size, size_t offset, size_t length,
                        CffDictFields *fields) {
-    if (!fits(size, offset, length))
+    if (!wm_bounds_contains(size, offset, length))
         return false;
     float operands[CFF_MAX_STACK];
     unsigned count = 0;
@@ -244,19 +242,19 @@ static bool parse_private(WmCffFont *font, CffPrivate *output, size_t offset,
 static bool parse_fd_select(WmCffFont *font, size_t offset) {
     const uint8_t *bytes = font->bytes;
     size_t size = font->table_size;
-    if (!fits(size, offset, 1))
+    if (!wm_bounds_contains(size, offset, 1))
         return false;
     unsigned format = bytes[offset++];
     if (format == 0) {
-        if (!fits(size, offset, font->glyph_count))
+        if (!wm_bounds_contains(size, offset, font->glyph_count))
             return false;
         memcpy(font->font_for_glyph, bytes + offset, font->glyph_count);
     } else if (format == 3) {
-        if (!fits(size, offset, 2))
+        if (!wm_bounds_contains(size, offset, 2))
             return false;
         unsigned ranges = wm_read_be16(bytes + offset);
         offset += 2;
-        if (!ranges || !fits(size, offset, (size_t)ranges * 3 + 2))
+        if (!ranges || !wm_bounds_contains(size, offset, (size_t)ranges * 3 + 2))
             return false;
         unsigned previous = wm_read_be16(bytes + offset);
         if (previous != 0)
@@ -287,7 +285,7 @@ static bool parse_fd_select(WmCffFont *font, size_t offset) {
 
 WmCffFont *wm_cff_font_parse(const uint8_t *bytes, size_t size, size_t table_offset,
                              size_t table_size, unsigned glyph_count) {
-    if (!bytes || !glyph_count || !fits(size, table_offset, table_size) ||
+    if (!bytes || !glyph_count || !wm_bounds_contains(size, table_offset, table_size) ||
         table_size < 4)
         return NULL;
     WmCffFont *font = calloc(1, sizeof(*font));
@@ -541,7 +539,7 @@ static bool run_program(Type2State *state, const uint8_t *bytes, size_t length,
             if (!stems(state))
                 return false;
             size_t mask_bytes = (state->stems + 7) / 8;
-            if (!fits(length, cursor, mask_bytes))
+            if (!wm_bounds_contains(length, cursor, mask_bytes))
                 return false;
             cursor += mask_bytes;
         } else if (op == 12) {
