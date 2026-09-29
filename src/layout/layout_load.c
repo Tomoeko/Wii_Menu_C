@@ -135,7 +135,8 @@ static bool parse_textures(WmLayout *layout, const WmJson *json) {
         resources < json->count && json->tokens[resources].type == WM_JSON_OBJECT
             ? json->tokens[resources].children
             : 0;
-    if (static_count + resource_count > WM_LAYOUT_MAX_TEXTURES)
+    if (static_count > WM_LAYOUT_MAX_TEXTURES ||
+        resource_count > WM_LAYOUT_MAX_TEXTURES - static_count)
         return false;
     layout->texture_count = static_count + resource_count;
     layout->textures = calloc(layout->texture_count ? layout->texture_count : 1,
@@ -187,7 +188,7 @@ static bool parse_fonts(WmLayout *layout, const WmJson *json) {
     return true;
 }
 
-static bool parse_material(const WmJson *json, size_t token, LayoutMaterial *material) {
+static void set_material_defaults(LayoutMaterial *material) {
     memset(material, 0, sizeof(*material));
     for (size_t index = 0; index < 4; index++)
         material->material_color[index] = 255;
@@ -205,6 +206,10 @@ static bool parse_material(const WmJson *json, size_t token, LayoutMaterial *mat
     material->tev_swap_table[1] = 192;
     material->tev_swap_table[2] = 213;
     material->tev_swap_table[3] = 234;
+}
+
+static bool parse_material_colors(const WmJson *json, size_t token,
+                                  LayoutMaterial *material) {
     if (!wm_json_copy(json, wm_json_member(json, token, "name"), material->name,
                       sizeof(material->name)) ||
         !json_array_colors(json, wm_json_member(json, token, "colors"),
@@ -235,11 +240,18 @@ static bool parse_material(const WmJson *json, size_t token, LayoutMaterial *mat
             return false;
         material->has_alpha_compare = true;
     }
+    return true;
+}
+
+static bool parse_material_tev(const WmJson *json, size_t token,
+                               LayoutMaterial *material) {
     size_t stages = wm_json_member(json, token, "tevStages");
     if (stages < json->count && json->tokens[stages].type == WM_JSON_ARRAY) {
-        material->tev_stage_count = (unsigned)json->tokens[stages].children;
-        if (material->tev_stage_count > 32)
+        size_t stage_count = json->tokens[stages].children;
+        if (stage_count >
+            sizeof(material->tev_stages) / sizeof(material->tev_stages[0]))
             return false;
+        material->tev_stage_count = (unsigned)stage_count;
         size_t stage = stages + 1;
         for (size_t index = 0; index < material->tev_stage_count; index++) {
             if (!json_bytes(json, stage, material->tev_stages[index], 16))
@@ -250,68 +262,91 @@ static bool parse_material(const WmJson *json, size_t token, LayoutMaterial *mat
     size_t swap = wm_json_member(json, token, "tevSwapTable");
     if (swap != WM_JSON_INVALID && !json_bytes(json, swap, material->tev_swap_table, 4))
         return false;
+    return true;
+}
+
+static bool parse_texture_map(const WmJson *json, size_t token, LayoutTextureMap *map) {
+    int index = -1;
+    json_integer_member(json, token, "texture", &index);
+    map->texture_index = index;
+    size_t name = wm_json_member(json, token, "textureName");
+    if (name != WM_JSON_INVALID &&
+        !wm_json_copy(json, name, map->texture_name, sizeof(map->texture_name)))
+        return false;
+    int wrap = 0;
+    if (json_integer_member(json, token, "wrapS", &wrap) && wrap >= 0 && wrap <= 2)
+        map->wrap_s = (uint8_t)wrap;
+    if (json_integer_member(json, token, "wrapT", &wrap) && wrap >= 0 && wrap <= 2)
+        map->wrap_t = (uint8_t)wrap;
+    return true;
+}
+
+static bool parse_material_maps(const WmJson *json, size_t token,
+                                LayoutMaterial *material) {
     size_t maps = wm_json_member(json, token, "textureMaps");
-    if (maps < json->count && json->tokens[maps].type == WM_JSON_ARRAY) {
-        size_t cursor = maps + 1;
-        while (cursor < json->tokens[maps].next) {
-            if (material->map_count < 4) {
-                LayoutTextureMap *map = &material->maps[material->map_count++];
-                int index = -1, wrap = 0;
-                if (json_integer_member(json, cursor, "texture", &index)) {
-                    map->texture_index = index;
-                } else {
-                    map->texture_index = -1;
-                }
-                size_t name = wm_json_member(json, cursor, "textureName");
-                if (name != WM_JSON_INVALID &&
-                    !wm_json_copy(json, name, map->texture_name,
-                                  sizeof(map->texture_name)))
-                    return false;
-                if (json_integer_member(json, cursor, "wrapS", &wrap) && wrap >= 0 &&
-                    wrap <= 2) {
-                    map->wrap_s = (uint8_t)wrap;
-                }
-                if (json_integer_member(json, cursor, "wrapT", &wrap) && wrap >= 0 &&
-                    wrap <= 2) {
-                    map->wrap_t = (uint8_t)wrap;
-                }
-            }
-            cursor = json->tokens[cursor].next;
+    if (maps >= json->count || json->tokens[maps].type != WM_JSON_ARRAY)
+        return true;
+    size_t cursor = maps + 1;
+    while (cursor < json->tokens[maps].next) {
+        if (material->map_count < sizeof(material->maps) / sizeof(material->maps[0])) {
+            LayoutTextureMap *map = &material->maps[material->map_count++];
+            if (!parse_texture_map(json, cursor, map))
+                return false;
         }
-    }
-    size_t srts = wm_json_member(json, token, "textureSRTs");
-    if (srts < json->count && json->tokens[srts].type == WM_JSON_ARRAY) {
-        size_t cursor = srts + 1;
-        while (cursor < json->tokens[srts].next) {
-            if (material->srt_count < 16) {
-                LayoutSrt *srt = &material->srts[material->srt_count++];
-                if (!json_numbers(json, wm_json_member(json, cursor, "translate"),
-                                  srt->translate, 2) ||
-                    !json_float(json, wm_json_member(json, cursor, "rotation"),
-                                &srt->rotation) ||
-                    !json_numbers(json, wm_json_member(json, cursor, "scale"),
-                                  srt->scale, 2))
-                    return false;
-            }
-            cursor = json->tokens[cursor].next;
-        }
-    }
-    size_t generators = wm_json_member(json, token, "texCoordGens");
-    if (generators < json->count && json->tokens[generators].type == WM_JSON_ARRAY) {
-        size_t cursor = generators + 1;
-        while (cursor < json->tokens[generators].next) {
-            if (material->generator_count < 4) {
-                LayoutTexCoordGen *generator =
-                    &material->generators[material->generator_count++];
-                if (!json_integer_member(json, cursor, "source", &generator->source) ||
-                    !json_integer_member(json, cursor, "matrix", &generator->matrix)) {
-                    return false;
-                }
-            }
-            cursor = json->tokens[cursor].next;
-        }
+        cursor = json->tokens[cursor].next;
     }
     return true;
+}
+
+static bool parse_material_srts(const WmJson *json, size_t token,
+                                LayoutMaterial *material) {
+    size_t srts = wm_json_member(json, token, "textureSRTs");
+    if (srts >= json->count || json->tokens[srts].type != WM_JSON_ARRAY)
+        return true;
+    size_t cursor = srts + 1;
+    while (cursor < json->tokens[srts].next) {
+        if (material->srt_count < sizeof(material->srts) / sizeof(material->srts[0])) {
+            LayoutSrt *srt = &material->srts[material->srt_count++];
+            if (!json_numbers(json, wm_json_member(json, cursor, "translate"),
+                              srt->translate, 2) ||
+                !json_float(json, wm_json_member(json, cursor, "rotation"),
+                            &srt->rotation) ||
+                !json_numbers(json, wm_json_member(json, cursor, "scale"), srt->scale,
+                              2))
+                return false;
+        }
+        cursor = json->tokens[cursor].next;
+    }
+    return true;
+}
+
+static bool parse_material_generators(const WmJson *json, size_t token,
+                                      LayoutMaterial *material) {
+    size_t generators = wm_json_member(json, token, "texCoordGens");
+    if (generators >= json->count || json->tokens[generators].type != WM_JSON_ARRAY)
+        return true;
+    size_t cursor = generators + 1;
+    while (cursor < json->tokens[generators].next) {
+        if (material->generator_count <
+            sizeof(material->generators) / sizeof(material->generators[0])) {
+            LayoutTexCoordGen *generator =
+                &material->generators[material->generator_count++];
+            if (!json_integer_member(json, cursor, "source", &generator->source) ||
+                !json_integer_member(json, cursor, "matrix", &generator->matrix))
+                return false;
+        }
+        cursor = json->tokens[cursor].next;
+    }
+    return true;
+}
+
+static bool parse_material(const WmJson *json, size_t token, LayoutMaterial *material) {
+    set_material_defaults(material);
+    return parse_material_colors(json, token, material) &&
+           parse_material_tev(json, token, material) &&
+           parse_material_maps(json, token, material) &&
+           parse_material_srts(json, token, material) &&
+           parse_material_generators(json, token, material);
 }
 
 static bool parse_materials(WmLayout *layout, const WmJson *json) {
