@@ -634,6 +634,58 @@ static bool wm_writer_groups(WmJsonWriter *writer, const WmSection *sections,
     return !writer->failed;
 }
 
+static void wm_writer_resource_textures(WmJsonWriter *writer,
+                                        const WmResourceTexture *textures,
+                                        size_t texture_count) {
+    wm_writer_text(writer, "{");
+    for (size_t index = 0; index < texture_count; index++) {
+        if (index != 0)
+            wm_writer_text(writer, ",");
+        wm_writer_indent(writer, 2);
+        wm_writer_string(writer, (const uint8_t *)textures[index].name,
+                         strlen(textures[index].name));
+        wm_writer_text(writer, ": ");
+        wm_writer_texture_descriptor(writer, (const uint8_t *)textures[index].name,
+                                     strlen(textures[index].name), &textures[index]);
+    }
+    if (texture_count != 0)
+        wm_writer_indent(writer, 1);
+    wm_writer_text(writer, "}");
+}
+
+static bool wm_writer_animations(WmJsonWriter *writer,
+                                 const WmResourceAnimation *animations,
+                                 size_t animation_count, char *error,
+                                 size_t error_size) {
+    wm_writer_text(writer, "{");
+    for (size_t index = 0; index < animation_count; index++) {
+        char *animation_json = NULL;
+        size_t animation_size = 0;
+        if (!wm_brlan_to_json(animations[index].data, animations[index].size,
+                              &animation_json, &animation_size, error, error_size)) {
+            free(animation_json);
+            return false;
+        }
+        if (index != 0)
+            wm_writer_text(writer, ",");
+        wm_writer_indent(writer, 2);
+        wm_writer_string(writer, (const uint8_t *)animations[index].name,
+                         strlen(animations[index].name));
+        wm_writer_text(writer, ": ");
+        for (size_t byte = 0; byte < animation_size; byte++) {
+            if (animation_json[byte] == '\n' && byte + 1 < animation_size)
+                wm_writer_text(writer, "\n    ");
+            else if (animation_json[byte] != '\n' || byte + 1 < animation_size)
+                wm_writer_bytes(writer, animation_json + byte, 1);
+        }
+        free(animation_json);
+    }
+    if (animation_count != 0)
+        wm_writer_indent(writer, 1);
+    wm_writer_text(writer, "}");
+    return true;
+}
+
 bool wm_brlyt_to_json_with_source(const uint8_t *data, size_t size, const char *name,
                                   const char *package, const char *source,
                                   const WmResourceTexture *textures,
@@ -655,20 +707,15 @@ bool wm_brlyt_to_json_with_source(const uint8_t *data, size_t size, const char *
     WmSection *sections = calloc(WM_RESOURCE_MAX_SECTIONS, sizeof(*sections));
     WmPaneRecord *panes = calloc(WM_RESOURCE_MAX_PANES, sizeof(*panes));
     int *stack = calloc(WM_RESOURCE_MAX_PANES, sizeof(*stack));
+    WmJsonWriter writer = {0};
     if (sections == NULL || panes == NULL || stack == NULL) {
         wm_set_error(error, error_size, "Out of memory reading BRLYT layout.");
-        free(sections);
-        free(panes);
-        free(stack);
-        return false;
+        goto fail;
     }
     size_t section_count = 0;
     if (!wm_read_sections(data, size, "RLYT", sections, &section_count)) {
         wm_set_error(error, error_size, "Invalid BRLYT section table.");
-        free(sections);
-        free(panes);
-        free(stack);
-        return false;
+        goto fail;
     }
 
     const WmSection *layout_header = NULL;
@@ -732,10 +779,7 @@ bool wm_brlyt_to_json_with_source(const uint8_t *data, size_t size, const char *
     }
     if (!valid || depth != 0) {
         wm_set_error(error, error_size, "Invalid BRLYT pane hierarchy.");
-        free(sections);
-        free(panes);
-        free(stack);
-        return false;
+        goto fail;
     }
 
     float width = 0;
@@ -746,15 +790,11 @@ bool wm_brlyt_to_json_with_source(const uint8_t *data, size_t size, const char *
             !wm_float(layout_header->bytes, layout_header->size, 12, &width) ||
             !wm_float(layout_header->bytes, layout_header->size, 16, &height)) {
             wm_set_error(error, error_size, "Invalid BRLYT layout dimensions.");
-            free(sections);
-            free(panes);
-            free(stack);
-            return false;
+            goto fail;
         }
         origin_type = layout_header->bytes[8];
     }
 
-    WmJsonWriter writer = {0};
     wm_writer_text(&writer, "{\n  \"name\": ");
     wm_writer_string(&writer, (const uint8_t *)name, strlen(name));
     wm_writer_text(&writer, ",\n  \"package\": ");
@@ -773,22 +813,9 @@ bool wm_brlyt_to_json_with_source(const uint8_t *data, size_t size, const char *
         wm_set_error(error, error_size, "Invalid BRLYT texture table.");
         goto fail;
     }
-    wm_writer_text(&writer, ",\n  \"resourceTextures\": {");
-    for (size_t index = 0; index < texture_count; index++) {
-        if (index != 0) {
-            wm_writer_text(&writer, ",");
-        }
-        wm_writer_indent(&writer, 2);
-        wm_writer_string(&writer, (const uint8_t *)textures[index].name,
-                         strlen(textures[index].name));
-        wm_writer_text(&writer, ": ");
-        wm_writer_texture_descriptor(&writer, (const uint8_t *)textures[index].name,
-                                     strlen(textures[index].name), &textures[index]);
-    }
-    if (texture_count != 0) {
-        wm_writer_indent(&writer, 1);
-    }
-    wm_writer_text(&writer, "},\n  \"fonts\": ");
+    wm_writer_text(&writer, ",\n  \"resourceTextures\": ");
+    wm_writer_resource_textures(&writer, textures, texture_count);
+    wm_writer_text(&writer, ",\n  \"fonts\": ");
     if (!wm_writer_name_table(&writer, font_table, NULL, 0, false)) {
         wm_set_error(error, error_size, "Invalid BRLYT font table.");
         goto fail;
@@ -812,34 +839,10 @@ bool wm_brlyt_to_json_with_source(const uint8_t *data, size_t size, const char *
     } else {
         wm_writer_text(&writer, "null");
     }
-    wm_writer_text(&writer, ",\n  \"animations\": {");
-    for (size_t index = 0; index < animation_count; index++) {
-        char *animation_json = NULL;
-        size_t animation_size = 0;
-        if (!wm_brlan_to_json(animations[index].data, animations[index].size,
-                              &animation_json, &animation_size, error, error_size)) {
-            goto fail;
-        }
-        if (index != 0) {
-            wm_writer_text(&writer, ",");
-        }
-        wm_writer_indent(&writer, 2);
-        wm_writer_string(&writer, (const uint8_t *)animations[index].name,
-                         strlen(animations[index].name));
-        wm_writer_text(&writer, ": ");
-        for (size_t byte = 0; byte < animation_size; byte++) {
-            if (animation_json[byte] == '\n' && byte + 1 < animation_size) {
-                wm_writer_text(&writer, "\n    ");
-            } else if (animation_json[byte] != '\n' || byte + 1 < animation_size) {
-                wm_writer_bytes(&writer, animation_json + byte, 1);
-            }
-        }
-        free(animation_json);
-    }
-    if (animation_count != 0) {
-        wm_writer_indent(&writer, 1);
-    }
-    wm_writer_text(&writer, "}\n}\n");
+    wm_writer_text(&writer, ",\n  \"animations\": ");
+    if (!wm_writer_animations(&writer, animations, animation_count, error, error_size))
+        goto fail;
+    wm_writer_text(&writer, "\n}\n");
     if (writer.failed) {
         wm_set_error(error, error_size, "BRLYT JSON exceeds the memory limit.");
         goto fail;
