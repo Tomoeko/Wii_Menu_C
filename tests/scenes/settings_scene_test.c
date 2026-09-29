@@ -2426,11 +2426,14 @@ static void test_update_initial_footer(const char *assets) {
     wm_texture_cache_destroy(textures);
 }
 
-static void assert_format_warning_layout(float first_low, float first_high,
-                                         float last_low, float last_high) {
+static uint32_t assert_format_warning_layout(float first_low,
+                                             float first_high,
+                                             float last_low,
+                                             float last_high) {
     float first_warning_ink = INFINITY;
     float last_warning_ink = -INFINITY;
     unsigned preview_glyphs = 0;
+    uint32_t warning_font = 0;
     for (size_t index = 0; index < drawn_quad_count; index++) {
         const WmQuad *quad = &drawn_quads[index];
         if (!quad->texture || quad->width >= 35.0f ||
@@ -2438,6 +2441,8 @@ static void assert_format_warning_layout(float first_low, float first_high,
         if (quad->color.r == 1.0f && quad->color.g == 1.0f &&
             quad->color.b == 1.0f && quad->y >= 90.0f &&
             quad->y < 330.0f) {
+            if (!warning_font) warning_font = quad->texture;
+            assert(quad->texture == warning_font);
             first_warning_ink = fminf(first_warning_ink, quad->y);
             last_warning_ink = fmaxf(last_warning_ink, quad->y);
         }
@@ -2448,6 +2453,23 @@ static void assert_format_warning_layout(float first_low, float first_high,
     assert(first_warning_ink >= first_low && first_warning_ink <= first_high);
     assert(last_warning_ink >= last_low && last_warning_ink <= last_high);
     assert(preview_glyphs > 20);
+    assert(warning_font);
+    return warning_font;
+}
+
+static void assert_format_header(uint32_t title_tab,
+                                 uint32_t nested_tab,
+                                 unsigned expected_title_count) {
+    unsigned title_count = 0;
+    for (size_t index = 0; index < drawn_quad_count; index++) {
+        const WmQuad *quad = &drawn_quads[index];
+        assert(quad->texture != nested_tab);
+        if (quad->texture != title_tab) continue;
+        assert(quad->x == 72.0f && quad->y == 27.0f);
+        assert(quad->width == 408.0f && quad->height == 36.0f);
+        title_count++;
+    }
+    assert(title_count == expected_title_count);
 }
 
 static void test_format_red_action_rollover(const char *assets) {
@@ -2459,6 +2481,8 @@ static void test_format_red_action_rollover(const char *assets) {
     uint32_t footer = 0;
     uint32_t normal_focus = 0;
     uint32_t red_focus = 0;
+    uint32_t title_tab = 0;
+    uint32_t nested_tab = 0;
     assert(wm_texture_cache_resolve(
         textures, "textures/settings_html/footer-button.png", &footer));
     assert(wm_texture_cache_resolve(
@@ -2467,6 +2491,11 @@ static void test_format_red_action_rollover(const char *assets) {
     assert(wm_texture_cache_resolve(
         textures, "textures/settings_html/footer-button-red-focus.png",
         &red_focus));
+    assert(wm_texture_cache_resolve(
+        textures, "textures/settings_html/title-tab.png", &title_tab));
+    assert(wm_texture_cache_resolve(
+        textures, "textures/settings_html/tab-gray-nested.png",
+        &nested_tab));
     assert(red_focus != normal_focus);
 
     WmSettingsScene *scene = wm_settings_scene_create(
@@ -2487,7 +2516,9 @@ static void test_format_red_action_rollover(const char *assets) {
     wm_texture_cache_begin_frame(textures);
     wm_font_cache_begin_frame(fonts);
     assert(wm_settings_scene_draw(scene));
-    assert_format_warning_layout(98.0f, 110.0f, 295.0f, 315.0f);
+    uint32_t warning_font = assert_format_warning_layout(
+        98.0f, 110.0f, 295.0f, 315.0f);
+    assert_format_header(title_tab, nested_tab, 1);
     WmQuad red = {0};
     assert(count_drawn_texture(footer, NULL) == 2);
     assert(count_drawn_texture(red_focus, &red) == 1);
@@ -2510,14 +2541,22 @@ static void test_format_red_action_rollover(const char *assets) {
     /* The second warning still places Format on the right. The following
      * confirmation page moves that red action to the left. */
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_NEXT));
-    wm_settings_scene_advance(scene, 20.0f);
+    wm_settings_scene_advance(scene, 10.0f);
+    drawn_quad_count = 0;
+    wm_texture_cache_begin_frame(textures);
+    wm_font_cache_begin_frame(fonts);
+    assert(wm_settings_scene_draw(scene));
+    assert_format_header(title_tab, nested_tab, 2);
+    wm_settings_scene_advance(scene, 10.0f);
     assert(wm_settings_scene_hover(scene, WM_SETTINGS_CONTROL_NEXT));
     wm_settings_scene_advance(scene, 20.0f);
     drawn_quad_count = 0;
     wm_texture_cache_begin_frame(textures);
     wm_font_cache_begin_frame(fonts);
     assert(wm_settings_scene_draw(scene));
-    assert_format_warning_layout(98.0f, 110.0f, 295.0f, 315.0f);
+    assert(assert_format_warning_layout(98.0f, 110.0f,
+                                        295.0f, 315.0f) == warning_font);
+    assert_format_header(title_tab, nested_tab, 1);
     assert(count_drawn_texture(red_focus, &red) == 1);
     assert(red.x == 324.0f && red.color.a == 1.0f);
 
@@ -2529,10 +2568,20 @@ static void test_format_red_action_rollover(const char *assets) {
     wm_texture_cache_begin_frame(textures);
     wm_font_cache_begin_frame(fonts);
     assert(wm_settings_scene_draw(scene));
-    assert_format_warning_layout(130.0f, 145.0f, 260.0f, 280.0f);
+    assert(assert_format_warning_layout(130.0f, 145.0f,
+                                        260.0f, 280.0f) == warning_font);
+    assert_format_header(title_tab, nested_tab, 1);
     assert(count_drawn_texture(red_focus, &red) == 1);
     assert(red.x == 44.0f && red.color.a == 1.0f);
     assert(count_drawn_texture(normal_focus, NULL) == 0);
+
+    assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_BACK));
+    wm_settings_scene_advance(scene, 20.0f);
+    drawn_quad_count = 0;
+    wm_texture_cache_begin_frame(textures);
+    wm_font_cache_begin_frame(fonts);
+    assert(wm_settings_scene_draw(scene));
+    assert_format_header(title_tab, nested_tab, 1);
     wm_settings_scene_destroy(scene);
     wm_font_cache_destroy(fonts);
     wm_texture_cache_destroy(textures);

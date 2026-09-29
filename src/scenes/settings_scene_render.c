@@ -1410,7 +1410,10 @@ static void draw_category_page(WmSettingsScene *scene) {
     const char *right_label =
         scene->active_category == 4 || scene->active_category == 9
             ? confirm_labels[language] : NULL;
-    bool nested = scene->detail != 0;
+    /* The USA Format warning documents all place BnrWhite at x=56 and
+     * BnrGray at x=24; advancing a warning does not create a nested tab. */
+    bool nested = scene->detail != 0 &&
+                  scene->active_category != SETTINGS_FORMAT;
     if (scene->active_category == 2 && nested)
         title = calendar_labels[scene->detail - 1];
     if (scene->active_category == 3 && nested)
