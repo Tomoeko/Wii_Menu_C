@@ -125,6 +125,7 @@ if(WM_BUILD_APP)
         app/asset_path.c
         app/corruption_outline.c
         app/corruption_screen.c
+        app/corruption_vectors.c
         app/board_input.c
         app/board_update.c
         app/event_dispatch.c
@@ -145,7 +146,7 @@ if(WM_BUILD_APP)
     else()
         add_executable(wii-menu ${WM_APP_SOURCES})
     endif()
-    target_include_directories(wii-menu PRIVATE audio render)
+    target_include_directories(wii-menu PRIVATE audio render fonts)
     target_link_libraries(wii-menu PRIVATE wii_menu_core)
     wm_enable_warnings(wii-menu)
     include("${PROJECT_SOURCE_DIR}/cmake/WiiMenuBackend.cmake")

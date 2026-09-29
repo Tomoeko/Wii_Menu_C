@@ -1,4 +1,5 @@
 #include "corruption_outline.h"
+#include "corruption_vectors.h"
 
 #include "wii_menu/fonts/outline_font.h"
 
@@ -8,9 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Rasterize from a local outline font at the supplied still's 3840 x 2160
- * resolution. The optional Rodin DB face already has the proper stroke
- * weight; the prepared TTC needs a small synthetic expansion. */
+/* Rasterize the authored prompt contours at the supplied still's 3840 x 2160
+ * resolution. The prepared TTC fallback needs a small stroke expansion. */
 enum {
     REFERENCE_WIDTH = 3840,
     REFERENCE_HEIGHT = 2160,
@@ -22,6 +22,11 @@ enum {
     LINE_SPACING = 134
 };
 
+typedef struct GlyphCache {
+    WmOutlineBitmap glyphs[128];
+    bool ready[128];
+} GlyphCache;
+
 static bool copy_line(const char **cursor, char line[128]) {
     const char *end = strchr(*cursor, '\n');
     size_t length = end ? (size_t)(end - *cursor) : strlen(*cursor);
@@ -32,32 +37,60 @@ static bool copy_line(const char **cursor, char line[128]) {
     return true;
 }
 
-static bool raster_line(const WmOutlineFont *font, const char *line,
+static void clear_glyph_cache(GlyphCache *cache) {
+    for (unsigned character = 0; character < 128; character++) {
+        if (cache->ready[character])
+            wm_outline_bitmap_free(&cache->glyphs[character]);
+    }
+}
+
+static bool prepare_glyph_cache(GlyphCache *cache, const WmOutlineFont *font,
+                                const char *message) {
+    memset(cache, 0, sizeof(*cache));
+    for (const unsigned char *cursor = (const unsigned char *)message;
+         *cursor; cursor++) {
+        if (*cursor == '\n') continue;
+        if (*cursor >= 128) return false;
+        if (cache->ready[*cursor]) continue;
+        bool valid = font
+            ? wm_outline_font_raster(font, *cursor, FONT_PIXEL_SIZE,
+                                     &cache->glyphs[*cursor])
+            : wm_corruption_vector_raster(*cursor, FONT_PIXEL_SIZE,
+                                          &cache->glyphs[*cursor]);
+        if (!valid) return false;
+        cache->ready[*cursor] = true;
+    }
+    return true;
+}
+
+static bool raster_line(const GlyphCache *cache, const char *line,
                         uint8_t *coverage) {
-    float width = wm_outline_font_text_width(font, line, FONT_PIXEL_SIZE);
+    float width = 0.0f;
+    for (const unsigned char *cursor = (const unsigned char *)line;
+         *cursor; cursor++) {
+        if (*cursor >= 128 || !cache->ready[*cursor]) return false;
+        width += cache->glyphs[*cursor].advance;
+    }
     if (!isfinite(width) || width > LINE_TEXTURE_WIDTH - 8) return false;
     float pen = (LINE_TEXTURE_WIDTH - width) * 0.5f;
     for (const unsigned char *cursor = (const unsigned char *)line;
          *cursor; cursor++) {
-        WmOutlineBitmap glyph;
-        if (!wm_outline_font_raster(font, *cursor, FONT_PIXEL_SIZE, &glyph))
-            return false;
-        int left = (int)lroundf(pen + glyph.left);
-        int top = LINE_BASELINE - glyph.top;
-        for (unsigned y = 0; y < glyph.height; y++) {
+        const WmOutlineBitmap *glyph = &cache->glyphs[*cursor];
+        int left = (int)lroundf(pen + glyph->left);
+        int top = LINE_BASELINE - glyph->top;
+        for (unsigned y = 0; y < glyph->height; y++) {
             int output_y = top + (int)y;
             if (output_y < 0 || output_y >= LINE_TEXTURE_HEIGHT) continue;
-            for (unsigned x = 0; x < glyph.width; x++) {
+            for (unsigned x = 0; x < glyph->width; x++) {
                 int output_x = left + (int)x;
                 if (output_x < 0 || output_x >= LINE_TEXTURE_WIDTH) continue;
                 size_t destination = (size_t)output_y * LINE_TEXTURE_WIDTH +
                                      (size_t)output_x;
-                uint8_t value = glyph.alpha[(size_t)y * glyph.width + x];
+                uint8_t value = glyph->alpha[(size_t)y * glyph->width + x];
                 if (value > coverage[destination]) coverage[destination] = value;
             }
         }
-        pen += glyph.advance;
-        wm_outline_bitmap_free(&glyph);
+        pen += glyph->advance;
     }
     return true;
 }
@@ -82,12 +115,12 @@ static uint8_t bold_coverage(const uint8_t *coverage, int x, int y) {
 }
 
 static uint32_t create_line_texture(WmPlatform *platform,
-                                    const WmOutlineFont *font,
+                                    const GlyphCache *cache,
                                     const char *line, bool synthetic_bold) {
     size_t pixels = (size_t)LINE_TEXTURE_WIDTH * LINE_TEXTURE_HEIGHT;
     uint8_t *coverage = calloc(pixels, 1);
     uint8_t *rgba = malloc(pixels * 4);
-    if (!coverage || !rgba || !raster_line(font, line, coverage)) {
+    if (!coverage || !rgba || !raster_line(cache, line, coverage)) {
         free(coverage);
         free(rgba);
         return 0;
@@ -109,29 +142,35 @@ static uint32_t create_line_texture(WmPlatform *platform,
     return texture;
 }
 
-static bool create_with_font(WmCorruptionOutline *outline,
-                             WmPlatform *platform, WmOutlineFont *font,
-                             const char *message, bool use_font_weight) {
+static bool create_with_glyphs(WmCorruptionOutline *outline,
+                               WmPlatform *platform, WmOutlineFont *font,
+                               const char *message) {
+    GlyphCache cache;
+    bool complete = prepare_glyph_cache(&cache, font, message);
+    if (!complete) {
+        clear_glyph_cache(&cache);
+        return false;
+    }
     const char *cursor = message;
-    bool complete = true;
     for (int row = 0; row < WM_CORRUPTION_OUTLINE_LINES; row++) {
         char line[128];
         if (!copy_line(&cursor, line)) {
             complete = false;
             break;
         }
-        outline->textures[row] = create_line_texture(platform, font, line,
-                                                     !use_font_weight);
+        outline->textures[row] = create_line_texture(platform, &cache, line,
+                                                     font != NULL);
         if (!outline->textures[row]) {
             complete = false;
             break;
         }
     }
+    clear_glyph_cache(&cache);
     if (!complete || *cursor) {
         wm_corruption_outline_destroy(outline, platform);
         return false;
     }
-    outline->use_font_weight = use_font_weight;
+    outline->use_font_weight = font == NULL;
     return true;
 }
 
@@ -139,24 +178,17 @@ bool wm_corruption_outline_create(WmCorruptionOutline *outline,
                                   WmPlatform *platform,
                                   const char *assets_root,
                                   const char *message) {
-    if (!outline || !platform || !assets_root || !message) return false;
+    if (!outline || !platform || !message) return false;
     memset(outline, 0, sizeof(*outline));
+    if (create_with_glyphs(outline, platform, NULL, message)) return true;
+    if (!assets_root) return false;
     char path[4096];
-    int length = snprintf(path, sizeof(path),
-                          "%s/fonts/corruption-rodin.otf", assets_root);
+    int length = snprintf(path, sizeof(path), "%s/fonts/settings-latin.ttc",
+                          assets_root);
     if (length < 0 || length >= (int)sizeof(path)) return false;
-    WmOutlineFont *font = wm_outline_font_load(path, 0);
-    if (font) {
-        bool ready = create_with_font(outline, platform, font, message, true);
-        wm_outline_font_destroy(font, NULL);
-        if (ready) return true;
-    }
-    length = snprintf(path, sizeof(path), "%s/fonts/settings-latin.ttc",
-                      assets_root);
-    if (length < 0 || length >= (int)sizeof(path)) return false;
-    font = wm_outline_font_load(path, 1);
+    WmOutlineFont *font = wm_outline_font_load(path, 1);
     if (!font) return false;
-    bool ready = create_with_font(outline, platform, font, message, false);
+    bool ready = create_with_glyphs(outline, platform, font, message);
     wm_outline_font_destroy(font, NULL);
     return ready;
 }

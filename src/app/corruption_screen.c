@@ -186,7 +186,7 @@ int wm_app_show_corruption_screen(const char *assets_root) {
         message = CORRUPTION_MESSAGE;
 
     WmCorruptionOutline outline = {0};
-    bool has_outline = assets_root && wm_corruption_outline_create(
+    bool has_outline = wm_corruption_outline_create(
         &outline, platform, assets_root, message);
     WmFontCache *fonts = assets_root && !has_outline
         ? wm_font_cache_create(platform, assets_root, 4u * 1024u * 1024u) : NULL;

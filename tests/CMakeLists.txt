@@ -131,6 +131,14 @@ wm_add_test(wii-menu-outline-font
     SOURCES fonts/outline_font_test.c
     LIBRARIES wii_menu_core m
 )
+wm_add_test(wii-menu-corruption-vectors
+    SOURCES app/corruption_vector_test.c
+        "${PROJECT_SOURCE_DIR}/src/app/corruption_outline.c"
+        "${PROJECT_SOURCE_DIR}/src/app/corruption_vectors.c"
+    LIBRARIES wii_menu_core m
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/app"
+        "${PROJECT_SOURCE_DIR}/src/fonts"
+)
 wm_add_test(wii-menu-cff-font
     SOURCES fonts/cff_font_test.c
     LIBRARIES wii_menu_core m

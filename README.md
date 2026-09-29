@@ -69,9 +69,8 @@ checks the prepared files and lists missing or mismatched paths in the terminal
 while showing the WAD's system-files-corrupted message. Reprepare older asset
 directories that have no manifest. Use `--bypass` to run with intentionally
 modified files without this check.
-An optional, user-supplied RodinNTLG Pro DB OpenType font at
-`.local/native-assets/fonts/corruption-rodin.otf` supplies sharp outlines for
-that message; the prepared Wii outline font remains the fallback.
+The corruption prompt's vector glyphs are compiled into the app. No separate
+OTF file is needed; the prepared Wii outline font remains the fallback.
 
 Omit `--nand` to prepare only the System Menu. For an unsupported key index,
 use `--common-key-file FILE` and `--common-key-index N` to supply an override.

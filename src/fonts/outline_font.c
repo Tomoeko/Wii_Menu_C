@@ -1,5 +1,6 @@
 #include "wii_menu/fonts/outline_font.h"
 #include "cff_font.h"
+#include "outline_vector.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -572,11 +573,12 @@ static bool add_cubic(OutlineEdges *edges, WmCffPoint start,
            add_cubic(edges, middle, e, c, end, depth + 1);
 }
 
-static bool cff_edges(const WmCffGlyph *glyph, OutlineEdges *edges) {
+static bool cff_edges(const WmCffSegment *segments, unsigned count,
+                      OutlineEdges *edges) {
     WmCffPoint current = {0}, start = {0};
     bool open = false;
-    for (unsigned index = 0; index < glyph->count; index++) {
-        const WmCffSegment *segment = &glyph->segments[index];
+    for (unsigned index = 0; index < count; index++) {
+        const WmCffSegment *segment = &segments[index];
         if (segment->kind == WM_CFF_MOVE) {
             if (open && !add_line(edges, cff_point(current),
                                   cff_point(start))) return false;
@@ -599,16 +601,17 @@ static bool cff_edges(const WmCffGlyph *glyph, OutlineEdges *edges) {
     return !open || add_line(edges, cff_point(current), cff_point(start));
 }
 
-static bool cff_bounds(const WmCffGlyph *glyph, float scale,
+static bool cff_bounds(const WmCffSegment *segments, unsigned count,
+                       float scale,
                        int *left, int *right, int *bottom, int *top) {
-    if (!glyph->count) {
+    if (!count) {
         *left = *right = *bottom = *top = 0;
         return true;
     }
     float min_x = INFINITY, max_x = -INFINITY;
     float min_y = INFINITY, max_y = -INFINITY;
-    for (unsigned index = 0; index < glyph->count; index++) {
-        const WmCffSegment *segment = &glyph->segments[index];
+    for (unsigned index = 0; index < count; index++) {
+        const WmCffSegment *segment = &segments[index];
         WmCffPoint points[3] = {segment->first, segment->second,
                                 segment->end};
         unsigned count = segment->kind == WM_CFF_CUBIC ? 3 : 1;
@@ -649,6 +652,62 @@ static bool inside_shape(const OutlineEdges *shape, float x, float y) {
     return winding != 0;
 }
 
+static void raster_coverage(const OutlineEdges *edges,
+                            WmOutlineBitmap *bitmap) {
+    for (unsigned y = 0; y < bitmap->height; y++) {
+        for (unsigned x = 0; x < bitmap->width; x++) {
+            unsigned covered = 0;
+            for (unsigned sample_y = 0; sample_y < 4; sample_y++) {
+                for (unsigned sample_x = 0; sample_x < 4; sample_x++) {
+                    if (inside_shape(edges,
+                            x + (sample_x + 0.5f) * 0.25f,
+                            y + (sample_y + 0.5f) * 0.25f))
+                        covered++;
+                }
+            }
+            bitmap->alpha[(size_t)y * bitmap->width + x] =
+                (uint8_t)((covered * 255 + 8) / 16);
+        }
+    }
+}
+
+bool wm_outline_raster_vector(const WmCffSegment *segments,
+                              unsigned segment_count, unsigned units_per_em,
+                              unsigned pixel_size, float advance_units,
+                              WmOutlineBitmap *bitmap) {
+    if (!bitmap || (!segments && segment_count) ||
+        segment_count > WM_CFF_MAX_SEGMENTS ||
+        units_per_em < 16 || units_per_em > 16384 ||
+        pixel_size < 8 || pixel_size > OUTLINE_MAX_PIXEL_SIZE ||
+        !isfinite(advance_units) || advance_units < 0) return false;
+    memset(bitmap, 0, sizeof(*bitmap));
+    float scale = (float)pixel_size / units_per_em;
+    bitmap->advance = advance_units * scale;
+    int left, right, bottom, top;
+    if (!cff_bounds(segments, segment_count, scale,
+                    &left, &right, &bottom, &top)) return false;
+    bitmap->left = left;
+    bitmap->top = top;
+    bitmap->width = (unsigned)(right - left);
+    bitmap->height = (unsigned)(top - bottom);
+    if (!bitmap->width || !bitmap->height) return true;
+    bitmap->alpha = calloc((size_t)bitmap->width * bitmap->height, 1);
+    OutlineEdges *edges = calloc(1, sizeof(*edges));
+    if (!bitmap->alpha || !edges) {
+        free(edges);
+        wm_outline_bitmap_free(bitmap);
+        return false;
+    }
+    edges->scale = scale;
+    edges->x_origin = (float)left;
+    edges->y_origin = (float)top;
+    bool valid = cff_edges(segments, segment_count, edges);
+    if (valid) raster_coverage(edges, bitmap);
+    free(edges);
+    if (!valid) wm_outline_bitmap_free(bitmap);
+    return valid;
+}
+
 bool wm_outline_font_raster(const WmOutlineFont *font, uint32_t codepoint,
                             unsigned pixel_size, WmOutlineBitmap *bitmap) {
     if (!font || !bitmap || pixel_size < 8 ||
@@ -656,82 +715,54 @@ bool wm_outline_font_raster(const WmOutlineFont *font, uint32_t codepoint,
     memset(bitmap, 0, sizeof(*bitmap));
     unsigned glyph = glyph_for_codepoint(font, codepoint);
     if (!glyph && codepoint != 0) glyph = glyph_for_codepoint(font, '?');
-    bitmap->advance = glyph_advance(font, glyph, pixel_size);
-    float scale = (float)pixel_size / font->units_per_em;
-    int left, right, bottom, top;
-    WmCffGlyph *cff_glyph = NULL;
-    size_t offset = 0, length = 0;
     if (font->cff) {
-        cff_glyph = malloc(sizeof(*cff_glyph));
-        if (!cff_glyph || !wm_cff_font_glyph(font->cff, glyph, cff_glyph) ||
-            !cff_bounds(cff_glyph, scale, &left, &right, &bottom, &top)) {
-            free(cff_glyph);
-            return false;
-        }
-    } else {
-        if (!glyph_range(font, glyph, &offset, &length)) return false;
-        if (!length) return true;
-        if (length < 10) return false;
-        const uint8_t *source = font->bytes + offset;
-        left = (int)floorf(signed16(source + 2) * scale);
-        right = (int)ceilf(signed16(source + 6) * scale);
-        bottom = (int)floorf(signed16(source + 4) * scale);
-        top = (int)ceilf(signed16(source + 8) * scale);
+        WmCffGlyph *path = malloc(sizeof(*path));
+        if (!path) return false;
+        bool valid = wm_cff_font_glyph(font->cff, glyph, path) &&
+            wm_outline_raster_vector(path->segments, path->count,
+                                     font->units_per_em, pixel_size,
+                                     glyph_advance(font, glyph,
+                                                   font->units_per_em),
+                                     bitmap);
+        free(path);
+        return valid;
     }
+
+    bitmap->advance = glyph_advance(font, glyph, pixel_size);
+    size_t offset, length;
+    if (!glyph_range(font, glyph, &offset, &length)) return false;
+    if (!length) return true;
+    if (length < 10) return false;
+    const uint8_t *source = font->bytes + offset;
+    float scale = (float)pixel_size / font->units_per_em;
+    int left = (int)floorf(signed16(source + 2) * scale);
+    int right = (int)ceilf(signed16(source + 6) * scale);
+    int bottom = (int)floorf(signed16(source + 4) * scale);
+    int top = (int)ceilf(signed16(source + 8) * scale);
     if (right < left || top < bottom || right - left > 128 ||
-        top - bottom > 128) {
-        free(cff_glyph);
-        return false;
-    }
+        top - bottom > 128) return false;
     bitmap->left = left;
     bitmap->top = top;
     bitmap->width = (unsigned)(right - left);
     bitmap->height = (unsigned)(top - bottom);
-    if (!bitmap->width || !bitmap->height) {
-        free(cff_glyph);
-        return true;
-    }
+    if (!bitmap->width || !bitmap->height) return true;
     bitmap->alpha = calloc((size_t)bitmap->width * bitmap->height, 1);
-    if (!bitmap->alpha) {
-        free(cff_glyph);
-        return false;
-    }
-    OutlineShape *shape = font->cff ? NULL : calloc(1, sizeof(*shape));
+    OutlineShape *shape = calloc(1, sizeof(*shape));
     OutlineEdges *edges = calloc(1, sizeof(*edges));
-    if ((!font->cff && !shape) || !edges ||
-        (!font->cff && !append_glyph(font, glyph, shape, 0))) {
+    if (!bitmap->alpha || !shape || !edges ||
+        !append_glyph(font, glyph, shape, 0)) {
         free(shape);
         free(edges);
-        free(cff_glyph);
         wm_outline_bitmap_free(bitmap);
         return false;
     }
     edges->scale = scale;
     edges->x_origin = (float)left;
     edges->y_origin = (float)top;
-    bool valid = font->cff ? cff_edges(cff_glyph, edges) :
-                             shape_edges(shape, edges);
-    if (valid) {
-        for (unsigned y = 0; y < bitmap->height; y++) {
-            for (unsigned x = 0; x < bitmap->width; x++) {
-                unsigned covered = 0;
-                for (unsigned sample_y = 0; sample_y < 4; sample_y++) {
-                    for (unsigned sample_x = 0; sample_x < 4;
-                         sample_x++) {
-                        if (inside_shape(edges,
-                                x + (sample_x + 0.5f) * 0.25f,
-                                y + (sample_y + 0.5f) * 0.25f))
-                            covered++;
-                    }
-                }
-                bitmap->alpha[(size_t)y * bitmap->width + x] =
-                    (uint8_t)((covered * 255 + 8) / 16);
-            }
-        }
-    }
+    bool valid = shape_edges(shape, edges);
+    if (valid) raster_coverage(edges, bitmap);
     free(shape);
     free(edges);
-    free(cff_glyph);
     if (!valid) wm_outline_bitmap_free(bitmap);
     return valid;
 }
