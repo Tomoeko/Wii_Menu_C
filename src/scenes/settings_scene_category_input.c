@@ -68,173 +68,224 @@ bool settings_scene_back_control(WmSettingsScene *scene) {
     return true;
 }
 
-static bool activate_extended_category(WmSettingsScene *scene,
+static bool activate_nickname_category(WmSettingsScene *scene,
                                        WmSettingsControl control) {
-    unsigned category = scene->active_category;
-    unsigned item =
-        control >= WM_SETTINGS_CONTROL_ITEM_1 && control <= WM_SETTINGS_CONTROL_ITEM_6
-            ? (unsigned)(control - WM_SETTINGS_CONTROL_ITEM_1)
-            : 6;
-    if (category == SETTINGS_NICKNAME) {
-        if (control == WM_SETTINGS_CONTROL_BACK)
+    if (control == WM_SETTINGS_CONTROL_BACK)
+        return settings_scene_back_control(scene);
+    if (control != WM_SETTINGS_CONTROL_NEXT)
+        return false;
+    memcpy(scene->nickname, scene->edit_nickname, sizeof(scene->nickname));
+    scene->active_category = 0;
+    scene->hover = WM_SETTINGS_CONTROL_NONE;
+    return true;
+}
+
+static bool activate_parental_category(WmSettingsScene *scene,
+                                       WmSettingsControl control) {
+    if (control == WM_SETTINGS_CONTROL_BACK) {
+        if (!scene->detail)
+            scene->detail = 1; /* Yes. */
+        else
             return settings_scene_back_control(scene);
-        if (control != WM_SETTINGS_CONTROL_NEXT)
-            return false;
-        memcpy(scene->nickname, scene->edit_nickname, sizeof(scene->nickname));
-        scene->active_category = 0;
-    } else if (category == SETTINGS_PARENTAL) {
-        if (control == WM_SETTINGS_CONTROL_BACK) {
-            if (!scene->detail)
-                scene->detail = 1; /* Yes. */
-            else
-                return settings_scene_back_control(scene);
-        } else if (control == WM_SETTINGS_CONTROL_NEXT) {
-            if (!scene->detail)
-                scene->active_category = 0; /* No. */
-            else if (scene->detail == 1)
-                scene->detail = 2;
-            else {
-                /* A local guard only. Rating, PIN, and title restriction
-                 * services are separate unported console functions. */
-                scene->parental_enabled = true;
-                scene->active_category = 0;
-                scene->detail = 0;
-            }
-        } else
-            return false;
-    } else if (category == SETTINGS_INTERNET) {
-        if (scene->detail == 3 && (control == WM_SETTINGS_CONTROL_BACK ||
-                                   control == WM_SETTINGS_CONTROL_NEXT)) {
-            /* The left action accepts; the right action declines. */
-            scene->internet_agreement = control == WM_SETTINGS_CONTROL_BACK;
-            return settings_scene_back_control(scene);
-        }
-        if (scene->detail == INTERNET_USB_EXISTING_CONNECTOR &&
-            control == WM_SETTINGS_CONTROL_BACK) {
-            /* The visible left Yes retries registration. The footer pane
-             * names are swapped, so use their displayed positions. */
-            scene->detail = INTERNET_USB_REGISTRATION;
-            scene->connection_search_frames = 0.0f;
-            scene->hover = WM_SETTINGS_CONTROL_NONE;
-            return true;
-        }
-        if (control == WM_SETTINGS_CONTROL_BACK)
-            return settings_scene_back_control(scene);
-        if (scene->detail == INTERNET_WIRED_PROMPT &&
-            control == WM_SETTINGS_CONTROL_NEXT) {
-            /* No network test service is available; return to mode choices. */
-            scene->detail = INTERNET_CONNECTION_SELECT;
-        } else if (scene->detail == INTERNET_NO_ACCESS_POINT &&
-                   control == WM_SETTINGS_CONTROL_NEXT) {
-            scene->detail = INTERNET_WIRELESS_CHOICES;
-        } else if (scene->detail == INTERNET_USB_INSTRUCTIONS &&
-                   control == WM_SETTINGS_CONTROL_NEXT) {
-            scene->detail = INTERNET_USB_REGISTRATION;
-            scene->connection_search_frames = 0.0f;
-        } else if (scene->detail == INTERNET_USB_EXISTING_CONNECTOR &&
-                   control == WM_SETTINGS_CONTROL_NEXT) {
-            /* No connector exists locally; decline and return to wireless
-             * choices instead of claiming setup completed. */
-            scene->detail = INTERNET_WIRELESS_CHOICES;
-        } else if (!scene->detail && item < 3) {
-            scene->detail = item + 1;
-        } else if (scene->detail == 1 && item < 3) {
-            scene->connection_slot = item + 1;
-            scene->detail = INTERNET_CONNECTION_SELECT;
-        } else if (scene->detail == INTERNET_CONNECTION_SELECT && item < 2) {
-            scene->detail =
-                item == 0 ? INTERNET_WIRELESS_CHOICES : INTERNET_WIRED_PROMPT;
-        } else if (scene->detail == INTERNET_WIRELESS_CHOICES && item == 0) {
-            scene->detail = INTERNET_ACCESS_POINT_SEARCH;
-            scene->connection_search_frames = 0.0f;
-        } else if (scene->detail == INTERNET_WIRELESS_CHOICES && item == 1) {
-            scene->detail = INTERNET_USB_INSTRUCTIONS;
-        } else
-            return false;
-    } else if (category == SETTINGS_CONNECT24) {
-        if (control == WM_SETTINGS_CONTROL_BACK)
-            return settings_scene_back_control(scene);
-        if (!scene->detail && item < 3 && (scene->connect24_enabled || item == 0)) {
-            scene->detail = item + 1;
-            scene->selection = scene->detail == 1   ? (scene->connect24_enabled ? 0 : 1)
-                               : scene->detail == 2 ? (scene->standby_enabled ? 0 : 1)
-                                                    : scene->slot_light;
-        } else if (scene->detail && item < (scene->detail == 3 ? 3u : 2u)) {
-            scene->selection = item;
-            if (scene->detail == 1) {
-                /* Row selection commits the value; Back and Confirm keep it. */
-                scene->connect24_enabled = item == 0;
-            }
-        } else if (scene->detail && control == WM_SETTINGS_CONTROL_NEXT) {
-            switch (scene->detail) {
-                case 1:
-                    scene->connect24_enabled = scene->selection == 0;
-                    break;
-                case 2:
-                    scene->standby_enabled = scene->selection == 0;
-                    break;
-                case 3:
-                    scene->slot_light = scene->selection;
-                    break;
-            }
-            scene->detail = 0;
-        } else
-            return false;
-    } else if (category == SETTINGS_COUNTRY) {
-        if (control == WM_SETTINGS_CONTROL_BACK)
-            return settings_scene_back_control(scene);
-        if (control == WM_SETTINGS_CONTROL_PREVIOUS && scene->country_page > 0) {
-            scene->country_page--;
-        } else if (control == WM_SETTINGS_CONTROL_ITEM_6 && scene->country_page < 9) {
-            scene->country_page++;
-        } else if (item <
-                   (scene->country_page == 0 || scene->country_page == 9 ? 4u : 5u)) {
-            scene->edit_country_choice =
-                wm_settings_country_page_start[scene->country_page] + item;
-        } else if (control == WM_SETTINGS_CONTROL_NEXT) {
-            scene->country_choice = scene->edit_country_choice;
+    } else if (control == WM_SETTINGS_CONTROL_NEXT) {
+        if (!scene->detail)
+            scene->active_category = 0; /* No. */
+        else if (scene->detail == 1)
+            scene->detail = 2;
+        else {
+            /* A local guard only. Rating, PIN, and title restriction
+             * services are separate unported console functions. */
+            scene->parental_enabled = true;
             scene->active_category = 0;
-        } else
-            return false;
-    } else if (category == SETTINGS_UPDATE) {
-        if (!scene->detail) {
-            /* The left action opens the offline explanation; the right exits. */
-            if (control == WM_SETTINGS_CONTROL_BACK)
-                scene->detail = 1;
-            else if (control == WM_SETTINGS_CONTROL_NEXT)
-                return settings_scene_back_control(scene);
-            else
-                return false;
-        } else if (control == WM_SETTINGS_CONTROL_BACK) {
-            return settings_scene_back_control(scene);
-        } else if (control == WM_SETTINGS_CONTROL_NEXT) {
             scene->detail = 0;
-            scene->active_category = 0;
-        } else
-            return false;
-    } else if (category == SETTINGS_FORMAT) {
-        if (scene->detail == 2 && control == WM_SETTINGS_CONTROL_BACK) {
-            /* The final left action resets local volatile settings only;
-             * it never modifies NAND or channel files. */
-            settings_scene_reset_local_values(scene);
-            scene->local_format_complete = true;
-            scene->detail = 3;
-        } else if (control == WM_SETTINGS_CONTROL_BACK) {
-            return settings_scene_back_control(scene);
-        } else if (control == WM_SETTINGS_CONTROL_NEXT) {
-            if (scene->detail < 2)
-                scene->detail++;
-            else {
-                scene->detail = 0;
-                scene->active_category = 0;
-            }
-        } else
-            return false;
+        }
     } else {
         return false;
     }
     scene->hover = WM_SETTINGS_CONTROL_NONE;
     return true;
+}
+
+static bool activate_internet_category(WmSettingsScene *scene,
+                                       WmSettingsControl control, unsigned item) {
+    if (scene->detail == 3 &&
+        (control == WM_SETTINGS_CONTROL_BACK || control == WM_SETTINGS_CONTROL_NEXT)) {
+        /* The left action accepts; the right action declines. */
+        scene->internet_agreement = control == WM_SETTINGS_CONTROL_BACK;
+        return settings_scene_back_control(scene);
+    }
+    if (scene->detail == INTERNET_USB_EXISTING_CONNECTOR &&
+        control == WM_SETTINGS_CONTROL_BACK) {
+        /* The visible left Yes retries registration. The footer pane
+         * names are swapped, so use their displayed positions. */
+        scene->detail = INTERNET_USB_REGISTRATION;
+        scene->connection_search_frames = 0.0f;
+        scene->hover = WM_SETTINGS_CONTROL_NONE;
+        return true;
+    }
+    if (control == WM_SETTINGS_CONTROL_BACK)
+        return settings_scene_back_control(scene);
+    if (scene->detail == INTERNET_WIRED_PROMPT && control == WM_SETTINGS_CONTROL_NEXT) {
+        /* No network test service is available; return to mode choices. */
+        scene->detail = INTERNET_CONNECTION_SELECT;
+    } else if (scene->detail == INTERNET_NO_ACCESS_POINT &&
+               control == WM_SETTINGS_CONTROL_NEXT) {
+        scene->detail = INTERNET_WIRELESS_CHOICES;
+    } else if (scene->detail == INTERNET_USB_INSTRUCTIONS &&
+               control == WM_SETTINGS_CONTROL_NEXT) {
+        scene->detail = INTERNET_USB_REGISTRATION;
+        scene->connection_search_frames = 0.0f;
+    } else if (scene->detail == INTERNET_USB_EXISTING_CONNECTOR &&
+               control == WM_SETTINGS_CONTROL_NEXT) {
+        /* No connector exists locally; decline and return to wireless
+         * choices instead of claiming setup completed. */
+        scene->detail = INTERNET_WIRELESS_CHOICES;
+    } else if (!scene->detail && item < 3) {
+        scene->detail = item + 1;
+    } else if (scene->detail == 1 && item < 3) {
+        scene->connection_slot = item + 1;
+        scene->detail = INTERNET_CONNECTION_SELECT;
+    } else if (scene->detail == INTERNET_CONNECTION_SELECT && item < 2) {
+        scene->detail = item == 0 ? INTERNET_WIRELESS_CHOICES : INTERNET_WIRED_PROMPT;
+    } else if (scene->detail == INTERNET_WIRELESS_CHOICES && item == 0) {
+        scene->detail = INTERNET_ACCESS_POINT_SEARCH;
+        scene->connection_search_frames = 0.0f;
+    } else if (scene->detail == INTERNET_WIRELESS_CHOICES && item == 1) {
+        scene->detail = INTERNET_USB_INSTRUCTIONS;
+    } else {
+        return false;
+    }
+    scene->hover = WM_SETTINGS_CONTROL_NONE;
+    return true;
+}
+
+static bool activate_connect24_category(WmSettingsScene *scene,
+                                        WmSettingsControl control, unsigned item) {
+    if (control == WM_SETTINGS_CONTROL_BACK)
+        return settings_scene_back_control(scene);
+    if (!scene->detail && item < 3 && (scene->connect24_enabled || item == 0)) {
+        scene->detail = item + 1;
+        scene->selection = scene->detail == 1   ? (scene->connect24_enabled ? 0 : 1)
+                           : scene->detail == 2 ? (scene->standby_enabled ? 0 : 1)
+                                                : scene->slot_light;
+    } else if (scene->detail && item < (scene->detail == 3 ? 3u : 2u)) {
+        scene->selection = item;
+        if (scene->detail == 1) {
+            /* Row selection commits the value; Back and Confirm keep it. */
+            scene->connect24_enabled = item == 0;
+        }
+    } else if (scene->detail && control == WM_SETTINGS_CONTROL_NEXT) {
+        switch (scene->detail) {
+            case 1:
+                scene->connect24_enabled = scene->selection == 0;
+                break;
+            case 2:
+                scene->standby_enabled = scene->selection == 0;
+                break;
+            case 3:
+                scene->slot_light = scene->selection;
+                break;
+        }
+        scene->detail = 0;
+    } else {
+        return false;
+    }
+    scene->hover = WM_SETTINGS_CONTROL_NONE;
+    return true;
+}
+
+static bool activate_country_category(WmSettingsScene *scene, WmSettingsControl control,
+                                      unsigned item) {
+    if (control == WM_SETTINGS_CONTROL_BACK)
+        return settings_scene_back_control(scene);
+    if (control == WM_SETTINGS_CONTROL_PREVIOUS && scene->country_page > 0) {
+        scene->country_page--;
+    } else if (control == WM_SETTINGS_CONTROL_ITEM_6 && scene->country_page < 9) {
+        scene->country_page++;
+    } else if (item <
+               (scene->country_page == 0 || scene->country_page == 9 ? 4u : 5u)) {
+        scene->edit_country_choice =
+            wm_settings_country_page_start[scene->country_page] + item;
+    } else if (control == WM_SETTINGS_CONTROL_NEXT) {
+        scene->country_choice = scene->edit_country_choice;
+        scene->active_category = 0;
+    } else {
+        return false;
+    }
+    scene->hover = WM_SETTINGS_CONTROL_NONE;
+    return true;
+}
+
+static bool activate_update_category(WmSettingsScene *scene,
+                                     WmSettingsControl control) {
+    if (!scene->detail) {
+        /* The left action opens the offline explanation; the right exits. */
+        if (control == WM_SETTINGS_CONTROL_BACK)
+            scene->detail = 1;
+        else if (control == WM_SETTINGS_CONTROL_NEXT)
+            return settings_scene_back_control(scene);
+        else
+            return false;
+    } else if (control == WM_SETTINGS_CONTROL_BACK) {
+        return settings_scene_back_control(scene);
+    } else if (control == WM_SETTINGS_CONTROL_NEXT) {
+        scene->detail = 0;
+        scene->active_category = 0;
+    } else {
+        return false;
+    }
+    scene->hover = WM_SETTINGS_CONTROL_NONE;
+    return true;
+}
+
+static bool activate_format_category(WmSettingsScene *scene,
+                                     WmSettingsControl control) {
+    if (scene->detail == 2 && control == WM_SETTINGS_CONTROL_BACK) {
+        /* The final left action resets local volatile settings only;
+         * it never modifies NAND or channel files. */
+        settings_scene_reset_local_values(scene);
+        scene->local_format_complete = true;
+        scene->detail = 3;
+    } else if (control == WM_SETTINGS_CONTROL_BACK) {
+        return settings_scene_back_control(scene);
+    } else if (control == WM_SETTINGS_CONTROL_NEXT) {
+        if (scene->detail < 2)
+            scene->detail++;
+        else {
+            scene->detail = 0;
+            scene->active_category = 0;
+        }
+    } else {
+        return false;
+    }
+    scene->hover = WM_SETTINGS_CONTROL_NONE;
+    return true;
+}
+
+static bool activate_extended_category(WmSettingsScene *scene,
+                                       WmSettingsControl control) {
+    unsigned item =
+        control >= WM_SETTINGS_CONTROL_ITEM_1 && control <= WM_SETTINGS_CONTROL_ITEM_6
+            ? (unsigned)(control - WM_SETTINGS_CONTROL_ITEM_1)
+            : 6;
+    switch (scene->active_category) {
+        case SETTINGS_NICKNAME:
+            return activate_nickname_category(scene, control);
+        case SETTINGS_PARENTAL:
+            return activate_parental_category(scene, control);
+        case SETTINGS_INTERNET:
+            return activate_internet_category(scene, control, item);
+        case SETTINGS_CONNECT24:
+            return activate_connect24_category(scene, control, item);
+        case SETTINGS_COUNTRY:
+            return activate_country_category(scene, control, item);
+        case SETTINGS_UPDATE:
+            return activate_update_category(scene, control);
+        case SETTINGS_FORMAT:
+            return activate_format_category(scene, control);
+        default:
+            return false;
+    }
 }
 
 static bool activate_category_next(WmSettingsScene *scene) {
