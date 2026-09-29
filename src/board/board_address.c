@@ -431,6 +431,224 @@ static void complete_registration(WmBoardAddress *address) {
     address->dialog_hovered = false;
 }
 
+static float address_phase_duration(WmBoardAddressPhase phase) {
+    switch (phase) {
+        case WM_BOARD_ADDRESS_ENTER:
+            return 26.0f;
+        case WM_BOARD_ADDRESS_TURN:
+            return 16.0f;
+        case WM_BOARD_ADDRESS_EXIT:
+            return 48.0f;
+        case WM_BOARD_ADDRESS_REGISTER_PRESS:
+            return 21.0f;
+        case WM_BOARD_ADDRESS_BOOK_TO_KIND:
+        case WM_BOARD_ADDRESS_BOOK_RETURN:
+            return 17.0f;
+        case WM_BOARD_ADDRESS_KIND_ENTER:
+        case WM_BOARD_ADDRESS_KIND_TO_FORM:
+        case WM_BOARD_ADDRESS_KIND_TO_BOOK:
+        case WM_BOARD_ADDRESS_BOOK_TO_CONTACT:
+        case WM_BOARD_ADDRESS_CONTACT_ENTER:
+        case WM_BOARD_ADDRESS_CONTACT_TO_BOOK:
+        case WM_BOARD_ADDRESS_FORM_TO_BOOK:
+        case WM_BOARD_ADDRESS_FORM_TO_NICKNAME:
+        case WM_BOARD_ADDRESS_MII_TO_REVIEW:
+        case WM_BOARD_ADDRESS_REVIEW_TO_MII:
+        case WM_BOARD_ADDRESS_REVIEW_SAVE_EXIT:
+        case WM_BOARD_ADDRESS_MII_RESTORE:
+        case WM_BOARD_ADDRESS_CONTACT_NAME_TO_FORM:
+        case WM_BOARD_ADDRESS_CONTACT_NAME_FORM_RETURN:
+        case WM_BOARD_ADDRESS_CONTACT_NAME_CARD_ENTER:
+            return 19.0f;
+        case WM_BOARD_ADDRESS_CONTACT_ERASE_BUTTONS_OUT:
+        case WM_BOARD_ADDRESS_CONTACT_ERASE_BUTTONS_IN:
+            return 11.0f;
+        case WM_BOARD_ADDRESS_CONTACT_ERASE_MESSAGE_OUT:
+        case WM_BOARD_ADDRESS_KIND_PRESS:
+        case WM_BOARD_ADDRESS_BOOK_ENTRY_PRESS:
+        case WM_BOARD_ADDRESS_FORM_ENTER:
+        case WM_BOARD_ADDRESS_FORM_OK_PRESS:
+        case WM_BOARD_ADDRESS_NICKNAME_ENTER:
+        case WM_BOARD_ADDRESS_NICKNAME_OK_PRESS:
+        case WM_BOARD_ADDRESS_NICKNAME_TO_MII:
+        case WM_BOARD_ADDRESS_MII_ENTER:
+        case WM_BOARD_ADDRESS_MII_OK_PRESS:
+        case WM_BOARD_ADDRESS_REVIEW_ENTER:
+        case WM_BOARD_ADDRESS_REVIEW_INFO_PRESS:
+        case WM_BOARD_ADDRESS_CONTACT_INFO_PRESS:
+        case WM_BOARD_ADDRESS_MII_TO_NICKNAME:
+        case WM_BOARD_ADDRESS_NICKNAME_RESTORE:
+        case WM_BOARD_ADDRESS_NICKNAME_TO_FORM:
+        case WM_BOARD_ADDRESS_FORM_RESTORE:
+        case WM_BOARD_ADDRESS_CONTACT_NAME_PRESS:
+        case WM_BOARD_ADDRESS_CONTACT_NAME_FORM_ENTER:
+        case WM_BOARD_ADDRESS_CONTACT_ERASE_PRESS:
+            return 21.0f;
+        default:
+            return 0.0f;
+    }
+}
+
+static void start_address_dialog(WmBoardAddress *address, WmBoardAddressIssue issue) {
+    address->issue = issue;
+    address->dialog_phase = ADDRESS_DIALOG_ENTER;
+    address->dialog_frame = 0.0f;
+    address->dialog_focus = false;
+    address->dialog_hovered = false;
+}
+
+static void complete_erase_phase(WmBoardAddress *address) {
+    switch (address->phase) {
+        case WM_BOARD_ADDRESS_CONTACT_ERASE_BUTTONS_OUT:
+            address->phase = WM_BOARD_ADDRESS_CONTACT_ERASE_QUESTION;
+            address->erase_message_frame = 0.0f;
+            start_address_dialog(address, WM_BOARD_ADDRESS_ISSUE_ERASE_CONFIRM);
+            address->erase_yes_focus = false;
+            address->erase_yes_hovered = false;
+            break;
+        case WM_BOARD_ADDRESS_CONTACT_ERASE_MESSAGE_OUT:
+            if (address->erase_success) {
+                address->phase = WM_BOARD_ADDRESS_CONTACT_ERASED_NOTICE;
+                start_address_dialog(address, WM_BOARD_ADDRESS_ISSUE_ERASED);
+            } else {
+                address->phase = WM_BOARD_ADDRESS_CONTACT_ERASE_BUTTONS_IN;
+            }
+            break;
+        case WM_BOARD_ADDRESS_CONTACT_ERASE_BUTTONS_IN:
+            address->phase = WM_BOARD_ADDRESS_CONTACT_READY;
+            if (address->erase_save_failed) {
+                address->issue = WM_BOARD_ADDRESS_ISSUE_SAVE_ERROR;
+                address->dialog_phase = ADDRESS_DIALOG_ENTER;
+                address->dialog_frame = 0.0f;
+            }
+            break;
+        default:
+            break;
+    }
+}
+
+static void complete_address_phase(WmBoardAddress *address, float remaining_frames) {
+    switch (address->phase) {
+        case WM_BOARD_ADDRESS_TURN:
+            address->page = address->next_page;
+            address->phase = WM_BOARD_ADDRESS_READY;
+            break;
+        case WM_BOARD_ADDRESS_ENTER:
+        case WM_BOARD_ADDRESS_BOOK_RETURN:
+            address->phase = WM_BOARD_ADDRESS_READY;
+            break;
+        case WM_BOARD_ADDRESS_REGISTER_PRESS:
+            address->phase = WM_BOARD_ADDRESS_BOOK_TO_KIND;
+            break;
+        case WM_BOARD_ADDRESS_BOOK_ENTRY_PRESS:
+            address->phase = WM_BOARD_ADDRESS_BOOK_TO_CONTACT;
+            break;
+        case WM_BOARD_ADDRESS_BOOK_TO_CONTACT:
+            address->phase = WM_BOARD_ADDRESS_CONTACT_ENTER;
+            break;
+        case WM_BOARD_ADDRESS_CONTACT_ENTER:
+        case WM_BOARD_ADDRESS_CONTACT_NAME_CARD_ENTER:
+            address->phase = WM_BOARD_ADDRESS_CONTACT_READY;
+            break;
+        case WM_BOARD_ADDRESS_CONTACT_NAME_PRESS:
+            address->phase = WM_BOARD_ADDRESS_CONTACT_NAME_TO_FORM;
+            break;
+        case WM_BOARD_ADDRESS_CONTACT_NAME_TO_FORM:
+            address->phase = WM_BOARD_ADDRESS_CONTACT_NAME_FORM_ENTER;
+            break;
+        case WM_BOARD_ADDRESS_CONTACT_NAME_FORM_ENTER:
+            address->phase = WM_BOARD_ADDRESS_CONTACT_NAME_FORM_READY;
+            break;
+        case WM_BOARD_ADDRESS_CONTACT_NAME_FORM_RETURN:
+            address->phase = WM_BOARD_ADDRESS_CONTACT_NAME_CARD_ENTER;
+            break;
+        case WM_BOARD_ADDRESS_CONTACT_ERASE_PRESS:
+            address->phase = WM_BOARD_ADDRESS_CONTACT_ERASE_BUTTONS_OUT;
+            break;
+        case WM_BOARD_ADDRESS_CONTACT_ERASE_BUTTONS_OUT:
+        case WM_BOARD_ADDRESS_CONTACT_ERASE_MESSAGE_OUT:
+        case WM_BOARD_ADDRESS_CONTACT_ERASE_BUTTONS_IN:
+            complete_erase_phase(address);
+            break;
+        case WM_BOARD_ADDRESS_CONTACT_TO_BOOK:
+        case WM_BOARD_ADDRESS_KIND_TO_BOOK:
+        case WM_BOARD_ADDRESS_FORM_TO_BOOK:
+            address->phase = WM_BOARD_ADDRESS_BOOK_RETURN;
+            break;
+        case WM_BOARD_ADDRESS_BOOK_TO_KIND:
+            address->phase = WM_BOARD_ADDRESS_KIND_ENTER;
+            break;
+        case WM_BOARD_ADDRESS_KIND_ENTER:
+            address->phase = WM_BOARD_ADDRESS_KIND_READY;
+            break;
+        case WM_BOARD_ADDRESS_KIND_PRESS:
+            address->phase = WM_BOARD_ADDRESS_KIND_TO_FORM;
+            break;
+        case WM_BOARD_ADDRESS_KIND_TO_FORM:
+            address->phase = WM_BOARD_ADDRESS_FORM_ENTER;
+            break;
+        case WM_BOARD_ADDRESS_FORM_ENTER:
+        case WM_BOARD_ADDRESS_FORM_RESTORE:
+            address->phase = WM_BOARD_ADDRESS_FORM_READY;
+            break;
+        case WM_BOARD_ADDRESS_FORM_OK_PRESS:
+            address->phase = WM_BOARD_ADDRESS_FORM_TO_NICKNAME;
+            break;
+        case WM_BOARD_ADDRESS_FORM_TO_NICKNAME:
+            address->phase = WM_BOARD_ADDRESS_NICKNAME_ENTER;
+            break;
+        case WM_BOARD_ADDRESS_NICKNAME_ENTER:
+        case WM_BOARD_ADDRESS_NICKNAME_RESTORE:
+            address->phase = WM_BOARD_ADDRESS_NICKNAME_READY;
+            break;
+        case WM_BOARD_ADDRESS_NICKNAME_OK_PRESS:
+            address->phase = WM_BOARD_ADDRESS_NICKNAME_TO_MII;
+            break;
+        case WM_BOARD_ADDRESS_NICKNAME_TO_MII:
+            address->phase = WM_BOARD_ADDRESS_MII_ENTER;
+            break;
+        case WM_BOARD_ADDRESS_MII_ENTER:
+        case WM_BOARD_ADDRESS_MII_RESTORE:
+            address->phase = WM_BOARD_ADDRESS_MII_READY;
+            break;
+        case WM_BOARD_ADDRESS_MII_OK_PRESS:
+            address->phase = WM_BOARD_ADDRESS_MII_TO_REVIEW;
+            break;
+        case WM_BOARD_ADDRESS_MII_TO_REVIEW:
+            address->phase = WM_BOARD_ADDRESS_REVIEW_ENTER;
+            break;
+        case WM_BOARD_ADDRESS_REVIEW_ENTER:
+            address->phase = WM_BOARD_ADDRESS_REVIEW_READY;
+            break;
+        case WM_BOARD_ADDRESS_REVIEW_SAVE_EXIT:
+            complete_registration(address);
+            if (remaining_frames > 0.0f)
+                advance_dialog(address, remaining_frames);
+            break;
+        case WM_BOARD_ADDRESS_REVIEW_INFO_PRESS:
+        case WM_BOARD_ADDRESS_CONTACT_INFO_PRESS:
+            address->phase = address->phase == WM_BOARD_ADDRESS_REVIEW_INFO_PRESS
+                                 ? WM_BOARD_ADDRESS_REVIEW_READY
+                                 : WM_BOARD_ADDRESS_CONTACT_READY;
+            start_address_dialog(address, WM_BOARD_ADDRESS_ISSUE_ADDRESS_INFO);
+            if (remaining_frames > 0.0f)
+                advance_dialog(address, remaining_frames);
+            break;
+        case WM_BOARD_ADDRESS_REVIEW_TO_MII:
+            address->phase = WM_BOARD_ADDRESS_MII_RESTORE;
+            break;
+        case WM_BOARD_ADDRESS_MII_TO_NICKNAME:
+            address->phase = WM_BOARD_ADDRESS_NICKNAME_RESTORE;
+            break;
+        case WM_BOARD_ADDRESS_NICKNAME_TO_FORM:
+            address->phase = WM_BOARD_ADDRESS_FORM_RESTORE;
+            break;
+        default:
+            address->phase = WM_BOARD_ADDRESS_CLOSED;
+            break;
+    }
+}
+
 void wm_board_address_advance(WmBoardAddress *address, float frames) {
     if (!address || !isfinite(frames) || frames <= 0.0f)
         return;
@@ -478,56 +696,7 @@ void wm_board_address_advance(WmBoardAddress *address, float frames) {
             address->entry_focus[index].frame += frames;
     }
     while (frames > 0.0f) {
-        float duration =
-            address->phase == WM_BOARD_ADDRESS_ENTER            ? 26.0f
-            : address->phase == WM_BOARD_ADDRESS_TURN           ? 16.0f
-            : address->phase == WM_BOARD_ADDRESS_EXIT           ? 48.0f
-            : address->phase == WM_BOARD_ADDRESS_REGISTER_PRESS ? 21.0f
-            : address->phase == WM_BOARD_ADDRESS_BOOK_TO_KIND ||
-                    address->phase == WM_BOARD_ADDRESS_BOOK_RETURN
-                ? 17.0f
-            : address->phase == WM_BOARD_ADDRESS_KIND_ENTER ||
-                    address->phase == WM_BOARD_ADDRESS_KIND_TO_FORM ||
-                    address->phase == WM_BOARD_ADDRESS_KIND_TO_BOOK ||
-                    address->phase == WM_BOARD_ADDRESS_BOOK_TO_CONTACT ||
-                    address->phase == WM_BOARD_ADDRESS_CONTACT_ENTER ||
-                    address->phase == WM_BOARD_ADDRESS_CONTACT_TO_BOOK ||
-                    address->phase == WM_BOARD_ADDRESS_FORM_TO_BOOK ||
-                    address->phase == WM_BOARD_ADDRESS_FORM_TO_NICKNAME ||
-                    address->phase == WM_BOARD_ADDRESS_MII_TO_REVIEW ||
-                    address->phase == WM_BOARD_ADDRESS_REVIEW_TO_MII ||
-                    address->phase == WM_BOARD_ADDRESS_REVIEW_SAVE_EXIT ||
-                    address->phase == WM_BOARD_ADDRESS_MII_RESTORE
-                ? 19.0f
-            : address->phase == WM_BOARD_ADDRESS_CONTACT_NAME_TO_FORM ||
-                    address->phase == WM_BOARD_ADDRESS_CONTACT_NAME_FORM_RETURN ||
-                    address->phase == WM_BOARD_ADDRESS_CONTACT_NAME_CARD_ENTER
-                ? 19.0f
-            : address->phase == WM_BOARD_ADDRESS_CONTACT_ERASE_BUTTONS_OUT ||
-                    address->phase == WM_BOARD_ADDRESS_CONTACT_ERASE_BUTTONS_IN
-                ? 11.0f
-            : address->phase == WM_BOARD_ADDRESS_CONTACT_ERASE_MESSAGE_OUT ? 21.0f
-            : address->phase == WM_BOARD_ADDRESS_KIND_PRESS ||
-                    address->phase == WM_BOARD_ADDRESS_BOOK_ENTRY_PRESS ||
-                    address->phase == WM_BOARD_ADDRESS_FORM_ENTER ||
-                    address->phase == WM_BOARD_ADDRESS_FORM_OK_PRESS ||
-                    address->phase == WM_BOARD_ADDRESS_NICKNAME_ENTER ||
-                    address->phase == WM_BOARD_ADDRESS_NICKNAME_OK_PRESS ||
-                    address->phase == WM_BOARD_ADDRESS_NICKNAME_TO_MII ||
-                    address->phase == WM_BOARD_ADDRESS_MII_ENTER ||
-                    address->phase == WM_BOARD_ADDRESS_MII_OK_PRESS ||
-                    address->phase == WM_BOARD_ADDRESS_REVIEW_ENTER ||
-                    address->phase == WM_BOARD_ADDRESS_REVIEW_INFO_PRESS ||
-                    address->phase == WM_BOARD_ADDRESS_CONTACT_INFO_PRESS ||
-                    address->phase == WM_BOARD_ADDRESS_MII_TO_NICKNAME ||
-                    address->phase == WM_BOARD_ADDRESS_NICKNAME_RESTORE ||
-                    address->phase == WM_BOARD_ADDRESS_NICKNAME_TO_FORM ||
-                    address->phase == WM_BOARD_ADDRESS_FORM_RESTORE ||
-                    address->phase == WM_BOARD_ADDRESS_CONTACT_NAME_PRESS ||
-                    address->phase == WM_BOARD_ADDRESS_CONTACT_NAME_FORM_ENTER ||
-                    address->phase == WM_BOARD_ADDRESS_CONTACT_ERASE_PRESS
-                ? 21.0f
-                : 0.0f;
+        float duration = address_phase_duration(address->phase);
         if (duration == 0.0f)
             return;
         float amount = fminf(frames, duration - address->frame);
@@ -535,131 +704,7 @@ void wm_board_address_advance(WmBoardAddress *address, float frames) {
         frames -= amount;
         if (address->frame < duration)
             return;
-        if (address->phase == WM_BOARD_ADDRESS_TURN) {
-            address->page = address->next_page;
-            address->phase = WM_BOARD_ADDRESS_READY;
-        } else if (address->phase == WM_BOARD_ADDRESS_ENTER) {
-            address->phase = WM_BOARD_ADDRESS_READY;
-        } else if (address->phase == WM_BOARD_ADDRESS_REGISTER_PRESS) {
-            address->phase = WM_BOARD_ADDRESS_BOOK_TO_KIND;
-        } else if (address->phase == WM_BOARD_ADDRESS_BOOK_ENTRY_PRESS) {
-            address->phase = WM_BOARD_ADDRESS_BOOK_TO_CONTACT;
-        } else if (address->phase == WM_BOARD_ADDRESS_BOOK_TO_CONTACT) {
-            address->phase = WM_BOARD_ADDRESS_CONTACT_ENTER;
-        } else if (address->phase == WM_BOARD_ADDRESS_CONTACT_ENTER) {
-            address->phase = WM_BOARD_ADDRESS_CONTACT_READY;
-        } else if (address->phase == WM_BOARD_ADDRESS_CONTACT_NAME_PRESS) {
-            address->phase = WM_BOARD_ADDRESS_CONTACT_NAME_TO_FORM;
-        } else if (address->phase == WM_BOARD_ADDRESS_CONTACT_NAME_TO_FORM) {
-            address->phase = WM_BOARD_ADDRESS_CONTACT_NAME_FORM_ENTER;
-        } else if (address->phase == WM_BOARD_ADDRESS_CONTACT_NAME_FORM_ENTER) {
-            address->phase = WM_BOARD_ADDRESS_CONTACT_NAME_FORM_READY;
-        } else if (address->phase == WM_BOARD_ADDRESS_CONTACT_NAME_FORM_RETURN) {
-            address->phase = WM_BOARD_ADDRESS_CONTACT_NAME_CARD_ENTER;
-        } else if (address->phase == WM_BOARD_ADDRESS_CONTACT_NAME_CARD_ENTER) {
-            address->phase = WM_BOARD_ADDRESS_CONTACT_READY;
-        } else if (address->phase == WM_BOARD_ADDRESS_CONTACT_ERASE_PRESS) {
-            address->phase = WM_BOARD_ADDRESS_CONTACT_ERASE_BUTTONS_OUT;
-        } else if (address->phase == WM_BOARD_ADDRESS_CONTACT_ERASE_BUTTONS_OUT) {
-            address->phase = WM_BOARD_ADDRESS_CONTACT_ERASE_QUESTION;
-            address->erase_message_frame = 0.0f;
-            address->issue = WM_BOARD_ADDRESS_ISSUE_ERASE_CONFIRM;
-            address->dialog_phase = ADDRESS_DIALOG_ENTER;
-            address->dialog_frame = 0.0f;
-            address->dialog_focus = false;
-            address->dialog_hovered = false;
-            address->erase_yes_focus = false;
-            address->erase_yes_hovered = false;
-        } else if (address->phase == WM_BOARD_ADDRESS_CONTACT_ERASE_MESSAGE_OUT) {
-            if (address->erase_success) {
-                address->phase = WM_BOARD_ADDRESS_CONTACT_ERASED_NOTICE;
-                address->issue = WM_BOARD_ADDRESS_ISSUE_ERASED;
-                address->dialog_phase = ADDRESS_DIALOG_ENTER;
-                address->dialog_frame = 0.0f;
-                address->dialog_focus = false;
-                address->dialog_hovered = false;
-            } else {
-                address->phase = WM_BOARD_ADDRESS_CONTACT_ERASE_BUTTONS_IN;
-            }
-        } else if (address->phase == WM_BOARD_ADDRESS_CONTACT_ERASE_BUTTONS_IN) {
-            address->phase = WM_BOARD_ADDRESS_CONTACT_READY;
-            if (address->erase_save_failed) {
-                address->issue = WM_BOARD_ADDRESS_ISSUE_SAVE_ERROR;
-                address->dialog_phase = ADDRESS_DIALOG_ENTER;
-                address->dialog_frame = 0.0f;
-            }
-        } else if (address->phase == WM_BOARD_ADDRESS_CONTACT_TO_BOOK) {
-            address->phase = WM_BOARD_ADDRESS_BOOK_RETURN;
-        } else if (address->phase == WM_BOARD_ADDRESS_BOOK_TO_KIND) {
-            address->phase = WM_BOARD_ADDRESS_KIND_ENTER;
-        } else if (address->phase == WM_BOARD_ADDRESS_KIND_ENTER) {
-            address->phase = WM_BOARD_ADDRESS_KIND_READY;
-        } else if (address->phase == WM_BOARD_ADDRESS_KIND_PRESS) {
-            address->phase = WM_BOARD_ADDRESS_KIND_TO_FORM;
-        } else if (address->phase == WM_BOARD_ADDRESS_KIND_TO_FORM) {
-            address->phase = WM_BOARD_ADDRESS_FORM_ENTER;
-        } else if (address->phase == WM_BOARD_ADDRESS_FORM_ENTER) {
-            address->phase = WM_BOARD_ADDRESS_FORM_READY;
-        } else if (address->phase == WM_BOARD_ADDRESS_FORM_OK_PRESS) {
-            address->phase = WM_BOARD_ADDRESS_FORM_TO_NICKNAME;
-        } else if (address->phase == WM_BOARD_ADDRESS_FORM_TO_NICKNAME) {
-            address->phase = WM_BOARD_ADDRESS_NICKNAME_ENTER;
-        } else if (address->phase == WM_BOARD_ADDRESS_NICKNAME_ENTER) {
-            address->phase = WM_BOARD_ADDRESS_NICKNAME_READY;
-        } else if (address->phase == WM_BOARD_ADDRESS_NICKNAME_OK_PRESS) {
-            address->phase = WM_BOARD_ADDRESS_NICKNAME_TO_MII;
-        } else if (address->phase == WM_BOARD_ADDRESS_NICKNAME_TO_MII) {
-            address->phase = WM_BOARD_ADDRESS_MII_ENTER;
-        } else if (address->phase == WM_BOARD_ADDRESS_MII_ENTER) {
-            address->phase = WM_BOARD_ADDRESS_MII_READY;
-        } else if (address->phase == WM_BOARD_ADDRESS_MII_OK_PRESS) {
-            address->phase = WM_BOARD_ADDRESS_MII_TO_REVIEW;
-        } else if (address->phase == WM_BOARD_ADDRESS_MII_TO_REVIEW) {
-            address->phase = WM_BOARD_ADDRESS_REVIEW_ENTER;
-        } else if (address->phase == WM_BOARD_ADDRESS_REVIEW_ENTER) {
-            address->phase = WM_BOARD_ADDRESS_REVIEW_READY;
-        } else if (address->phase == WM_BOARD_ADDRESS_REVIEW_SAVE_EXIT) {
-            complete_registration(address);
-            if (frames > 0.0f)
-                advance_dialog(address, frames);
-        } else if (address->phase == WM_BOARD_ADDRESS_REVIEW_INFO_PRESS) {
-            address->phase = WM_BOARD_ADDRESS_REVIEW_READY;
-            address->issue = WM_BOARD_ADDRESS_ISSUE_ADDRESS_INFO;
-            address->dialog_phase = ADDRESS_DIALOG_ENTER;
-            address->dialog_frame = 0.0f;
-            address->dialog_focus = false;
-            address->dialog_hovered = false;
-            if (frames > 0.0f)
-                advance_dialog(address, frames);
-        } else if (address->phase == WM_BOARD_ADDRESS_CONTACT_INFO_PRESS) {
-            address->phase = WM_BOARD_ADDRESS_CONTACT_READY;
-            address->issue = WM_BOARD_ADDRESS_ISSUE_ADDRESS_INFO;
-            address->dialog_phase = ADDRESS_DIALOG_ENTER;
-            address->dialog_frame = 0.0f;
-            address->dialog_focus = false;
-            address->dialog_hovered = false;
-            if (frames > 0.0f)
-                advance_dialog(address, frames);
-        } else if (address->phase == WM_BOARD_ADDRESS_REVIEW_TO_MII) {
-            address->phase = WM_BOARD_ADDRESS_MII_RESTORE;
-        } else if (address->phase == WM_BOARD_ADDRESS_MII_RESTORE) {
-            address->phase = WM_BOARD_ADDRESS_MII_READY;
-        } else if (address->phase == WM_BOARD_ADDRESS_MII_TO_NICKNAME) {
-            address->phase = WM_BOARD_ADDRESS_NICKNAME_RESTORE;
-        } else if (address->phase == WM_BOARD_ADDRESS_NICKNAME_RESTORE) {
-            address->phase = WM_BOARD_ADDRESS_NICKNAME_READY;
-        } else if (address->phase == WM_BOARD_ADDRESS_NICKNAME_TO_FORM) {
-            address->phase = WM_BOARD_ADDRESS_FORM_RESTORE;
-        } else if (address->phase == WM_BOARD_ADDRESS_FORM_RESTORE) {
-            address->phase = WM_BOARD_ADDRESS_FORM_READY;
-        } else if (address->phase == WM_BOARD_ADDRESS_KIND_TO_BOOK ||
-                   address->phase == WM_BOARD_ADDRESS_FORM_TO_BOOK) {
-            address->phase = WM_BOARD_ADDRESS_BOOK_RETURN;
-        } else if (address->phase == WM_BOARD_ADDRESS_BOOK_RETURN) {
-            address->phase = WM_BOARD_ADDRESS_READY;
-        } else {
-            address->phase = WM_BOARD_ADDRESS_CLOSED;
-        }
+        complete_address_phase(address, frames);
         address->frame = 0.0f;
     }
 }
