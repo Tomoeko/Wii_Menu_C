@@ -618,41 +618,7 @@ bool wm_board_address_kind_hit(WmBoardAddress *address, int x, int y, bool *wii)
     return false;
 }
 
-void wm_board_address_draw(WmBoardAddress *address) {
-    if (!address || address->phase == WM_BOARD_ADDRESS_CLOSED)
-        return;
-    WmBoardAddressStep step = wm_board_address_step(address);
-    if (step == WM_BOARD_ADDRESS_STEP_KIND) {
-        pose_kind(address);
-        wm_layout_present_with_fonts(address->platform, address->textures,
-                                     address->fonts, address->kind_layout, true,
-                                     WM_LAYOUT_IPL, NULL);
-        return;
-    }
-    if (step == WM_BOARD_ADDRESS_STEP_FORM || step == WM_BOARD_ADDRESS_STEP_NICKNAME ||
-        step == WM_BOARD_ADDRESS_STEP_MII) {
-        pose_form(address);
-        wm_layout_present_with_fonts(address->platform, address->textures,
-                                     address->fonts, address->form, true, WM_LAYOUT_IPL,
-                                     NULL);
-        return;
-    }
-    if (step == WM_BOARD_ADDRESS_STEP_REVIEW || step == WM_BOARD_ADDRESS_STEP_CONTACT) {
-        pose_review(address);
-        wm_layout_present_with_fonts(address->platform, address->textures,
-                                     address->fonts, address->review, true,
-                                     WM_LAYOUT_IPL, NULL);
-        return;
-    }
-    /* The authored translation has moved the entire book beyond the 640-pixel
-     * viewport by the end of note_trns_out. Keep the remaining parent/footer
-     * transition while avoiding repeated offscreen sheet submissions. */
-    if ((address->phase == WM_BOARD_ADDRESS_EXIT ||
-         address->phase == WM_BOARD_ADDRESS_BOOK_TO_KIND ||
-         address->phase == WM_BOARD_ADDRESS_BOOK_TO_CONTACT) &&
-        address->frame >= 16.0f)
-        return;
-    AddressGeometry view = geometry(address);
+static void pose_book_clips(WmBoardAddress *address, const AddressGeometry *view) {
     WmLayoutClip clips[10] = {0};
     size_t count = 0;
     if (address->phase == WM_BOARD_ADDRESS_ENTER ||
@@ -677,10 +643,10 @@ void wm_board_address_draw(WmBoardAddress *address) {
                            .frame = frame,
                            .loop_override = 0};
     }
-    bool cover_turn =
-        address->phase == WM_BOARD_ADDRESS_TURN && (view.cover_turn || view.wrap_turn);
+    bool cover_turn = address->phase == WM_BOARD_ADDRESS_TURN &&
+                      (view->cover_turn || view->wrap_turn);
     bool reverse = address->phase == WM_BOARD_ADDRESS_TURN &&
-                   (view.wrap_turn ? address->forward : !address->forward);
+                   (view->wrap_turn ? address->forward : !address->forward);
     float turn_frame = address->phase == WM_BOARD_ADDRESS_TURN
                            ? (reverse ? 15.0f - limit_frame(address->frame, 15.0f)
                                       : limit_frame(address->frame, 15.0f))
@@ -717,50 +683,96 @@ void wm_board_address_draw(WmBoardAddress *address) {
                            .loop_override = 0};
     }
     wm_layout_pose(address->book, clips, count);
+}
+
+static void pose_book_text(WmBoardAddress *address, const AddressGeometry *view) {
     wm_layout_set_pane_visible(address->book, "N_note_move", false);
     wm_layout_set_pane_translation(address->book, "N_note_base",
-                                   -(float)view.base_steps * (608.0f / 832.0f),
-                                   -(float)view.base_steps, 0.0f);
+                                   -(float)view->base_steps * (608.0f / 832.0f),
+                                   -(float)view->base_steps, 0.0f);
     wm_layout_set_pose_text(address->book, "T_wii_msg", "This console's Wii Number:");
     wm_layout_set_pose_text(address->book, "T_wii_name", "0000 0000 0000 0000");
     wm_layout_set_pose_text(address->book, "T_adrs_00", "Address Book");
     char face_number[8], turn_number[8];
-    snprintf(face_number, sizeof(face_number), "%u/20", view.face_page);
-    snprintf(turn_number, sizeof(turn_number), "%u/20", view.turn_page);
+    snprintf(face_number, sizeof(face_number), "%u/20", view->face_page);
+    snprintf(turn_number, sizeof(turn_number), "%u/20", view->turn_page);
     wm_layout_set_pose_text(address->book, "T_nmbr_b", face_number);
     wm_layout_set_pose_text(address->book, "T_nmbr_c", turn_number);
     for (unsigned index = 0; index < 5; index++) {
         char pane[] = "T_name_b_00";
         pane[10] = (char)('0' + index);
         WmBoardContact contact;
-        size_t face_slot = (view.face_page - 1) * 5u + index;
+        size_t face_slot = (view->face_page - 1) * 5u + index;
         wm_layout_set_pose_text(address->book, pane,
                                 wm_board_address_contact(address, face_slot, &contact)
                                     ? contact.nickname
                                     : "");
         pane[7] = 'c';
-        size_t turn_slot = (view.turn_page - 1) * 5u + index;
+        size_t turn_slot = (view->turn_page - 1) * 5u + index;
         wm_layout_set_pose_text(address->book, pane,
                                 wm_board_address_contact(address, turn_slot, &contact)
                                     ? contact.nickname
                                     : "");
     }
+}
+
+static void draw_book_sheets(WmBoardAddress *address, const AddressGeometry *view) {
     float group_alpha = 255.0f;
     wm_layout_visit_all_transforms(address->book, true, WM_LAYOUT_IPL, NULL,
                                    capture_group_alpha, &group_alpha);
-    for (unsigned count_right = view.right_count; count_right >= 1; count_right--) {
+    for (unsigned count_right = view->right_count; count_right >= 1; count_right--) {
         float offset = -(float)count_right;
         show_sheet(address, 'a', offset, offset, group_alpha);
     }
     show_sheet(address, 'b', 0.0f, 0.0f, group_alpha);
-    if (view.turning_sheet)
+    if (view->turning_sheet)
         show_sheet(address, 'c', 0.0f, 0.0f, group_alpha);
-    for (unsigned index = 0; index < view.left_count; index++) {
-        float offset = (float)(index + view.turning_offset);
+    for (unsigned index = 0; index < view->left_count; index++) {
+        float offset = (float)(index + view->turning_offset);
         show_sheet(address, 'd', offset, offset, group_alpha);
     }
-    for (unsigned index = 0; index < view.cover_count; index++) {
-        float offset = (float)(view.cover_offset + index);
+    for (unsigned index = 0; index < view->cover_count; index++) {
+        float offset = (float)(view->cover_offset + index);
         show_sheet(address, 'e', offset, offset, group_alpha);
     }
+}
+
+void wm_board_address_draw(WmBoardAddress *address) {
+    if (!address || address->phase == WM_BOARD_ADDRESS_CLOSED)
+        return;
+    WmBoardAddressStep step = wm_board_address_step(address);
+    if (step == WM_BOARD_ADDRESS_STEP_KIND) {
+        pose_kind(address);
+        wm_layout_present_with_fonts(address->platform, address->textures,
+                                     address->fonts, address->kind_layout, true,
+                                     WM_LAYOUT_IPL, NULL);
+        return;
+    }
+    if (step == WM_BOARD_ADDRESS_STEP_FORM || step == WM_BOARD_ADDRESS_STEP_NICKNAME ||
+        step == WM_BOARD_ADDRESS_STEP_MII) {
+        pose_form(address);
+        wm_layout_present_with_fonts(address->platform, address->textures,
+                                     address->fonts, address->form, true, WM_LAYOUT_IPL,
+                                     NULL);
+        return;
+    }
+    if (step == WM_BOARD_ADDRESS_STEP_REVIEW || step == WM_BOARD_ADDRESS_STEP_CONTACT) {
+        pose_review(address);
+        wm_layout_present_with_fonts(address->platform, address->textures,
+                                     address->fonts, address->review, true,
+                                     WM_LAYOUT_IPL, NULL);
+        return;
+    }
+    /* The authored translation has moved the entire book beyond the 640-pixel
+     * viewport by the end of note_trns_out. Keep the remaining parent/footer
+     * transition while avoiding repeated offscreen sheet submissions. */
+    if ((address->phase == WM_BOARD_ADDRESS_EXIT ||
+         address->phase == WM_BOARD_ADDRESS_BOOK_TO_KIND ||
+         address->phase == WM_BOARD_ADDRESS_BOOK_TO_CONTACT) &&
+        address->frame >= 16.0f)
+        return;
+    AddressGeometry view = geometry(address);
+    pose_book_clips(address, &view);
+    pose_book_text(address, &view);
+    draw_book_sheets(address, &view);
 }
