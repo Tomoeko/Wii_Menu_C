@@ -11,6 +11,10 @@ wm_add_test(wii-menu-utf8
     SOURCES support/utf8_test.c
     LIBRARIES wii_menu_core
 )
+wm_add_test(wii-menu-regular-file
+    SOURCES support/regular_file_test.c
+    LIBRARIES wii_menu_core
+)
 
 # Animation.
 wm_add_test(wii-menu-transition

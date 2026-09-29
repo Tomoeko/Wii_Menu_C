@@ -5,6 +5,7 @@
 #include "wii_menu/fonts/font_cache.h"
 
 #include "wii_menu/render/image.h"
+#include "wii_menu/support/regular_file.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -117,32 +118,15 @@ static char *font_path(const WmFontCache *cache, const char *name) {
 }
 
 static WmFont *read_font(const char *path, size_t *file_bytes) {
-    FILE *file = fopen(path, "rb");
-    if (!file)
+    uint8_t *bytes = NULL;
+    size_t length = 0;
+    if (wm_regular_file_read_bytes(path, 1, WM_FONT_CACHE_MAX_FILE_BYTES, &bytes,
+                                   &length) != WM_REGULAR_FILE_OK)
         return NULL;
-    if (fseek(file, 0, SEEK_END) != 0) {
-        fclose(file);
-        return NULL;
-    }
-    long length = ftell(file);
-    if (length <= 0 || length > WM_FONT_CACHE_MAX_FILE_BYTES ||
-        fseek(file, 0, SEEK_SET) != 0) {
-        fclose(file);
-        return NULL;
-    }
-    uint8_t *bytes = malloc((size_t)length);
-    if (!bytes) {
-        fclose(file);
-        return NULL;
-    }
-    bool complete = fread(bytes, 1, (size_t)length, file) == (size_t)length;
-    fclose(file);
-    WmFont *font = NULL;
-    if (complete)
-        font = wm_font_decode(bytes, (size_t)length, NULL, 0);
+    WmFont *font = wm_font_decode(bytes, length, NULL, 0);
     free(bytes);
     if (font)
-        *file_bytes = (size_t)length;
+        *file_bytes = length;
     return font;
 }
 

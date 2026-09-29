@@ -4,6 +4,7 @@
 
 #include "wii_menu/fonts/outline_font.h"
 #include "wii_menu/resources/resource_u8.h"
+#include "wii_menu/support/regular_file.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -16,31 +17,6 @@ enum {
     OUTLINE_EXPORT_PATH_CAPACITY = 4096,
     OUTLINE_EXPORT_MAX_SOURCE = 8 * 1024 * 1024
 };
-
-static uint8_t *read_file(const char *path, size_t *size) {
-    FILE *file = fopen(path, "rb");
-    if (!file || fseek(file, 0, SEEK_END) != 0) {
-        if (file)
-            fclose(file);
-        return NULL;
-    }
-    long length = ftell(file);
-    if (length <= 0 || length > OUTLINE_EXPORT_MAX_SOURCE ||
-        fseek(file, 0, SEEK_SET) != 0) {
-        fclose(file);
-        return NULL;
-    }
-    uint8_t *bytes = malloc((size_t)length);
-    if (!bytes || fread(bytes, 1, (size_t)length, file) != (size_t)length ||
-        fgetc(file) != EOF) {
-        free(bytes);
-        fclose(file);
-        return NULL;
-    }
-    fclose(file);
-    *size = (size_t)length;
-    return bytes;
-}
 
 static bool valid_latin_face(const WmU8Entry *entry) {
     if (!entry || entry->size < 20 || memcmp(entry->data, "ttcf", 4) != 0 ||
@@ -105,7 +81,9 @@ int main(int argc, char **argv) {
         return 2;
     }
     size_t source_size = 0;
-    uint8_t *source = read_file(argv[1], &source_size);
+    uint8_t *source = NULL;
+    wm_regular_file_read_bytes(argv[1], 1, OUTLINE_EXPORT_MAX_SOURCE, &source,
+                               &source_size);
     WmU8Archive archive = {0};
     char error[160] = {0};
     if (!source || !wm_u8_parse(source, source_size, &archive, error, sizeof(error))) {

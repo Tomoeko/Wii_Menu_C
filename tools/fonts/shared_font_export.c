@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "wii_menu/fonts/shared_font_export.h"
+#include "wii_menu/support/regular_file.h"
 
 #include <dirent.h>
 #include <stdint.h>
@@ -24,35 +25,6 @@ static void usage(FILE *stream) {
           "alone does not contain these shared glyphs. Keep input and output\n"
           "resources in an ignored local directory.\n",
           stream);
-}
-
-static uint8_t *read_input(const char *path, size_t *size) {
-    FILE *file = fopen(path, "rb");
-    if (!file)
-        return NULL;
-    if (fseek(file, 0, SEEK_END) != 0) {
-        fclose(file);
-        return NULL;
-    }
-    long length = ftell(file);
-    if (length < 32 || length > WM_SHARED_FONT_CLI_MAX_INPUT ||
-        fseek(file, 0, SEEK_SET) != 0) {
-        fclose(file);
-        return NULL;
-    }
-    uint8_t *data = malloc((size_t)length);
-    if (!data) {
-        fclose(file);
-        return NULL;
-    }
-    bool complete = fread(data, 1, (size_t)length, file) == (size_t)length;
-    fclose(file);
-    if (!complete) {
-        free(data);
-        return NULL;
-    }
-    *size = (size_t)length;
-    return data;
 }
 
 static bool export_from_directory(const char *root, const char *output, char *error,
@@ -80,8 +52,9 @@ static bool export_from_directory(const char *root, const char *output, char *er
         if (lstat(path, &status) != 0 || !S_ISREG(status.st_mode))
             continue;
         size_t size = 0;
-        uint8_t *data = read_input(path, &size);
-        if (!data)
+        uint8_t *data = NULL;
+        if (wm_regular_file_read_bytes(path, 32, WM_SHARED_FONT_CLI_MAX_INPUT, &data,
+                                       &size) != WM_REGULAR_FILE_OK)
             continue;
         exported = wm_shared_font_export(data, size, output, error, error_capacity);
         free(data);
@@ -108,7 +81,9 @@ int main(int argc, char **argv) {
         success = export_from_directory(argv[1], argv[2], error, sizeof(error));
     } else {
         size_t size = 0;
-        uint8_t *data = read_input(argv[1], &size);
+        uint8_t *data = NULL;
+        wm_regular_file_read_bytes(argv[1], 32, WM_SHARED_FONT_CLI_MAX_INPUT, &data,
+                                   &size);
         if (data) {
             success = wm_shared_font_export(data, size, argv[2], error, sizeof(error));
             free(data);

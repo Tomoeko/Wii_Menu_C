@@ -7,6 +7,7 @@
 #include "wii_menu/resources/resource_layout.h"
 #include "wii_menu/resources/resource_tpl.h"
 #include "wii_menu/resources/resource_u8.h"
+#include "wii_menu/support/regular_file.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -14,7 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { WM_EXPORT_PATH_CAPACITY = 4096 };
+enum { WM_EXPORT_PATH_CAPACITY = 4096, WM_EXPORT_MAX_SOURCE = 128 * 1024 * 1024 };
 
 static bool ends_with(const char *value, const char *suffix) {
     size_t value_size = strlen(value);
@@ -91,30 +92,6 @@ static bool ensure_package_directories(const char *output, const char *package) 
     length = snprintf(relative, sizeof(relative), "textures/%s", package);
     return length >= 0 && length < (int)sizeof(relative) &&
            wm_export_directory_child(output, relative, 0755);
-}
-
-static uint8_t *read_file(const char *path, size_t *size) {
-    FILE *file = fopen(path, "rb");
-    if (file == NULL || fseek(file, 0, SEEK_END) != 0) {
-        if (file != NULL) {
-            fclose(file);
-        }
-        return NULL;
-    }
-    long length = ftell(file);
-    if (length < 0 || fseek(file, 0, SEEK_SET) != 0) {
-        fclose(file);
-        return NULL;
-    }
-    uint8_t *data = malloc((size_t)length != 0 ? (size_t)length : 1);
-    if (data == NULL || fread(data, 1, (size_t)length, file) != (size_t)length) {
-        free(data);
-        fclose(file);
-        return NULL;
-    }
-    fclose(file);
-    *size = (size_t)length;
-    return data;
 }
 
 static int compare_entries(const void *left, const void *right) {
@@ -482,8 +459,9 @@ int main(int argc, char **argv) {
         return 2;
     }
     size_t input_size = 0;
-    uint8_t *input = read_file(argv[1], &input_size);
-    if (input == NULL) {
+    uint8_t *input = NULL;
+    if (wm_regular_file_read_bytes(argv[1], 0, WM_EXPORT_MAX_SOURCE, &input,
+                                   &input_size) != WM_REGULAR_FILE_OK) {
         fprintf(stderr, "Could not read the resource content.\n");
         return 1;
     }

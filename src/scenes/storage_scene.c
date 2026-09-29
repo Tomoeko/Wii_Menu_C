@@ -2,6 +2,7 @@
 
 #include "wii_menu/render/material_prepare.h"
 #include "wii_menu/input/source_hit.h"
+#include "wii_menu/support/hex.h"
 
 #include <math.h>
 #include <stdint.h>
@@ -11,16 +12,6 @@
 
 enum { STORAGE_RECORD_LIMIT = 240 };
 
-static int hex_digit(char value) {
-    if (value >= '0' && value <= '9')
-        return value - '0';
-    if (value >= 'a' && value <= 'f')
-        return value - 'a' + 10;
-    if (value >= 'A' && value <= 'F')
-        return value - 'A' + 10;
-    return -1;
-}
-
 bool wm_storage_manageable_channel(const char *id, bool has_icon) {
     if (!has_icon || !id || !id[0] || strcmp(id, "disc") == 0)
         return false;
@@ -28,7 +19,7 @@ bool wm_storage_manageable_channel(const char *id, bool has_icon) {
         return true;
     uint32_t high = 0;
     for (int index = 0; index < 16; index++) {
-        int digit = hex_digit(id[index]);
+        int digit = wm_hex_digit(id[index]);
         if (digit < 0)
             return true;
         if (index < 8)
@@ -36,7 +27,8 @@ bool wm_storage_manageable_channel(const char *id, bool has_icon) {
     }
     if (high < 0x10000u || high > 0x10007u || !(0xd3u & (1u << (high - 0x10000u))))
         return false;
-    unsigned first = ((unsigned)hex_digit(id[8]) << 4) | (unsigned)hex_digit(id[9]);
+    unsigned first =
+        ((unsigned)wm_hex_digit(id[8]) << 4) | (unsigned)wm_hex_digit(id[9]);
     return (first >= 0x41u && first <= 0x5au) || (first >= 0x30u && first <= 0x39u) ||
            first < 0x20u || first > 0x7eu;
 }
@@ -45,7 +37,7 @@ static bool native_title_id(const char *id) {
     if (strlen(id) != 16)
         return false;
     for (size_t index = 0; index < 16; index++) {
-        if (hex_digit(id[index]) < 0)
+        if (wm_hex_digit(id[index]) < 0)
             return false;
     }
     return true;
@@ -60,7 +52,8 @@ static int channel_record_order(const WmStorageRecord *first,
     if (!first_native)
         return 0;
     for (size_t index = 0; index < 16; index++) {
-        int difference = hex_digit(first->id[index]) - hex_digit(second->id[index]);
+        int difference =
+            wm_hex_digit(first->id[index]) - wm_hex_digit(second->id[index]);
         if (difference)
             return difference;
     }

@@ -7,6 +7,7 @@
 #include "wii_menu/resources/resource_ash.h"
 #include "wii_menu/resources/resource_tpl.h"
 #include "wii_menu/resources/resource_u8.h"
+#include "wii_menu/support/regular_file.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +15,7 @@
 
 enum { SETTINGS_EXPORT_PATH_CAPACITY = 4096 };
 enum { SETTINGS_MAX_IMAGE_SOURCE = 16 * 1024 * 1024 };
+enum { SETTINGS_MAX_SOURCE_BYTES = 128 * 1024 * 1024 };
 
 typedef struct SettingsArtwork {
     const char *source;
@@ -76,32 +78,6 @@ static const SettingsArtwork artwork[] = {
     {"FIX/COMMON/BTN/DPD_Rank05.gif", "sensitivity-rank-5"},
     {"FIX/COMMON/List_Icon/Icon_Index_Page_off.gif", "page-off"},
     {"FIX/COMMON/List_Icon/Icon_Index_Page_on.gif", "page-on"}};
-
-static uint8_t *read_file(const char *path, size_t *size) {
-    FILE *file = fopen(path, "rb");
-    if (!file || fseek(file, 0, SEEK_END) != 0) {
-        if (file)
-            fclose(file);
-        return NULL;
-    }
-    long length = ftell(file);
-    if (length < 0 || fseek(file, 0, SEEK_SET) != 0) {
-        fclose(file);
-        return NULL;
-    }
-    uint8_t *bytes = malloc(length ? (size_t)length : 1);
-    if (!bytes || fread(bytes, 1, (size_t)length, file) != (size_t)length) {
-        free(bytes);
-        fclose(file);
-        return NULL;
-    }
-    if (fclose(file) != 0) {
-        free(bytes);
-        return NULL;
-    }
-    *size = (size_t)length;
-    return bytes;
-}
 
 static bool output_path(char *path, size_t capacity, const char *directory,
                         const char *name) {
@@ -300,7 +276,9 @@ int main(int argc, char **argv) {
         return 2;
     }
     size_t input_size = 0;
-    uint8_t *input = read_file(argv[1], &input_size);
+    uint8_t *input = NULL;
+    wm_regular_file_read_bytes(argv[1], 0, SETTINGS_MAX_SOURCE_BYTES, &input,
+                               &input_size);
     WmU8Archive outer = {0};
     char error[160] = {0};
     bool valid = input && wm_u8_parse(input, input_size, &outer, error, sizeof(error));

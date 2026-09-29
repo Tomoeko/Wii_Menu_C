@@ -5,7 +5,7 @@
 #include "wii_menu/support/json.h"
 
 #include "../support/atomic_file.h"
-#include "../support/regular_file.h"
+#include "wii_menu/support/regular_file.h"
 
 #include <stdint.h>
 #include <stdio.h>

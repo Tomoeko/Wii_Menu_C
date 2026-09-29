@@ -1,9 +1,9 @@
 #include "wii_menu/fonts/outline_font.h"
+#include "wii_menu/support/regular_file.h"
 #include "cff_font.h"
 #include "outline_vector.h"
 
 #include <math.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -255,21 +255,13 @@ WmOutlineFont *wm_outline_font_decode(const uint8_t *bytes, size_t size,
 WmOutlineFont *wm_outline_font_load(const char *path, unsigned face_index) {
     if (!path)
         return NULL;
-    FILE *file = fopen(path, "rb");
-    if (!file)
+    uint8_t *bytes = NULL;
+    size_t length = 0;
+    if (wm_regular_file_read_bytes(path, 1, OUTLINE_MAX_FILE, &bytes, &length) !=
+        WM_REGULAR_FILE_OK)
         return NULL;
-    WmOutlineFont *font = NULL;
-    if (fseek(file, 0, SEEK_END) == 0) {
-        long length = ftell(file);
-        if (length > 0 && length <= OUTLINE_MAX_FILE && fseek(file, 0, SEEK_SET) == 0) {
-            uint8_t *bytes = malloc((size_t)length);
-            if (bytes && fread(bytes, 1, (size_t)length, file) == (size_t)length &&
-                fgetc(file) == EOF)
-                font = wm_outline_font_decode(bytes, (size_t)length, face_index);
-            free(bytes);
-        }
-    }
-    fclose(file);
+    WmOutlineFont *font = wm_outline_font_decode(bytes, length, face_index);
+    free(bytes);
     return font;
 }
 

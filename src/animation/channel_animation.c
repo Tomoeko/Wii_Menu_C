@@ -1,5 +1,6 @@
 #include "wii_menu/animation/channel_animation.h"
 #include "wii_menu/menu/local_catalog.h"
+#include "wii_menu/support/hex.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -18,26 +19,16 @@ typedef struct ClipTiming {
     bool loop;
 } ClipTiming;
 
-static int hex_digit(char value) {
-    if (value >= '0' && value <= '9')
-        return value - '0';
-    if (value >= 'a' && value <= 'f')
-        return value - 'a' + 10;
-    if (value >= 'A' && value <= 'F')
-        return value - 'A' + 10;
-    return -1;
-}
-
 static bool short_id_from_title(const char *title_id, char short_id[5]) {
     if (!title_id || strlen(title_id) != 16)
         return false;
     for (size_t index = 0; index < 16; index++) {
-        if (hex_digit(title_id[index]) < 0)
+        if (wm_hex_digit(title_id[index]) < 0)
             return false;
     }
     for (size_t index = 0; index < 4; index++) {
-        int high = hex_digit(title_id[8 + index * 2]);
-        int low = hex_digit(title_id[9 + index * 2]);
+        int high = wm_hex_digit(title_id[8 + index * 2]);
+        int low = wm_hex_digit(title_id[9 + index * 2]);
         short_id[index] = (char)((high << 4) | low);
     }
     short_id[4] = '\0';

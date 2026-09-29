@@ -5,6 +5,7 @@
 
 #include "wii_menu/board/keyboard_dictionary.h"
 #include "wii_menu/resources/resource_u8.h"
+#include "wii_menu/support/regular_file.h"
 
 #include <dirent.h>
 #include <stdbool.h>
@@ -34,35 +35,6 @@ static bool join(char output[EXPORT_PATH_CAPACITY], const char *left,
                  const char *right) {
     int length = snprintf(output, EXPORT_PATH_CAPACITY, "%s/%s", left, right);
     return length > 0 && length < EXPORT_PATH_CAPACITY;
-}
-
-static uint8_t *read_file(const char *path, size_t *size) {
-    FILE *file = fopen(path, "rb");
-    if (!file)
-        return NULL;
-    if (fseek(file, 0, SEEK_END) != 0) {
-        fclose(file);
-        return NULL;
-    }
-    long length = ftell(file);
-    if (length < 4 || length > EXPORT_MAX_APP_BYTES || fseek(file, 0, SEEK_SET) != 0) {
-        fclose(file);
-        return NULL;
-    }
-    uint8_t *bytes = malloc((size_t)length);
-    if (!bytes) {
-        fclose(file);
-        return NULL;
-    }
-    bool okay = fread(bytes, 1, (size_t)length, file) == (size_t)length;
-    if (fclose(file) != 0)
-        okay = false;
-    if (!okay) {
-        free(bytes);
-        return NULL;
-    }
-    *size = (size_t)length;
-    return bytes;
 }
 
 static bool write_file(const char *path, const uint8_t *data, size_t size) {
@@ -154,8 +126,9 @@ int main(int argc, char **argv) {
             okay = false;
             break;
         }
-        uint8_t *app = read_file(path, &size);
-        if (!app) {
+        uint8_t *app = NULL;
+        if (wm_regular_file_read_bytes(path, 4, EXPORT_MAX_APP_BYTES, &app, &size) !=
+            WM_REGULAR_FILE_OK) {
             fprintf(stderr, "Could not read %s.\n", item->d_name);
             okay = false;
             break;

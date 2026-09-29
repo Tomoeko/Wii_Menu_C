@@ -1,6 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include "regular_file.h"
+#include "wii_menu/support/regular_file.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -10,12 +10,14 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-WmRegularFileStatus wm_regular_file_read(const char *path, size_t limit,
-                                         char **contents, size_t *length) {
-    if (!path || !contents || !length)
+static WmRegularFileStatus read_range(const char *path, size_t minimum, size_t limit,
+                                      char **contents, size_t *length) {
+    if (!contents || !length)
         return WM_REGULAR_FILE_ERROR;
     *contents = NULL;
     *length = 0;
+    if (!path || minimum > limit)
+        return WM_REGULAR_FILE_ERROR;
 
     struct stat named;
     if (lstat(path, &named) != 0) {
@@ -39,7 +41,8 @@ WmRegularFileStatus wm_regular_file_read(const char *path, size_t limit,
     struct stat opened;
     bool valid = fstat(descriptor, &opened) == 0 && S_ISREG(opened.st_mode) &&
                  opened.st_dev == named.st_dev && opened.st_ino == named.st_ino &&
-                 opened.st_size > 0 && (uint64_t)opened.st_size <= limit &&
+                 opened.st_size >= 0 && (uint64_t)opened.st_size >= minimum &&
+                 (uint64_t)opened.st_size <= limit &&
                  (uint64_t)opened.st_size < SIZE_MAX;
     if (!valid) {
         close(descriptor);
@@ -77,4 +80,22 @@ WmRegularFileStatus wm_regular_file_read(const char *path, size_t limit,
     *contents = bytes;
     *length = size;
     return WM_REGULAR_FILE_OK;
+}
+
+WmRegularFileStatus wm_regular_file_read(const char *path, size_t limit,
+                                         char **contents, size_t *length) {
+    return read_range(path, 1, limit, contents, length);
+}
+
+WmRegularFileStatus wm_regular_file_read_bytes(const char *path, size_t minimum,
+                                               size_t limit, uint8_t **contents,
+                                               size_t *length) {
+    if (!contents)
+        return WM_REGULAR_FILE_ERROR;
+    *contents = NULL;
+    char *bytes = NULL;
+    WmRegularFileStatus status = read_range(path, minimum, limit, &bytes, length);
+    if (status == WM_REGULAR_FILE_OK)
+        *contents = (uint8_t *)bytes;
+    return status;
 }

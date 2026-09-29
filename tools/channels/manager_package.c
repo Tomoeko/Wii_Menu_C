@@ -12,7 +12,7 @@
 #include "wii_menu/render/image.h"
 #include "wii_menu/support/json.h"
 
-#include "../../src/support/regular_file.h"
+#include "wii_menu/support/regular_file.h"
 
 #include <errno.h>
 #include <fcntl.h>

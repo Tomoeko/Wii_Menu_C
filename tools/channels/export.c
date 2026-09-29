@@ -3,6 +3,7 @@
 #include "export_internal.h"
 #include "atomic_file.h"
 #include "../wad/crypto.h"
+#include "wii_menu/support/regular_file.h"
 
 #include <dirent.h>
 #include <ctype.h>
@@ -109,30 +110,9 @@ bool wm_output_target_safe(const char *path) {
 }
 
 static uint8_t *wm_read_file(const char *path, size_t maximum, size_t *size) {
-    *size = 0;
-    if (!wm_regular_file(path))
+    uint8_t *data = NULL;
+    if (wm_regular_file_read_bytes(path, 0, maximum, &data, size) != WM_REGULAR_FILE_OK)
         return NULL;
-    FILE *stream = fopen(path, "rb");
-    if (!stream)
-        return NULL;
-    if (fseek(stream, 0, SEEK_END) != 0) {
-        fclose(stream);
-        return NULL;
-    }
-    long length = ftell(stream);
-    if (length < 0 || (uint64_t)length > maximum || fseek(stream, 0, SEEK_SET) != 0) {
-        fclose(stream);
-        return NULL;
-    }
-    uint8_t *data = malloc(length != 0 ? (size_t)length : 1);
-    if (!data || fread(data, 1, (size_t)length, stream) != (size_t)length ||
-        fgetc(stream) != EOF) {
-        free(data);
-        fclose(stream);
-        return NULL;
-    }
-    fclose(stream);
-    *size = (size_t)length;
     return data;
 }
 

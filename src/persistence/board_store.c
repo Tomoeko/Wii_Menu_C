@@ -6,7 +6,7 @@
 #include "wii_menu/support/utf8.h"
 
 #include "../support/atomic_file.h"
-#include "../support/regular_file.h"
+#include "wii_menu/support/regular_file.h"
 
 #include <inttypes.h>
 #include <math.h>

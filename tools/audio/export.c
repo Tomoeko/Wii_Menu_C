@@ -4,6 +4,7 @@
 #include "wii_menu/audio/audio_sequence.h"
 #include "wii_menu/resources/resource_rsar.h"
 #include "wii_menu/resources/resource_u8.h"
+#include "wii_menu/support/regular_file.h"
 
 #include "atomic_file.h"
 #include "export_directory.h"
@@ -59,29 +60,6 @@ static bool combine_path(char path[4096], const char *root, const char *middle,
                          const char *name) {
     int length = snprintf(path, 4096, "%s/%s%s", root, middle, name);
     return length > 0 && length < 4096;
-}
-
-static uint8_t *read_file(const char *path, size_t *size) {
-    FILE *file = fopen(path, "rb");
-    if (!file || fseek(file, 0, SEEK_END) != 0) {
-        if (file)
-            fclose(file);
-        return NULL;
-    }
-    long length = ftell(file);
-    if (length < 64 || length > 128 * 1024 * 1024 || fseek(file, 0, SEEK_SET) != 0) {
-        fclose(file);
-        return NULL;
-    }
-    uint8_t *data = malloc((size_t)length);
-    if (!data || fread(data, 1, (size_t)length, file) != (size_t)length) {
-        free(data);
-        fclose(file);
-        return NULL;
-    }
-    fclose(file);
-    *size = (size_t)length;
-    return data;
 }
 
 static int usage(const char *program) {
@@ -344,15 +322,17 @@ static bool export_speaker_samples(const WmU8Archive *container, const char *out
 int main(int argc, char **argv) {
     if (argc != 4)
         return usage(argv[0]);
-    size_t source_size;
-    uint8_t *source = read_file(argv[1], &source_size);
-    if (!source) {
+    size_t source_size = 0;
+    uint8_t *source = NULL;
+    if (wm_regular_file_read_bytes(argv[1], 64, 128 * 1024 * 1024, &source,
+                                   &source_size) != WM_REGULAR_FILE_OK) {
         fprintf(stderr, "Could not read bounded WAD resource content.\n");
         return 1;
     }
-    size_t executable_size;
-    uint8_t *executable = read_file(argv[2], &executable_size);
-    if (!executable) {
+    size_t executable_size = 0;
+    uint8_t *executable = NULL;
+    if (wm_regular_file_read_bytes(argv[2], 64, 128 * 1024 * 1024, &executable,
+                                   &executable_size) != WM_REGULAR_FILE_OK) {
         fprintf(stderr, "Could not read bounded System Menu executable.\n");
         free(source);
         return 1;

@@ -1,4 +1,5 @@
 #include "wii_menu/audio/audio_wave.h"
+#include "wii_menu/support/regular_file.h"
 
 #include "../support/atomic_file.h"
 
@@ -114,30 +115,17 @@ bool wm_audio_wav_read(const char *path, WmAudioPcm *audio, char *error,
     if (!path || !audio)
         return false;
     *audio = (WmAudioPcm){0};
-    FILE *file = fopen(path, "rb");
-    if (!file) {
-        set_error(error, error_capacity, "Could not open WAV input.");
+    size_t size = 0;
+    uint8_t *bytes = NULL;
+    WmRegularFileStatus status =
+        wm_regular_file_read_bytes(path, 44, WM_WAV_MAX_BYTES, &bytes, &size);
+    if (status != WM_REGULAR_FILE_OK) {
+        if (status == WM_REGULAR_FILE_MISSING)
+            set_error(error, error_capacity, "Could not open WAV input.");
         return false;
     }
-    if (fseek(file, 0, SEEK_END) != 0) {
-        fclose(file);
-        return false;
-    }
-    long length = ftell(file);
-    if (length < 44 || (unsigned long)length > WM_WAV_MAX_BYTES ||
-        fseek(file, 0, SEEK_SET) != 0) {
-        fclose(file);
-        return false;
-    }
-    size_t size = (size_t)length;
-    uint8_t *bytes = malloc(size);
-    if (!bytes) {
-        fclose(file);
-        return false;
-    }
-    bool valid = fread(bytes, 1, size, file) == size;
-    fclose(file);
-    if (!valid || memcmp(bytes, "RIFF", 4) != 0 || memcmp(bytes + 8, "WAVE", 4) != 0 ||
+    bool valid = true;
+    if (memcmp(bytes, "RIFF", 4) != 0 || memcmp(bytes + 8, "WAVE", 4) != 0 ||
         le32(bytes + 4) > size - 8 || le32(bytes + 4) < 36) {
         free(bytes);
         set_error(error, error_capacity, "Invalid RIFF/WAVE header.");

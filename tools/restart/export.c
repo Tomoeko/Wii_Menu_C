@@ -5,6 +5,7 @@
 #include "wii_menu/resources/resource_layout.h"
 #include "wii_menu/resources/resource_tpl.h"
 #include "wii_menu/resources/resource_u8.h"
+#include "wii_menu/support/regular_file.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -30,29 +31,6 @@ static char *copy_string(const char *value) {
     if (copy)
         memcpy(copy, value, length);
     return copy;
-}
-
-static uint8_t *read_file(const char *path, size_t *size) {
-    FILE *file = fopen(path, "rb");
-    if (!file || fseek(file, 0, SEEK_END) != 0) {
-        if (file)
-            fclose(file);
-        return NULL;
-    }
-    long length = ftell(file);
-    if (length < 0 || length > MAX_EXECUTABLE_SIZE || fseek(file, 0, SEEK_SET) != 0) {
-        fclose(file);
-        return NULL;
-    }
-    uint8_t *data = malloc((size_t)length ? (size_t)length : 1);
-    if (!data || fread(data, 1, (size_t)length, file) != (size_t)length) {
-        free(data);
-        fclose(file);
-        return NULL;
-    }
-    fclose(file);
-    *size = (size_t)length;
-    return data;
 }
 
 static bool archive_extent(const uint8_t *data, size_t available, size_t *extent) {
@@ -192,8 +170,9 @@ int main(int argc, char **argv) {
         return 2;
     }
     size_t size = 0;
-    uint8_t *data = read_file(argv[1], &size);
-    if (!data) {
+    uint8_t *data = NULL;
+    if (wm_regular_file_read_bytes(argv[1], 0, MAX_EXECUTABLE_SIZE, &data, &size) !=
+        WM_REGULAR_FILE_OK) {
         fprintf(stderr, "Could not read System Menu executable content.\n");
         return 1;
     }
