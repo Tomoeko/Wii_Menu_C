@@ -1036,6 +1036,77 @@ static float advance_calendar_child(WmBoardScene *board, float frames) {
     return remaining;
 }
 
+static void advance_drag_audio(WmBoardScene *board, float frames) {
+    if (!board->dragging || board->dragged_index >= board->model.memo_count)
+        return;
+    float delta_x = board->drag_delta_x - board->drag_last_x;
+    float delta_y = board->drag_delta_y - board->drag_last_y;
+    float speed = hypotf(delta_x, delta_y) / frames;
+    board->drag_last_x = board->drag_delta_x;
+    board->drag_last_y = board->drag_delta_y;
+    board->drag_gain = fminf(1.0f, 2.0f * speed / 304.0f);
+    board->drag_pan = clamp_pan(
+        (board->model.memos[board->dragged_index].x + board->drag_delta_x) / 304.0f);
+    /* holdSEwithPosDis changes pitch only above 30 units per update.
+     * Slower motion keeps the held voice's previous pitch. */
+    if (speed > 30.0f)
+        board->drag_pitch = speed / 30.0f;
+}
+
+static void advance_board_mask(WmBoardScene *board, float frames) {
+    if (board->mask_direction != 0) {
+        board->mask_age += frames;
+        if (board->mask_direction < 0 && board->mask_age >= 20.0f)
+            board->mask_direction = 0;
+    }
+}
+
+static bool advance_erase_child(WmBoardScene *board, float frames) {
+    if (wm_board_erase_phase(board->erase) == WM_ERASE_CLOSED)
+        return false;
+    wm_board_erase_advance(board->erase, frames);
+    WmBoardEraseOutcome outcome = wm_board_erase_take_outcome(board->erase);
+    if (outcome != WM_ERASE_OUTCOME_NONE) {
+        /* The dialog replaces the reader's hover state. Its completed
+         * action returns to neutral footer and card poses. */
+        memset(board->button_focus, 0, sizeof(board->button_focus));
+        memset(board->card_focus, 0, sizeof(board->card_focus));
+    }
+    if (outcome == WM_ERASE_OUTCOME_ACCEPT) {
+        board->phase = WM_BOARD_MEMO_ERASE_CLOSE;
+        board->phase_frame = 0.0f;
+        /* The native Board dump cue starts with the accepted Trash
+         * selection, before the memo's erase-close animation. Keep it on
+         * the scene cue queue so the platform layer owns playback. */
+        board->pending_reader_cue = "WIPL_SE_BOARD_DUMP";
+        wm_board_reader_scroll_set_active(&board->reader_scroll, false);
+    } else if (outcome == WM_ERASE_OUTCOME_CANCEL) {
+        board->phase = WM_BOARD_MEMO_TRASH_CANCEL;
+        board->phase_frame = 0.0f;
+    }
+    return true;
+}
+
+static void advance_board_focus(WmBoardScene *board, float frames) {
+    for (size_t index = 0;
+         index < sizeof(board->button_focus) / sizeof(board->button_focus[0]);
+         index++) {
+        if (board->button_focus[index].active)
+            board->button_focus[index].frame += frames;
+    }
+    for (size_t index = 0; index < BOARD_MEMOS_PER_PAGE; index++) {
+        if (board->card_focus[index].active)
+            board->card_focus[index].frame += frames;
+    }
+    for (size_t index = 0; index < 2; index++) {
+        if (board->arrow_press[index] >= 0.0f) {
+            board->arrow_press[index] += frames;
+            if (board->arrow_press[index] > 30.0f)
+                board->arrow_press[index] = -1.0f;
+        }
+    }
+}
+
 void wm_board_scene_advance(WmBoardScene *board, float frames) {
     if (!board || board->phase == WM_BOARD_CLOSED || !isfinite(frames) ||
         frames <= 0.0f)
@@ -1044,76 +1115,17 @@ void wm_board_scene_advance(WmBoardScene *board, float frames) {
     board->pin_age += frames;
     advance_card_arrivals(board, frames);
     wm_board_reader_scroll_advance(&board->reader_scroll, frames);
-    if (board->dragging && board->dragged_index < board->model.memo_count) {
-        float delta_x = board->drag_delta_x - board->drag_last_x;
-        float delta_y = board->drag_delta_y - board->drag_last_y;
-        float speed = hypotf(delta_x, delta_y) / frames;
-        board->drag_last_x = board->drag_delta_x;
-        board->drag_last_y = board->drag_delta_y;
-        board->drag_gain = fminf(1.0f, 2.0f * speed / 304.0f);
-        board->drag_pan = clamp_pan(
-            (board->model.memos[board->dragged_index].x + board->drag_delta_x) /
-            304.0f);
-        /* holdSEwithPosDis changes pitch only above 30 units per update.
-         * Slower motion keeps the held voice's previous pitch. */
-        if (speed > 30.0f)
-            board->drag_pitch = speed / 30.0f;
-    }
-    if (board->mask_direction != 0) {
-        board->mask_age += frames;
-        if (board->mask_direction < 0 && board->mask_age >= 20.0f) {
-            board->mask_direction = 0;
-        }
-    }
+    advance_drag_audio(board, frames);
+    advance_board_mask(board, frames);
     float phase_frames = frames;
     if (wm_board_calendar_phase(board->calendar) != WM_CALENDAR_CLOSED)
         phase_frames = advance_calendar_child(board, frames);
     if (wm_board_compose_phase(board->compose) != WM_COMPOSE_CLOSED) {
         advance_compose_child(board, frames);
     }
-    if (wm_board_erase_phase(board->erase) != WM_ERASE_CLOSED) {
-        wm_board_erase_advance(board->erase, frames);
-        WmBoardEraseOutcome outcome = wm_board_erase_take_outcome(board->erase);
-        if (outcome != WM_ERASE_OUTCOME_NONE) {
-            /* The dialog replaces the reader's hover state. Its completed
-             * action returns to neutral footer and card poses. */
-            memset(board->button_focus, 0, sizeof(board->button_focus));
-            memset(board->card_focus, 0, sizeof(board->card_focus));
-        }
-        if (outcome == WM_ERASE_OUTCOME_ACCEPT) {
-            board->phase = WM_BOARD_MEMO_ERASE_CLOSE;
-            board->phase_frame = 0.0f;
-            /* The native Board dump cue starts with the accepted Trash
-             * selection, before the memo's erase-close animation. Keep it on
-             * the scene cue queue so the platform layer owns playback. */
-            board->pending_reader_cue = "WIPL_SE_BOARD_DUMP";
-            wm_board_reader_scroll_set_active(&board->reader_scroll, false);
-        } else if (outcome == WM_ERASE_OUTCOME_CANCEL) {
-            board->phase = WM_BOARD_MEMO_TRASH_CANCEL;
-            board->phase_frame = 0.0f;
-        }
+    if (advance_erase_child(board, frames))
         return;
-    }
-    for (size_t index = 0;
-         index < sizeof(board->button_focus) / sizeof(board->button_focus[0]);
-         index++) {
-        if (board->button_focus[index].active) {
-            board->button_focus[index].frame += frames;
-        }
-    }
-    for (size_t index = 0; index < BOARD_MEMOS_PER_PAGE; index++) {
-        if (board->card_focus[index].active) {
-            board->card_focus[index].frame += frames;
-        }
-    }
-    for (size_t index = 0; index < 2; index++) {
-        if (board->arrow_press[index] >= 0.0f) {
-            board->arrow_press[index] += frames;
-            if (board->arrow_press[index] > 30.0f) {
-                board->arrow_press[index] = -1.0f;
-            }
-        }
-    }
+    advance_board_focus(board, frames);
     float remaining = phase_frames;
     while (remaining > 0.0f) {
         float duration = 0.0f;
