@@ -111,7 +111,32 @@ static int usage(const char *program, int result) {
     return result;
 }
 
-int main(int argc, char **argv) {
+typedef struct {
+    const char *wad;
+    const char *common_key;
+    const char *common_key_index;
+    const char *nand;
+    const char *nand_keys;
+    const char *output_request;
+    const char *update_from;
+    const char *language;
+    const char *expected_plan;
+    bool replace_all;
+    bool plan;
+    bool recover;
+    PrepareChoices replace_ids;
+    PrepareChoices keep_ids;
+} PrepareOptions;
+
+typedef enum {
+    PREPARE_PARSE_READY,
+    PREPARE_PARSE_HELP,
+    PREPARE_PARSE_INVALID,
+    PREPARE_PARSE_CONFLICT
+} PrepareParseResult;
+
+static PrepareParseResult parse_options(int argc, char **argv,
+                                        PrepareOptions *options) {
     const char *wad = NULL, *common_key = NULL, *nand = NULL;
     const char *common_key_index = NULL;
     const char *nand_keys = NULL, *output_request = NULL;
@@ -124,80 +149,80 @@ int main(int argc, char **argv) {
     for (int index = 1; index < argc; index++) {
         const char *option = argv[index];
         if (strcmp(option, "--help") == 0)
-            return usage(argv[0], 0);
+            return PREPARE_PARSE_HELP;
         if (strcmp(option, "--plan") == 0) {
             if (plan)
-                return usage(argv[0], 2);
+                return PREPARE_PARSE_INVALID;
             plan = true;
             continue;
         }
         if (strcmp(option, "--recover") == 0) {
             if (recover)
-                return usage(argv[0], 2);
+                return PREPARE_PARSE_INVALID;
             recover = true;
             continue;
         }
         if (index + 1 >= argc)
-            return usage(argv[0], 2);
+            return PREPARE_PARSE_INVALID;
         const char *value = argv[++index];
         if (strcmp(option, "--wad") == 0) {
             if (wad)
-                return usage(argv[0], 2);
+                return PREPARE_PARSE_INVALID;
             wad = value;
         } else if (strcmp(option, "--common-key-file") == 0) {
             if (common_key)
-                return usage(argv[0], 2);
+                return PREPARE_PARSE_INVALID;
             common_key = value;
         } else if (strcmp(option, "--common-key-index") == 0) {
             if (common_key_index)
-                return usage(argv[0], 2);
+                return PREPARE_PARSE_INVALID;
             char *end = NULL;
             unsigned long parsed = strtoul(value, &end, 10);
             if (end == value || *end != '\0' || parsed > 255)
-                return usage(argv[0], 2);
+                return PREPARE_PARSE_INVALID;
             common_key_index = value;
         } else if (strcmp(option, "--nand") == 0) {
             if (nand)
-                return usage(argv[0], 2);
+                return PREPARE_PARSE_INVALID;
             nand = value;
         } else if (strcmp(option, "--nand-keys") == 0) {
             if (nand_keys)
-                return usage(argv[0], 2);
+                return PREPARE_PARSE_INVALID;
             nand_keys = value;
         } else if (strcmp(option, "--output") == 0) {
             if (output_request)
-                return usage(argv[0], 2);
+                return PREPARE_PARSE_INVALID;
             output_request = value;
         } else if (strcmp(option, "--language") == 0) {
             if (language)
-                return usage(argv[0], 2);
+                return PREPARE_PARSE_INVALID;
             language = value;
         } else if (strcmp(option, "--update-from") == 0) {
             if (update_from)
-                return usage(argv[0], 2);
+                return PREPARE_PARSE_INVALID;
             update_from = value;
         } else if (strcmp(option, "--expect-plan") == 0) {
             if (expected_plan)
-                return usage(argv[0], 2);
+                return PREPARE_PARSE_INVALID;
             expected_plan = value;
         } else if (strcmp(option, "--nand-policy") == 0) {
             if (policy_set)
-                return usage(argv[0], 2);
+                return PREPARE_PARSE_INVALID;
             policy_set = true;
             if (strcmp(value, "keep") == 0)
                 replace_all = false;
             else if (strcmp(value, "replace") == 0)
                 replace_all = true;
             else
-                return usage(argv[0], 2);
+                return PREPARE_PARSE_INVALID;
         } else if (strcmp(option, "--replace-channel") == 0) {
             if (!prepare_add_choice(&replace_ids, value))
-                return usage(argv[0], 2);
+                return PREPARE_PARSE_INVALID;
         } else if (strcmp(option, "--keep-channel") == 0) {
             if (!prepare_add_choice(&keep_ids, value))
-                return usage(argv[0], 2);
+                return PREPARE_PARSE_INVALID;
         } else
-            return usage(argv[0], 2);
+            return PREPARE_PARSE_INVALID;
     }
     bool invalid_recovery =
         recover &&
@@ -212,23 +237,65 @@ int main(int argc, char **argv) {
          (update_from ? (!nand || wad || common_key || common_key_index)
                       : (!wad || replace_ids.count || keep_ids.count || policy_set)));
     if (invalid_recovery || invalid_preparation) {
-        return usage(argv[0], 2);
+        return PREPARE_PARSE_INVALID;
     }
     if (language) {
         if (strlen(language) != 3)
-            return usage(argv[0], 2);
+            return PREPARE_PARSE_INVALID;
         for (size_t index = 0; index < 3; index++) {
             char character = language[index];
             if (character < 'A' || character > 'Z')
-                return usage(argv[0], 2);
+                return PREPARE_PARSE_INVALID;
         }
     }
     for (size_t index = 0; index < keep_ids.count; index++) {
         if (prepare_choice_contains(&replace_ids, keep_ids.ids[index])) {
             fputs("A title cannot be both kept and replaced.\n", stderr);
-            return 2;
+            return PREPARE_PARSE_CONFLICT;
         }
     }
+
+    options->wad = wad;
+    options->common_key = common_key;
+    options->common_key_index = common_key_index;
+    options->nand = nand;
+    options->nand_keys = nand_keys;
+    options->output_request = output_request;
+    options->update_from = update_from;
+    options->language = language;
+    options->expected_plan = expected_plan;
+    options->replace_all = replace_all;
+    options->plan = plan;
+    options->recover = recover;
+    options->replace_ids = replace_ids;
+    options->keep_ids = keep_ids;
+    return PREPARE_PARSE_READY;
+}
+
+int main(int argc, char **argv) {
+    PrepareOptions options;
+    PrepareParseResult parse_result = parse_options(argc, argv, &options);
+    if (parse_result == PREPARE_PARSE_HELP)
+        return usage(argv[0], 0);
+    if (parse_result == PREPARE_PARSE_INVALID)
+        return usage(argv[0], 2);
+    if (parse_result == PREPARE_PARSE_CONFLICT)
+        return 2;
+
+    const char *wad = options.wad;
+    const char *common_key = options.common_key;
+    const char *common_key_index = options.common_key_index;
+    const char *nand = options.nand;
+    const char *nand_keys = options.nand_keys;
+    const char *output_request = options.output_request;
+    const char *update_from = options.update_from;
+    const char *language = options.language;
+    const char *expected_plan = options.expected_plan;
+    bool replace_all = options.replace_all;
+    bool plan = options.plan;
+    bool recover = options.recover;
+    PrepareChoices replace_ids = options.replace_ids;
+    PrepareChoices keep_ids = options.keep_ids;
 
     char *wad_path = wad ? realpath(wad, NULL) : NULL;
     char *common_key_path = common_key ? realpath(common_key, NULL) : NULL;
@@ -236,6 +303,7 @@ int main(int argc, char **argv) {
     char *nand_keys_path = nand_keys ? realpath(nand_keys, NULL) : NULL;
     char *base_path = update_from ? realpath(update_from, NULL) : NULL;
     char *self = realpath(argv[0], NULL);
+    int result = 1;
     struct stat base_metadata;
     if ((wad && !wad_path) || (common_key && !common_key_path) ||
         (nand && !nand_path) || (nand_keys && !nand_keys_path) ||
@@ -244,24 +312,11 @@ int main(int argc, char **argv) {
                          !S_ISDIR(base_metadata.st_mode))) ||
         !self) {
         fputs("A specified input or this executable could not be resolved.\n", stderr);
-        free(wad_path);
-        free(common_key_path);
-        free(nand_path);
-        free(nand_keys_path);
-        free(base_path);
-        free(self);
-        return 1;
+        goto release_paths;
     }
     char *binary_separator = strrchr(self, '/');
-    if (!binary_separator) {
-        free(wad_path);
-        free(common_key_path);
-        free(nand_path);
-        free(nand_keys_path);
-        free(base_path);
-        free(self);
-        return 1;
-    }
+    if (!binary_separator)
+        goto release_paths;
     *binary_separator = '\0';
     char output[PREPARE_PATH_CAPACITY];
     char parent[PREPARE_PATH_CAPACITY];
@@ -290,13 +345,7 @@ int main(int argc, char **argv) {
     }
     if (!output_valid) {
         fputs("Output path is invalid or already exists.\n", stderr);
-        free(wad_path);
-        free(common_key_path);
-        free(nand_path);
-        free(nand_keys_path);
-        free(base_path);
-        free(self);
-        return 1;
+        goto release_paths;
     }
 
     char identity[41];
@@ -311,37 +360,20 @@ int main(int argc, char **argv) {
                   "no source or published output was changed.\n",
                   stderr);
         }
-        free(wad_path);
-        free(common_key_path);
-        free(nand_path);
-        free(nand_keys_path);
-        free(base_path);
-        free(self);
-        return cleaned ? 0 : 1;
+        result = cleaned ? 0 : 1;
+        goto release_paths;
     }
 
     PrepareManifest existing_manifest;
     if (base_path) {
         if (!prepare_open_manifest(base_path, &existing_manifest)) {
             fputs("The existing channel catalog is invalid.\n", stderr);
-            free(wad_path);
-            free(common_key_path);
-            free(nand_path);
-            free(nand_keys_path);
-            free(base_path);
-            free(self);
-            return 1;
+            goto release_paths;
         }
         if (language && strcmp(language, existing_manifest.language) != 0) {
             fputs("Update language must match the existing catalog.\n", stderr);
             prepare_close_manifest(&existing_manifest);
-            free(wad_path);
-            free(common_key_path);
-            free(nand_path);
-            free(nand_keys_path);
-            free(base_path);
-            free(self);
-            return 1;
+            goto release_paths;
         }
         language = existing_manifest.language;
     } else if (!language) {
@@ -360,13 +392,7 @@ int main(int argc, char **argv) {
             close(lock);
         if (base_path)
             prepare_close_manifest(&existing_manifest);
-        free(wad_path);
-        free(common_key_path);
-        free(nand_path);
-        free(nand_keys_path);
-        free(base_path);
-        free(self);
-        return 1;
+        goto release_paths;
     }
 
     char temporary[PREPARE_PATH_CAPACITY];
@@ -375,13 +401,7 @@ int main(int argc, char **argv) {
         close(lock);
         if (base_path)
             prepare_close_manifest(&existing_manifest);
-        free(wad_path);
-        free(common_key_path);
-        free(nand_path);
-        free(nand_keys_path);
-        free(base_path);
-        free(self);
-        return 1;
+        goto release_paths;
     }
     char assets[PREPARE_PATH_CAPACITY], nand_output[PREPARE_PATH_CAPACITY];
     char resource10[PREPARE_PATH_CAPACITY];
@@ -513,11 +533,14 @@ int main(int argc, char **argv) {
     close(lock);
     if (base_path)
         prepare_close_manifest(&existing_manifest);
+    result = okay && cleaned ? 0 : 1;
+
+release_paths:
     free(wad_path);
     free(common_key_path);
     free(nand_path);
     free(nand_keys_path);
     free(base_path);
     free(self);
-    return okay && cleaned ? 0 : 1;
+    return result;
 }
