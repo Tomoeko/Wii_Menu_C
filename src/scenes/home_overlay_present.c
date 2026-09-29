@@ -53,22 +53,15 @@ static const char *control_pane_name(WmHomeControl control) {
     }
 }
 
-static void pose_home_layout(WmHomeOverlay *home) {
-    if (!home || !home->layout || !home->pose_dirty)
-        return;
-    WmLayoutClip clips[HOME_CLIP_CAPACITY];
-    size_t count = 0;
-    add_clip(home, clips, &count, ANIM_HMMENU_STRT,
-             home->phase == WM_HOME_ENTER ? home->frame : 21.0f, NULL);
-
+static void add_remote_clips(WmHomeOverlay *home, WmLayoutClip clips[], size_t *count) {
     static const char *const player_groups[4] = {"plyr_00", "plyr_01", "plyr_02",
                                                  "plyr_03"};
     for (size_t player = 0; player < 4; player++) {
         const WmHomeRemote *remote = &home->remote.controllers[player];
-        add_clip(home, clips, &count, remote->connected ? ANIM_BTRY_WHT : ANIM_BTRY_GRY,
+        add_clip(home, clips, count, remote->connected ? ANIM_BTRY_WHT : ANIM_BTRY_GRY,
                  0.0f, player_groups[player]);
         if (remote->connected && remote->battery < 2) {
-            add_clip(home, clips, &count, ANIM_BTRY_RED, 0.0f, player_groups[player]);
+            add_clip(home, clips, count, ANIM_BTRY_RED, 0.0f, player_groups[player]);
         }
     }
 
@@ -77,37 +70,37 @@ static void pose_home_layout(WmHomeOverlay *home) {
         "vol_05", "vol_06", "vol_07", "vol_08", "vol_09"};
     int filled = home->remote.muted ? 0 : (int)lroundf(home->remote.volume * 10.0f);
     for (size_t bar = 0; bar < 10; bar++) {
-        add_clip(home, clips, &count,
+        add_clip(home, clips, count,
                  (int)bar < filled ? ANIM_SOUND_YLW : ANIM_SOUND_GRY, 0.0f,
                  volume_groups[bar]);
     }
-    add_clip(home, clips, &count,
+    add_clip(home, clips, count,
              home->remote.rumble ? ANIM_VB_BTN_WHT_PSH : ANIM_VB_BTN_YLW_PSH, 24.0f,
              "optnBtn_10_psh");
-    add_clip(home, clips, &count,
+    add_clip(home, clips, count,
              home->remote.rumble ? ANIM_VB_BTN_YLW_PSH : ANIM_VB_BTN_WHT_PSH, 24.0f,
              "optnBtn_11_psh");
+}
 
-    bool closing = home->options_closing && !home->options_open;
-    bool ready = wm_home_options_ready(home);
+static void add_options_clips(WmHomeOverlay *home, WmLayoutClip clips[], size_t *count,
+                              bool closing, bool ready) {
     if (home->options_open || closing) {
         float opening_frame =
             closing ? home->animation_frames[ANIM_OPTN_BAR_PSH] : home->options_frame;
-        add_clip(home, clips, &count, ANIM_OPTN_BAR_PSH, opening_frame, NULL);
-        add_clip(home, clips, &count, ANIM_CNTRL_UP, opening_frame, NULL);
+        add_clip(home, clips, count, ANIM_OPTN_BAR_PSH, opening_frame, NULL);
+        add_clip(home, clips, count, ANIM_CNTRL_UP, opening_frame, NULL);
         if (opening_frame >= 16.0f) {
-            add_clip(home, clips, &count, ANIM_CNTRL_WNDW_OPN, opening_frame - 16.0f,
+            add_clip(home, clips, count, ANIM_CNTRL_WNDW_OPN, opening_frame - 16.0f,
                      NULL);
         }
         if (closing) {
-            add_clip(home, clips, &count, ANIM_HMMENU_BAR_PSH, home->options_frame,
+            add_clip(home, clips, count, ANIM_HMMENU_BAR_PSH, home->options_frame,
                      NULL);
-            add_clip(home, clips, &count, ANIM_CLOSE_BAR_PSH, home->options_frame,
-                     NULL);
-            add_clip(home, clips, &count, ANIM_CNTRL_DWN, home->options_frame, NULL);
+            add_clip(home, clips, count, ANIM_CLOSE_BAR_PSH, home->options_frame, NULL);
+            add_clip(home, clips, count, ANIM_CNTRL_DWN, home->options_frame, NULL);
         }
         if (home->options_open && ready && home->hover == WM_HOME_CONTROL_OPTIONS) {
-            add_clip(home, clips, &count, ANIM_CLOSE_BAR_IN, home->hover_frame,
+            add_clip(home, clips, count, ANIM_CLOSE_BAR_IN, home->hover_frame,
                      "optn_bar_in");
         }
         if (home->options_open && ready && home->hover >= WM_HOME_CONTROL_VOLUME_DOWN &&
@@ -115,72 +108,63 @@ static void pose_home_layout(WmHomeOverlay *home) {
             static const char *const option_groups[] = {
                 "optnBtn_00_inOut", "optnBtn_01_inOut", "optnBtn_10_inOut",
                 "optnBtn_11_inOut", "optnBtn_20_inOut"};
-            add_clip(home, clips, &count, ANIM_OPTN_BTN_IN, home->hover_frame,
+            add_clip(home, clips, count, ANIM_OPTN_BTN_IN, home->hover_frame,
                      option_groups[home->hover - WM_HOME_CONTROL_VOLUME_DOWN]);
         }
     }
     if (!home->options_open && ready) {
         if (home->hover == WM_HOME_CONTROL_CLOSE) {
-            add_clip(home, clips, &count, ANIM_HMMENU_BAR_IN, home->hover_frame, NULL);
+            add_clip(home, clips, count, ANIM_HMMENU_BAR_IN, home->hover_frame, NULL);
         } else if (home->hover == WM_HOME_CONTROL_RETURN) {
-            add_clip(home, clips, &count, ANIM_CNTBTN_IN, home->hover_frame,
+            add_clip(home, clips, count, ANIM_CNTBTN_IN, home->hover_frame,
                      "btnL_00_inOut");
         } else if (home->hover == WM_HOME_CONTROL_OPTIONS) {
-            add_clip(home, clips, &count, ANIM_OPTN_BAR_IN, home->hover_frame, NULL);
+            add_clip(home, clips, count, ANIM_OPTN_BAR_IN, home->hover_frame, NULL);
         }
     }
-    if (home->phase == WM_HOME_LEAVE) {
-        add_clip(home, clips, &count, ANIM_HMMENU_BAR_PSH, fminf(19.0f, home->frame),
-                 NULL);
-        if (home->frame >= 19.0f) {
-            add_clip(home, clips, &count, ANIM_HMMENU_FNSH, home->frame - 19.0f, NULL);
-        }
-    }
-    if (home->dialog != DIALOG_NONE && home->dialog != DIALOG_PRESS) {
-        add_clip(home, clips, &count, ANIM_CMN_MSG_IN,
-                 home->dialog == DIALOG_IN ? home->dialog_frame : 24.0f, NULL);
-        if (home->dialog == DIALOG_RETURN) {
-            add_clip(home, clips, &count, ANIM_CMN_MSG_RTRN, home->dialog_frame, NULL);
-        }
-        if (home->dialog == DIALOG_YES || home->dialog == DIALOG_NO ||
-            home->dialog == DIALOG_FADE) {
-            add_clip(home, clips, &count, ANIM_CMN_MSG_BTN_PSH, home->dialog_frame,
-                     home->dialog == DIALOG_NO ? "msgBtn_01_psh" : "msgBtn_00_psh");
-        }
-        if (home->hover == WM_HOME_CONTROL_YES || home->hover == WM_HOME_CONTROL_NO) {
-            add_clip(home, clips, &count, ANIM_CMN_MSG_BTN_IN, home->hover_frame,
-                     home->hover == WM_HOME_CONTROL_YES ? "msgBtn_00_inOut"
-                                                        : "msgBtn_01_inOut");
-        }
-    }
-    if (home->reconnect != RECONNECT_NONE && home->reconnect != RECONNECT_PRESS) {
-        add_clip(home, clips, &count, ANIM_LINK_MSG_IN,
-                 home->reconnect == RECONNECT_IN ? home->reconnect_frame : 119.0f,
-                 NULL);
-        if (home->reconnect != RECONNECT_IN && home->reconnect != RECONNECT_RETRY) {
-            add_clip(home, clips, &count, ANIM_12BTN_ON,
-                     fmodf(home->reconnect_prompt_frame, 50.0f), NULL);
-        }
-        if (home->reconnect == RECONNECT_OUT) {
-            add_clip(home, clips, &count, ANIM_LINK_MSG_OUT, home->reconnect_frame,
-                     NULL);
-        }
-    }
-    for (size_t index = 0; index < home->effect_count; index++) {
-        const HomeEffect *effect = &home->effects[index];
-        add_clip(home, clips, &count, effect->animation, effect->frame, effect->group);
-    }
-    if (!wm_layout_pose(home->layout, clips, count))
-        return;
+}
 
+static void add_dialog_clips(WmHomeOverlay *home, WmLayoutClip clips[], size_t *count) {
+    if (home->dialog == DIALOG_NONE || home->dialog == DIALOG_PRESS)
+        return;
+    add_clip(home, clips, count, ANIM_CMN_MSG_IN,
+             home->dialog == DIALOG_IN ? home->dialog_frame : 24.0f, NULL);
+    if (home->dialog == DIALOG_RETURN)
+        add_clip(home, clips, count, ANIM_CMN_MSG_RTRN, home->dialog_frame, NULL);
+    if (home->dialog == DIALOG_YES || home->dialog == DIALOG_NO ||
+        home->dialog == DIALOG_FADE) {
+        add_clip(home, clips, count, ANIM_CMN_MSG_BTN_PSH, home->dialog_frame,
+                 home->dialog == DIALOG_NO ? "msgBtn_01_psh" : "msgBtn_00_psh");
+    }
+    if (home->hover == WM_HOME_CONTROL_YES || home->hover == WM_HOME_CONTROL_NO) {
+        add_clip(home, clips, count, ANIM_CMN_MSG_BTN_IN, home->hover_frame,
+                 home->hover == WM_HOME_CONTROL_YES ? "msgBtn_00_inOut"
+                                                    : "msgBtn_01_inOut");
+    }
+}
+
+static void add_reconnect_clips(WmHomeOverlay *home, WmLayoutClip clips[],
+                                size_t *count) {
+    if (home->reconnect == RECONNECT_NONE || home->reconnect == RECONNECT_PRESS)
+        return;
+    add_clip(home, clips, count, ANIM_LINK_MSG_IN,
+             home->reconnect == RECONNECT_IN ? home->reconnect_frame : 119.0f, NULL);
+    if (home->reconnect != RECONNECT_IN && home->reconnect != RECONNECT_RETRY) {
+        add_clip(home, clips, count, ANIM_12BTN_ON,
+                 fmodf(home->reconnect_prompt_frame, 50.0f), NULL);
+    }
+    if (home->reconnect == RECONNECT_OUT)
+        add_clip(home, clips, count, ANIM_LINK_MSG_OUT, home->reconnect_frame, NULL);
+}
+
+static void update_home_visibility(WmHomeOverlay *home, bool closing, bool ready) {
     for (size_t player = 0; player < 4; player++) {
+        const WmHomeRemote *remote = &home->remote.controllers[player];
         for (size_t bar = 0; bar < 4; bar++) {
             char pane[32];
             snprintf(pane, sizeof(pane), "btryPwr_0%zu_%zu", player, bar);
-            wm_layout_set_pane_visible(
-                home->layout, pane,
-                home->remote.controllers[player].connected &&
-                    bar < home->remote.controllers[player].battery);
+            wm_layout_set_pane_visible(home->layout, pane,
+                                       remote->connected && bar < remote->battery);
         }
     }
     wm_layout_set_pane_visible(home->layout, "back_02", false);
@@ -198,6 +182,36 @@ static void pose_home_layout(WmHomeOverlay *home) {
         wm_layout_set_pane_visible(home->layout, option_buttons[index],
                                    home->options_open || (closing && !ready));
     }
+}
+
+static void pose_home_layout(WmHomeOverlay *home) {
+    if (!home || !home->layout || !home->pose_dirty)
+        return;
+    WmLayoutClip clips[HOME_CLIP_CAPACITY];
+    size_t count = 0;
+    add_clip(home, clips, &count, ANIM_HMMENU_STRT,
+             home->phase == WM_HOME_ENTER ? home->frame : 21.0f, NULL);
+    add_remote_clips(home, clips, &count);
+
+    bool closing = home->options_closing && !home->options_open;
+    bool ready = wm_home_options_ready(home);
+    add_options_clips(home, clips, &count, closing, ready);
+    if (home->phase == WM_HOME_LEAVE) {
+        add_clip(home, clips, &count, ANIM_HMMENU_BAR_PSH, fminf(19.0f, home->frame),
+                 NULL);
+        if (home->frame >= 19.0f) {
+            add_clip(home, clips, &count, ANIM_HMMENU_FNSH, home->frame - 19.0f, NULL);
+        }
+    }
+    add_dialog_clips(home, clips, &count);
+    add_reconnect_clips(home, clips, &count);
+    for (size_t index = 0; index < home->effect_count; index++) {
+        const HomeEffect *effect = &home->effects[index];
+        add_clip(home, clips, &count, effect->animation, effect->frame, effect->group);
+    }
+    if (!wm_layout_pose(home->layout, clips, count))
+        return;
+    update_home_visibility(home, closing, ready);
     home->pose_dirty = false;
     home->hit_dirty = true;
 }
