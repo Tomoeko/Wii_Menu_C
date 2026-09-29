@@ -120,21 +120,24 @@ static bool body_visible(const WmBoardCompose *compose) {
            (compose->phase == WM_COMPOSE_BACK_MEMO && compose->frame < 46.0f);
 }
 
-void board_compose_pose_body(WmBoardCompose *compose) {
-    WmLayoutClip clips[COMPOSE_CLIP_CAPACITY];
-    size_t count = 0;
+static const char *const body_editor_panes[COMPOSE_SCROLL_DIRECTIONS] = {
+    "P_txtScrll_UP", "P_txtScrll_DOWN"};
+
+static void append_body_transition_clips(const WmBoardCompose *compose,
+                                         WmLayoutClip clips[COMPOSE_CLIP_CAPACITY],
+                                         size_t *count) {
     if (compose->phase == WM_COMPOSE_ENTER_MEMO) {
-        append_clip(clips, &count, "my_Memo_a_MailIn", NULL,
+        append_clip(clips, count, "my_Memo_a_MailIn", NULL,
                     clamp_frame(compose->frame, 16.0f));
     } else if (compose->phase == WM_COMPOSE_SEND) {
-        append_clip(clips, &count, "my_Memo_a_MailIn", NULL, 16.0f);
-        append_clip(clips, &count, "my_Memo_a_SendOut", NULL,
+        append_clip(clips, count, "my_Memo_a_MailIn", NULL, 16.0f);
+        append_clip(clips, count, "my_Memo_a_SendOut", NULL,
                     clamp_frame(compose->frame, 50.0f));
     } else if (compose->phase == WM_COMPOSE_BACK_MEMO && compose->frame >= 20.0f) {
-        append_clip(clips, &count, "my_Memo_a_MailOut", NULL,
+        append_clip(clips, count, "my_Memo_a_MailOut", NULL,
                     clamp_frame(compose->frame - 20.0f, 16.0f));
     } else {
-        append_clip(clips, &count, "my_Memo_a_MailIn", NULL, 16.0f);
+        append_clip(clips, count, "my_Memo_a_MailIn", NULL, 16.0f);
     }
     if (compose->phase == WM_COMPOSE_ENTER_EDIT || compose->phase == WM_COMPOSE_EDIT ||
         compose->phase == WM_COMPOSE_LEAVE_EDIT) {
@@ -147,17 +150,20 @@ void board_compose_pose_body(WmBoardCompose *compose) {
             hint_frame =
                 9.0f * (1.0f - clamp_frame(compose->frame - 20.0f, 10.0f) / 10.0f);
         }
-        append_clip(clips, &count, "my_Memo_a_TouchLetter", NULL, hint_frame);
+        append_clip(clips, count, "my_Memo_a_TouchLetter", NULL, hint_frame);
     }
+}
+
+static void append_body_scroll_clips(const WmBoardCompose *compose,
+                                     WmLayoutClip clips[COMPOSE_CLIP_CAPACITY],
+                                     size_t *count) {
     static const char *const display_end_groups[COMPOSE_SCROLL_DIRECTIONS] = {
         "G_ArwR_End", "G_ArwL_End"};
     static const char *const display_focus_groups[COMPOSE_SCROLL_DIRECTIONS] = {
         "G_ArwR_Focus", "G_ArwL_Focus"};
     static const char *const display_press_groups[COMPOSE_SCROLL_DIRECTIONS] = {
         "G_ArwR_Ac", "G_ArwL_Ac"};
-    static const char *const editor_panes[COMPOSE_SCROLL_DIRECTIONS] = {
-        "P_txtScrll_UP", "P_txtScrll_DOWN"};
-    append_clip(clips, &count, "my_Memo_a_Loop", "G_ArwRoop",
+    append_clip(clips, count, "my_Memo_a_Loop", "G_ArwRoop",
                 fmodf(compose->age, 55.0f));
     ComposeFocus mii_focus = compose->focus[WM_COMPOSE_CONTROL_MII];
     bool body_exiting =
@@ -166,7 +172,7 @@ void board_compose_pose_body(WmBoardCompose *compose) {
     if (mii_focus.active && !body_exiting) {
         /* The focus clip has a constant 255-alpha track for Nigaoe. During
          * MailOut or SendOut it would override the source icon fade. */
-        append_target_clip(clips, &count,
+        append_target_clip(clips, count,
                            mii_focus.entering ? "my_Memo_a_NigaoeFoucusIn"
                                               : "my_Memo_a_NigaoeFoucusOut",
                            "Nigaoe", clamp_frame(mii_focus.frame, 6.0f));
@@ -174,20 +180,20 @@ void board_compose_pose_body(WmBoardCompose *compose) {
     for (size_t direction = 0; direction < COMPOSE_SCROLL_DIRECTIONS; direction++) {
         const BoardComposeScrollArrow *display =
             &compose->scroll.arrows[COMPOSE_SCROLL_DISPLAY][direction];
-        append_clip(clips, &count,
+        append_clip(clips, count,
                     display->visible ? "my_Memo_a_Appear" : "my_Memo_a_Lost",
                     display_end_groups[direction],
                     clamp_frame(display->appearance_frame, 10.0f));
         if (display->visible && display->appearance_frame >= 10.0f &&
             display->focus.active) {
-            append_clip(clips, &count,
+            append_clip(clips, count,
                         display->focus.entering ? "my_Memo_a_FocusOn"
                                                 : "my_Memo_a_FocusOff",
                         display_focus_groups[direction],
                         clamp_frame(display->focus.frame, 15.0f));
         }
         if (display->visible && display->press_active) {
-            append_clip(clips, &count, "my_Memo_a_Select",
+            append_clip(clips, count, "my_Memo_a_Select",
                         display_press_groups[direction],
                         clamp_frame(display->press_frame, 7.0f));
         }
@@ -197,39 +203,43 @@ void board_compose_pose_body(WmBoardCompose *compose) {
         if (!editor->appeared)
             continue;
         append_target_clip(
-            clips, &count, "my_Memo_a_Fade_IN", editor_panes[direction],
+            clips, count, "my_Memo_a_Fade_IN", body_editor_panes[direction],
             editor->visible ? clamp_frame(editor->appearance_frame, 11.0f) : 11.0f);
         if (!editor->visible) {
-            append_target_clip(clips, &count, "my_Memo_a_Fade_OUT",
-                               editor_panes[direction],
+            append_target_clip(clips, count, "my_Memo_a_Fade_OUT",
+                               body_editor_panes[direction],
                                clamp_frame(editor->appearance_frame, 10.0f));
         } else if (editor->appearance_frame >= 11.0f) {
             if (editor->focus.active) {
-                append_target_clip(clips, &count,
+                append_target_clip(clips, count,
                                    editor->focus.entering ? "my_Memo_a_Foucus_IN"
                                                           : "my_Memo_a_Focus-OUT",
-                                   editor_panes[direction],
+                                   body_editor_panes[direction],
                                    editor->focus.entering
                                        ? 1.0f + clamp_frame(editor->focus.frame, 5.0f)
                                        : clamp_frame(editor->focus.frame, 8.0f));
             }
             if (editor->press_active) {
-                append_target_clip(clips, &count, "my_Memo_a_Pushed",
-                                   editor_panes[direction],
+                append_target_clip(clips, count, "my_Memo_a_Pushed",
+                                   body_editor_panes[direction],
                                    clamp_frame(editor->press_frame, 7.0f));
             }
         }
     }
-    wm_layout_pose(compose->body, clips, count);
+}
+
+static void pose_body_scroll_layout(WmBoardCompose *compose) {
     for (size_t direction = 0; direction < COMPOSE_SCROLL_DIRECTIONS; direction++) {
         if (!compose->scroll.arrows[COMPOSE_SCROLL_EDITOR][direction].appeared) {
-            wm_layout_set_pane_visible(compose->body, editor_panes[direction], false);
+            wm_layout_set_pane_visible(compose->body, body_editor_panes[direction],
+                                       false);
         }
     }
     if (compose->phase == WM_COMPOSE_LEAVE_EDIT) {
         float alpha = 255.0f * (1.0f - clamp_frame(compose->frame, 30.0f) / 30.0f);
         for (size_t direction = 0; direction < COMPOSE_SCROLL_DIRECTIONS; direction++) {
-            wm_layout_set_pane_alpha(compose->body, editor_panes[direction], alpha);
+            wm_layout_set_pane_alpha(compose->body, body_editor_panes[direction],
+                                     alpha);
         }
     }
     float keyboard_progress = compose->phase == WM_COMPOSE_ENTER_EDIT
@@ -274,6 +284,9 @@ void board_compose_pose_body(WmBoardCompose *compose) {
                 viewport.translation[2]);
         }
     }
+}
+
+static void pose_body_text(WmBoardCompose *compose) {
     wm_layout_set_pose_text(compose->body, "T_Header", "Memo");
     wm_layout_set_pose_text(compose->body, "T_TouchLetter",
                             compose->draft.text_bytes ? "" : "Write a memo");
@@ -327,6 +340,16 @@ void board_compose_pose_body(WmBoardCompose *compose) {
             }
         }
     }
+}
+
+void board_compose_pose_body(WmBoardCompose *compose) {
+    WmLayoutClip clips[COMPOSE_CLIP_CAPACITY];
+    size_t count = 0;
+    append_body_transition_clips(compose, clips, &count);
+    append_body_scroll_clips(compose, clips, &count);
+    wm_layout_pose(compose->body, clips, count);
+    pose_body_scroll_layout(compose);
+    pose_body_text(compose);
 }
 
 static bool body_header_pane(void *context, const WmLayoutPaneView *pane) {
