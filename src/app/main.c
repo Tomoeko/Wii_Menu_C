@@ -48,6 +48,52 @@ static int print_usage(const char *program) {
     return 0;
 }
 
+typedef struct {
+    const char *assets;
+    const char *layout_path;
+    const char *raw_root;
+    const char *animation;
+    const char *preview_channel;
+    bool hide_masks;
+    bool bypass;
+} AppOptions;
+
+typedef enum {
+    APP_OPTIONS_READY,
+    APP_OPTIONS_HELP,
+    APP_OPTIONS_INVALID
+} AppOptionsResult;
+
+static AppOptionsResult parse_options(int argc, char **argv, AppOptions *options) {
+    *options = (AppOptions){0};
+    for (int index = 1; index < argc; index++) {
+        if (strcmp(argv[index], "--help") == 0 || strcmp(argv[index], "-h") == 0)
+            return APP_OPTIONS_HELP;
+        if (strcmp(argv[index], "--assets") == 0 && index + 1 < argc) {
+            options->assets = argv[++index];
+        } else if (strcmp(argv[index], "--layout") == 0 && index + 1 < argc) {
+            options->layout_path = argv[++index];
+        } else if (strcmp(argv[index], "--raw-root") == 0 && index + 1 < argc) {
+            options->raw_root = argv[++index];
+        } else if (strcmp(argv[index], "--animation") == 0 && index + 1 < argc) {
+            options->animation = argv[++index];
+        } else if (strcmp(argv[index], "--preview-channel") == 0 && index + 1 < argc) {
+            options->preview_channel = argv[++index];
+        } else if (strcmp(argv[index], "--hide-masks") == 0) {
+            options->hide_masks = true;
+        } else if (strcmp(argv[index], "--bypass") == 0) {
+            options->bypass = true;
+        } else {
+            return APP_OPTIONS_INVALID;
+        }
+    }
+    if ((options->layout_path && !options->raw_root) ||
+        ((options->animation || options->hide_masks) && !options->layout_path) ||
+        (options->preview_channel && options->layout_path))
+        return APP_OPTIONS_INVALID;
+    return APP_OPTIONS_READY;
+}
+
 static bool select_preview_channel(WmMenu *menu, WmAppResources *resources,
                                    const char *requested) {
     int match = -1;
@@ -156,57 +202,86 @@ static void advance_scenes_after_events(WmAppRuntime *app, float elapsed,
     wm_app_update_preview_clock(app, frame_start);
 }
 
+static WmAppRenderFrame make_render_frame(const WmAppRuntime *app, uint64_t frame_start,
+                                          bool health_frame) {
+    const WmAppFlowState *flow = app->flow;
+    const WmAppInputState *input = app->input;
+    WmAppRenderFrame frame = {0};
+    frame.menu = app->menu;
+    frame.fade = &flow->fade;
+    frame.restart = &flow->restart;
+    frame.active_storage = flow->active_storage;
+    frame.hover = input->menu_pointer.hovered;
+    frame.board_hovered = input->board.hovered;
+    frame.health_frame = health_frame;
+    frame.keyboard_focus = input->keyboard_focus;
+    frame.focused_slot = input->focused_slot;
+    frame.frame_start = frame_start;
+    frame.started = flow->started;
+    frame.preview_started = flow->preview_started;
+    frame.home_underlay_elapsed = flow->home_underlay_elapsed;
+    frame.home_underlay_preview_elapsed = flow->home_underlay_preview_elapsed;
+    return frame;
+}
+
+typedef struct {
+    uint64_t frame_count;
+    uint64_t frame_total;
+    uint64_t draw_total;
+    uint64_t draw_max;
+} AppFrameProfile;
+
+static void record_frame_profile(AppFrameProfile *profile,
+                                 const WmAppResources *resources, const WmMenu *menu,
+                                 uint64_t frame_start, uint64_t draw_start,
+                                 uint64_t frame_end) {
+    uint64_t draw_time = frame_end - draw_start;
+    profile->frame_count++;
+    profile->frame_total += frame_end - frame_start;
+    profile->draw_total += draw_time;
+    if (draw_time > profile->draw_max)
+        profile->draw_max = draw_time;
+    if (profile->frame_count < 120)
+        return;
+
+    WmTextureCacheStats textures = wm_texture_cache_stats(resources->scene_textures);
+    fprintf(stderr,
+            "Frame timing: screen=%d, frame=%.2f ms, draw=%.2f ms, "
+            "max draw=%.2f ms, textures=%zu/%zu MiB, "
+            "evictions=%llu (120 frames)\n",
+            (int)menu->screen, (double)profile->frame_total / 120000000.0,
+            (double)profile->draw_total / 120000000.0,
+            (double)profile->draw_max / 1000000.0,
+            textures.resident_bytes / (1024u * 1024u),
+            textures.budget_bytes / (1024u * 1024u),
+            (unsigned long long)textures.evictions);
+    *profile = (AppFrameProfile){0};
+}
+
+static void wait_for_next_frame(uint64_t *deadline, uint64_t period,
+                                uint64_t frame_end) {
+    /* A fixed deadline prevents sleep overshoot from accumulating across an
+     * animation. A late frame starts a fresh interval instead. */
+    if (frame_end < *deadline)
+        sleep_nanoseconds(*deadline - frame_end);
+    uint64_t wake_time = monotonic_nanoseconds();
+    if (wake_time > *deadline + period / 2)
+        *deadline = wake_time + period;
+    else
+        *deadline += period;
+}
+
 int main(int argc, char **argv) {
-    const char *assets = NULL;
-    const char *layout_path = NULL;
-    const char *raw_root = NULL;
-    const char *animation = NULL;
-    const char *preview_channel = NULL;
-    bool hide_masks = false;
-    bool bypass = false;
-    for (int index = 1; index < argc; index++) {
-        if (strcmp(argv[index], "--help") == 0 || strcmp(argv[index], "-h") == 0) {
-            return print_usage(argv[0]);
-        }
-        if (strcmp(argv[index], "--assets") == 0 && index + 1 < argc) {
-            assets = argv[++index];
-            continue;
-        }
-        if (strcmp(argv[index], "--layout") == 0 && index + 1 < argc) {
-            layout_path = argv[++index];
-            continue;
-        }
-        if (strcmp(argv[index], "--raw-root") == 0 && index + 1 < argc) {
-            raw_root = argv[++index];
-            continue;
-        }
-        if (strcmp(argv[index], "--animation") == 0 && index + 1 < argc) {
-            animation = argv[++index];
-            continue;
-        }
-        if (strcmp(argv[index], "--preview-channel") == 0 && index + 1 < argc) {
-            preview_channel = argv[++index];
-            continue;
-        }
-        if (strcmp(argv[index], "--hide-masks") == 0) {
-            hide_masks = true;
-            continue;
-        }
-        if (strcmp(argv[index], "--bypass") == 0) {
-            bypass = true;
-            continue;
-        }
+    AppOptions options;
+    AppOptionsResult parsed = parse_options(argc, argv, &options);
+    if (parsed != APP_OPTIONS_READY) {
         print_usage(argv[0]);
-        return 2;
+        return parsed == APP_OPTIONS_HELP ? 0 : 2;
     }
-    if ((layout_path && !raw_root) || ((animation || hide_masks) && !layout_path) ||
-        (preview_channel && layout_path)) {
-        print_usage(argv[0]);
-        return 2;
-    }
+    const char *assets = options.assets;
 
     char default_assets[WM_APP_ASSET_PATH_CAPACITY];
-    if (!assets && !layout_path) {
+    if (!assets && !options.layout_path) {
         if (wm_app_find_default_assets(argv[0], default_assets,
                                        sizeof(default_assets))) {
             assets = default_assets;
@@ -216,7 +291,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (!layout_path && !bypass) {
+    if (!options.layout_path && !options.bypass) {
         const char *root = assets ? assets : ".local/native-assets";
         unsigned issues = 0;
         if (!wm_asset_manifest_verify(root, stderr, &issues)) {
@@ -231,11 +306,12 @@ int main(int argc, char **argv) {
     WmMenu menu;
     wm_menu_init(&menu);
     WmAppResources resources;
-    if (!wm_app_resources_create(&resources, &menu, assets, layout_path, raw_root)) {
+    if (!wm_app_resources_create(&resources, &menu, assets, options.layout_path,
+                                 options.raw_root)) {
         return 1;
     }
-    if (preview_channel &&
-        !select_preview_channel(&menu, &resources, preview_channel)) {
+    if (options.preview_channel &&
+        !select_preview_channel(&menu, &resources, options.preview_channel)) {
         wm_app_resources_destroy(&resources);
         return 2;
     }
@@ -255,8 +331,8 @@ int main(int argc, char **argv) {
                               .scene_textures = resources.scene_textures,
                               .scene_fonts = resources.scene_fonts,
                               .layout = resources.layout,
-                              .animation = animation,
-                              .hide_masks = hide_masks,
+                              .animation = options.animation,
+                              .hide_masks = options.hide_masks,
                               .health_scene = resources.health_scene,
                               .restart_scene = resources.restart_scene,
                               .home = resources.home,
@@ -276,10 +352,7 @@ int main(int argc, char **argv) {
     const uint64_t frame_period = 1000000000ULL / 60ULL;
     uint64_t next_frame_deadline = previous + frame_period;
     const bool profile_frames = getenv("WM_PROFILE_FRAMES") != NULL;
-    uint64_t profile_frame_count = 0;
-    uint64_t profile_frame_total = 0;
-    uint64_t profile_draw_total = 0;
-    uint64_t profile_draw_max = 0;
+    AppFrameProfile profile = {0};
 
     while (running) {
         uint64_t frame_start = monotonic_nanoseconds();
@@ -298,60 +371,16 @@ int main(int argc, char **argv) {
         if (!running)
             break;
         advance_scenes_after_events(&app, elapsed, health_frame, frame_start);
-        WmAppRenderFrame render_frame = {
-            .menu = &menu,
-            .fade = &flow.fade,
-            .restart = &flow.restart,
-            .active_storage = flow.active_storage,
-            .hover = input.menu_pointer.hovered,
-            .board_hovered = input.board.hovered,
-            .health_frame = health_frame,
-            .keyboard_focus = input.keyboard_focus,
-            .focused_slot = input.focused_slot,
-            .frame_start = frame_start,
-            .started = flow.started,
-            .preview_started = flow.preview_started,
-            .home_underlay_elapsed = flow.home_underlay_elapsed,
-            .home_underlay_preview_elapsed = flow.home_underlay_preview_elapsed};
+        WmAppRenderFrame render_frame =
+            make_render_frame(&app, frame_start, health_frame);
         uint64_t draw_start = profile_frames ? monotonic_nanoseconds() : 0;
         wm_app_renderer_draw(&renderer, &render_frame);
 
-        /* Follow a fixed deadline so sleep overshoot does not accumulate and
-         * slow every 28-frame zoom by roughly one millisecond per frame. */
         uint64_t frame_end = monotonic_nanoseconds();
-        if (profile_frames) {
-            uint64_t draw_time = frame_end - draw_start;
-            profile_frame_count++;
-            profile_frame_total += frame_end - frame_start;
-            profile_draw_total += draw_time;
-            if (draw_time > profile_draw_max)
-                profile_draw_max = draw_time;
-            if (profile_frame_count == 120) {
-                WmTextureCacheStats textures =
-                    wm_texture_cache_stats(resources.scene_textures);
-                fprintf(stderr,
-                        "Frame timing: screen=%d, frame=%.2f ms, draw=%.2f ms, "
-                        "max draw=%.2f ms, textures=%zu/%zu MiB, "
-                        "evictions=%llu (120 frames)\n",
-                        (int)menu.screen, (double)profile_frame_total / 120000000.0,
-                        (double)profile_draw_total / 120000000.0,
-                        (double)profile_draw_max / 1000000.0,
-                        textures.resident_bytes / (1024u * 1024u),
-                        textures.budget_bytes / (1024u * 1024u),
-                        (unsigned long long)textures.evictions);
-                profile_frame_count = 0;
-                profile_frame_total = 0;
-                profile_draw_total = 0;
-                profile_draw_max = 0;
-            }
-        }
-        if (frame_end < next_frame_deadline)
-            sleep_nanoseconds(next_frame_deadline - frame_end);
-        uint64_t wake_time = monotonic_nanoseconds();
-        if (wake_time > next_frame_deadline + frame_period / 2)
-            next_frame_deadline = wake_time + frame_period;
-        else
-            next_frame_deadline += frame_period;
+        if (profile_frames)
+            record_frame_profile(&profile, &resources, &menu, frame_start, draw_start,
+                                 frame_end);
+        wait_for_next_frame(&next_frame_deadline, frame_period, frame_end);
     }
     wm_app_renderer_release_home_underlay(&renderer);
     wm_app_resources_destroy(&resources);
