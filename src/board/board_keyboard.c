@@ -198,10 +198,10 @@ void wm_board_keyboard_reset(WmBoardKeyboard *keyboard) {
     keyboard->phone_layout = keyboard->memo_phone_layout;
     keyboard->phone_mode = keyboard->memo_phone_mode;
     memset(keyboard->focus, 0, sizeof(keyboard->focus));
+    memset(keyboard->press, 0, sizeof(keyboard->press));
     keyboard->hovered = WM_KEYBOARD_NONE;
     keyboard->pressed = WM_KEYBOARD_NONE;
     keyboard->pressed_phone_hover = WM_KEYBOARD_NONE;
-    keyboard->press_frame = 20.0f;
     keyboard->caps = false;
     keyboard->shift = false;
     keyboard->physical_caps = false;
@@ -240,6 +240,18 @@ void wm_board_keyboard_reset(WmBoardKeyboard *keyboard) {
     wm_board_keyboard_release_hold(keyboard);
 }
 
+static void start_press(WmBoardKeyboard *keyboard,
+                        WmBoardKeyboardControl control) {
+    if (keyboard->focus[control].from_press) {
+        /* A new click or physical key replaces any retained return pose. */
+        keyboard->focus[control] = keyboard->hovered == control
+            ? (KeyboardFocus){.active = true, .resting = true}
+            : (KeyboardFocus){0};
+    }
+    keyboard->pressed = control;
+    keyboard->press[control] = (KeyboardPress){.active = true};
+}
+
 void wm_board_keyboard_set_physical_modifiers(WmBoardKeyboard *keyboard,
                                                bool shift_down,
                                                bool caps_lock_on) {
@@ -254,14 +266,14 @@ void wm_board_keyboard_set_physical_modifiers(WmBoardKeyboard *keyboard,
     /* A physical modifier can press a keytop, but it cannot hover it. Only
      * pointer movement owns focus; otherwise Caps remains stuck highlighted. */
     if (shift_changed && shift_down) {
-        keyboard->pressed = WM_KEYBOARD_SHIFT;
-        keyboard->press_frame = 0.0f;
-    } else if (shift_changed && keyboard->pressed == WM_KEYBOARD_SHIFT) {
-        keyboard->pressed = WM_KEYBOARD_NONE;
+        start_press(keyboard, WM_KEYBOARD_SHIFT);
+    } else if (shift_changed) {
+        keyboard->press[WM_KEYBOARD_SHIFT].active = false;
+        if (keyboard->pressed == WM_KEYBOARD_SHIFT)
+            keyboard->pressed = WM_KEYBOARD_NONE;
     }
     if (caps_changed) {
-        keyboard->pressed = WM_KEYBOARD_CAPS;
-        keyboard->press_frame = 0.0f;
+        start_press(keyboard, WM_KEYBOARD_CAPS);
         keyboard->physical_caps_press_remaining = 20.0f;
     }
     keyboard->keytop_dirty = true;
@@ -389,8 +401,7 @@ WmBoardKeyboardControl wm_board_keyboard_press_physical(
     }
     if (control == WM_KEYBOARD_NONE ||
         !profile_allows_control(keyboard, control)) return WM_KEYBOARD_NONE;
-    keyboard->pressed = control;
-    keyboard->press_frame = 0.0f;
+    start_press(keyboard, control);
     mark_dirty(keyboard, control);
     return control;
 }
@@ -507,10 +518,23 @@ unsigned wm_board_keyboard_advance(WmBoardKeyboard *keyboard, float frames) {
             wm_board_keyboard_clear_phone_pending(keyboard);
     }
     for (unsigned index = 1; index <= WM_KEYBOARD_CONTROL_LAST; index++) {
+        WmBoardKeyboardControl control = (WmBoardKeyboardControl)index;
+        KeyboardPress *press = &keyboard->press[index];
         KeyboardFocus *focus = &keyboard->focus[index];
+        if (press->active) {
+            float limit = is_symbol(control) ? 7.0f : 20.0f;
+            float consumed = fminf(frames, limit - press->frame);
+            press->frame += consumed;
+            mark_dirty(keyboard, control);
+            if (press->frame >= limit) {
+                press->active = false;
+                if (keyboard->pressed == control &&
+                    (!focus->active || !focus->from_press))
+                    keyboard->pressed = WM_KEYBOARD_NONE;
+            }
+        }
         if (!focus->active) continue;
         if (focus->resting) continue;
-        WmBoardKeyboardControl control = (WmBoardKeyboardControl)index;
         float limit = focus->entering
             ? (is_symbol(control) || is_language_choice(control) ||
                is_prediction_control(control) ? 6.0f : 5.0f)
@@ -526,16 +550,9 @@ unsigned wm_board_keyboard_advance(WmBoardKeyboard *keyboard, float frames) {
             mark_dirty(keyboard, control);
         } else if (!focus->entering && focus->frame >= limit) {
             focus->active = false;
+            if (keyboard->pressed == control)
+                keyboard->pressed = WM_KEYBOARD_NONE;
             mark_dirty(keyboard, control);
-        }
-    }
-    if (keyboard->pressed != WM_KEYBOARD_NONE) {
-        float limit = is_symbol(keyboard->pressed) ? 7.0f : 20.0f;
-        keyboard->press_frame = fminf(limit,
-                                     keyboard->press_frame + frames);
-        mark_dirty(keyboard, keyboard->pressed);
-        if (keyboard->press_frame >= limit) {
-            keyboard->pressed = WM_KEYBOARD_NONE;
         }
     }
     if (keyboard->symbol_phase != SYMBOL_CLOSED &&
@@ -663,7 +680,8 @@ bool wm_board_keyboard_back(WmBoardKeyboard *keyboard) {
 
 void wm_board_keyboard_hover(WmBoardKeyboard *keyboard,
                              WmBoardKeyboardControl control) {
-    if (!keyboard || keyboard->hovered == control) return;
+    if (!keyboard || control < WM_KEYBOARD_NONE ||
+        control > WM_KEYBOARD_CONTROL_LAST || keyboard->hovered == control) return;
     wm_board_keyboard_prediction_rollback_phone(keyboard);
     bool candidate = control >= WM_KEYBOARD_CANDIDATE_FIRST &&
                      control <= WM_KEYBOARD_CANDIDATE_LAST;
@@ -691,7 +709,11 @@ void wm_board_keyboard_hover(WmBoardKeyboard *keyboard,
     if (keyboard->hovered != WM_KEYBOARD_NONE) {
         if (!selected_tab(keyboard, keyboard->hovered)) {
             keyboard->focus[keyboard->hovered] =
-                (KeyboardFocus){.active = true, .frame = 0.0f};
+                (KeyboardFocus){.active = true,
+                                .from_press = keyboard->press[keyboard->hovered].active};
+            /* Stop the click pulse at its current pose. Focus-OUT begins
+             * immediately and blends from this retained sample. */
+            keyboard->press[keyboard->hovered].active = false;
             mark_dirty(keyboard, keyboard->hovered);
         }
     }
@@ -700,7 +722,9 @@ void wm_board_keyboard_hover(WmBoardKeyboard *keyboard,
         control <= WM_KEYBOARD_CONTROL_LAST &&
         !selected_tab(keyboard, control)) {
         keyboard->focus[control] = (KeyboardFocus){
-            .active = true, .entering = true, .frame = 0.0f
+            .active = true,
+            .entering = !keyboard->press[control].active,
+            .resting = keyboard->press[control].active
         };
         mark_dirty(keyboard, control);
     }
@@ -726,8 +750,7 @@ WmBoardKeyboardAction wm_board_keyboard_activate(
         wm_board_keyboard_finish_composition(keyboard);
         keyboard->dictionary_language = (unsigned)(control -
             WM_KEYBOARD_LANGUAGE_ENGLISH);
-        keyboard->pressed = control;
-        keyboard->press_frame = 0.0f;
+        start_press(keyboard, control);
         keyboard->language_phase = LANGUAGE_LEAVING;
         keyboard->language_frame = 0.0f;
         keyboard->language_dirty = true;
@@ -741,8 +764,7 @@ WmBoardKeyboardAction wm_board_keyboard_activate(
         if (keyboard->symbol_phase != SYMBOL_OPEN || !is_symbol(control)) {
             return WM_KEYBOARD_ACTION_NONE;
         }
-        keyboard->pressed = control;
-        keyboard->press_frame = 0.0f;
+        start_press(keyboard, control);
         keyboard->symbols_dirty = true;
         if (control >= WM_KEYBOARD_SYMBOL_FIRST &&
             control <= WM_KEYBOARD_SYMBOL_LAST) {
@@ -792,8 +814,7 @@ WmBoardKeyboardAction wm_board_keyboard_activate(
         keyboard->candidate_scroll_frame = 0.0f;
         keyboard->candidate_scrolling = true;
         keyboard->prediction_dirty = true;
-        keyboard->pressed = control;
-        keyboard->press_frame = 0.0f;
+        start_press(keyboard, control);
         return WM_KEYBOARD_ACTION_CANDIDATE_PAGE;
     }
     if (control >= WM_KEYBOARD_CANDIDATE_FIRST &&
@@ -808,8 +829,7 @@ WmBoardKeyboardAction wm_board_keyboard_activate(
         keyboard->accepted_prefix_bytes = keyboard->phone_prediction_digits[0]
             ? keyboard->phone_prediction_bytes :
               keyboard->candidate_prefix_bytes;
-        keyboard->pressed = control;
-        keyboard->press_frame = 0.0f;
+        start_press(keyboard, control);
         keyboard->prediction_dirty = true;
         return WM_KEYBOARD_ACTION_ACCEPT_CANDIDATE;
     }
@@ -818,12 +838,12 @@ WmBoardKeyboardAction wm_board_keyboard_activate(
         keyboard->phone_prediction_digits[0] = '\0';
         keyboard->phone_prediction_bytes = 0;
     }
-    keyboard->pressed = control;
-    keyboard->press_frame = 0.0f;
+    start_press(keyboard, control);
     mark_dirty(keyboard, control);
     if (control == WM_KEYBOARD_QWERTY || control == WM_KEYBOARD_PHONE) {
         bool next_phone = control == WM_KEYBOARD_PHONE;
         if (next_phone == keyboard->phone_layout) {
+            keyboard->press[control].active = false;
             keyboard->pressed = WM_KEYBOARD_NONE;
             return WM_KEYBOARD_ACTION_NONE;
         }

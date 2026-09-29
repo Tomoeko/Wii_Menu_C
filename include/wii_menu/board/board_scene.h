@@ -194,7 +194,9 @@ void wm_board_scene_reset(WmBoardScene *board);
 /* ChannelSelect page remains relevant during the Board footer's first ten
  * entry frames and last twenty exit frames. */
 void wm_board_scene_set_grid_page(WmBoardScene *board, int page);
-bool wm_board_scene_sd_visible(const WmBoardScene *board);
+/* Sample the SD button's authored Out clip from the Board transition clock.
+ * Entry plays it forward; the final return to the grid plays it backward. */
+bool wm_board_scene_sd_button_frame(const WmBoardScene *board, float *frame);
 bool wm_board_scene_back(WmBoardScene *board);
 void wm_board_scene_advance(WmBoardScene *board, float frames);
 /* Advance retained card and pin clocks in the parked Home layer. Existing

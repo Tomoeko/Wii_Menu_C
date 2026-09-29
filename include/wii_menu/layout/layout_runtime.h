@@ -102,6 +102,10 @@ typedef struct WmLayoutClip {
     /* With target_name, copy that pane's animation tracks and its material
      * tracks onto this pane and its material. Mirrors NW4R pane binding. */
     const char *rebind_name;
+    /* Optional interpolation from the preceding pose, weight in [0,1].
+     * Visibility and texture selection change only at weight 1. */
+    bool blend_from_current;
+    float weight;
 } WmLayoutClip;
 
 typedef struct WmLayoutAnimationInfo {
@@ -182,6 +186,10 @@ bool wm_layout_set_pane_translation(WmLayout *layout, const char *name,
 /* Move the branch containing a pane to the end of each sibling list. Call
  * after posing; the next pose restores the authored draw order. */
 bool wm_layout_raise_pane(WmLayout *layout, const char *name);
+/* Raise a descendant only within this ancestor's branch. Ancestors outside
+ * the scope keep their authored position, including background layers. */
+bool wm_layout_raise_pane_within(WmLayout *layout, const char *ancestor,
+                                 const char *name);
 bool wm_layout_set_text_style(WmLayout *layout, const char *name,
                               float font_width, float font_height,
                               float char_space);

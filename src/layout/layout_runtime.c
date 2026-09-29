@@ -329,6 +329,15 @@ bool wm_layout_raise_pane(WmLayout *layout, const char *name) {
     return target >= 0 && raise_pane_branch(layout, 0, target);
 }
 
+bool wm_layout_raise_pane_within(WmLayout *layout, const char *ancestor,
+                                 const char *name) {
+    if (!layout || !ancestor || !name) return false;
+    int parent = wm_layout_find_pane(layout, ancestor);
+    int target = wm_layout_find_pane(layout, name);
+    return parent >= 0 && target >= 0 &&
+           raise_pane_branch(layout, parent, target);
+}
+
 bool wm_layout_set_text_style(WmLayout *layout, const char *name,
                               float font_width, float font_height,
                               float char_space) {
@@ -439,25 +448,41 @@ static float sample_track(const WmLayout *layout, const LayoutTrack *track, floa
            (t3 - t2) * span * b->slope;
 }
 
-static void apply_pane_track(LayoutPane *pane, const LayoutTrack *track, float value) {
+static float blend_value(float current, float value, float weight) {
+    return weight == 1.0f ? value : current + (value - current) * weight;
+}
+
+static void apply_pane_track(LayoutPane *pane, const LayoutTrack *track, float value,
+                             float weight) {
     int property = track->property;
     switch (track->kind) {
         case LAYOUT_RLPA:
-            if (property >= 0 && property < 3) pane->translation[property] = value;
-            else if (property < 6 && property >= 3) pane->rotation[property - 3] = value;
-            else if (property < 8 && property >= 6) pane->scale[property - 6] = value;
-            else if (property < 10 && property >= 8) pane->size[property - 8] = value;
+            if (property >= 0 && property < 3)
+                pane->translation[property] = blend_value(
+                    pane->translation[property], value, weight);
+            else if (property < 6 && property >= 3)
+                pane->rotation[property - 3] = blend_value(
+                    pane->rotation[property - 3], value, weight);
+            else if (property < 8 && property >= 6)
+                pane->scale[property - 6] = blend_value(
+                    pane->scale[property - 6], value, weight);
+            else if (property < 10 && property >= 8)
+                pane->size[property - 8] = blend_value(
+                    pane->size[property - 8], value, weight);
             break;
         case LAYOUT_RLVI:
+            if (weight < 1.0f) break;
             if (value != 0) pane->flags |= 1;
             else pane->flags &= ~1u;
             break;
         case LAYOUT_RLVC:
-            if (property == 16) pane->alpha = value;
+            if (property == 16) pane->alpha = blend_value(pane->alpha, value, weight);
             else if (property >= 0 && property < 16 && pane->has_text_colors) {
-                pane->text_colors[property / 8][property % 4] = value;
+                float *color = &pane->text_colors[property / 8][property % 4];
+                *color = blend_value(*color, value, weight);
             } else if (property >= 0 && property < 16 && pane->has_vertex_colors) {
-                pane->vertex_colors[property / 4][property % 4] = value;
+                float *color = &pane->vertex_colors[property / 4][property % 4];
+                *color = blend_value(*color, value, weight);
             }
             break;
         default:
@@ -466,30 +491,38 @@ static void apply_pane_track(LayoutPane *pane, const LayoutTrack *track, float v
 }
 
 static void apply_material_track(LayoutMaterial *material, const LayoutTrack *track,
-                                 const LayoutAnimation *animation, float value) {
+                                 const LayoutAnimation *animation, float value,
+                                 float weight) {
     int property = track->property;
     switch (track->kind) {
         case LAYOUT_RLMC:
             if (property >= 0 && property < 4 && material->has_material_color) {
-                material->material_color[property] = value;
+                float *color = &material->material_color[property];
+                *color = blend_value(*color, value, weight);
             }
             else if (property >= 4 && property < 16) {
-                material->registers[(property - 4) / 4][property % 4] = value;
+                float *color = &material->registers[(property - 4) / 4][property % 4];
+                *color = blend_value(*color, value, weight);
             } else if (property >= 16 && property < 32) {
-                material->konst_colors[(property - 16) / 4][property % 4] = value;
+                float *color = &material->konst_colors[(property - 16) / 4][property % 4];
+                *color = blend_value(*color, value, weight);
             }
             break;
         case LAYOUT_RLTS:
             if (track->id < 0 || (size_t)track->id >= material->srt_count) break;
             if (property >= 0 && property < 2) {
-                material->srts[track->id].translate[property] = value;
+                float *translation = &material->srts[track->id].translate[property];
+                *translation = blend_value(*translation, value, weight);
             } else if (property == 2) {
-                material->srts[track->id].rotation = value;
+                float *rotation = &material->srts[track->id].rotation;
+                *rotation = blend_value(*rotation, value, weight);
             } else if (property >= 3 && property < 5) {
-                material->srts[track->id].scale[property - 3] = value;
+                float *scale = &material->srts[track->id].scale[property - 3];
+                *scale = blend_value(*scale, value, weight);
             }
             break;
         case LAYOUT_RLTP:
+            if (weight < 1.0f) break;
             if (property != 0 || track->id < 0 ||
                 (size_t)track->id >= material->map_count || value < 0 ||
                 floorf(value) != value || (size_t)value >= animation->texture_count) break;
@@ -512,6 +545,9 @@ bool wm_layout_pose(WmLayout *layout, const WmLayoutClip *clips, size_t clip_cou
         const WmLayoutClip *clip = &clips[clip_index];
         if (!clip->animation || !isfinite(clip->frame) || clip->loop_override < -1 ||
             clip->loop_override > 1) return false;
+        float weight = clip->blend_from_current ? clip->weight : 1.0f;
+        if (!isfinite(weight) || weight < 0.0f || weight > 1.0f) return false;
+        if (weight == 0.0f) continue;
         const LayoutAnimation *animation = find_animation(layout, clip->animation);
         if (!animation) continue;
         int source_pane = -1, destination_pane = -1;
@@ -553,10 +589,10 @@ bool wm_layout_pose(WmLayout *layout, const WmLayoutClip *clips, size_t clip_cou
             if (track->target_type == 1) {
                 if (clip->group && !layout->allowed_materials[target_index]) continue;
                 apply_material_track(&layout->materials[target_index], track,
-                                     animation, value);
+                                     animation, value, weight);
             } else {
                 if (clip->group && !layout->allowed_panes[target_index]) continue;
-                apply_pane_track(&layout->panes[target_index], track, value);
+                apply_pane_track(&layout->panes[target_index], track, value, weight);
             }
         }
     }

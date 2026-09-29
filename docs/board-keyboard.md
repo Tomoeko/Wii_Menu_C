@@ -37,8 +37,35 @@ the source private-use marker for a pending literal space is presented as
 U+2423 Open Box while the stored draft retains an ordinary space. The C font
 decoder maps U+2423 to the original marker glyph. Focus entrance settles to
 the source Roll_over clip, and focused key branches move to the front of their
-layout's draw order. Resource-backed tests cover the telephone Eng hit area,
-hover geometry, multi-tap, commitment, and marker mapping.
+layout's draw order. Each key retains its own press pose. Moving the pointer
+away immediately interrupts the click pulse and starts focus exit from the
+current pose; the clicked key stays above its neighbors until settled. Rapid
+clicks preserve earlier keys' return motion, and outgoing prediction words
+keep their foreground pass until settled.
+Click exits sample the authored eight-frame focus exit, or seven frames for
+prediction controls, with scale and color blended from the interrupted pose
+for continuity. Toolbar buttons rise only within their control group, leaving
+the wide toolbar backgrounds behind the keyboard layout selectors.
+Resource-backed tests cover the press/exit handoff, overlapping pulses, draw
+order, telephone Eng hit area,
+hover geometry, multi-tap, commitment, and marker mapping. Draw-order checks
+cover Back/Quit and OK during hover, press, and exit in both layouts for Memo
+and Console Nickname.
+
+Binary Ninja inspection of the USA v4.3 executable confirms that an ordinary
+key in Pushed state 4 handles pointer-leave event 2 by selecting state 2
+(`0x81415e6c`–`0x81415e88`). The setter at `0x81415cb4` selects animation 2;
+the table at `0x816595a0` binds that animation to Focus-OUT. The controller at
+`0x814370c0` disables the prior animation and starts its replacement at frame
+zero, without a minimum click delay. The eight-frame OUT resource is sampled
+at frames 0, 1, 4, 7, and 8 in the 16:9 C render-command checks; its scale
+briefly dips below neutral before settling. This verifies the native state
+policy and resource curves, not the C continuity blend or rendered pixels
+against a native capture. Input provenance: title `0000000100000002`, version
+513, boot content `00000098`, SHA-1
+`26116613f624061ba99c8d1a299aaa6efa85670d`; the derived section-mapped ELF used
+for analysis has SHA-256
+`8dd9464451b7565ffd5b9f17511088c93731a614757a99e60a6fe6c1115d3abd`.
 
 The dictionary button opens the three-language source selector. The default
 prediction state is off. Turning it on shows local completion candidates for

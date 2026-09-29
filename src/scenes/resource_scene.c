@@ -72,7 +72,6 @@ WmResourceScene *wm_resource_scene_create(WmPlatform *platform,
     scene->arrow_press_age[0] = -1.0f;
     scene->arrow_press_age[1] = -1.0f;
     scene->sd_hover_changed_at = -INFINITY;
-    scene->board_sd_reveal_started_at = -1.0f;
     scene->clock_hour = -1;
     scene->clock_minute = -1;
     scene->clock_change_start = -1.0f;
@@ -278,7 +277,6 @@ void wm_resource_scene_restart(WmResourceScene *scene) {
     scene->arrow_press_age[1] = -1.0f;
     scene->sd_hovered = false;
     scene->sd_hover_changed_at = -INFINITY;
-    scene->board_sd_reveal_started_at = -1.0f;
     scene->clock_hour = -1;
     scene->clock_minute = -1;
     scene->clock_change_start = -1.0f;

@@ -57,6 +57,10 @@ static void test_raise_pane_restores_on_pose(void) {
                                             error, sizeof(error));
     assert(layout);
     assert(!wm_layout_raise_pane(layout, "Missing"));
+    assert(!wm_layout_raise_pane_within(layout, "Missing", "Source"));
+    assert(!wm_layout_raise_pane_within(layout, "RootPane", "Missing"));
+    assert(!wm_layout_raise_pane_within(layout, "Source", "Destination"));
+    assert(wm_layout_raise_pane_within(layout, "RootPane", "Source"));
     assert(wm_layout_raise_pane(layout, "Source"));
     PaneOrder raised = {0};
     wm_layout_visit_all_transforms(layout, false, WM_LAYOUT_IPL, NULL,
@@ -134,6 +138,32 @@ static void test_pane_and_material_rebind(void) {
     assert(wm_layout_material_info(layout, 1, &rebound_material, wraps));
     assert(near(original_material.registers[0][0], 1.0f));
     assert(near(rebound_material.registers[0][0], 64.0f / 255.0f));
+    /* A rebound clip can blend geometry and material tracks from the pose
+     * already assembled by earlier clips, without changing its source. */
+    clip.blend_from_current = true;
+    clip.weight = 0.5f;
+    assert(wm_layout_pose(layout, &clip, 1));
+    assert(wm_layout_pane_state(layout, "Destination", &destination));
+    assert(near(destination.translation[0], 32.5f));
+    assert(wm_layout_material_info(layout, 1, &rebound_material, wraps));
+    assert(near(rebound_material.registers[0][0], 159.5f / 255.0f));
+    WmLayoutClip clips[2] = {clip, clip};
+    clips[0].blend_from_current = false;
+    clips[1].frame = 0.0f;
+    assert(wm_layout_pose(layout, clips, 2));
+    assert(wm_layout_pane_state(layout, "Destination", &destination));
+    assert(near(destination.translation[0], 17.5f));
+    clip.weight = 0.0f;
+    assert(wm_layout_pose(layout, &clip, 1));
+    assert(wm_layout_pane_state(layout, "Destination", &destination));
+    assert(near(destination.translation[0], 40.0f));
+    clip.weight = NAN;
+    assert(!wm_layout_pose(layout, &clip, 1));
+    clip.weight = -0.1f;
+    assert(!wm_layout_pose(layout, &clip, 1));
+    clip.weight = 1.1f;
+    assert(!wm_layout_pose(layout, &clip, 1));
+    clip.weight = 1.0f;
     clip.target_name = "Missing";
     assert(!wm_layout_pose(layout, &clip, 1));
     wm_layout_destroy(layout);

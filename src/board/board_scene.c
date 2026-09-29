@@ -319,9 +319,17 @@ void wm_board_scene_set_grid_page(WmBoardScene *board, int page) {
     if (board && page >= 0 && page < 4) board->grid_page = page;
 }
 
-bool wm_board_scene_sd_visible(const WmBoardScene *board) {
-    return board && board->phase == WM_BOARD_EXIT &&
-           board->phase_frame >= 20.0f;
+bool wm_board_scene_sd_button_frame(const WmBoardScene *board, float *frame) {
+    if (!board || !frame) return false;
+    if (board->phase == WM_BOARD_ENTER && board->phase_frame < 15.0f) {
+        *frame = board->phase_frame;
+        return true;
+    }
+    if (board->phase == WM_BOARD_EXIT && board->phase_frame >= 20.0f) {
+        *frame = fmaxf(0.0f, 35.0f - board->phase_frame);
+        return true;
+    }
+    return false;
 }
 
 WmBoardPhase wm_board_scene_phase(const WmBoardScene *board) {

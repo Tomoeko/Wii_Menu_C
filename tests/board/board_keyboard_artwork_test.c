@@ -44,6 +44,36 @@ static unsigned toolbar_top_draws;
 static float toolbar_top_alpha;
 static bool tracking_toolbar_top;
 
+typedef struct KeyOrderProbe {
+    WmSourceRect clicked;
+    WmSourceRect neighbor;
+    unsigned position;
+    unsigned clicked_position;
+    unsigned neighbor_position;
+    float clicked_width;
+    float neighbor_width;
+} KeyOrderProbe;
+
+static bool tracking_key_order;
+static KeyOrderProbe key_order;
+
+typedef struct ToolbarOrderProbe {
+    WmSourceRect selectors[2];
+    unsigned position;
+    unsigned background_position;
+    unsigned selector_positions[2];
+} ToolbarOrderProbe;
+
+static bool tracking_toolbar_order;
+static ToolbarOrderProbe toolbar_order;
+
+static bool matches_center(const WmMaterialQuad *quad, const WmSourceRect *rect) {
+    float x = (quad->vertices[0].x + quad->vertices[3].x) * 0.5f;
+    float y = (quad->vertices[0].y + quad->vertices[3].y) * 0.5f;
+    return fabsf(x - rect->x - rect->width * 0.5f) < 0.02f &&
+           fabsf(y - rect->y - rect->height * 0.5f) < 0.02f;
+}
+
 static bool contains_center(const WmSourceRect *rect, float x, float y) {
     return x >= rect->x && x <= rect->x + rect->width &&
            y >= rect->y && y <= rect->y + rect->height;
@@ -113,6 +143,34 @@ void wm_platform_draw_vertices(WmPlatform *platform,
 void wm_platform_draw_material_quad(WmPlatform *platform,
                                     const WmMaterialQuad *quad) {
     (void)platform;
+    if (tracking_toolbar_order) {
+        toolbar_order.position++;
+        for (unsigned index = 0; index < 2; index++) {
+            const WmSourceRect *selector = &toolbar_order.selectors[index];
+            if (matches_center(quad, selector))
+                toolbar_order.selector_positions[index] = toolbar_order.position;
+            float center_x = selector->x + selector->width * 0.5f;
+            float center_y = selector->y + selector->height * 0.5f;
+            if (quad->vertices[1].x - quad->vertices[0].x > 500.0f &&
+                quad->vertices[0].x <= center_x &&
+                quad->vertices[3].x >= center_x &&
+                quad->vertices[0].y <= center_y &&
+                quad->vertices[3].y >= center_y &&
+                quad->vertices[0].color.a > 0.0f)
+                toolbar_order.background_position = toolbar_order.position;
+        }
+    }
+    if (tracking_key_order) {
+        key_order.position++;
+        if (matches_center(quad, &key_order.clicked)) {
+            key_order.clicked_position = key_order.position;
+            key_order.clicked_width = quad->vertices[1].x - quad->vertices[0].x;
+        }
+        if (matches_center(quad, &key_order.neighbor)) {
+            key_order.neighbor_position = key_order.position;
+            key_order.neighbor_width = quad->vertices[1].x - quad->vertices[0].x;
+        }
+    }
     for (unsigned index = 0; index < 4; index++) {
         maximum_quad_alpha = fmaxf(maximum_quad_alpha,
                                     quad->vertices[index].color.a);
@@ -161,6 +219,223 @@ static void reset_draw_counts(void) {
     selected_text_min_x = INFINITY;
     normal_text_min_x = INFINITY;
     keytop_seen = false;
+}
+
+static double keyboard_geometry(WmBoardKeyboard *keyboard) {
+    reset_draw_counts();
+    wm_board_keyboard_draw(keyboard, 1.0f, false);
+    return material_geometry_sum;
+}
+
+static void assert_clicked_key_on_top(WmBoardKeyboard *keyboard) {
+    key_order.position = 0;
+    key_order.clicked_position = 0;
+    key_order.neighbor_position = 0;
+    keyboard_geometry(keyboard);
+    assert(key_order.clicked_position > key_order.neighbor_position);
+    assert(key_order.neighbor_position > 0);
+    assert(key_order.clicked_width > key_order.clicked.width);
+}
+
+static void test_key_draw_order(const char *assets, WmBoardKeyboard *keyboard) {
+    char path[4096];
+    int length = snprintf(path, sizeof(path),
+        "%s/layouts/sofkeybd/fs_VK_ascii_keytop_a.json", assets);
+    assert(length > 0 && length < (int)sizeof(path));
+    char error[160] = {0};
+    WmLayout *source = wm_layout_load_json(path, error, sizeof(error));
+    assert(source);
+    WmLayoutClip normal = {.animation = "fs_VK_ascii_keytop_a_normal"};
+    assert(wm_layout_pose(source, &normal, 1));
+    assert(wm_source_pane_rect(source, "P_key_00", true, WM_LAYOUT_IPL,
+                               NULL, &key_order.clicked));
+    assert(wm_source_pane_rect(source, "P_key_21", true, WM_LAYOUT_IPL,
+                               NULL, &key_order.neighbor));
+    wm_layout_destroy(source);
+    tracking_key_order = true;
+    wm_board_keyboard_reset(keyboard);
+    char character[5];
+    WmBoardKeyboardControl neighbor = WM_KEYBOARD_CHARACTER_FIRST + 21;
+    wm_board_keyboard_hover(keyboard, WM_KEYBOARD_CHARACTER_FIRST);
+    wm_board_keyboard_advance(keyboard, 5.0f);
+    assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_CHARACTER_FIRST,
+        false, character) == WM_KEYBOARD_ACTION_INSERT);
+    wm_board_keyboard_hover(keyboard, neighbor);
+    wm_board_keyboard_advance(keyboard, 1.0f);
+    assert_clicked_key_on_top(keyboard);
+    wm_board_keyboard_advance(keyboard, 3.0f);
+    assert_clicked_key_on_top(keyboard);
+    wm_board_keyboard_advance(keyboard, 3.0f);
+    keyboard_geometry(keyboard);
+    /* The authored OUT curve briefly dips below neutral before settling.
+     * An endpoint-only blend loses that part of the release motion. */
+    assert(key_order.clicked_width < key_order.clicked.width);
+    wm_board_keyboard_advance(keyboard, 1.0f);
+    keyboard_geometry(keyboard);
+    assert(fabsf(key_order.clicked_width - key_order.clicked.width) < 0.02f);
+
+    /* Starting a second pulse must leave the first pulse intact. */
+    wm_board_keyboard_reset(keyboard);
+    wm_board_keyboard_hover(keyboard, WM_KEYBOARD_CHARACTER_FIRST);
+    wm_board_keyboard_advance(keyboard, 5.0f);
+    assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_CHARACTER_FIRST,
+        false, character) == WM_KEYBOARD_ACTION_INSERT);
+    wm_board_keyboard_advance(keyboard, 2.0f);
+    keyboard_geometry(keyboard);
+    float first_pulse_width = key_order.clicked_width;
+    wm_board_keyboard_hover(keyboard, neighbor);
+    assert(wm_board_keyboard_activate(keyboard, neighbor, false, character) ==
+           WM_KEYBOARD_ACTION_INSERT);
+    keyboard_geometry(keyboard);
+    assert(fabsf(key_order.clicked_width - first_pulse_width) < 0.02f);
+    assert(key_order.clicked_width > key_order.clicked.width);
+    assert(key_order.neighbor_width > key_order.neighbor.width);
+    wm_board_keyboard_hover(keyboard, WM_KEYBOARD_NONE);
+    wm_board_keyboard_advance(keyboard, 28.0f);
+    keyboard_geometry(keyboard);
+    double batched = material_geometry_sum;
+    assert(fabsf(key_order.clicked_width - key_order.clicked.width) < 0.02f);
+    assert(fabsf(key_order.neighbor_width - key_order.neighbor.width) < 0.02f);
+    tracking_key_order = false;
+    wm_board_keyboard_reset(keyboard);
+    assert(fabs(keyboard_geometry(keyboard) - batched) < 0.05);
+}
+
+static void assert_layout_selectors_on_top(WmBoardKeyboard *keyboard) {
+    toolbar_order.position = 0;
+    toolbar_order.background_position = 0;
+    memset(toolbar_order.selector_positions, 0,
+           sizeof(toolbar_order.selector_positions));
+    keyboard_geometry(keyboard);
+    assert(toolbar_order.background_position > 0);
+    for (unsigned index = 0; index < 2; index++)
+        assert(toolbar_order.selector_positions[index] >
+               toolbar_order.background_position);
+}
+
+static void test_toolbar_draw_order(const char *assets,
+                                    WmBoardKeyboard *keyboard) {
+    char path[4096];
+    int length = snprintf(path, sizeof(path),
+        "%s/layouts/sofkeybd/fs_VK_toolbar_a.json", assets);
+    assert(length > 0 && length < (int)sizeof(path));
+    char error[160] = {0};
+    WmLayout *source = wm_layout_load_json(path, error, sizeof(error));
+    assert(source);
+    WmLayoutClip normal = {.animation = "fs_VK_toolbar_a_normal"};
+    assert(wm_layout_pose(source, &normal, 1));
+    assert(wm_source_pane_rect(source, "P_kyChng_QWERTY", true, WM_LAYOUT_IPL,
+                               NULL, &toolbar_order.selectors[0]));
+    assert(wm_source_pane_rect(source, "P_kyChng_CP", true, WM_LAYOUT_IPL,
+                               NULL, &toolbar_order.selectors[1]));
+    wm_layout_destroy(source);
+    const WmBoardKeyboardProfile profiles[] = {
+        WM_BOARD_KEYBOARD_MEMO, WM_BOARD_KEYBOARD_CONSOLE_NICKNAME
+    };
+    const WmBoardKeyboardControl controls[] = {
+        WM_KEYBOARD_BACK, WM_KEYBOARD_OK
+    };
+    char character[5];
+    tracking_toolbar_order = true;
+    for (unsigned profile = 0; profile < 2; profile++) {
+        for (unsigned phone = 0; phone < 2; phone++) {
+            for (unsigned index = 0; index < 2; index++) {
+                wm_board_keyboard_set_profile(keyboard, profiles[profile]);
+                WmBoardKeyboardControl layout = phone ? WM_KEYBOARD_PHONE :
+                                                       WM_KEYBOARD_QWERTY;
+                wm_board_keyboard_activate(keyboard, layout, false, character);
+                wm_board_keyboard_advance(keyboard, 28.0f);
+                WmBoardKeyboardControl control = controls[index];
+                wm_board_keyboard_hover(keyboard, control);
+                wm_board_keyboard_advance(keyboard, 5.0f);
+                assert_layout_selectors_on_top(keyboard);
+                assert(wm_board_keyboard_activate(keyboard, control, false,
+                    character) != WM_KEYBOARD_ACTION_NONE);
+                wm_board_keyboard_advance(keyboard, 2.0f);
+                assert_layout_selectors_on_top(keyboard);
+                wm_board_keyboard_hover(keyboard, WM_KEYBOARD_NONE);
+                wm_board_keyboard_advance(keyboard, 4.0f);
+                assert_layout_selectors_on_top(keyboard);
+            }
+        }
+    }
+    tracking_toolbar_order = false;
+    wm_board_keyboard_set_profile(keyboard, WM_BOARD_KEYBOARD_MEMO);
+    wm_board_keyboard_activate(keyboard, WM_KEYBOARD_QWERTY, false, character);
+    wm_board_keyboard_advance(keyboard, 28.0f);
+}
+
+static void assert_pointer_press_exit(WmBoardKeyboard *keyboard,
+                                      WmBoardKeyboardControl control) {
+    char character[5];
+    wm_board_keyboard_hover(keyboard, control);
+    wm_board_keyboard_advance(keyboard, 6.0f);
+    WmBoardKeyboardAction action = wm_board_keyboard_activate(
+        keyboard, control, false, character);
+    if (action == WM_KEYBOARD_ACTION_NONE)
+        fprintf(stderr, "Control %u had no action\n", (unsigned)control);
+    assert(action != WM_KEYBOARD_ACTION_NONE);
+    wm_board_keyboard_advance(keyboard, 1.0f);
+    double before_handoff = keyboard_geometry(keyboard);
+    wm_board_keyboard_hover(keyboard, WM_KEYBOARD_NONE);
+    double after_handoff = keyboard_geometry(keyboard);
+    if (fabs(after_handoff - before_handoff) >= 0.05)
+        fprintf(stderr, "Control %u handoff: %.6f -> %.6f\n", (unsigned)control,
+                before_handoff, after_handoff);
+    assert(fabs(after_handoff - before_handoff) < 0.05);
+    wm_board_keyboard_advance(keyboard, 1.0f);
+    double immediate_exit = keyboard_geometry(keyboard);
+    if (fabs(immediate_exit - after_handoff) <= 0.0001)
+        fprintf(stderr, "Control %u exit did not move: %.6f -> %.6f\n",
+                (unsigned)control, after_handoff, immediate_exit);
+    assert(fabs(immediate_exit - after_handoff) > 0.0001);
+    wm_board_keyboard_advance(keyboard, 3.0f);
+    double leaving = keyboard_geometry(keyboard);
+    wm_board_keyboard_advance(keyboard, 4.0f);
+    double neutral = keyboard_geometry(keyboard);
+    assert(fabs(leaving - after_handoff) > 0.05);
+    assert(fabs(leaving - neutral) > 0.05);
+    wm_board_keyboard_advance(keyboard, 20.0f);
+    assert(fabs(keyboard_geometry(keyboard) - neutral) < 0.05);
+}
+
+static void test_pointer_press_exit(const char *assets,
+                                    WmTextureCache *textures,
+                                    WmFontCache *fonts) {
+    WmBoardKeyboard *keyboard = wm_board_keyboard_create(
+        (WmPlatform *)1, assets, textures, fonts);
+    assert(keyboard);
+    test_key_draw_order(assets, keyboard);
+    test_toolbar_draw_order(assets, keyboard);
+    const WmBoardKeyboardControl qwerty_controls[] = {
+        WM_KEYBOARD_CHARACTER_FIRST,
+        WM_KEYBOARD_CHARACTER_FIRST + 21,
+        WM_KEYBOARD_DELETE, WM_KEYBOARD_RETURN, WM_KEYBOARD_SPACE,
+        WM_KEYBOARD_CAPS, WM_KEYBOARD_SHIFT, WM_KEYBOARD_BACK, WM_KEYBOARD_OK
+    };
+    for (size_t index = 0; index < sizeof(qwerty_controls) /
+                                  sizeof(qwerty_controls[0]); index++) {
+        wm_board_keyboard_reset(keyboard);
+        assert_pointer_press_exit(keyboard, qwerty_controls[index]);
+    }
+    char character[5];
+    wm_board_keyboard_reset(keyboard);
+    assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_PHONE,
+        false, character) == WM_KEYBOARD_ACTION_LAYOUT_PHONE);
+    wm_board_keyboard_advance(keyboard, 28.0f);
+    for (unsigned index = WM_KEYBOARD_PHONE_FIRST;
+         index <= WM_KEYBOARD_PHONE_LAST; index++) {
+        if (index == WM_KEYBOARD_PHONE_FIRST + 9 ||
+            index == WM_KEYBOARD_PHONE_FIRST + 11) continue;
+        assert_pointer_press_exit(keyboard, (WmBoardKeyboardControl)index);
+    }
+    assert_pointer_press_exit(keyboard, WM_KEYBOARD_DELETE);
+    assert_pointer_press_exit(keyboard, WM_KEYBOARD_RETURN);
+    assert(wm_board_keyboard_activate(keyboard, WM_KEYBOARD_MORE,
+        false, character) == WM_KEYBOARD_ACTION_SYMBOL_OPEN);
+    wm_board_keyboard_advance(keyboard, 28.0f);
+    assert_pointer_press_exit(keyboard, WM_KEYBOARD_SYMBOL_FIRST);
+    wm_board_keyboard_destroy(keyboard);
 }
 
 static void test_prepared_oem_runtime(const char *assets) {
@@ -310,7 +585,15 @@ static void test_candidate_corner(const char *assets,
     wm_board_keyboard_text_changed(keyboard, false);
     reset_draw_counts();
     wm_board_keyboard_draw(keyboard, 1.0f, false);
-    assert(normal_text_min_x < candidate_area.x);
+    assert(selected_text_after_keytop > 0);
+    assert(selected_text_min_x < candidate_area.x);
+    assert(candidate_clip.x <= selected_text_min_x);
+    /* The outgoing word remains in the foreground until its seven-frame
+     * focus exit finishes, even if its text changes during the transition. */
+    wm_board_keyboard_advance(keyboard, 1.0f);
+    reset_draw_counts();
+    wm_board_keyboard_draw(keyboard, 1.0f, false);
+    assert(isfinite(normal_text_min_x));
     assert(candidate_clip.x <= normal_text_min_x);
     assert(candidate_clip.x >= candidate_window.x - 1.1f);
 
@@ -937,6 +1220,7 @@ int main(int argc, char **argv) {
     assert(!wm_board_keyboard_composition(keyboard, &composition));
 
     wm_board_keyboard_destroy(keyboard);
+    test_pointer_press_exit(assets, textures, fonts);
     test_candidate_corner(assets, textures, fonts);
     wm_font_cache_destroy(fonts);
     wm_texture_cache_destroy(textures);

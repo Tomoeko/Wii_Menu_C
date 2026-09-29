@@ -8,7 +8,7 @@
 #include <string.h>
 
 enum {
-    KEYBOARD_CLIP_CAPACITY = WM_KEYBOARD_CONTROL_LAST + 12
+    KEYBOARD_CLIP_CAPACITY = 2 * WM_KEYBOARD_CONTROL_LAST + 12
 };
 
 static const char *const phone_modes[4] = {"Abc", "abc", "ABC", "123"};
@@ -139,6 +139,24 @@ static void append_rebound_clip(WmLayoutClip clips[KEYBOARD_CLIP_CAPACITY],
     };
 }
 
+static void append_press_exit(WmLayoutClip clips[KEYBOARD_CLIP_CAPACITY],
+                               size_t *count, const WmBoardKeyboard *keyboard,
+                               WmBoardKeyboardControl control,
+                               const char *animation, const char *prototype,
+                               const char *target) {
+    const KeyboardFocus *focus = &keyboard->focus[control];
+    if (!focus->active || !focus->from_press || focus->resting ||
+        *count >= KEYBOARD_CLIP_CAPACITY) return;
+    float duration = is_prediction_control(control) ? 7.0f : 8.0f;
+    /* The native state handler starts OUT immediately on pointer leave.
+     * Follow its authored curve, blending from the retained click sample to
+     * avoid a discontinuity at OUT's enlarged first frame. */
+    append_rebound_clip(clips, count, animation, prototype, target, focus->frame);
+    float progress = fminf(1.0f, focus->frame / duration);
+    clips[*count - 1].blend_from_current = true;
+    clips[*count - 1].weight = progress * progress * (3.0f - 2.0f * progress);
+}
+
 static const char *focus_prototype(WmBoardKeyboardControl control,
                                    const char *picture, bool phone_layout) {
     if (control >= WM_KEYBOARD_CHARACTER_FIRST &&
@@ -163,13 +181,51 @@ static const char *focus_prototype(WmBoardKeyboardControl control,
     return picture;
 }
 
-static void raise_focused_key(WmBoardKeyboard *keyboard, WmLayout *layout,
-                              bool phone_layout) {
-    WmBoardKeyboardControl control = keyboard->hovered != WM_KEYBOARD_NONE
-        ? keyboard->hovered : keyboard->pressed;
+static void raise_control(WmLayout *layout, WmBoardKeyboardControl control,
+                           bool toolbar, bool phone_layout) {
     char name[24];
     const char *picture = picture_name(control, name, phone_layout);
-    if (picture) (void)wm_layout_raise_pane(layout, picture);
+    if (!picture) return;
+    if (toolbar) {
+        /* Raising N_toolBar itself would also move its wide background over
+         * the sibling layout selectors. Keep both control groups in place. */
+        const char *scope = control == WM_KEYBOARD_BACK ||
+                            control == WM_KEYBOARD_OK
+            ? "N_toolBar" : "N_keyboardChange";
+        (void)wm_layout_raise_pane_within(layout, scope, picture);
+    } else {
+        (void)wm_layout_raise_pane(layout, picture);
+    }
+}
+
+static void raise_focused_key(WmBoardKeyboard *keyboard, WmLayout *layout,
+                              bool phone_layout) {
+    bool toolbar = layout == keyboard->toolbar;
+    /* Posed layouts restore source order every time. Keep every enlarged
+     * branch above idle neighbors throughout its press and focus exit. */
+    for (unsigned index = 1; index <= WM_KEYBOARD_CONTROL_LAST; index++) {
+        WmBoardKeyboardControl control = (WmBoardKeyboardControl)index;
+        bool belongs = toolbar ? is_toolbar(control) :
+            layout == keyboard->symbols ? is_symbol(control) :
+            layout == keyboard->language ? is_language_choice(control) :
+            layout == keyboard->prediction ? is_prediction_control(control) :
+            phone_layout ? is_phone_control(keyboard, control) : is_keytop(control);
+        bool physical_focus =
+            (control == WM_KEYBOARD_SHIFT &&
+             keyboard->physical_shift_focus_frame > 0.0f) ||
+            (control == WM_KEYBOARD_CAPS &&
+             keyboard->physical_caps_focus_frame > 0.0f);
+        if (!belongs || (!keyboard->focus[index].active &&
+                         !wm_board_keyboard_press_pose_active(keyboard, index) &&
+                         !physical_focus))
+            continue;
+        raise_control(layout, control, toolbar, phone_layout);
+    }
+    /* The most recent click has priority over a new pointer hover. */
+    const WmBoardKeyboardControl top[] = {keyboard->hovered, keyboard->pressed};
+    for (size_t index = 0; index < sizeof(top) / sizeof(top[0]); index++) {
+        raise_control(layout, top[index], toolbar, phone_layout);
+    }
 }
 
 static void pose_controls(WmBoardKeyboard *keyboard, bool toolbar) {
@@ -218,7 +274,7 @@ static void pose_controls(WmBoardKeyboard *keyboard, bool toolbar) {
     }
     for (unsigned index = 1; index <= WM_KEYBOARD_CONTROL_LAST; index++) {
         KeyboardFocus focus = keyboard->focus[index];
-        if (!focus.active ||
+        if (!focus.active || wm_board_keyboard_press_pose_active(keyboard, index) ||
             (toolbar ? !is_toolbar((WmBoardKeyboardControl)index) :
                        !is_keytop((WmBoardKeyboardControl)index)) ||
             selected_tab(keyboard, (WmBoardKeyboardControl)index))
@@ -232,6 +288,14 @@ static void pose_controls(WmBoardKeyboard *keyboard, bool toolbar) {
               wm_board_keyboard_caps_active(keyboard)) ||
              (index == WM_KEYBOARD_SHIFT &&
               wm_board_keyboard_shift_active(keyboard)));
+        bool selected_exit = selected && !focus.entering && !focus.resting;
+        if (selected_exit) {
+            /* The toggle OUT clip starts just past the hover scale and
+             * changes its color immediately. Retain the hovered endpoint
+             * while blending those source-track discontinuities. */
+            append_rebound_clip(clips, &count,
+                selected_motion[1], target, target, 5.0f);
+        }
         append_rebound_clip(clips, &count,
                     focus.resting
                         ? selected ? selected_motion[1] :
@@ -242,6 +306,11 @@ static void pose_controls(WmBoardKeyboard *keyboard, bool toolbar) {
                     focus_prototype((WmBoardKeyboardControl)index, target,
                                     keyboard->phone_layout),
                     target, focus.resting && selected ? 5.0f : focus.frame);
+        if (selected_exit) {
+            float progress = fminf(1.0f, focus.frame / 8.0f);
+            clips[count - 1].blend_from_current = true;
+            clips[count - 1].weight = progress * progress * (3.0f - 2.0f * progress);
+        }
     }
     /* Physical focus progresses through the same clips as pointer focus,
      * then reverses after release without changing pointer ownership. */
@@ -261,10 +330,11 @@ static void pose_controls(WmBoardKeyboard *keyboard, bool toolbar) {
                             "P_key_CAPS", "P_key_CAPS",
                             keyboard->physical_caps_focus_frame);
     }
-    if (keyboard->pressed != WM_KEYBOARD_NONE &&
-        is_toolbar(keyboard->pressed) == toolbar) {
-        unsigned index = (unsigned)keyboard->pressed;
-        const char *target = picture_name(keyboard->pressed,
+    for (unsigned index = 1; index <= WM_KEYBOARD_CONTROL_LAST; index++) {
+        WmBoardKeyboardControl control = (WmBoardKeyboardControl)index;
+        if (!wm_board_keyboard_press_pose_active(keyboard, index) ||
+            (toolbar ? !is_toolbar(control) : !is_keytop(control))) continue;
+        const char *target = picture_name(control,
                                            target_names[index],
                                            keyboard->phone_layout);
         bool selected = !toolbar &&
@@ -272,13 +342,15 @@ static void pose_controls(WmBoardKeyboard *keyboard, bool toolbar) {
               wm_board_keyboard_caps_active(keyboard)) ||
              (index == WM_KEYBOARD_SHIFT &&
               wm_board_keyboard_shift_active(keyboard)));
-        if (target && (toolbar ? is_toolbar(keyboard->pressed) :
-                                is_keytop(keyboard->pressed))) {
+        if (target) {
             append_rebound_clip(clips, &count,
                                 selected ? selected_motion[3] : motion[2],
-                                focus_prototype(keyboard->pressed, target,
+                                focus_prototype(control, target,
                                                 keyboard->phone_layout),
-                                target, keyboard->press_frame);
+                                target, keyboard->press[index].frame);
+            append_press_exit(clips, &count, keyboard, control,
+                selected ? selected_motion[2] : motion[1],
+                focus_prototype(control, target, keyboard->phone_layout), target);
         }
     }
     wm_layout_pose(layout, clips, count);
@@ -353,6 +425,7 @@ static void pose_phone(WmBoardKeyboard *keyboard) {
         WmBoardKeyboardControl control = (WmBoardKeyboardControl)index;
         KeyboardFocus focus = keyboard->focus[index];
         if (!is_phone_control(keyboard, control) || !focus.active ||
+            wm_board_keyboard_press_pose_active(keyboard, index) ||
             selected_tab(keyboard, control)) continue;
         const char *target = picture_name(control, targets[index], true);
         if (!target) continue;
@@ -363,16 +436,21 @@ static void pose_phone(WmBoardKeyboard *keyboard) {
                     focus_prototype(control, target, true), target,
                     focus.frame);
     }
-    if (is_phone_control(keyboard, keyboard->pressed)) {
-        unsigned index = keyboard->pressed;
-        const char *target = picture_name(keyboard->pressed, targets[index],
+    for (unsigned index = 1; index <= WM_KEYBOARD_CONTROL_LAST; index++) {
+        WmBoardKeyboardControl control = (WmBoardKeyboardControl)index;
+        if (!wm_board_keyboard_press_pose_active(keyboard, index) ||
+            !is_phone_control(keyboard, control)) continue;
+        const char *target = picture_name(control, targets[index],
                                            true);
         if (target) {
             append_rebound_clip(clips, &count,
                                 "fs_VK_cellPhone_a_Pushed",
-                                focus_prototype(keyboard->pressed, target,
+                                focus_prototype(control, target,
                                                 true), target,
-                                keyboard->press_frame);
+                                keyboard->press[index].frame);
+            append_press_exit(clips, &count, keyboard, control,
+                "fs_VK_cellPhone_a_Focus-OUT",
+                focus_prototype(control, target, true), target);
         }
     }
     wm_layout_pose(keyboard->phone, clips, count);
@@ -448,6 +526,7 @@ static void pose_toolbar(WmBoardKeyboard *keyboard) {
         keyboard->profile == WM_BOARD_KEYBOARD_MEMO ||
         keyboard->profile == WM_BOARD_KEYBOARD_ADDRESS_NICKNAME ||
         keyboard->profile == WM_BOARD_KEYBOARD_CONSOLE_NICKNAME);
+    raise_focused_key(keyboard, keyboard->toolbar, false);
 }
 
 void wm_board_keyboard_pose_prediction(WmBoardKeyboard *keyboard) {
@@ -463,22 +542,28 @@ void wm_board_keyboard_pose_prediction(WmBoardKeyboard *keyboard) {
     KeyboardFocus focus = keyboard->focus[WM_KEYBOARD_PREDICTION];
     const char *button = keyboard->prediction_enabled ? "P_OnBtn" :
                                                          "P_OffBtn";
-    if (focus.active) append_rebound_clip(clips, &count,
+    if (focus.active &&
+        !wm_board_keyboard_press_pose_active(keyboard, WM_KEYBOARD_PREDICTION))
+        append_rebound_clip(clips, &count,
         focus.resting ? "fs_VK_predictInput_a_Roll_over" :
         focus.entering ? "fs_VK_predictInput_a_Foucus_IN" :
                          "fs_VK_predictInput_a_Focus_OUT",
         button, button, focus.frame);
-    if (keyboard->pressed == WM_KEYBOARD_PREDICTION)
+    if (wm_board_keyboard_press_pose_active(keyboard, WM_KEYBOARD_PREDICTION)) {
         append_rebound_clip(clips, &count,
             "fs_VK_predictInput_a_OnOffButton_Pushed", button, button,
-            keyboard->press_frame);
+            keyboard->press[WM_KEYBOARD_PREDICTION].frame);
+        append_press_exit(clips, &count, keyboard, WM_KEYBOARD_PREDICTION,
+            "fs_VK_predictInput_a_Focus_OUT", button, button);
+    }
     /* Clip target names must remain alive until wm_layout_pose consumes them. */
     char candidate_names[CANDIDATE_PANE_COUNT][24];
     for (unsigned index = 0; index < CANDIDATE_PANE_COUNT; index++) {
         WmBoardKeyboardControl control = (WmBoardKeyboardControl)(
             WM_KEYBOARD_CANDIDATE_FIRST + index);
         KeyboardFocus candidate_focus = keyboard->focus[control];
-        if (!candidate_focus.active || keyboard->candidate_scrolling) continue;
+        if (!candidate_focus.active || keyboard->candidate_scrolling ||
+            wm_board_keyboard_press_pose_active(keyboard, control)) continue;
         snprintf(candidate_names[index], sizeof(candidate_names[index]),
                  "T_prdc_Text_%02u", index);
         append_rebound_clip(clips, &count,
@@ -488,16 +573,20 @@ void wm_board_keyboard_pose_prediction(WmBoardKeyboard *keyboard) {
             "T_prdc_Text_00", candidate_names[index],
             candidate_focus.frame);
     }
-    if (keyboard->pressed >= WM_KEYBOARD_CANDIDATE_FIRST &&
-        keyboard->pressed <= WM_KEYBOARD_CANDIDATE_LAST) {
-        unsigned index = keyboard->pressed - WM_KEYBOARD_CANDIDATE_FIRST;
+    for (unsigned index = 0; index < CANDIDATE_PANE_COUNT; index++) {
+        unsigned control = WM_KEYBOARD_CANDIDATE_FIRST + index;
+        if (!wm_board_keyboard_press_pose_active(keyboard, control)) continue;
         if (keyboard->candidate_pane_indices[index] <
             keyboard->candidate_count) {
             snprintf(candidate_names[index], sizeof(candidate_names[index]),
                      "T_prdc_Text_%02u", index);
             append_rebound_clip(clips, &count,
                 "fs_VK_predictInput_a_Pushed", "T_prdc_Text_00",
-                candidate_names[index], keyboard->press_frame);
+                candidate_names[index], keyboard->press[control].frame);
+            append_press_exit(clips, &count, keyboard,
+                (WmBoardKeyboardControl)control,
+                "fs_VK_predictInput_a_Focus_OUT", "T_prdc_Text_00",
+                candidate_names[index]);
         }
     }
     static const WmBoardKeyboardControl arrows[2] = {
@@ -509,15 +598,19 @@ void wm_board_keyboard_pose_prediction(WmBoardKeyboard *keyboard) {
         const char *picture = index == 0 ? "P_prdc_scrl_Left" :
                                            "P_prdc_scrl_Rght";
         KeyboardFocus arrow_focus = keyboard->focus[control];
-        if (arrow_focus.active) append_rebound_clip(clips, &count,
+        if (arrow_focus.active && !wm_board_keyboard_press_pose_active(keyboard, control))
+            append_rebound_clip(clips, &count,
             arrow_focus.resting ? "fs_VK_predictInput_a_Roll_over" :
             arrow_focus.entering ? "fs_VK_predictInput_a_Foucus_IN" :
                                    "fs_VK_predictInput_a_Focus_OUT",
             "P_prdc_scrl_Left", picture, arrow_focus.frame);
-        if (keyboard->pressed == control)
+        if (wm_board_keyboard_press_pose_active(keyboard, control)) {
             append_rebound_clip(clips, &count,
                 "fs_VK_predictInput_a_Pushed", "P_prdc_scrl_Left",
-                picture, keyboard->press_frame);
+                picture, keyboard->press[control].frame);
+            append_press_exit(clips, &count, keyboard, control,
+                "fs_VK_predictInput_a_Focus_OUT", "P_prdc_scrl_Left", picture);
+        }
     }
     wm_layout_pose(keyboard->prediction, clips, count);
     static const char *const hidden[] = {
@@ -578,16 +671,7 @@ void wm_board_keyboard_pose_prediction(WmBoardKeyboard *keyboard) {
         wm_layout_set_pane_translation(keyboard->prediction, bounds_name,
             -477.0f + (left + right) * 0.5f, 0.0f, 0.0f);
     }
-    if (keyboard->hovered >= WM_KEYBOARD_CANDIDATE_FIRST &&
-        keyboard->hovered <= WM_KEYBOARD_CANDIDATE_LAST) {
-        unsigned index = keyboard->hovered - WM_KEYBOARD_CANDIDATE_FIRST;
-        if (keyboard->candidate_pane_indices[index] <
-            keyboard->candidate_count && !keyboard->candidate_scrolling) {
-            char name[24];
-            snprintf(name, sizeof(name), "T_prdc_Text_%02u", index);
-            (void)wm_layout_raise_pane(keyboard->prediction, name);
-        }
-    }
+    raise_focused_key(keyboard, keyboard->prediction, false);
     keyboard->prediction_dirty = false;
 }
 
@@ -610,7 +694,8 @@ static void pose_language(WmBoardKeyboard *keyboard) {
     for (unsigned index = WM_KEYBOARD_LANGUAGE_ENGLISH;
          index <= WM_KEYBOARD_LANGUAGE_SPANISH; index++) {
         KeyboardFocus focus = keyboard->focus[index];
-        if (!focus.active) continue;
+        if (!focus.active || wm_board_keyboard_press_pose_active(keyboard, index))
+            continue;
         WmBoardKeyboardControl control = (WmBoardKeyboardControl)index;
         const char *target = picture_name(control, names[index], false);
         append_rebound_clip(clips, &count,
@@ -619,12 +704,16 @@ static void pose_language(WmBoardKeyboard *keyboard) {
                              "fs_prdicSelWidw_a_PRDC_Focus-OUT",
             "P_PRDC_US_US", target, focus.frame);
     }
-    if (is_language_choice(keyboard->pressed)) {
-        const char *target = picture_name(keyboard->pressed,
-                                           names[keyboard->pressed], false);
+    for (unsigned index = WM_KEYBOARD_LANGUAGE_ENGLISH;
+         index <= WM_KEYBOARD_LANGUAGE_SPANISH; index++) {
+        if (!wm_board_keyboard_press_pose_active(keyboard, index)) continue;
+        const char *target = picture_name((WmBoardKeyboardControl)index,
+                                           names[index], false);
         append_rebound_clip(clips, &count,
             "fs_prdicSelWidw_a_PRDC_Pushed", "P_PRDC_US_US", target,
-            keyboard->press_frame);
+            keyboard->press[index].frame);
+        append_press_exit(clips, &count, keyboard, (WmBoardKeyboardControl)index,
+            "fs_prdicSelWidw_a_PRDC_Focus-OUT", "P_PRDC_US_US", target);
     }
     wm_layout_pose(keyboard->language, clips, count);
     keyboard->language_dirty = false;
@@ -636,11 +725,7 @@ static void pose_language(WmBoardKeyboard *keyboard) {
     for (unsigned index = 0; index < 3; index++)
         wm_layout_set_pose_text(keyboard->language, text_panes[index],
                                  language_names[index]);
-    if (is_language_choice(keyboard->hovered)) {
-        const char *target = picture_name(keyboard->hovered,
-                                           names[keyboard->hovered], false);
-        (void)wm_layout_raise_pane(keyboard->language, target);
-    }
+    raise_focused_key(keyboard, keyboard->language, false);
 }
 
 static void pose_symbols(WmBoardKeyboard *keyboard) {
@@ -680,7 +765,8 @@ static void pose_symbols(WmBoardKeyboard *keyboard) {
     for (unsigned index = WM_KEYBOARD_SYMBOL_FIRST;
          index <= WM_KEYBOARD_SYMBOL_NEXT; index++) {
         KeyboardFocus focus = keyboard->focus[index];
-        if (!focus.active) continue;
+        if (!focus.active || wm_board_keyboard_press_pose_active(keyboard, index))
+            continue;
         WmBoardKeyboardControl control = (WmBoardKeyboardControl)index;
         const char *target = picture_name(control, target_names[index],
                                           false);
@@ -690,13 +776,19 @@ static void pose_symbols(WmBoardKeyboard *keyboard) {
                              "fs_signWindow_a_SGN_Focus-OUT",
             focus_prototype(control, target, false), target, focus.frame);
     }
-    if (is_symbol(keyboard->pressed)) {
-        const char *target = picture_name(keyboard->pressed,
-                                           target_names[keyboard->pressed],
+    for (unsigned index = WM_KEYBOARD_SYMBOL_FIRST;
+         index <= WM_KEYBOARD_SYMBOL_NEXT; index++) {
+        if (!wm_board_keyboard_press_pose_active(keyboard, index)) continue;
+        WmBoardKeyboardControl control = (WmBoardKeyboardControl)index;
+        const char *target = picture_name(control,
+                                           target_names[index],
                                            false);
         append_rebound_clip(clips, &count, "fs_signWindow_a_SGN_Pushed",
-                            focus_prototype(keyboard->pressed, target, false),
-                            target, keyboard->press_frame);
+                            focus_prototype(control, target, false),
+                            target, keyboard->press[index].frame);
+        append_press_exit(clips, &count, keyboard, control,
+            "fs_signWindow_a_SGN_Focus-OUT",
+            focus_prototype(control, target, false), target);
     }
     unsigned second_page = keyboard->symbol_phase == SYMBOL_SCROLL_PREV ||
                            keyboard->symbol_phase == SYMBOL_SCROLL_NEXT
@@ -718,6 +810,7 @@ static void pose_symbols(WmBoardKeyboard *keyboard) {
     wm_layout_set_text(keyboard->symbols, "T_SGNkey_prev", "←");
     wm_layout_set_text(keyboard->symbols, "T_SGNkey_next", "→");
     wm_layout_pose(keyboard->symbols, clips, count);
+    raise_focused_key(keyboard, keyboard->symbols, false);
     keyboard->symbols_dirty = false;
 }
 
@@ -728,16 +821,21 @@ static void position_layout(WmLayout *layout, float y) {
 typedef struct PredictionDrawPass {
     bool text_pass;
     bool selected_only;
-    const char *selected_name;
+    uint32_t foreground_candidates;
 } PredictionDrawPass;
 
 static bool draw_prediction_pass(void *context, const char *pane_name) {
     const PredictionDrawPass *pass = context;
-    bool candidate_text = strncmp(pane_name, "T_prdc_Text_", 12) == 0;
+    bool candidate_text = strncmp(pane_name, "T_prdc_Text_", 12) == 0 &&
+        pane_name[12] >= '0' && pane_name[12] <= '9' &&
+        pane_name[13] >= '0' && pane_name[13] <= '9' && pane_name[14] == '\0';
     if (!pass->text_pass) return !candidate_text;
     if (!candidate_text) return false;
-    if (!pass->selected_name) return true;
-    bool selected = strcmp(pane_name, pass->selected_name) == 0;
+    if (!pass->foreground_candidates) return true;
+    unsigned slot = (unsigned)(pane_name[12] - '0') * 10u +
+                    (unsigned)(pane_name[13] - '0');
+    bool selected = slot < CANDIDATE_PANE_COUNT &&
+        (pass->foreground_candidates & (UINT32_C(1) << slot)) != 0;
     return pass->selected_only ? selected : !selected;
 }
 
@@ -931,8 +1029,7 @@ void wm_board_keyboard_draw(WmBoardKeyboard *keyboard, float progress,
     wm_layout_present_with_fonts_opacity(
         keyboard->platform, keyboard->textures, keyboard->fonts,
         keyboard->toolbar, true, WM_LAYOUT_IPL, NULL, opacity);
-    char selected_name[24];
-    const char *selected = NULL;
+    uint32_t foreground_candidates = 0;
     WmSourceRect area;
     WmSourceRect window;
     bool candidate_area_visible = keyboard->profile == WM_BOARD_KEYBOARD_MEMO &&
@@ -941,18 +1038,18 @@ void wm_board_keyboard_draw(WmBoardKeyboard *keyboard, float progress,
             true, WM_LAYOUT_IPL, NULL, &area) &&
         wm_source_pane_rect(keyboard->prediction, "W_predictWindow",
             true, WM_LAYOUT_IPL, NULL, &window);
-    if (candidate_area_visible && !keyboard->candidate_scrolling &&
-        keyboard->hovered >= WM_KEYBOARD_CANDIDATE_FIRST &&
-        keyboard->hovered <= WM_KEYBOARD_CANDIDATE_LAST) {
-        unsigned slot = keyboard->hovered - WM_KEYBOARD_CANDIDATE_FIRST;
-        if (keyboard->candidate_pane_indices[slot] < keyboard->candidate_count) {
-            snprintf(selected_name, sizeof(selected_name),
-                     "T_prdc_Text_%02u", slot);
-            selected = selected_name;
+    if (candidate_area_visible && !keyboard->candidate_scrolling) {
+        for (unsigned slot = 0; slot < CANDIDATE_PANE_COUNT; slot++) {
+            unsigned control = WM_KEYBOARD_CANDIDATE_FIRST + slot;
+            if (keyboard->candidate_pane_indices[slot] < keyboard->candidate_count &&
+                (keyboard->hovered == control || keyboard->focus[control].active ||
+                 wm_board_keyboard_press_pose_active(keyboard, control))) {
+                foreground_candidates |= UINT32_C(1) << slot;
+            }
         }
     }
     if (keyboard->profile == WM_BOARD_KEYBOARD_MEMO) {
-        PredictionDrawPass pass = {.selected_name = selected};
+        PredictionDrawPass pass = {.foreground_candidates = foreground_candidates};
         wm_layout_present_with_fonts_opacity_masked(
             keyboard->platform, keyboard->textures, keyboard->fonts,
             keyboard->prediction, true, WM_LAYOUT_IPL, NULL, opacity,
@@ -978,7 +1075,7 @@ void wm_board_keyboard_draw(WmBoardKeyboard *keyboard, float progress,
     wm_layout_present_with_fonts_opacity(
         keyboard->platform, keyboard->textures, keyboard->fonts,
         active, true, WM_LAYOUT_IPL, NULL, opacity);
-    if (selected) {
+    if (foreground_candidates) {
         /* Focus scales the first word across the rounded left edge. Draw
          * every glyph above the keytops and window at its authored position. */
         WmClipRect clip = {
@@ -988,7 +1085,7 @@ void wm_board_keyboard_draw(WmBoardKeyboard *keyboard, float progress,
         };
         PredictionDrawPass pass = {
             .text_pass = true, .selected_only = true,
-            .selected_name = selected
+            .foreground_candidates = foreground_candidates
         };
         wm_platform_set_clip(keyboard->platform, &clip);
         wm_layout_present_with_fonts_opacity_masked(

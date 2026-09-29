@@ -74,7 +74,8 @@ void wm_resource_scene_draw_grid_overlay(WmResourceScene *scene,
 
 /* Draw only the grid's SD button inside an already active Board frame. */
 void wm_resource_scene_draw_sd_button(WmResourceScene *scene,
-                                      float elapsed_seconds);
+                                      float elapsed_seconds,
+                                      float visibility_frame);
 
 /* The Board uses the grid's same source TextBalloon controller, timing, and
  * sound. Draw after the Board footer so its button anchors are posed. */

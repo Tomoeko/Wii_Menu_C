@@ -81,7 +81,6 @@ struct WmResourceScene {
     float balloon_end;
     bool balloon_sound_pending;
     float sd_hover_changed_at;
-    float board_sd_reveal_started_at;
     int clock_hour;
     int clock_minute;
     float clock_change_start;

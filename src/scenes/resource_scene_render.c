@@ -423,14 +423,10 @@ static void draw_sd_button(WmResourceScene *scene, const WmMenu *menu,
         WM_LAYOUT_IPL, position, sd_button_pane, NULL);
 }
 
-void wm_resource_scene_draw_sd_button(WmResourceScene *scene, float elapsed_seconds) {
+void wm_resource_scene_draw_sd_button(WmResourceScene *scene, float elapsed_seconds,
+                                      float visibility_frame) {
     if (!scene)
         return;
-    if (scene->board_sd_reveal_started_at < 0.0f) {
-        scene->board_sd_reveal_started_at = elapsed_seconds;
-    }
-    float visibility_frame = fmaxf(
-        0.0f, 15.0f - (elapsed_seconds - scene->board_sd_reveal_started_at) * 60.0f);
     draw_sd_button(scene, NULL, elapsed_seconds, NULL, visibility_frame);
 }
 
@@ -476,7 +472,6 @@ static void draw_resource_scene(WmResourceScene *scene, const WmMenu *menu,
     if (!scene || !menu || !frame)
         return;
     float elapsed_seconds = frame->elapsed_seconds;
-    scene->board_sd_reveal_started_at = -1.0f;
     WmHit hover = frame->hover;
     wm_resource_scene_advance_interactions(scene, menu, elapsed_seconds, hover,
                                            frame->suppress_balloons);

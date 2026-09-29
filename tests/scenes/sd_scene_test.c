@@ -28,6 +28,9 @@ typedef struct RenderProbe {
 static bool capture_render;
 static uint32_t next_texture_handle = 1;
 static RenderProbe render_probe;
+static bool tracking_sd_button;
+static float sd_button_alpha;
+static float sd_button_width;
 
 static void reset_render_probe(void) {
     render_probe = (RenderProbe){
@@ -131,6 +134,10 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
     float x = quad->vertices[0].x;
     float y = quad->vertices[0].y;
     float width = quad->vertices[1].x - x;
+    if (tracking_sd_button && width < 100.0f && x > 80.0f && x < 180.0f) {
+        sd_button_alpha = fmaxf(sd_button_alpha, quad->vertices[0].color.a);
+        sd_button_width = fmaxf(sd_button_width, fabsf(width));
+    }
     if (y > 305.0f && y < 316.0f && width > 20.0f && width < 30.0f) {
         if (x > 310.0f && x < 340.0f &&
             x < render_probe.next_button_left) {
@@ -259,6 +266,42 @@ static void test_grid_sd_button_anchor(int argc, char **argv) {
     assert(grid);
     assert(wm_resource_scene_hit(grid, &menu, 132, 400).type == WM_HIT_SD);
     assert(wm_resource_scene_hit(grid, &menu, 183, 400).type != WM_HIT_SD);
+    /* Draw-command measurements cover the authored fade and shrink. The
+     * visibility sample must stay independent of when a frame is drawn. */
+    tracking_sd_button = true;
+    const float samples[] = {0.0f, 2.0f, 5.0f, 7.0f, 9.0f, 10.0f, 15.0f};
+    float previous_alpha = INFINITY;
+    float initial_width = 0.0f;
+    for (size_t index = 0; index < sizeof(samples) / sizeof(samples[0]); index++) {
+        sd_button_alpha = 0.0f;
+        sd_button_width = 0.0f;
+        wm_resource_scene_draw_sd_button(grid, 20.0f, samples[index]);
+        assert(sd_button_alpha <= previous_alpha);
+        if (index == 0) {
+            assert(sd_button_alpha > 0.99f);
+            assert(sd_button_width > 0.0f);
+            initial_width = sd_button_width;
+        } else if (samples[index] < 10.0f) {
+            assert(sd_button_alpha > 0.0f);
+            assert(sd_button_alpha < previous_alpha);
+            if (samples[index] > 5.0f)
+                assert(sd_button_width < initial_width);
+        } else {
+            assert(sd_button_alpha == 0.0f);
+        }
+        previous_alpha = sd_button_alpha;
+    }
+    sd_button_alpha = 0.0f;
+    sd_button_width = 0.0f;
+    wm_resource_scene_draw_sd_button(grid, 40.0f, 5.0f);
+    float entry_alpha = sd_button_alpha;
+    float entry_width = sd_button_width;
+    sd_button_alpha = 0.0f;
+    sd_button_width = 0.0f;
+    wm_resource_scene_draw_sd_button(grid, 100.0f, 5.0f);
+    assert(sd_button_alpha == entry_alpha);
+    assert(fabsf(sd_button_width - entry_width) < 0.001f);
+    tracking_sd_button = false;
     wm_resource_scene_destroy(grid);
     wm_texture_cache_destroy(textures);
     wm_font_cache_destroy(fonts);

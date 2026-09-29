@@ -33,8 +33,14 @@ typedef struct KeyboardFocus {
     bool active;
     bool entering;
     bool resting;
+    bool from_press;
     float frame;
 } KeyboardFocus;
+
+typedef struct KeyboardPress {
+    bool active;
+    float frame;
+} KeyboardPress;
 
 struct WmBoardKeyboard {
     WmPlatform *platform;
@@ -53,10 +59,10 @@ struct WmBoardKeyboard {
     bool memo_phone_layout;
     unsigned memo_phone_mode;
     KeyboardFocus focus[WM_KEYBOARD_CONTROL_LAST + 1];
+    KeyboardPress press[WM_KEYBOARD_CONTROL_LAST + 1];
     WmBoardKeyboardControl hovered;
     WmBoardKeyboardControl pressed;
     WmBoardKeyboardControl pressed_phone_hover;
-    float press_frame;
     bool caps;
     bool shift;
     bool physical_caps;
@@ -123,6 +129,13 @@ struct WmBoardKeyboard {
     uint16_t held_updates;
     double held_fraction;
 };
+
+static inline bool wm_board_keyboard_press_pose_active(
+    const WmBoardKeyboard *keyboard, unsigned control) {
+    const KeyboardFocus *focus = &keyboard->focus[control];
+    return keyboard->press[control].active ||
+           (focus->active && focus->from_press && !focus->resting);
+}
 
 static inline bool wm_board_keyboard_shift_active(
     const WmBoardKeyboard *keyboard) {

@@ -55,10 +55,12 @@ static void draw_home_underlay(const WmAppRenderer *renderer,
         wm_board_scene_set_menu_elapsed_seconds(renderer->board_scene,
                                                 frame->home_underlay_elapsed);
         wm_board_scene_draw_footer(renderer->board_scene);
+        float sd_frame = 0.0f;
         if (renderer->resource_scene &&
-            wm_board_scene_sd_visible(renderer->board_scene)) {
+            wm_board_scene_sd_button_frame(renderer->board_scene, &sd_frame)) {
             wm_resource_scene_draw_sd_button(renderer->resource_scene,
-                                             frame->home_underlay_elapsed);
+                                             frame->home_underlay_elapsed,
+                                             sd_frame);
         }
     } else if (renderer->options_scene && menu->screen == WM_SCREEN_SETTINGS) {
         if (frame->active_storage) {
@@ -174,8 +176,11 @@ static void draw_board(WmAppRenderer *renderer, const WmAppRenderFrame *frame) {
     }
     wm_board_scene_set_menu_elapsed_seconds(renderer->board_scene, scene_seconds);
     wm_board_scene_draw_footer(renderer->board_scene);
-    if (renderer->resource_scene && wm_board_scene_sd_visible(renderer->board_scene)) {
-        wm_resource_scene_draw_sd_button(renderer->resource_scene, scene_seconds);
+    float sd_frame = 0.0f;
+    if (renderer->resource_scene &&
+        wm_board_scene_sd_button_frame(renderer->board_scene, &sd_frame)) {
+        wm_resource_scene_draw_sd_button(renderer->resource_scene, scene_seconds,
+                                         sd_frame);
     }
     if (renderer->resource_scene) {
         wm_resource_scene_draw_board_balloons(renderer->resource_scene,
