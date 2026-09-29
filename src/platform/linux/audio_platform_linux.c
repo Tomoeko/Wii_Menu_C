@@ -37,17 +37,16 @@ struct WmAudioDevice {
     int (*pcm_format_value)(const char *);
 };
 
-static bool load_symbol(void *library, const char *name,
-                        void *function, size_t function_size)
-{
+static bool load_symbol(void *library, const char *name, void *function,
+                        size_t function_size) {
     void *symbol = dlsym(library, name);
-    if (!symbol || function_size != sizeof(symbol)) return false;
+    if (!symbol || function_size != sizeof(symbol))
+        return false;
     memcpy(function, &symbol, sizeof(symbol));
     return true;
 }
 
-static void *output_thread(void *context)
-{
+static void *output_thread(void *context) {
     WmAudioDevice *device = context;
     float buffer[512 * 2];
     while (atomic_load_explicit(&device->running, memory_order_relaxed)) {
@@ -55,9 +54,8 @@ static void *output_thread(void *context)
         unsigned long position = 0;
         while (position < 512 &&
                atomic_load_explicit(&device->running, memory_order_relaxed)) {
-            long written = device->pcm_writei(device->pcm,
-                                               buffer + position * 2,
-                                               512 - position);
+            long written =
+                device->pcm_writei(device->pcm, buffer + position * 2, 512 - position);
             if (written < 0) {
                 if (device->pcm_recover(device->pcm, (int)written, 1) < 0) {
                     atomic_store(&device->running, false);
@@ -77,11 +75,12 @@ static void *output_thread(void *context)
     return NULL;
 }
 
-WmAudioDevice *wm_audio_device_open(WmAudioRender render, void *context)
-{
-    if (!render) return NULL;
+WmAudioDevice *wm_audio_device_open(WmAudioRender render, void *context) {
+    if (!render)
+        return NULL;
     WmAudioDevice *device = calloc(1, sizeof(*device));
-    if (!device) return NULL;
+    if (!device)
+        return NULL;
     device->library = dlopen("libasound.so.2", RTLD_NOW | RTLD_LOCAL);
     if (!device->library ||
         !load_symbol(device->library, "snd_pcm_open", &device->pcm_open,
@@ -94,14 +93,12 @@ WmAudioDevice *wm_audio_device_open(WmAudioRender render, void *context)
                      sizeof(device->pcm_writei)) ||
         !load_symbol(device->library, "snd_pcm_recover", &device->pcm_recover,
                      sizeof(device->pcm_recover)) ||
-        !load_symbol(device->library, "snd_pcm_format_value",
-                     &device->pcm_format_value,
+        !load_symbol(device->library, "snd_pcm_format_value", &device->pcm_format_value,
                      sizeof(device->pcm_format_value)) ||
         device->pcm_open(&device->pcm, "default", 0, 0) < 0 ||
-        device->pcm_set_params(device->pcm,
-                               device->pcm_format_value("FLOAT_LE"),
-                               WM_ALSA_ACCESS_RW_INTERLEAVED,
-                               2, 48000, 1, WM_ALSA_BUFFER_MICROSECONDS) < 0) {
+        device->pcm_set_params(device->pcm, device->pcm_format_value("FLOAT_LE"),
+                               WM_ALSA_ACCESS_RW_INTERLEAVED, 2, 48000, 1,
+                               WM_ALSA_BUFFER_MICROSECONDS) < 0) {
         wm_audio_device_close(device);
         return NULL;
     }
@@ -116,12 +113,15 @@ WmAudioDevice *wm_audio_device_open(WmAudioRender render, void *context)
     return device;
 }
 
-void wm_audio_device_close(WmAudioDevice *device)
-{
-    if (!device) return;
+void wm_audio_device_close(WmAudioDevice *device) {
+    if (!device)
+        return;
     atomic_store(&device->running, false);
-    if (device->thread_started) pthread_join(device->thread, NULL);
-    if (device->pcm && device->pcm_close) device->pcm_close(device->pcm);
-    if (device->library) dlclose(device->library);
+    if (device->thread_started)
+        pthread_join(device->thread, NULL);
+    if (device->pcm && device->pcm_close)
+        device->pcm_close(device->pcm);
+    if (device->library)
+        dlclose(device->library);
     free(device);
 }

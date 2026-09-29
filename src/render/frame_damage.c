@@ -22,8 +22,7 @@ struct WmFrameDamage {
     size_t region_count;
 };
 
-WmFrameDamage *wm_frame_damage_create(void)
-{
+WmFrameDamage *wm_frame_damage_create(void) {
     WmFrameDamage *damage = calloc(1, sizeof(*damage));
     if (damage) {
         damage->current = damage->storage[0];
@@ -32,14 +31,12 @@ WmFrameDamage *wm_frame_damage_create(void)
     return damage;
 }
 
-void wm_frame_damage_destroy(WmFrameDamage *damage)
-{
+void wm_frame_damage_destroy(WmFrameDamage *damage) {
     free(damage);
 }
 
 void wm_frame_damage_begin(WmFrameDamage *damage, int width, int height,
-                            WmColor clear)
-{
+                           WmColor clear) {
     if (damage->width != width || damage->height != height)
         damage->valid = false;
     damage->width = width;
@@ -48,20 +45,17 @@ void wm_frame_damage_begin(WmFrameDamage *damage, int width, int height,
     damage->current_count = 0;
 }
 
-static WmFrameCommand *append_command(WmFrameDamage *damage,
-                                      const WmClipRect *clip)
-{
-    if (damage->current_count == WM_FRAME_COMMAND_CAPACITY) return NULL;
+static WmFrameCommand *append_command(WmFrameDamage *damage, const WmClipRect *clip) {
+    if (damage->current_count == WM_FRAME_COMMAND_CAPACITY)
+        return NULL;
     WmFrameCommand *command = &damage->current[damage->current_count++];
     /* Canonical padding makes byte comparisons deterministic. */
     memset(command, 0, sizeof(*command));
-    command->clip = clip ? *clip
-        : (WmClipRect){0, 0, WM_FRAME_WIDTH, WM_FRAME_HEIGHT};
+    command->clip = clip ? *clip : (WmClipRect){0, 0, WM_FRAME_WIDTH, WM_FRAME_HEIGHT};
     return command;
 }
 
-static void finish_bounds(WmFrameCommand *command, const float positions[4][2])
-{
+static void finish_bounds(WmFrameCommand *command, const float positions[4][2]) {
     float left = positions[0][0], right = left;
     float top = positions[0][1], bottom = top;
     for (size_t index = 0; index < 4; index++) {
@@ -79,16 +73,15 @@ static void finish_bounds(WmFrameCommand *command, const float positions[4][2])
     right = fminf(right, fminf(WM_FRAME_WIDTH, clip->x + clip->width));
     top = fmaxf(top, fmaxf(0, clip->y));
     bottom = fminf(bottom, fminf(WM_FRAME_HEIGHT, clip->y + clip->height));
-    command->bounds = (WmClipRect){left, top, fmaxf(0, right - left),
-                                  fmaxf(0, bottom - top)};
+    command->bounds =
+        (WmClipRect){left, top, fmaxf(0, right - left), fmaxf(0, bottom - top)};
 }
 
-bool wm_frame_damage_quad(WmFrameDamage *damage,
-                          const WmDrawVertex vertices[4], uint32_t texture,
-                          const WmClipRect *clip)
-{
+bool wm_frame_damage_quad(WmFrameDamage *damage, const WmDrawVertex vertices[4],
+                          uint32_t texture, const WmClipRect *clip) {
     WmFrameCommand *command = append_command(damage, clip);
-    if (!command) return false;
+    if (!command)
+        return false;
     command->kind = WM_FRAME_COMMAND_QUAD;
     command->texture = texture;
     memcpy(command->draw.vertices, vertices, sizeof(command->draw.vertices));
@@ -101,12 +94,11 @@ bool wm_frame_damage_quad(WmFrameDamage *damage,
     return true;
 }
 
-bool wm_frame_damage_material(WmFrameDamage *damage,
-                              const WmMaterialQuad *quad,
-                              const WmClipRect *clip)
-{
+bool wm_frame_damage_material(WmFrameDamage *damage, const WmMaterialQuad *quad,
+                              const WmClipRect *clip) {
     WmFrameCommand *command = append_command(damage, clip);
-    if (!command) return false;
+    if (!command)
+        return false;
     command->kind = WM_FRAME_COMMAND_MATERIAL;
     WmMaterialQuad *copy = &command->draw.material;
     memcpy(copy->vertices, quad->vertices, sizeof(copy->vertices));
@@ -133,16 +125,15 @@ bool wm_frame_damage_material(WmFrameDamage *damage,
 }
 
 const WmFrameCommand *wm_frame_damage_commands(const WmFrameDamage *damage,
-                                              size_t *count)
-{
+                                               size_t *count) {
     *count = damage->current_count;
     return damage->current;
 }
 
-static WmViewport pixel_bounds(const WmFrameCommand *command, int width, int height)
-{
+static WmViewport pixel_bounds(const WmFrameCommand *command, int width, int height) {
     const WmClipRect *bounds = &command->bounds;
-    if (bounds->width <= 0 || bounds->height <= 0) return (WmViewport){0};
+    if (bounds->width <= 0 || bounds->height <= 0)
+        return (WmViewport){0};
     /* One extra pixel covers scissor rounding and rasterization at edges. */
     double scale_x = (double)width / WM_FRAME_WIDTH;
     double scale_y = (double)height / WM_FRAME_HEIGHT;
@@ -153,38 +144,35 @@ static WmViewport pixel_bounds(const WmFrameCommand *command, int width, int hei
     return (WmViewport){left, top, right - left, bottom - top};
 }
 
-bool wm_frame_command_intersects(const WmFrameCommand *command,
-                                 WmViewport region, int width, int height)
-{
+bool wm_frame_command_intersects(const WmFrameCommand *command, WmViewport region,
+                                 int width, int height) {
     WmViewport bounds = pixel_bounds(command, width, height);
     return bounds.width > 0 && bounds.height > 0 &&
-        bounds.x < region.x + region.width && bounds.x + bounds.width > region.x &&
-        bounds.y < region.y + region.height && bounds.y + bounds.height > region.y;
+           bounds.x < region.x + region.width && bounds.x + bounds.width > region.x &&
+           bounds.y < region.y + region.height && bounds.y + bounds.height > region.y;
 }
 
-static void mark_command(WmFrameDamage *damage, const WmFrameCommand *command)
-{
+static void mark_command(WmFrameDamage *damage, const WmFrameCommand *command) {
     WmViewport bounds = pixel_bounds(command, damage->width, damage->height);
-    if (bounds.width <= 0 || bounds.height <= 0) return;
+    if (bounds.width <= 0 || bounds.height <= 0)
+        return;
     int left = (int)(((int64_t)(bounds.x + 1) * DAMAGE_COLUMNS - 1) / damage->width);
     int right = (int)(((int64_t)(bounds.x + bounds.width) * DAMAGE_COLUMNS - 1) /
                       damage->width);
     int top = (int)(((int64_t)(bounds.y + 1) * DAMAGE_ROWS - 1) / damage->height);
-    int bottom = (int)(((int64_t)(bounds.y + bounds.height) * DAMAGE_ROWS - 1) /
-                       damage->height);
+    int bottom =
+        (int)(((int64_t)(bounds.y + bounds.height) * DAMAGE_ROWS - 1) / damage->height);
     for (int row = top; row <= bottom; row++) {
         for (int column = left; column <= right; column++)
             damage->tiles[row][column] = true;
     }
 }
 
-static bool commands_equal(const WmFrameCommand *first, const WmFrameCommand *second)
-{
+static bool commands_equal(const WmFrameCommand *first, const WmFrameCommand *second) {
     return memcmp(first, second, sizeof(*first)) == 0;
 }
 
-static void compare_commands(WmFrameDamage *damage)
-{
+static void compare_commands(WmFrameDamage *damage) {
     size_t old = 0, current = 0;
     while (old < damage->previous_count && current < damage->current_count) {
         if (commands_equal(&damage->previous[old], &damage->current[current])) {
@@ -198,7 +186,7 @@ static void compare_commands(WmFrameDamage *damage)
         for (size_t offset = 1; offset <= DAMAGE_LOOKAHEAD; offset++) {
             if (old + offset < damage->previous_count &&
                 commands_equal(&damage->previous[old + offset],
-                                &damage->current[current])) {
+                               &damage->current[current])) {
                 for (size_t skipped = 0; skipped < offset; skipped++)
                     mark_command(damage, &damage->previous[old++]);
                 aligned = true;
@@ -206,7 +194,7 @@ static void compare_commands(WmFrameDamage *damage)
             }
             if (current + offset < damage->current_count &&
                 commands_equal(&damage->previous[old],
-                                &damage->current[current + offset])) {
+                               &damage->current[current + offset])) {
                 for (size_t skipped = 0; skipped < offset; skipped++)
                     mark_command(damage, &damage->current[current++]);
                 aligned = true;
@@ -218,24 +206,28 @@ static void compare_commands(WmFrameDamage *damage)
             mark_command(damage, &damage->current[current++]);
         }
     }
-    while (old < damage->previous_count) mark_command(damage, &damage->previous[old++]);
-    while (current < damage->current_count) mark_command(damage, &damage->current[current++]);
+    while (old < damage->previous_count)
+        mark_command(damage, &damage->previous[old++]);
+    while (current < damage->current_count)
+        mark_command(damage, &damage->current[current++]);
 }
 
-static void collect_regions(WmFrameDamage *damage)
-{
+static void collect_regions(WmFrameDamage *damage) {
     int previous_row[DAMAGE_COLUMNS];
-    for (int column = 0; column < DAMAGE_COLUMNS; column++) previous_row[column] = -1;
+    for (int column = 0; column < DAMAGE_COLUMNS; column++)
+        previous_row[column] = -1;
     for (int row = 0; row < DAMAGE_ROWS; row++) {
         int next_row[DAMAGE_COLUMNS];
-        for (int column = 0; column < DAMAGE_COLUMNS; column++) next_row[column] = -1;
+        for (int column = 0; column < DAMAGE_COLUMNS; column++)
+            next_row[column] = -1;
         for (int column = 0; column < DAMAGE_COLUMNS;) {
             if (!damage->tiles[row][column]) {
                 column++;
                 continue;
             }
             int first = column;
-            while (column < DAMAGE_COLUMNS && damage->tiles[row][column]) column++;
+            while (column < DAMAGE_COLUMNS && damage->tiles[row][column])
+                column++;
             int left = (int)((int64_t)first * damage->width / DAMAGE_COLUMNS);
             int right = (int)((int64_t)column * damage->width / DAMAGE_COLUMNS);
             int top = (int)((int64_t)row * damage->height / DAMAGE_ROWS);
@@ -254,15 +246,14 @@ static void collect_regions(WmFrameDamage *damage)
     }
 }
 
-const WmViewport *wm_frame_damage_regions(WmFrameDamage *damage, size_t *count)
-{
+const WmViewport *wm_frame_damage_regions(WmFrameDamage *damage, size_t *count) {
     damage->region_count = 0;
     if (damage->width <= 0 || damage->height <= 0) {
         *count = 0;
         return damage->regions;
     }
-    bool full = !damage->valid ||
-        memcmp(&damage->clear, &damage->previous_clear, sizeof(damage->clear)) != 0;
+    bool full = !damage->valid || memcmp(&damage->clear, &damage->previous_clear,
+                                         sizeof(damage->clear)) != 0;
     if (!full) {
         memset(damage->tiles, 0, sizeof(damage->tiles));
         compare_commands(damage);
@@ -283,8 +274,7 @@ const WmViewport *wm_frame_damage_regions(WmFrameDamage *damage, size_t *count)
     return damage->regions;
 }
 
-void wm_frame_damage_commit(WmFrameDamage *damage)
-{
+void wm_frame_damage_commit(WmFrameDamage *damage) {
     WmFrameCommand *swap = damage->previous;
     damage->previous = damage->current;
     damage->current = swap;
@@ -293,7 +283,7 @@ void wm_frame_damage_commit(WmFrameDamage *damage)
     damage->valid = true;
 }
 
-void wm_frame_damage_invalidate(WmFrameDamage *damage)
-{
-    if (damage) damage->valid = false;
+void wm_frame_damage_invalidate(WmFrameDamage *damage) {
+    if (damage)
+        damage->valid = false;
 }

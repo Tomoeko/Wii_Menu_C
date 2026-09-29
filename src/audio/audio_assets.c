@@ -137,7 +137,8 @@ WmAudioClip *wm_audio_load_clip(WmAudio *audio, const char *name,
     strcpy(clip->name, name);
     const WmJson *manifest = NULL;
     size_t entry = strcmp(directory, "audio") == 0
-        ? wm_audio_manifest_entry(audio, name, &manifest) : WM_JSON_INVALID;
+                       ? wm_audio_manifest_entry(audio, name, &manifest)
+                       : WM_JSON_INVALID;
     char path[4096], error[128];
     bool loaded = path_for(path, audio->assets, directory, name) &&
                   wm_audio_wav_read(path, &clip->pcm, error, sizeof(error));
@@ -159,10 +160,10 @@ WmAudioClip *wm_audio_load_clip(WmAudio *audio, const char *name,
     if (entry != WM_JSON_INVALID) {
         clip->gain =
             json_number(manifest, wm_json_member(manifest, entry, "gain"), 1.0f);
-        float loop_start = json_number(
-            manifest, wm_json_member(manifest, entry, "loopStart"), -1.0f);
-        float loop_end = json_number(
-            manifest, wm_json_member(manifest, entry, "loopEnd"), -1.0f);
+        float loop_start =
+            json_number(manifest, wm_json_member(manifest, entry, "loopStart"), -1.0f);
+        float loop_end =
+            json_number(manifest, wm_json_member(manifest, entry, "loopEnd"), -1.0f);
         size_t loop_flag = wm_json_member(manifest, entry, "loop");
         if (loop_flag != WM_JSON_INVALID &&
             manifest->tokens[loop_flag].type == WM_JSON_BOOLEAN &&
@@ -174,9 +175,8 @@ WmAudioClip *wm_audio_load_clip(WmAudio *audio, const char *name,
              * rounded values before narrowing to uint32_t. */
             float first_frame = roundf(loop_start * clip->pcm.sample_rate);
             float end_frame = roundf(loop_end * clip->pcm.sample_rate);
-            if (isfinite(first_frame) && isfinite(end_frame) &&
-                first_frame >= 0.0f && first_frame < end_frame &&
-                (double)end_frame <= clip->pcm.frame_count) {
+            if (isfinite(first_frame) && isfinite(end_frame) && first_frame >= 0.0f &&
+                first_frame < end_frame && (double)end_frame <= clip->pcm.frame_count) {
                 clip->pcm.looping = true;
                 clip->pcm.loop_start = (uint32_t)first_frame;
                 clip->pcm.loop_end = (uint32_t)end_frame;
@@ -199,8 +199,7 @@ WmAudioClip *wm_audio_load_clip(WmAudio *audio, const char *name,
     }
     /* Leave headroom when the maximum voice count is mixed at up to 2x gain. */
     const float maximum_gain = FLT_MAX / (WM_AUDIO_MAX_VOICES * 4.0f);
-    if (!isfinite(clip->gain) || clip->gain < 0.0f ||
-        clip->gain > maximum_gain)
+    if (!isfinite(clip->gain) || clip->gain < 0.0f || clip->gain > maximum_gain)
         clip->gain = 1.0f;
     return clip;
 }

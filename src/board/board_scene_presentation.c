@@ -629,12 +629,11 @@ void board_scene_pose_footer(WmBoardScene *board) {
     size_t count = 0;
     append_clip(clips, &count, "my_IplTop_e", "G_SeenChange",
                 footer_scene_frame(board));
-    float arrow_loop_frame = board->menu_arrow_clock_set
-                                 ? fmodf(floorf(board->menu_elapsed_seconds * 60.0f),
-                                         55.0f)
-                                 : fmodf(board->age, 55.0f);
-    append_clip(clips, &count, "my_IplTop_e", "G_ArwRoop",
-                10000.0f + arrow_loop_frame);
+    float arrow_loop_frame =
+        board->menu_arrow_clock_set
+            ? fmodf(floorf(board->menu_elapsed_seconds * 60.0f), 55.0f)
+            : fmodf(board->age, 55.0f);
+    append_clip(clips, &count, "my_IplTop_e", "G_ArwRoop", 10000.0f + arrow_loop_frame);
     static const char *const arrow_end_groups[2] = {"G_ArwL_End", "G_ArwR_End"};
     static const char *const arrow_tab_groups[2] = {"G_TabaL", "G_TabaR"};
     static const char *const arrow_focus_groups[2] = {"G_ArwL_Focus", "G_ArwR_Focus"};

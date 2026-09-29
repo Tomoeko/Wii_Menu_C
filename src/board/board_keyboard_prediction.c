@@ -10,15 +10,22 @@
 enum { DICTIONARY_PATH_CAPACITY = 4096 };
 
 /* US phone-key cycles for local text entry. */
-static const char *const phone_cycles[12] = {
-    ".,?!-':@/$#&1", "abc2", "def3", "ghi4", "jkl5", "mno6",
-    "pqrs7", "tuv8", "wxyz9", "", " 0", ""
-};
+static const char *const phone_cycles[12] = {".,?!-':@/$#&1", "abc2", "def3",  "ghi4",
+                                             "jkl5",          "mno6", "pqrs7", "tuv8",
+                                             "wxyz9",         "",     " 0",    ""};
 
-static const char *const phone_labels[12] = {
-    ".,?@", "abc", "def", "ghi", "jkl", "mno",
-    "pqrs", "tuv", "wxyz", "", "\xee\x81\x97\x30", ""
-};
+static const char *const phone_labels[12] = {".,?@",
+                                             "abc",
+                                             "def",
+                                             "ghi",
+                                             "jkl",
+                                             "mno",
+                                             "pqrs",
+                                             "tuv",
+                                             "wxyz",
+                                             "",
+                                             "\xee\x81\x97\x30",
+                                             ""};
 
 /* A compact local fallback vocabulary substitutes for Zi8 and requires no
  * extracted dictionary data. */
@@ -39,14 +46,10 @@ static const char *const dictionary_words[3] = {
     "ella en es esta este esto gracias gusta ha hacer hasta hay hola hoy la "
     "las le lo los más me mi mucho muy no nos nosotros o para pero poco por "
     "porque puede que qué quien se ser si sí sin sobre son su te tiempo todo "
-    "tu tú un una uno usted vamos ver vez yo"
-};
+    "tu tú un una uno usted vamos ver vez yo"};
 
 static const char *const oem_dictionary_names[3] = {
-    "eZTNintendoENAM.znd",
-    "eZTNintendoFRCA.znd",
-    "eZTNintendoESSA.znd"
-};
+    "eZTNintendoENAM.znd", "eZTNintendoFRCA.znd", "eZTNintendoESSA.znd"};
 
 const char *wm_board_keyboard_prediction_phone_cycle(unsigned index) {
     return index < 12 ? phone_cycles[index] : "";

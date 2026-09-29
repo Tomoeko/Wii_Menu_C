@@ -9,13 +9,12 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define CHECK(condition)                                                       \
-    do {                                                                       \
-        if (!(condition)) {                                                    \
-            fprintf(stderr, "%s:%d: %s failed\n", __FILE__, __LINE__,          \
-                    #condition);                                              \
-            return 1;                                                          \
-        }                                                                      \
+#define CHECK(condition)                                                               \
+    do {                                                                               \
+        if (!(condition)) {                                                            \
+            fprintf(stderr, "%s:%d: %s failed\n", __FILE__, __LINE__, #condition);     \
+            return 1;                                                                  \
+        }                                                                              \
     } while (0)
 
 static bool was_removed(const char *path) {

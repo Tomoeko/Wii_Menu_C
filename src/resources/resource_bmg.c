@@ -39,13 +39,17 @@ static bool fits(size_t size, size_t offset, size_t length) {
 }
 
 static void set_error(char *error, size_t capacity, const char *reason) {
-    if (error && capacity) snprintf(error, capacity, "%s", reason);
+    if (error && capacity)
+        snprintf(error, capacity, "%s", reason);
 }
 
 static size_t utf8_width(uint32_t point) {
-    if (point < 0x80) return 1;
-    if (point < 0x800) return 2;
-    if (point < 0x10000) return 3;
+    if (point < 0x80)
+        return 1;
+    if (point < 0x800)
+        return 2;
+    if (point < 0x10000)
+        return 3;
     return 4;
 }
 
@@ -67,9 +71,9 @@ static void put_utf8(char *output, size_t offset, uint32_t point) {
     }
 }
 
-static bool decode_message(const uint8_t *strings, size_t string_size,
-                           size_t start, char *output, size_t *output_size,
-                           char *error, size_t error_capacity) {
+static bool decode_message(const uint8_t *strings, size_t string_size, size_t start,
+                           char *output, size_t *output_size, char *error,
+                           size_t error_capacity) {
     if (!fits(string_size, start, 2)) {
         set_error(error, error_capacity, "BMG message offset is out of bounds.");
         return false;
@@ -79,7 +83,8 @@ static bool decode_message(const uint8_t *strings, size_t string_size,
     while (fits(string_size, cursor, 2)) {
         uint16_t unit = read_be16(strings + cursor);
         if (unit == 0) {
-            if (output) output[written] = '\0';
+            if (output)
+                output[written] = '\0';
             *output_size = written;
             return true;
         }
@@ -120,7 +125,8 @@ static bool decode_message(const uint8_t *strings, size_t string_size,
             set_error(error, error_capacity, "BMG message is too long.");
             return false;
         }
-        if (output) put_utf8(output, written, point);
+        if (output)
+            put_utf8(output, written, point);
         written += width;
     }
     set_error(error, error_capacity, "Unterminated BMG message.");
@@ -128,7 +134,8 @@ static bool decode_message(const uint8_t *strings, size_t string_size,
 }
 
 void wm_bmg_destroy(WmBmg *bmg) {
-    if (!bmg) return;
+    if (!bmg)
+        return;
     for (size_t index = 0; index < bmg->count; index++) {
         free(bmg->texts[index]);
     }
@@ -137,18 +144,17 @@ void wm_bmg_destroy(WmBmg *bmg) {
     free(bmg);
 }
 
-WmBmg *wm_bmg_parse(const uint8_t *data, size_t size,
-                    char *error, size_t error_capacity) {
+WmBmg *wm_bmg_parse(const uint8_t *data, size_t size, char *error,
+                    size_t error_capacity) {
     if (!data || size < BMG_HEADER_BYTES || size > BMG_MAX_FILE_BYTES ||
         memcmp(data, "MESGbmg1", 8) != 0 || data[16] != 2) {
-        set_error(error, error_capacity,
-                  "Expected a big-endian UTF-16 BMG file.");
+        set_error(error, error_capacity, "Expected a big-endian UTF-16 BMG file.");
         return NULL;
     }
     size_t total = read_be32(data + 8);
     size_t sections = read_be32(data + 12);
-    if (total < BMG_HEADER_BYTES || total > size ||
-        sections == 0 || sections > BMG_MAX_SECTIONS) {
+    if (total < BMG_HEADER_BYTES || total > size || sections == 0 ||
+        sections > BMG_MAX_SECTIONS) {
         set_error(error, error_capacity, "Invalid BMG header bounds.");
         return NULL;
     }
@@ -226,8 +232,8 @@ WmBmg *wm_bmg_parse(const uint8_t *data, size_t size,
     for (size_t index = 0; index < count; index++) {
         size_t start = read_be32(info + 8 + index * stride);
         size_t length = 0;
-        if (!decode_message(strings, dat_size, start, NULL, &length,
-                            error, error_capacity)) {
+        if (!decode_message(strings, dat_size, start, NULL, &length, error,
+                            error_capacity)) {
             goto invalid_messages;
         }
         if (total_text_bytes >= BMG_MAX_TOTAL_TEXT_BYTES ||
@@ -255,8 +261,8 @@ WmBmg *wm_bmg_parse(const uint8_t *data, size_t size,
             goto invalid_messages;
         }
         size_t second_length = 0;
-        if (!decode_message(strings, dat_size, start, bmg->texts[index],
-                            &second_length, error, error_capacity) ||
+        if (!decode_message(strings, dat_size, start, bmg->texts[index], &second_length,
+                            error, error_capacity) ||
             second_length != message_lengths[index]) {
             goto invalid_messages;
         }
@@ -270,15 +276,15 @@ invalid_messages:
     return NULL;
 }
 
-WmBmg *wm_bmg_load_file(const char *path,
-                        char *error, size_t error_capacity) {
+WmBmg *wm_bmg_load_file(const char *path, char *error, size_t error_capacity) {
     if (!path || !path[0]) {
         set_error(error, error_capacity, "Missing BMG path.");
         return NULL;
     }
     FILE *file = fopen(path, "rb");
     if (!file || fseek(file, 0, SEEK_END) != 0) {
-        if (file) fclose(file);
+        if (file)
+            fclose(file);
         set_error(error, error_capacity, "Could not read local BMG file.");
         return NULL;
     }
@@ -296,19 +302,18 @@ WmBmg *wm_bmg_load_file(const char *path,
         return NULL;
     }
     bool complete = fread(data, 1, (size_t)length, file) == (size_t)length;
-    if (fclose(file) != 0) complete = false;
-    WmBmg *result = complete
-                        ? wm_bmg_parse(data, (size_t)length,
-                                       error, error_capacity)
-                        : NULL;
+    if (fclose(file) != 0)
+        complete = false;
+    WmBmg *result =
+        complete ? wm_bmg_parse(data, (size_t)length, error, error_capacity) : NULL;
     free(data);
-    if (!complete) set_error(error, error_capacity,
-                             "Could not read local BMG file.");
+    if (!complete)
+        set_error(error, error_capacity, "Could not read local BMG file.");
     return result;
 }
 
-WmBmg *wm_bmg_load_assets(const char *assets_directory, const char *locale,
-                          char *error, size_t error_capacity) {
+WmBmg *wm_bmg_load_assets(const char *assets_directory, const char *locale, char *error,
+                          size_t error_capacity) {
     if (!assets_directory || !locale || strlen(locale) != 3) {
         set_error(error, error_capacity, "Expected a three-letter BMG locale.");
         return NULL;
@@ -316,7 +321,8 @@ WmBmg *wm_bmg_load_assets(const char *assets_directory, const char *locale,
     char normalized[4];
     for (size_t index = 0; index < 3; index++) {
         char value = locale[index];
-        if (value >= 'A' && value <= 'Z') value = (char)(value - 'A' + 'a');
+        if (value >= 'A' && value <= 'Z')
+            value = (char)(value - 'A' + 'a');
         if (value < 'a' || value > 'z') {
             set_error(error, error_capacity, "Invalid BMG locale.");
             return NULL;
@@ -325,8 +331,7 @@ WmBmg *wm_bmg_load_assets(const char *assets_directory, const char *locale,
     }
     normalized[3] = '\0';
     char path[BMG_PATH_CAPACITY];
-    int length = snprintf(path, sizeof(path),
-                          "%s/messages/%s/ipl_common.bmg",
+    int length = snprintf(path, sizeof(path), "%s/messages/%s/ipl_common.bmg",
                           assets_directory, normalized);
     if (length < 0 || length >= (int)sizeof(path)) {
         set_error(error, error_capacity, "BMG asset path is too long.");
@@ -340,7 +345,8 @@ size_t wm_bmg_count(const WmBmg *bmg) {
 }
 
 const char *wm_bmg_text(const WmBmg *bmg, unsigned message_id) {
-    if (!bmg || message_id >= bmg->count) return NULL;
+    if (!bmg || message_id >= bmg->count)
+        return NULL;
     return bmg->texts[message_id];
 }
 
@@ -348,11 +354,12 @@ const char *wm_bmg_message(void *context, unsigned message_id) {
     return wm_bmg_text(context, message_id);
 }
 
-const uint8_t *wm_bmg_attributes(const WmBmg *bmg, unsigned message_id,
-                                  size_t *size) {
-    if (size) *size = 0;
-    if (!bmg || message_id >= bmg->count) return NULL;
-    if (size) *size = bmg->info_stride - 4;
-    return bmg->source + bmg->info_offset +
-           (size_t)message_id * bmg->info_stride + 4;
+const uint8_t *wm_bmg_attributes(const WmBmg *bmg, unsigned message_id, size_t *size) {
+    if (size)
+        *size = 0;
+    if (!bmg || message_id >= bmg->count)
+        return NULL;
+    if (size)
+        *size = bmg->info_stride - 4;
+    return bmg->source + bmg->info_offset + (size_t)message_id * bmg->info_stride + 4;
 }

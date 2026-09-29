@@ -13,9 +13,8 @@ static void finish_transition(WmMenu *menu) {
 }
 
 static void test_json_text(void) {
-    const char source[] =
-        "{\"nul\":\"a\\u0000b\",\"literal\":\"\\\\u0000\","
-        "\"surrogate\":\"\\ud83c\\udf1f\",\"unpaired\":\"\\ud83c\"}";
+    const char source[] = "{\"nul\":\"a\\u0000b\",\"literal\":\"\\\\u0000\","
+                          "\"surrogate\":\"\\ud83c\\udf1f\",\"unpaired\":\"\\ud83c\"}";
     WmJson json;
     assert(wm_json_parse(&json, source, strlen(source)));
     char text[16];
@@ -23,15 +22,15 @@ static void test_json_text(void) {
     assert(wm_json_copy(&json, nul, text, sizeof(text)));
     assert(text[0] == 'a' && text[1] == '\0' && text[2] == 'b');
     assert(!wm_json_copy_text(&json, nul, text, sizeof(text)));
-    assert(wm_json_copy_text(&json, wm_json_member(&json, 0, "literal"),
-                             text, sizeof(text)));
+    assert(wm_json_copy_text(&json, wm_json_member(&json, 0, "literal"), text,
+                             sizeof(text)));
     assert(strcmp(text, "\\u0000") == 0);
     size_t surrogate = wm_json_member(&json, 0, "surrogate");
     assert(wm_json_copy_text(&json, surrogate, text, sizeof(text)));
     assert(strcmp(text, "\xf0\x9f\x8c\x9f") == 0);
     assert(!wm_json_copy_text(&json, surrogate, text, 4));
-    assert(!wm_json_copy_text(&json, wm_json_member(&json, 0, "unpaired"),
-                              text, sizeof(text)));
+    assert(!wm_json_copy_text(&json, wm_json_member(&json, 0, "unpaired"), text,
+                              sizeof(text)));
     wm_json_free(&json);
     const char escaped_nul[] = {'"', 'a', '\\', '\0', 'b', '"'};
     assert(!wm_json_parse(&json, escaped_nul, sizeof(escaped_nul)));
@@ -63,8 +62,8 @@ int main(void) {
     WmJson json;
     assert(wm_json_load(&json, "tests/fixtures/channels.json", 1024 * 1024));
     char escaped[16];
-    assert(wm_json_copy(&json, wm_json_member(&json, 0, "escaped"),
-                        escaped, sizeof(escaped)));
+    assert(wm_json_copy(&json, wm_json_member(&json, 0, "escaped"), escaped,
+                        sizeof(escaped)));
     assert(strcmp(escaped, "\xc3\xa9 \xf0\x9f\x8c\x9f") == 0);
     wm_json_free(&json);
 

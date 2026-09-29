@@ -50,31 +50,28 @@ void wm_platform_draw_quad(WmPlatform *platform, const WmQuad *quad) {
     (void)quad;
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
     (void)vertices;
     (void)texture;
 }
 
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad) {
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     draw_event++;
-    if (quad->texture_count >= 2 &&
-        quad->textures[1] == grab_overlay_texture)
+    if (quad->texture_count >= 2 && quad->textures[1] == grab_overlay_texture)
         grab_pointer_event = draw_event;
     if (!quad->texture_count ||
         (quad->textures[0] != right_arrow_texture &&
          (!capture_arrow_centers || quad->textures[0] != left_arrow_texture)) ||
-        quad->vertices[0].color.a <= 0.01f) return;
+        quad->vertices[0].color.a <= 0.01f)
+        return;
     if (capture_arrow_centers) {
         float center_x = 0.0f;
         for (size_t index = 0; index < 4; index++)
@@ -95,8 +92,8 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
     }
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     assert(width > 0 && height > 0 && rgba);
     return next_texture++;
@@ -120,18 +117,11 @@ void wm_platform_destroy_texture(WmPlatform *platform, uint32_t texture) {
     (void)texture;
 }
 
-static ArrowSample sample(WmResourceScene *scene, const WmMenu *menu,
-                          float seconds) {
+static ArrowSample sample(WmResourceScene *scene, const WmMenu *menu, float seconds) {
     drawn = (ArrowSample){
-        .left = INFINITY,
-        .right = -INFINITY,
-        .top = INFINITY,
-        .bottom = -INFINITY
-    };
-    const WmResourceSceneFrame frame = {
-        .elapsed_seconds = seconds,
-        .hover = {WM_HIT_NONE, -1}
-    };
+        .left = INFINITY, .right = -INFINITY, .top = INFINITY, .bottom = -INFINITY};
+    const WmResourceSceneFrame frame = {.elapsed_seconds = seconds,
+                                        .hover = {WM_HIT_NONE, -1}};
     wm_resource_scene_draw(scene, menu, &frame);
     return drawn;
 }
@@ -219,17 +209,16 @@ int main(int argc, char **argv) {
         puts("Footer arrow transition test skipped: prepared assets unavailable.");
         return 0;
     }
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 128u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        platform, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 128u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
-    assert(wm_texture_cache_resolve(textures,
-        "textures/cmnBtn/my_arw_a.png", &right_arrow_texture));
-    assert(wm_texture_cache_resolve(textures,
-        "textures/cmnBtn/my_arw_b.png", &left_arrow_texture));
-    WmResourceScene *scene = wm_resource_scene_create(
-        platform, assets, &menu, textures, fonts);
+    assert(wm_texture_cache_resolve(textures, "textures/cmnBtn/my_arw_a.png",
+                                    &right_arrow_texture));
+    assert(wm_texture_cache_resolve(textures, "textures/cmnBtn/my_arw_b.png",
+                                    &left_arrow_texture));
+    WmResourceScene *scene =
+        wm_resource_scene_create(platform, assets, &menu, textures, fonts);
     assert(scene);
 
     ArrowSample settled = sample(scene, &menu, 0.0f);
@@ -262,21 +251,19 @@ int main(int argc, char **argv) {
     menu.slots[1].occupied = true;
     wm_resource_scene_restart(scene);
     WmPointer *pointer = wm_pointer_create(platform, assets, textures);
-    WmChannelDrag *drag = wm_channel_drag_create(
-        platform, assets, textures, fonts, true);
+    WmChannelDrag *drag =
+        wm_channel_drag_create(platform, assets, textures, fonts, true);
     assert(pointer && drag);
-    assert(wm_texture_cache_resolve(textures,
-        "textures/cursor/defcursor_final64_b.png", &grab_overlay_texture));
+    assert(wm_texture_cache_resolve(textures, "textures/cursor/defcursor_final64_b.png",
+                                    &grab_overlay_texture));
     assert(wm_channel_drag_start(drag, 1, &menu, 605.0f, 200.0f));
     wm_pointer_move(pointer, 605.0f, 200.0f);
     wm_pointer_set_grabbed(pointer, true);
     draw_event = last_arrow_event = grab_pointer_event = 0;
-    const WmResourceSceneFrame drag_frame = {
-        .elapsed_seconds = 0.0f,
-        .hover = {WM_HIT_PAGE_NEXT, -1},
-        .pointer = pointer,
-        .drag = drag
-    };
+    const WmResourceSceneFrame drag_frame = {.elapsed_seconds = 0.0f,
+                                             .hover = {WM_HIT_PAGE_NEXT, -1},
+                                             .pointer = pointer,
+                                             .drag = drag};
     wm_resource_scene_draw(scene, &menu, &drag_frame);
     assert(last_arrow_event > 0);
     assert(grab_pointer_event > last_arrow_event);

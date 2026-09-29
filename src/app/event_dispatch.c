@@ -210,8 +210,7 @@ void wm_app_poll_events(WmAppRuntime *app, uint64_t frame_start, bool health_fra
                 if (board_scene)
                     wm_board_scene_keyboard_modifiers(board_scene, false, false);
                 if (options_scene)
-                    wm_options_scene_keyboard_modifiers(options_scene,
-                                                        false, false);
+                    wm_options_scene_keyboard_modifiers(options_scene, false, false);
             }
         } else if (event.type == WM_EVENT_KEY_MODIFIERS) {
             bool editor_keyboard =
@@ -220,27 +219,27 @@ void wm_app_poll_events(WmAppRuntime *app, uint64_t frame_start, bool health_fra
                 (menu->screen == WM_SCREEN_SETTINGS && options_scene &&
                  wm_options_scene_text_editing(options_scene));
             if (menu->screen == WM_SCREEN_BOARD && board_scene)
-                wm_board_scene_keyboard_modifiers(board_scene,
-                    event.shift_down, event.caps_lock_on);
+                wm_board_scene_keyboard_modifiers(board_scene, event.shift_down,
+                                                  event.caps_lock_on);
             if (menu->screen == WM_SCREEN_SETTINGS && options_scene)
-                wm_options_scene_keyboard_modifiers(options_scene,
-                    event.shift_down, event.caps_lock_on);
-            if (editor_keyboard &&
-                (event.key == WM_KEY_CAPS_LOCK ||
-                 (event.key == WM_KEY_SHIFT && event.shift_down)))
+                wm_options_scene_keyboard_modifiers(options_scene, event.shift_down,
+                                                    event.caps_lock_on);
+            if (editor_keyboard && (event.key == WM_KEY_CAPS_LOCK ||
+                                    (event.key == WM_KEY_SHIFT && event.shift_down)))
                 wm_audio_play(audio, "WIPL_SE_SK_SWITCHING_02");
         } else if (event.type == WM_EVENT_KEY_DOWN) {
             input->keyboard_focus = true;
             if (menu->screen == WM_SCREEN_BOARD && board_scene)
-                wm_board_scene_keyboard_modifiers(board_scene,
-                    event.shift_down, event.caps_lock_on);
+                wm_board_scene_keyboard_modifiers(board_scene, event.shift_down,
+                                                  event.caps_lock_on);
             if (menu->screen == WM_SCREEN_SETTINGS && options_scene)
-                wm_options_scene_keyboard_modifiers(options_scene,
-                    event.shift_down, event.caps_lock_on);
+                wm_options_scene_keyboard_modifiers(options_scene, event.shift_down,
+                                                    event.caps_lock_on);
             bool composing =
                 menu->screen == WM_SCREEN_BOARD && board_scene &&
                 wm_board_scene_child(board_scene) == WM_BOARD_CHILD_COMPOSE;
-            bool nickname_keyboard = menu->screen == WM_SCREEN_SETTINGS &&
+            bool nickname_keyboard =
+                menu->screen == WM_SCREEN_SETTINGS &&
                 wm_options_scene_nickname_keyboard_visible(options_scene);
             if (event.key == WM_KEY_HOME || (!composing && !nickname_keyboard &&
                                              (event.key == 'h' || event.key == 'H'))) {
@@ -271,14 +270,14 @@ void wm_app_poll_events(WmAppRuntime *app, uint64_t frame_start, bool health_fra
                 if (event.key == WM_KEY_ESCAPE || event.key == WM_KEY_ENTER) {
                     const char *cue = wm_options_scene_keyboard_close(
                         options_scene, event.key == WM_KEY_ENTER);
-                    if (cue) wm_audio_play(audio, cue);
+                    if (cue)
+                        wm_audio_play(audio, cue);
                     continue;
                 }
                 if (event.key == WM_KEY_BACKSPACE) {
-                    wm_audio_play(audio,
-                        wm_options_scene_backspace(options_scene)
-                            ? "WIPL_SE_CHAR_DELETE" :
-                              "WIPL_SE_CHAR_DELETE_ERROR");
+                    wm_audio_play(audio, wm_options_scene_backspace(options_scene)
+                                             ? "WIPL_SE_CHAR_DELETE"
+                                             : "WIPL_SE_CHAR_DELETE_ERROR");
                     continue;
                 }
                 if (event.key == WM_KEY_LEFT || event.key == WM_KEY_RIGHT) {
@@ -287,11 +286,10 @@ void wm_app_poll_events(WmAppRuntime *app, uint64_t frame_start, bool health_fra
                     continue;
                 }
                 if (event.key >= 32 && event.key <= 126) {
-                    wm_audio_play(audio,
-                        wm_options_scene_type_ascii(options_scene,
-                                                     (char)event.key)
-                            ? "WIPL_SE_CHAR_INPUT" :
-                              "WIPL_SE_CHAR_DELETE_ERROR");
+                    wm_audio_play(audio, wm_options_scene_type_ascii(options_scene,
+                                                                     (char)event.key)
+                                             ? "WIPL_SE_CHAR_INPUT"
+                                             : "WIPL_SE_CHAR_DELETE_ERROR");
                     continue;
                 }
                 continue;

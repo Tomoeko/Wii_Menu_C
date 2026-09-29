@@ -75,13 +75,13 @@ static const SettingsArtwork artwork[] = {
     {"FIX/COMMON/BTN/DPD_Rank04.gif", "sensitivity-rank-4"},
     {"FIX/COMMON/BTN/DPD_Rank05.gif", "sensitivity-rank-5"},
     {"FIX/COMMON/List_Icon/Icon_Index_Page_off.gif", "page-off"},
-    {"FIX/COMMON/List_Icon/Icon_Index_Page_on.gif", "page-on"}
-};
+    {"FIX/COMMON/List_Icon/Icon_Index_Page_on.gif", "page-on"}};
 
 static uint8_t *read_file(const char *path, size_t *size) {
     FILE *file = fopen(path, "rb");
     if (!file || fseek(file, 0, SEEK_END) != 0) {
-        if (file) fclose(file);
+        if (file)
+            fclose(file);
         return NULL;
     }
     long length = ftell(file);
@@ -103,29 +103,29 @@ static uint8_t *read_file(const char *path, size_t *size) {
     return bytes;
 }
 
-static bool output_path(char *path, size_t capacity,
-                        const char *directory, const char *name) {
-    int length = snprintf(path, capacity, "%s/textures/settings_html/%s.wmra",
-                          directory, name);
+static bool output_path(char *path, size_t capacity, const char *directory,
+                        const char *name) {
+    int length =
+        snprintf(path, capacity, "%s/textures/settings_html/%s.wmra", directory, name);
     return length > 0 && (size_t)length < capacity;
 }
 
-static bool tile_artwork(WmImage *image, unsigned source_width,
-                         unsigned source_height, unsigned output_width,
-                         unsigned output_height) {
+static bool tile_artwork(WmImage *image, unsigned source_width, unsigned source_height,
+                         unsigned output_width, unsigned output_height) {
     if (!image || !image->pixels || image->width != source_width ||
-        image->height != source_height) return false;
-    WmImage tiled = {
-        .width = output_width,
-        .height = output_height,
-        .pixels = malloc((size_t)output_width * output_height * 4u)
-    };
-    if (!tiled.pixels) return false;
+        image->height != source_height)
+        return false;
+    WmImage tiled = {.width = output_width,
+                     .height = output_height,
+                     .pixels = malloc((size_t)output_width * output_height * 4u)};
+    if (!tiled.pixels)
+        return false;
     for (unsigned y = 0; y < output_height; y++) {
         for (unsigned x = 0; x < output_width; x++) {
             memcpy(tiled.pixels + ((size_t)y * output_width + x) * 4u,
-                   image->pixels + ((size_t)(y % source_height) *
-                                    source_width + x % source_width) * 4u,
+                   image->pixels +
+                       ((size_t)(y % source_height) * source_width + x % source_width) *
+                           4u,
                    4u);
         }
     }
@@ -134,10 +134,8 @@ static bool tile_artwork(WmImage *image, unsigned source_width,
     return true;
 }
 
-static bool sensitivity_dimensions_valid(const char *name,
-                                         const WmImage *image) {
-    if (strcmp(name, "sensitivity-minus") == 0 ||
-        strcmp(name, "sensitivity-plus") == 0)
+static bool sensitivity_dimensions_valid(const char *name, const WmImage *image) {
+    if (strcmp(name, "sensitivity-minus") == 0 || strcmp(name, "sensitivity-plus") == 0)
         return image->width == 32 && image->height == 32;
     if (strcmp(name, "sensitivity-gauge") == 0)
         return image->width == 296 && image->height == 48;
@@ -146,19 +144,16 @@ static bool sensitivity_dimensions_valid(const char *name,
     return true;
 }
 
-static bool country_dimensions_valid(const char *name,
-                                     const WmImage *image) {
+static bool country_dimensions_valid(const char *name, const WmImage *image) {
     if (strcmp(name, "country-choice-left") == 0 ||
         strcmp(name, "country-choice-right") == 0)
         return image->width == 24 && image->height == 64;
-    if (strcmp(name, "country-row") == 0 ||
-        strcmp(name, "country-row-focus") == 0)
+    if (strcmp(name, "country-row") == 0 || strcmp(name, "country-row-focus") == 0)
         return image->width == 432 && image->height == 56;
     return true;
 }
 
-static bool other_dimensions_valid(const char *name,
-                                   const WmImage *image) {
+static bool other_dimensions_valid(const char *name, const WmImage *image) {
     if (strcmp(name, "index-row-format-focus") == 0)
         return image->width == 400 && image->height == 64;
     if (strcmp(name, "tab-dark-gray") == 0 ||
@@ -166,8 +161,7 @@ static bool other_dimensions_valid(const char *name,
         return image->width == 32 && image->height == 26;
     if (strcmp(name, "connection-split-row") == 0)
         return image->width == 400 && image->height == 76;
-    if (strcmp(name, "small-row") == 0 ||
-        strcmp(name, "small-row-focus") == 0)
+    if (strcmp(name, "small-row") == 0 || strcmp(name, "small-row-focus") == 0)
         return image->width == 168 && image->height == 76;
     if (strcmp(name, "aoss-icon") == 0)
         return image->width == 56 && image->height == 56;
@@ -180,42 +174,47 @@ static bool other_dimensions_valid(const char *name,
  * The output bound is intentionally far below the full archive bound. */
 static bool unwrap_image(const WmU8Entry *entry, uint8_t **output,
                          size_t *output_size) {
-    if (!entry || entry->size < 8 ||
-        memcmp(entry->data, "LZ77", 4) != 0 ||
-        entry->data[4] != 0x10) return false;
+    if (!entry || entry->size < 8 || memcmp(entry->data, "LZ77", 4) != 0 ||
+        entry->data[4] != 0x10)
+        return false;
     const uint8_t *source = entry->data + 4;
     size_t source_size = entry->size - 4;
-    size_t length = (size_t)source[1] | ((size_t)source[2] << 8) |
-                    ((size_t)source[3] << 16);
-    if (!length || length > SETTINGS_MAX_IMAGE_SOURCE) return false;
+    size_t length =
+        (size_t)source[1] | ((size_t)source[2] << 8) | ((size_t)source[3] << 16);
+    if (!length || length > SETTINGS_MAX_IMAGE_SOURCE)
+        return false;
     uint8_t *decoded = malloc(length);
-    if (!decoded) return false;
+    if (!decoded)
+        return false;
     size_t offset = 4;
     size_t used = 0;
     while (used < length) {
-        if (offset >= source_size) break;
+        if (offset >= source_size)
+            break;
         uint8_t flags = source[offset++];
         for (int bit = 7; bit >= 0 && used < length; bit--) {
             if (flags & (1u << bit)) {
-                if (source_size - offset < 2) goto fail;
-                unsigned word = ((unsigned)source[offset] << 8) |
-                                source[offset + 1];
+                if (source_size - offset < 2)
+                    goto fail;
+                unsigned word = ((unsigned)source[offset] << 8) | source[offset + 1];
                 offset += 2;
                 size_t count = (word >> 12) + 3;
                 size_t distance = (word & 0x0fffu) + 1;
-                if (distance > used) goto fail;
-                for (size_t index = 0; index < count && used < length;
-                     index++) {
+                if (distance > used)
+                    goto fail;
+                for (size_t index = 0; index < count && used < length; index++) {
                     decoded[used] = decoded[used - distance];
                     used++;
                 }
             } else {
-                if (offset >= source_size) goto fail;
+                if (offset >= source_size)
+                    goto fail;
                 decoded[used++] = source[offset++];
             }
         }
     }
-    if (used != length) goto fail;
+    if (used != length)
+        goto fail;
     *output = decoded;
     *output_size = length;
     return true;
@@ -224,25 +223,21 @@ fail:
     return false;
 }
 
-static bool export_artwork(const WmU8Archive *archive,
-                           const char *directory) {
-    for (size_t index = 0; index < sizeof(artwork) / sizeof(artwork[0]);
-         index++) {
+static bool export_artwork(const WmU8Archive *archive, const char *directory) {
+    for (size_t index = 0; index < sizeof(artwork) / sizeof(artwork[0]); index++) {
         const WmU8Entry *entry = wm_u8_find(archive, artwork[index].source);
-        if (!entry) return false;
+        if (!entry)
+            return false;
         uint8_t *source = NULL;
         size_t source_size = 0;
         WmImage decoded = {0};
         size_t source_name_size = strlen(artwork[index].source);
         bool png = source_name_size >= 4 &&
-                   strcmp(artwork[index].source + source_name_size - 4,
-                          ".png") == 0;
+                   strcmp(artwork[index].source + source_name_size - 4, ".png") == 0;
         if (!unwrap_image(entry, &source, &source_size) ||
-            !(png
-                ? wm_settings_png_decode(source, source_size, &decoded)
-                : wm_settings_gif_decode(source, source_size, &decoded))) {
-            fprintf(stderr, "Invalid Settings image: %s\n",
-                    artwork[index].source);
+            !(png ? wm_settings_png_decode(source, source_size, &decoded)
+                  : wm_settings_gif_decode(source, source_size, &decoded))) {
+            fprintf(stderr, "Invalid Settings image: %s\n", artwork[index].source);
             free(source);
             return false;
         }
@@ -265,23 +260,23 @@ static bool export_artwork(const WmU8Archive *archive,
             }
         }
         char path[SETTINGS_EXPORT_PATH_CAPACITY];
-        bool written = output_path(path, sizeof(path), directory,
-                                   artwork[index].name) &&
-                       wm_image_write(path, &decoded);
+        bool written =
+            output_path(path, sizeof(path), directory, artwork[index].name) &&
+            wm_image_write(path, &decoded);
         wm_image_free(&decoded);
-        if (!written) return false;
+        if (!written)
+            return false;
     }
     return true;
 }
 
-static bool export_side_panel(const WmU8Archive *outer,
-                              const char *directory) {
+static bool export_side_panel(const WmU8Archive *outer, const char *directory) {
     const WmU8Entry *entry = wm_u8_find(outer, "html/BG_16x9.tpl");
-    if (!entry) return false;
+    if (!entry)
+        return false;
     WmTpl panel = {0};
     char error[160] = {0};
-    if (!wm_tpl_decode(entry->data, entry->size, &panel,
-                       error, sizeof(error))) {
+    if (!wm_tpl_decode(entry->data, entry->size, &panel, error, sizeof(error))) {
         fprintf(stderr, "Settings side panel: %s\n", error);
         return false;
     }
@@ -290,11 +285,9 @@ static bool export_side_panel(const WmU8Archive *outer,
                  panel.images[0].height == 456 &&
                  output_path(path, sizeof(path), directory, "side-panel");
     if (valid) {
-        WmImage image = {
-            .width = panel.images[0].width,
-            .height = panel.images[0].height,
-            .pixels = panel.images[0].rgba
-        };
+        WmImage image = {.width = panel.images[0].width,
+                         .height = panel.images[0].height,
+                         .pixels = panel.images[0].rgba};
         valid = wm_image_write(path, &image);
     }
     wm_tpl_free(&panel);
@@ -310,8 +303,7 @@ int main(int argc, char **argv) {
     uint8_t *input = read_file(argv[1], &input_size);
     WmU8Archive outer = {0};
     char error[160] = {0};
-    bool valid = input && wm_u8_parse(input, input_size,
-                                      &outer, error, sizeof(error));
+    bool valid = input && wm_u8_parse(input, input_size, &outer, error, sizeof(error));
     if (!valid) {
         fprintf(stderr, "Settings resource archive: %s\n", error);
         free(input);
@@ -321,11 +313,10 @@ int main(int argc, char **argv) {
     uint8_t *decoded = NULL;
     size_t decoded_size = 0;
     WmU8Archive settings = {0};
-    if (!entry || !wm_ash_decode(entry->data, entry->size,
-                                  &decoded, &decoded_size,
-                                  error, sizeof(error)) ||
-        !wm_u8_parse(decoded, decoded_size, &settings,
-                     error, sizeof(error))) {
+    if (!entry ||
+        !wm_ash_decode(entry->data, entry->size, &decoded, &decoded_size, error,
+                       sizeof(error)) ||
+        !wm_u8_parse(decoded, decoded_size, &settings, error, sizeof(error))) {
         fprintf(stderr, "Settings resource archive: %s\n", error);
         wm_u8_free(&outer);
         free(input);
@@ -335,16 +326,14 @@ int main(int argc, char **argv) {
     char textures[SETTINGS_EXPORT_PATH_CAPACITY];
     char directory[SETTINGS_EXPORT_PATH_CAPACITY];
     int length = snprintf(textures, sizeof(textures), "%s/textures", argv[2]);
-    int settings_length = snprintf(directory, sizeof(directory),
-                                   "%s/textures/settings_html", argv[2]);
-    valid = length > 0 && (size_t)length < sizeof(textures) &&
-            settings_length > 0 &&
+    int settings_length =
+        snprintf(directory, sizeof(directory), "%s/textures/settings_html", argv[2]);
+    valid = length > 0 && (size_t)length < sizeof(textures) && settings_length > 0 &&
             (size_t)settings_length < sizeof(directory) &&
             wm_export_directory_root(argv[2], 0700) &&
             wm_export_directory_child(argv[2], "textures", 0700) &&
             wm_export_directory_child(argv[2], "textures/settings_html", 0700) &&
-            export_artwork(&settings, argv[2]) &&
-            export_side_panel(&outer, argv[2]);
+            export_artwork(&settings, argv[2]) && export_side_panel(&outer, argv[2]);
     wm_u8_free(&settings);
     free(decoded);
     wm_u8_free(&outer);

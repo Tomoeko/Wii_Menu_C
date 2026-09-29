@@ -23,12 +23,12 @@ typedef void (*WmGles2Flush)(WmPlatform *platform);
 void wm_gles2_retained_initialize(WmGles2RetainedFrame *frame);
 void wm_gles2_retained_destroy(WmGles2RetainedFrame *frame);
 bool wm_gles2_retained_begin(WmGles2RetainedFrame *frame, int width, int height,
-                            WmColor clear);
+                             WmColor clear);
 void wm_gles2_retained_render(WmGles2RetainedFrame *frame, WmPlatform *platform,
-                             WmGles2Flush flush);
+                              WmGles2Flush flush);
 /* Materialize deferred commands before destroying a referenced texture or
  * falling back to direct drawing when the fixed command storage fills. */
-void wm_gles2_retained_materialize(WmGles2RetainedFrame *frame,
-                                  WmPlatform *platform, WmGles2Flush flush);
+void wm_gles2_retained_materialize(WmGles2RetainedFrame *frame, WmPlatform *platform,
+                                   WmGles2Flush flush);
 
 #endif

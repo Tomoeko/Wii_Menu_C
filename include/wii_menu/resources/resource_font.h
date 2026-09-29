@@ -47,7 +47,7 @@ typedef struct WmFontVertex {
 typedef struct WmFontQuad {
     uint16_t sheet;
     uint16_t format;
-    size_t byte_index; /* UTF-8 byte offset in the submitted text. */
+    size_t byte_index;     /* UTF-8 byte offset in the submitted text. */
     bool glyph_alpha_only; /* GX I4/I8: texture alpha masks vertex color. */
     uint32_t texture;
     WmFontVertex vertices[4]; /* LT, RT, LB, RB. */
@@ -91,8 +91,8 @@ typedef struct WmFontPane {
 
 /* Reads RFNT/RFNA metrics, character maps and sheet locations. Compressed
  * sheets stay compressed until wm_font_decode_sheet is called. */
-WmFont *wm_font_decode(const uint8_t *data, size_t size,
-                       char *error, size_t error_capacity);
+WmFont *wm_font_decode(const uint8_t *data, size_t size, char *error,
+                       size_t error_capacity);
 void wm_font_destroy(WmFont *font);
 const WmFontMetrics *wm_font_metrics(const WmFont *font);
 size_t wm_font_sheet_count(const WmFont *font);
@@ -100,19 +100,19 @@ const WmFontSheetInfo *wm_font_sheet_info(const WmFont *font, size_t sheet);
 const WmFontGlyph *wm_font_glyph(const WmFont *font, uint32_t codepoint);
 
 /* RGBA8 image rows begin at the top edge. The caller owns the output image. */
-bool wm_font_decode_sheet(const WmFont *font, size_t sheet, WmImage *image,
-                          char *error, size_t error_capacity);
+bool wm_font_decode_sheet(const WmFont *font, size_t sheet, WmImage *image, char *error,
+                          size_t error_capacity);
 
 /* Text is UTF-8; invalid sequences use the default glyph. This API uses the
  * source's two-axis size form: X scales by size[0]/font width, Y by
  * size[1]/font height. For the source's scalar size S, use
  * {S * font width / font height, S}. */
-float wm_font_text_width(const WmFont *font, const char *text,
-                         const float size[2], float spacing);
+float wm_font_text_width(const WmFont *font, const char *text, const float size[2],
+                         float spacing);
 float wm_font_text_width_n(const WmFont *font, const char *text, size_t length,
                            const float size[2], float spacing);
 void wm_font_emit_line(const WmFont *font, const char *text,
-                        const WmFontDrawOptions *options);
+                       const WmFontDrawOptions *options);
 
 /* Cache a pane layout while its text, pane geometry and font size are stable.
  * Reuse the same wrapping and 3 x 3 alignment calculations. */
@@ -122,22 +122,21 @@ size_t wm_font_text_layout_line_count(const WmFontTextLayout *layout);
 /* Local insertion point on the same line grid used to draw the text. The
  * caller supplies a UTF-8 byte boundary; automatic wraps choose the next
  * line, while an explicit newline chooses the preceding line's end. */
-bool wm_font_text_layout_caret(const WmFontTextLayout *layout,
-                               size_t byte_index, float *x, float *y);
+bool wm_font_text_layout_caret(const WmFontTextLayout *layout, size_t byte_index,
+                               float *x, float *y);
 /* Find the nearest insertion point on the next rendered line in the chosen
  * direction. A retained preferred_x keeps repeated up/down movement in one
  * visual column. Returns false at the first or last line. */
-bool wm_font_text_layout_move_caret_vertical(
-    const WmFontTextLayout *layout, size_t from_byte, bool up,
-    float preferred_x, size_t *to_byte);
+bool wm_font_text_layout_move_caret_vertical(const WmFontTextLayout *layout,
+                                             size_t from_byte, bool up,
+                                             float preferred_x, size_t *to_byte);
 /* Select the nearest insertion boundary on the nearest drawn line. Coordinates
  * are local to the text pane; the returned index is a UTF-8 byte boundary. */
-bool wm_font_text_layout_hit_caret(const WmFontTextLayout *layout,
-                                   float x, float y, size_t *byte_index);
+bool wm_font_text_layout_hit_caret(const WmFontTextLayout *layout, float x, float y,
+                                   size_t *byte_index);
 void wm_font_text_layout_destroy(WmFontTextLayout *layout);
-void wm_font_emit_pane(const WmFontTextLayout *layout,
-                        const float parent_matrix[12], float alpha,
-                        WmFontSheetProvider sheet_provider,
-                        WmFontQuadCallback on_quad, void *context);
+void wm_font_emit_pane(const WmFontTextLayout *layout, const float parent_matrix[12],
+                       float alpha, WmFontSheetProvider sheet_provider,
+                       WmFontQuadCallback on_quad, void *context);
 
 #endif

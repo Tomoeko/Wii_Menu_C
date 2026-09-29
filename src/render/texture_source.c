@@ -41,11 +41,9 @@ bool wm_texture_source_url_valid(const char *url, size_t *length) {
     return true;
 }
 
-FILE *wm_texture_source_open(int root_directory, const char *url,
-                             size_t url_length) {
+FILE *wm_texture_source_open(int root_directory, const char *url, size_t url_length) {
     size_t checked_length;
-    if (root_directory < 0 ||
-        !wm_texture_source_url_valid(url, &checked_length) ||
+    if (root_directory < 0 || !wm_texture_source_url_valid(url, &checked_length) ||
         checked_length != url_length) {
         return NULL;
     }
@@ -81,8 +79,7 @@ FILE *wm_texture_source_open(int root_directory, const char *url,
         }
         if (is_file) {
             struct stat information;
-            if (fstat(descriptor, &information) != 0 ||
-                !S_ISREG(information.st_mode)) {
+            if (fstat(descriptor, &information) != 0 || !S_ISREG(information.st_mode)) {
                 close(descriptor);
                 return NULL;
             }

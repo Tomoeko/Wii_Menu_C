@@ -10,18 +10,16 @@ static void assert_memo_cue(const char *cue) {
 }
 
 int main(void) {
-    const WmHitType footer_controls[] = {
-        WM_HIT_PAGE_PREVIOUS,
-        WM_HIT_PAGE_NEXT,
-        WM_HIT_PREVIEW_PREVIOUS,
-        WM_HIT_PREVIEW_NEXT,
-        WM_HIT_SETTINGS,
-        WM_HIT_BOARD,
-        WM_HIT_SD,
-        WM_HIT_BACK
-    };
-    for (size_t index = 0;
-         index < sizeof(footer_controls) / sizeof(footer_controls[0]); index++) {
+    const WmHitType footer_controls[] = {WM_HIT_PAGE_PREVIOUS,
+                                         WM_HIT_PAGE_NEXT,
+                                         WM_HIT_PREVIEW_PREVIOUS,
+                                         WM_HIT_PREVIEW_NEXT,
+                                         WM_HIT_SETTINGS,
+                                         WM_HIT_BOARD,
+                                         WM_HIT_SD,
+                                         WM_HIT_BACK};
+    for (size_t index = 0; index < sizeof(footer_controls) / sizeof(footer_controls[0]);
+         index++) {
         assert_memo_cue(wm_hover_audio_menu_cue(footer_controls[index]));
     }
     const WmBoardControl board_controls[] = {
@@ -43,10 +41,9 @@ int main(void) {
         WM_BOARD_CONTROL_COMPOSE_KEY_FIRST + WM_KEYBOARD_SYMBOL_PREV - 1,
         WM_BOARD_CONTROL_COMPOSE_KEY_FIRST + WM_KEYBOARD_SYMBOL_NEXT - 1,
         WM_BOARD_CONTROL_COMPOSE_KEY_FIRST + WM_KEYBOARD_CANDIDATE_PREVIOUS - 1,
-        WM_BOARD_CONTROL_COMPOSE_KEY_FIRST + WM_KEYBOARD_CANDIDATE_NEXT - 1
-    };
-    for (size_t index = 0;
-         index < sizeof(board_controls) / sizeof(board_controls[0]); index++) {
+        WM_BOARD_CONTROL_COMPOSE_KEY_FIRST + WM_KEYBOARD_CANDIDATE_NEXT - 1};
+    for (size_t index = 0; index < sizeof(board_controls) / sizeof(board_controls[0]);
+         index++) {
         assert_memo_cue(wm_hover_audio_board_cue(board_controls[index]));
     }
     for (int control = WM_BOARD_CONTROL_COMPOSE_ADDRESS_ENTRY_FIRST;
@@ -64,16 +61,16 @@ int main(void) {
     assert(strcmp(wm_hover_audio_menu_cue(WM_HIT_CHANNEL), "hover") == 0);
     assert(strcmp(wm_hover_audio_board_cue(WM_BOARD_CONTROL_COMPOSE_KEY_FIRST),
                   "WIPL_SE_CHAR_FOCUS") == 0);
-    assert(strcmp(wm_hover_audio_board_cue((WmBoardControl)(
-                      WM_BOARD_CONTROL_COMPOSE_KEY_FIRST +
-                      WM_KEYBOARD_CAPS - 1)), "WIPL_SE_CHAR_FOCUS") == 0);
-    assert(strcmp(wm_hover_audio_board_cue((WmBoardControl)(
-                      WM_BOARD_CONTROL_COMPOSE_KEY_FIRST +
-                      WM_KEYBOARD_SHIFT - 1)), "WIPL_SE_CHAR_FOCUS") == 0);
-    assert(strcmp(wm_hover_audio_sd_cue(WM_SD_CONTROL_CHANNEL),
-                  "buttonHover") == 0);
-    assert(strcmp(wm_hover_audio_sd_cue(WM_SD_CONTROL_HELP),
-                  "buttonHover") == 0);
+    assert(strcmp(wm_hover_audio_board_cue(
+                      (WmBoardControl)(WM_BOARD_CONTROL_COMPOSE_KEY_FIRST +
+                                       WM_KEYBOARD_CAPS - 1)),
+                  "WIPL_SE_CHAR_FOCUS") == 0);
+    assert(strcmp(wm_hover_audio_board_cue(
+                      (WmBoardControl)(WM_BOARD_CONTROL_COMPOSE_KEY_FIRST +
+                                       WM_KEYBOARD_SHIFT - 1)),
+                  "WIPL_SE_CHAR_FOCUS") == 0);
+    assert(strcmp(wm_hover_audio_sd_cue(WM_SD_CONTROL_CHANNEL), "buttonHover") == 0);
+    assert(strcmp(wm_hover_audio_sd_cue(WM_SD_CONTROL_HELP), "buttonHover") == 0);
     assert(strcmp(wm_hover_audio_storage_cue(WM_STORAGE_CONTROL_SLOT),
                   "WIPL_SE_BT_TARGETTING") == 0);
     assert(strcmp(wm_hover_audio_board_cue(WM_BOARD_CONTROL_COMPOSE_POST),

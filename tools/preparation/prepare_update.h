@@ -7,10 +7,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
-enum {
-    PREPARE_MAX_CHANNELS = 2048,
-    PREPARE_MAX_MANIFEST = 8 * 1024 * 1024
-};
+enum { PREPARE_MAX_CHANNELS = 2048, PREPARE_MAX_MANIFEST = 8 * 1024 * 1024 };
 
 typedef struct PrepareChoices {
     char ids[PREPARE_MAX_CHANNELS][17];
@@ -43,20 +40,15 @@ bool prepare_print_update_plan(FILE *stream, const char *base_assets,
                                const char *incoming_assets,
                                const char input_nand_sha1[41],
                                const PrepareChoices *replace_ids,
-                               const PrepareChoices *keep_ids,
-                               bool replace_all);
-bool prepare_verify_expected_plan(const char *expected_path,
-                                  const char *base_assets,
+                               const PrepareChoices *keep_ids, bool replace_all);
+bool prepare_verify_expected_plan(const char *expected_path, const char *base_assets,
                                   const char *incoming_assets,
                                   const char input_nand_sha1[41],
                                   const PrepareChoices *replace_ids,
-                                  const PrepareChoices *keep_ids,
-                                  bool replace_all);
-bool prepare_update_channels(const char *base_assets,
-                             const char *incoming_assets,
+                                  const PrepareChoices *keep_ids, bool replace_all);
+bool prepare_update_channels(const char *base_assets, const char *incoming_assets,
                              const char *staged_assets,
                              const PrepareChoices *replace_ids,
-                             const PrepareChoices *keep_ids,
-                             bool replace_all);
+                             const PrepareChoices *keep_ids, bool replace_all);
 
 #endif

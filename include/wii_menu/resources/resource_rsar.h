@@ -45,31 +45,26 @@ typedef struct WmRsarInstrument {
     float pitch;
 } WmRsarInstrument;
 
-bool wm_rsar_open(const uint8_t *data, size_t size, WmRsar *archive,
-                  char *error, size_t error_capacity);
+bool wm_rsar_open(const uint8_t *data, size_t size, WmRsar *archive, char *error,
+                  size_t error_capacity);
 size_t wm_rsar_sound_count(const WmRsar *archive);
-bool wm_rsar_sound_at(const WmRsar *archive, size_t index,
-                      char *symbol, size_t symbol_capacity,
-                      WmRsarSound *sound);
-bool wm_rsar_find_sound(const WmRsar *archive, const char *symbol,
-                        WmRsarSound *sound);
-bool wm_rsar_decode_direct_wave(const WmRsar *archive,
-                                const WmRsarSound *sound, WmAudioPcm *output,
-                                char *error, size_t error_capacity);
+bool wm_rsar_sound_at(const WmRsar *archive, size_t index, char *symbol,
+                      size_t symbol_capacity, WmRsarSound *sound);
+bool wm_rsar_find_sound(const WmRsar *archive, const char *symbol, WmRsarSound *sound);
+bool wm_rsar_decode_direct_wave(const WmRsar *archive, const WmRsarSound *sound,
+                                WmAudioPcm *output, char *error, size_t error_capacity);
 bool wm_rsar_get_sequence(const WmRsar *archive, const WmRsarSound *sound,
-                          WmRsarSequence *sequence,
-                          char *error, size_t error_capacity);
+                          WmRsarSequence *sequence, char *error, size_t error_capacity);
 bool wm_rsar_decode_bank_wave(const WmRsar *archive, uint32_t bank_index,
-                              uint32_t wave_index, WmAudioPcm *output,
-                              char *error, size_t error_capacity);
+                              uint32_t wave_index, WmAudioPcm *output, char *error,
+                              size_t error_capacity);
 bool wm_rsar_get_instrument(const WmRsar *archive, uint32_t bank_index,
                             uint32_t program, uint8_t key, uint8_t velocity,
-                            WmRsarInstrument *instrument,
-                            char *error, size_t error_capacity);
+                            WmRsarInstrument *instrument, char *error,
+                            size_t error_capacity);
 bool wm_rsar_resolve_instrument(const WmRsar *archive, uint32_t bank_index,
-                                uint32_t program, uint8_t key,
-                                uint8_t velocity, uint32_t *wave_index,
-                                uint8_t *root_key, float *pitch,
+                                uint32_t program, uint8_t key, uint8_t velocity,
+                                uint32_t *wave_index, uint8_t *root_key, float *pitch,
                                 char *error, size_t error_capacity);
 
 #endif

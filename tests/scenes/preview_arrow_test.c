@@ -106,20 +106,17 @@ void wm_platform_set_clip(WmPlatform *platform, const WmClipRect *clip) {
 void wm_platform_draw_quad(WmPlatform *platform, const WmQuad *quad) {
     (void)platform;
     trace.event++;
-    if (!trace.in_target && quad->texture == 0 &&
-        quad->color.r == 0.0f && quad->color.g == 0.0f &&
-        quad->color.b == 0.0f && quad->color.a > 0.0f) {
+    if (!trace.in_target && quad->texture == 0 && quad->color.r == 0.0f &&
+        quad->color.g == 0.0f && quad->color.b == 0.0f && quad->color.a > 0.0f) {
         trace.outside_rects++;
         trace.last_outside_event = trace.event;
     }
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
-    if (capture_trace.active && !trace.in_target &&
-        texture == capture_trace.texture) {
+    if (capture_trace.active && !trace.in_target && texture == capture_trace.texture) {
         capture_trace.draws++;
     }
     trace.event++;
@@ -130,64 +127,58 @@ void wm_platform_draw_vertices(WmPlatform *platform,
         label_colors.color[label][1] = vertices[0].color.g;
         label_colors.color[label][2] = vertices[0].color.b;
     }
-    if (!message_trace.active) return;
+    if (!message_trace.active)
+        return;
     message_trace.glyph_quads++;
     for (size_t index = 0; index < 4; index++) {
-        message_trace.glyph_left = fminf(message_trace.glyph_left,
-                                          vertices[index].x);
-        message_trace.glyph_top = fminf(message_trace.glyph_top,
-                                         vertices[index].y);
-        message_trace.glyph_right = fmaxf(message_trace.glyph_right,
-                                           vertices[index].x);
-        message_trace.glyph_bottom = fmaxf(message_trace.glyph_bottom,
-                                            vertices[index].y);
+        message_trace.glyph_left = fminf(message_trace.glyph_left, vertices[index].x);
+        message_trace.glyph_top = fminf(message_trace.glyph_top, vertices[index].y);
+        message_trace.glyph_right = fmaxf(message_trace.glyph_right, vertices[index].x);
+        message_trace.glyph_bottom =
+            fmaxf(message_trace.glyph_bottom, vertices[index].y);
     }
 }
 
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad) {
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     trace.event++;
     if (preview_button.active && quad->texture_count > 0 &&
         quad->textures[0] == preview_button.center_texture) {
         float middle = (quad->vertices[0].x + quad->vertices[1].x) * 0.5f;
         float width = fabsf(quad->vertices[1].x - quad->vertices[0].x);
-        float *largest = middle < WM_FRAME_WIDTH * 0.5f
-                             ? &preview_button.back_width
-                             : &preview_button.start_width;
+        float *largest = middle < WM_FRAME_WIDTH * 0.5f ? &preview_button.back_width
+                                                        : &preview_button.start_width;
         *largest = fmaxf(*largest, width);
     }
     if (arrow_feedback.active && quad->texture_count > 0 &&
         quad->textures[0] == arrow_feedback.texture) {
         if (arrow_feedback.quads < 4)
-            arrow_feedback.material_alpha[arrow_feedback.quads] =
-                quad->registers[1][3];
+            arrow_feedback.material_alpha[arrow_feedback.quads] = quad->registers[1][3];
         arrow_feedback.quads++;
     }
     if (banner_fade.active && (!banner_fade.capture_only || trace.in_target)) {
         for (size_t index = 0; index < quad->texture_count; index++) {
-            if (quad->textures[index] != banner_fade.texture) continue;
+            if (quad->textures[index] != banner_fade.texture)
+                continue;
             float left = quad->vertices[0].x;
             float top = quad->vertices[0].y;
             float width = quad->vertices[1].x - left;
             float height = quad->vertices[2].y - top;
             banner_fade.texture_quads++;
-            banner_fade.max_texture_alpha = fmaxf(
-                banner_fade.max_texture_alpha, quad->vertices[0].color.a);
+            banner_fade.max_texture_alpha =
+                fmaxf(banner_fade.max_texture_alpha, quad->vertices[0].color.a);
             bool target = banner_fade.photo
-                ? fabsf(left) < 0.01f && fabsf(top - 26.0f) < 0.01f &&
-                  fabsf(width - 640.0f) < 0.01f &&
-                  fabsf(height - 76.0f) < 0.01f
-                : left > 300.0f && left < 315.0f &&
-                  top > 65.0f && top < 70.0f &&
-                  width > 65.0f && width < 73.0f &&
-                  height > 88.0f && height < 95.0f;
+                              ? fabsf(left) < 0.01f && fabsf(top - 26.0f) < 0.01f &&
+                                    fabsf(width - 640.0f) < 0.01f &&
+                                    fabsf(height - 76.0f) < 0.01f
+                              : left > 300.0f && left < 315.0f && top > 65.0f &&
+                                    top < 70.0f && width > 65.0f && width < 73.0f &&
+                                    height > 88.0f && height < 95.0f;
             if (target) {
                 banner_fade.quads++;
                 banner_fade.alpha = quad->vertices[0].color.a;
@@ -197,27 +188,28 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
     if (message_trace.active) {
         message_trace.window_quads++;
         for (size_t index = 0; index < 4; index++) {
-            message_trace.window_left = fminf(message_trace.window_left,
-                                               quad->vertices[index].x);
-            message_trace.window_top = fminf(message_trace.window_top,
-                                              quad->vertices[index].y);
-            message_trace.window_right = fmaxf(message_trace.window_right,
-                                                quad->vertices[index].x);
-            message_trace.window_bottom = fmaxf(message_trace.window_bottom,
-                                                 quad->vertices[index].y);
+            message_trace.window_left =
+                fminf(message_trace.window_left, quad->vertices[index].x);
+            message_trace.window_top =
+                fminf(message_trace.window_top, quad->vertices[index].y);
+            message_trace.window_right =
+                fmaxf(message_trace.window_right, quad->vertices[index].x);
+            message_trace.window_bottom =
+                fmaxf(message_trace.window_bottom, quad->vertices[index].y);
         }
     }
-    if (quad->texture_count == 0 ||
-        (quad->textures[0] != arrow_textures[0] &&
-         quad->textures[0] != arrow_textures[1])) return;
+    if (quad->texture_count == 0 || (quad->textures[0] != arrow_textures[0] &&
+                                     quad->textures[0] != arrow_textures[1]))
+        return;
     trace.arrow_quads++;
-    if (trace.in_target) trace.arrows_in_target++;
+    if (trace.in_target)
+        trace.arrows_in_target++;
     if (trace.last_outside_event && trace.event > trace.last_outside_event)
         trace.arrows_after_border++;
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     assert(width > 0 && height > 0 && rgba);
     return next_texture++;
@@ -249,26 +241,23 @@ static bool near(float left, float right) {
     return fabsf(left - right) < 0.01f;
 }
 
-static WmSourceRect rectangle(const WmLayout *arrows, const char *pane,
-                              bool wide) {
+static WmSourceRect rectangle(const WmLayout *arrows, const char *pane, bool wide) {
     WmSourceRect result;
-    assert(wm_source_pane_rect(arrows, pane, wide, WM_LAYOUT_IPL,
-                               NULL, &result));
+    assert(wm_source_pane_rect(arrows, pane, wide, WM_LAYOUT_IPL, NULL, &result));
     return result;
 }
 
 static void check_source_geometry(const char *assets) {
     char path[1024];
-    int length = snprintf(path, sizeof(path),
-                          "%s/layouts/cmnBtn/my_IplTop_e.json", assets);
+    int length =
+        snprintf(path, sizeof(path), "%s/layouts/cmnBtn/my_IplTop_e.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     char error[160] = {0};
     WmLayout *arrows = wm_layout_load_json(path, error, sizeof(error));
-    if (!arrows) fprintf(stderr, "Arrow layout: %s\n", error);
+    if (!arrows)
+        fprintf(stderr, "Arrow layout: %s\n", error);
     assert(arrows);
-    static const char *const panes[] = {
-        "B_ArwL", "B_ArwR", "ArwL", "ArwR"
-    };
+    static const char *const panes[] = {"B_ArwL", "B_ArwR", "ArwL", "ArwR"};
     for (unsigned aspect = 0; aspect < 2; aspect++) {
         bool wide = aspect != 0;
         WmSourceRect home[4], start[4], middle[4], end[4];
@@ -335,51 +324,48 @@ static void check_rendered_message_windows(const char *assets) {
         "0001000148434c45"  /* Netflix */
     };
     WmPlatform *platform = (WmPlatform *)1;
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 32u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        platform, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 32u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     unsigned checked = 0;
-    for (size_t index = 0; index <
-         sizeof(channels) / sizeof(channels[0]); index++) {
+    for (size_t index = 0; index < sizeof(channels) / sizeof(channels[0]); index++) {
         char path[1024];
-        int length = snprintf(path, sizeof(path),
-                              "%s/channel-layouts/%s/banner/banner.json",
-                              assets, channels[index]);
+        int length =
+            snprintf(path, sizeof(path), "%s/channel-layouts/%s/banner/banner.json",
+                     assets, channels[index]);
         assert(length > 0 && length < (int)sizeof(path));
         FILE *resource = fopen(path, "rb");
-        if (!resource) continue;
+        if (!resource)
+            continue;
         fclose(resource);
         checked++;
         char error[160] = {0};
         WmLayout *banner = wm_layout_load_json(path, error, sizeof(error));
-        if (!banner) fprintf(stderr, "Channel banner: %s\n", error);
+        if (!banner)
+            fprintf(stderr, "Channel banner: %s\n", error);
         assert(banner);
-        const WmChannelAnimationOptions options = {
-            .language = "ENG",
-            .has_base_frame = true,
-            .base_frame = 100.0f,
-            .measure_text = wm_font_cache_measure_text,
-            .measure_context = fonts
-        };
-        assert(wm_channel_animation_pose(banner, channels[index],
-                                          WM_CHANNEL_BANNER, 100.0f, &options));
+        const WmChannelAnimationOptions options = {.language = "ENG",
+                                                   .has_base_frame = true,
+                                                   .base_frame = 100.0f,
+                                                   .measure_text =
+                                                       wm_font_cache_measure_text,
+                                                   .measure_context = fonts};
+        assert(wm_channel_animation_pose(banner, channels[index], WM_CHANNEL_BANNER,
+                                         100.0f, &options));
         for (unsigned aspect = 0; aspect < 2; aspect++) {
-            message_trace = (MessageTrace){
-                .active = true,
-                .window_left = INFINITY,
-                .window_top = INFINITY,
-                .window_right = -INFINITY,
-                .window_bottom = -INFINITY,
-                .glyph_left = INFINITY,
-                .glyph_top = INFINITY,
-                .glyph_right = -INFINITY,
-                .glyph_bottom = -INFINITY
-            };
-            wm_layout_present_filtered_with_fonts(
-                platform, textures, fonts, banner, aspect != 0, WM_LAYOUT_IPL,
-                NULL, message_panes_only, NULL);
+            message_trace = (MessageTrace){.active = true,
+                                           .window_left = INFINITY,
+                                           .window_top = INFINITY,
+                                           .window_right = -INFINITY,
+                                           .window_bottom = -INFINITY,
+                                           .glyph_left = INFINITY,
+                                           .glyph_top = INFINITY,
+                                           .glyph_right = -INFINITY,
+                                           .glyph_bottom = -INFINITY};
+            wm_layout_present_filtered_with_fonts(platform, textures, fonts, banner,
+                                                  aspect != 0, WM_LAYOUT_IPL, NULL,
+                                                  message_panes_only, NULL);
             assert(message_trace.window_quads > 0);
             assert(message_trace.glyph_quads > 0);
             assert(message_trace.glyph_left >= message_trace.window_left - 0.01f);
@@ -404,19 +390,18 @@ static void check_capture_and_overlay(const char *assets) {
     strcpy(menu.slots[13].id, "disc");
     strcpy(menu.slots[13].title, "Disc Channel");
     menu.page = 1;
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 128u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        platform, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 128u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
-    assert(wm_texture_cache_resolve(textures,
-        "textures/cmnBtn/my_arw_a.png", &arrow_textures[0]));
-    assert(wm_texture_cache_resolve(textures,
-        "textures/cmnBtn/my_arw_b.png", &arrow_textures[1]));
-    WmPreviewScene *preview = wm_preview_scene_create(
-        platform, assets, &menu, textures, fonts);
-    WmResourceScene *grid = wm_resource_scene_create(
-        platform, assets, &menu, textures, fonts);
+    assert(wm_texture_cache_resolve(textures, "textures/cmnBtn/my_arw_a.png",
+                                    &arrow_textures[0]));
+    assert(wm_texture_cache_resolve(textures, "textures/cmnBtn/my_arw_b.png",
+                                    &arrow_textures[1]));
+    WmPreviewScene *preview =
+        wm_preview_scene_create(platform, assets, &menu, textures, fonts);
+    WmResourceScene *grid =
+        wm_resource_scene_create(platform, assets, &menu, textures, fonts);
     assert(preview && grid);
 
     assert(wm_menu_select(&menu, 13));
@@ -434,11 +419,9 @@ static void check_capture_and_overlay(const char *assets) {
     assert(menu.transition_from_selected == 13);
     wm_menu_tick(&menu, 5.0f / 60.0f);
     reset_trace();
-    const WmResourceSceneFrame frame = {
-        .elapsed_seconds = 2.0f,
-        .preview_elapsed_seconds = 1.0f,
-        .preview_scene = preview
-    };
+    const WmResourceSceneFrame frame = {.elapsed_seconds = 2.0f,
+                                        .preview_elapsed_seconds = 1.0f,
+                                        .preview_scene = preview};
     wm_resource_scene_draw(grid, &menu, &frame);
     assert(trace.outside_rects > 0);
     assert(trace.arrow_quads > 0);
@@ -460,40 +443,32 @@ static void check_capture_and_overlay(const char *assets) {
     wm_texture_cache_destroy(textures);
 }
 
-static ArrowFeedbackTrace draw_arrow_feedback(WmPreviewScene *scene,
-                                              const WmMenu *menu,
+static ArrowFeedbackTrace draw_arrow_feedback(WmPreviewScene *scene, const WmMenu *menu,
                                               float seconds, WmHitType hover,
-                                              uint32_t texture)
-{
-    arrow_feedback = (ArrowFeedbackTrace){
-        .active = true,
-        .texture = texture
-    };
-    assert(wm_preview_scene_draw(scene, menu, seconds,
-                                  (WmHit){hover, -1}, NULL));
+                                              uint32_t texture) {
+    arrow_feedback = (ArrowFeedbackTrace){.active = true, .texture = texture};
+    assert(wm_preview_scene_draw(scene, menu, seconds, (WmHit){hover, -1}, NULL));
     arrow_feedback.active = false;
     assert(arrow_feedback.quads == 2);
     return arrow_feedback;
 }
 
-static void check_preview_arrow_feedback(const char *assets)
-{
+static void check_preview_arrow_feedback(const char *assets) {
     WmPlatform *platform = (WmPlatform *)1;
     WmMenu menu;
     wm_menu_init(&menu);
     menu.slots[1].occupied = true;
     strcpy(menu.slots[1].id, "disc");
     strcpy(menu.slots[1].title, "Disc Channel");
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 128u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        platform, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 128u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t button_texture;
-    assert(wm_texture_cache_resolve(textures,
-        "textures/cmnBtn/my_ComBtn_b.png", &button_texture));
-    WmPreviewScene *scene = wm_preview_scene_create(
-        platform, assets, &menu, textures, fonts);
+    assert(wm_texture_cache_resolve(textures, "textures/cmnBtn/my_ComBtn_b.png",
+                                    &button_texture));
+    WmPreviewScene *scene =
+        wm_preview_scene_create(platform, assets, &menu, textures, fonts);
     assert(scene);
     assert(wm_menu_select(&menu, 0));
     wm_menu_tick(&menu, 28.0f / 60.0f);
@@ -506,41 +481,41 @@ static void check_preview_arrow_feedback(const char *assets)
                                 "%s/layouts/cmnBtn/my_IplTop_e.json", assets);
     assert(arrow_length > 0 && arrow_length < (int)sizeof(arrow_path));
     char arrow_error[128];
-    WmLayout *arrow_layout = wm_layout_load_json(
-        arrow_path, arrow_error, sizeof(arrow_error));
+    WmLayout *arrow_layout =
+        wm_layout_load_json(arrow_path, arrow_error, sizeof(arrow_error));
     assert(arrow_layout);
     WmSourceRect right_arrow;
-    assert(wm_source_pane_rect(arrow_layout, "B_ArwR", true,
-                               WM_LAYOUT_IPL, NULL, &right_arrow));
+    assert(wm_source_pane_rect(arrow_layout, "B_ArwR", true, WM_LAYOUT_IPL, NULL,
+                               &right_arrow));
     int near_x = (int)floorf(right_arrow.x) - 2;
     int far_x = (int)floorf(right_arrow.x) - 8;
     int arrow_y = (int)floorf(right_arrow.y + right_arrow.height * 0.5f);
     WmHit held = {WM_HIT_PREVIEW_NEXT, -1};
     assert(wm_preview_scene_hit(scene, &menu, near_x, arrow_y).type !=
            WM_HIT_PREVIEW_NEXT);
-    assert(wm_preview_scene_hover_hit(scene, &menu, near_x, arrow_y,
-                                       held).type == WM_HIT_PREVIEW_NEXT);
-    assert(wm_preview_scene_hover_hit(scene, &menu, far_x, arrow_y,
-                                       held).type != WM_HIT_PREVIEW_NEXT);
+    assert(wm_preview_scene_hover_hit(scene, &menu, near_x, arrow_y, held).type ==
+           WM_HIT_PREVIEW_NEXT);
+    assert(wm_preview_scene_hover_hit(scene, &menu, far_x, arrow_y, held).type !=
+           WM_HIT_PREVIEW_NEXT);
     wm_layout_destroy(arrow_layout);
 
-    ArrowFeedbackTrace sampled = draw_arrow_feedback(
-        scene, &menu, 0.0f, WM_HIT_NONE, button_texture);
+    ArrowFeedbackTrace sampled =
+        draw_arrow_feedback(scene, &menu, 0.0f, WM_HIT_NONE, button_texture);
     assert(sampled.material_alpha[0] == 0.0f);
     assert(sampled.material_alpha[1] == 0.0f);
-    sampled = draw_arrow_feedback(scene, &menu, 1.0f / 60.0f,
-                                  WM_HIT_PREVIEW_PREVIOUS, button_texture);
+    sampled = draw_arrow_feedback(scene, &menu, 1.0f / 60.0f, WM_HIT_PREVIEW_PREVIOUS,
+                                  button_texture);
     assert(sampled.material_alpha[0] == 0.0f);
-    sampled = draw_arrow_feedback(scene, &menu, 8.0f / 60.0f,
-                                  WM_HIT_PREVIEW_PREVIOUS, button_texture);
+    sampled = draw_arrow_feedback(scene, &menu, 8.0f / 60.0f, WM_HIT_PREVIEW_PREVIOUS,
+                                  button_texture);
     assert(sampled.material_alpha[0] > 0.99f);
 
     /* Click plays source frames 10700–10730 independently of the held
      * 10600–10615 hover clip. The banner swaps
      * after 20 frames; the pressed art continues for ten more frames. */
     assert(wm_menu_change_preview(&menu, -1));
-    sampled = draw_arrow_feedback(scene, &menu, 8.0f / 60.0f,
-                                  WM_HIT_PREVIEW_PREVIOUS, button_texture);
+    sampled = draw_arrow_feedback(scene, &menu, 8.0f / 60.0f, WM_HIT_PREVIEW_PREVIOUS,
+                                  button_texture);
     assert(sampled.material_alpha[1] == 0.0f);
     for (int frame = 1; frame < 20; frame++) {
         wm_menu_tick(&menu, 1.0f / 60.0f);
@@ -551,76 +526,69 @@ static void check_preview_arrow_feedback(const char *assets)
     }
     wm_menu_tick(&menu, 1.0f / 60.0f);
     assert(menu.transition == WM_TRANSITION_NONE);
-    sampled = draw_arrow_feedback(scene, &menu, 0.0f,
-                                  WM_HIT_PREVIEW_PREVIOUS, button_texture);
+    sampled = draw_arrow_feedback(scene, &menu, 0.0f, WM_HIT_PREVIEW_PREVIOUS,
+                                  button_texture);
     assert(sampled.material_alpha[0] > 0.99f);
-    sampled = draw_arrow_feedback(scene, &menu, 10.0f / 60.0f,
-                                  WM_HIT_PREVIEW_PREVIOUS, button_texture);
+    sampled = draw_arrow_feedback(scene, &menu, 10.0f / 60.0f, WM_HIT_PREVIEW_PREVIOUS,
+                                  button_texture);
     assert(sampled.material_alpha[1] == 0.0f);
-    sampled = draw_arrow_feedback(scene, &menu, 11.0f / 60.0f,
-                                  WM_HIT_NONE, button_texture);
+    sampled =
+        draw_arrow_feedback(scene, &menu, 11.0f / 60.0f, WM_HIT_NONE, button_texture);
     assert(sampled.material_alpha[1] == 0.0f);
-    sampled = draw_arrow_feedback(scene, &menu, 16.0f / 60.0f,
-                                  WM_HIT_NONE, button_texture);
+    sampled =
+        draw_arrow_feedback(scene, &menu, 16.0f / 60.0f, WM_HIT_NONE, button_texture);
     assert(sampled.material_alpha[0] == 0.0f);
     assert(sampled.material_alpha[1] == 0.0f);
 
-    sampled = draw_arrow_feedback(scene, &menu, 17.0f / 60.0f,
-                                  WM_HIT_PREVIEW_PREVIOUS, button_texture);
-    sampled = draw_arrow_feedback(scene, &menu, 24.0f / 60.0f,
-                                  WM_HIT_PREVIEW_PREVIOUS, button_texture);
+    sampled = draw_arrow_feedback(scene, &menu, 17.0f / 60.0f, WM_HIT_PREVIEW_PREVIOUS,
+                                  button_texture);
+    sampled = draw_arrow_feedback(scene, &menu, 24.0f / 60.0f, WM_HIT_PREVIEW_PREVIOUS,
+                                  button_texture);
     assert(sampled.material_alpha[0] > 0.99f);
     assert(wm_menu_back(&menu));
-    arrow_feedback = (ArrowFeedbackTrace){
-        .active = true,
-        .texture = button_texture
-    };
+    arrow_feedback = (ArrowFeedbackTrace){.active = true, .texture = button_texture};
     assert(wm_preview_scene_draw_return_arrows(scene, &menu, 1.0f, true));
     assert(arrow_feedback.quads == 2);
     assert(arrow_feedback.material_alpha[0] > 0.99f);
     wm_menu_tick(&menu, 5.0f / 60.0f);
-    arrow_feedback = (ArrowFeedbackTrace){
-        .active = true,
-        .texture = button_texture
-    };
+    arrow_feedback = (ArrowFeedbackTrace){.active = true, .texture = button_texture};
     assert(wm_preview_scene_draw_return_arrows(scene, &menu, 1.0f, true));
     arrow_feedback.active = false;
     assert(arrow_feedback.material_alpha[0] == 0.0f);
     wm_menu_tick(&menu, 1.0f);
     assert(wm_menu_select(&menu, 0));
     wm_menu_tick(&menu, 28.0f / 60.0f);
-    sampled = draw_arrow_feedback(scene, &menu, 0.0f,
-                                  WM_HIT_NONE, button_texture);
+    sampled = draw_arrow_feedback(scene, &menu, 0.0f, WM_HIT_NONE, button_texture);
     assert(sampled.material_alpha[0] == 0.0f);
     assert(sampled.material_alpha[1] == 0.0f);
     uint32_t right_button_texture;
-    assert(wm_texture_cache_resolve(textures,
-        "textures/cmnBtn/my_ComBtn_a.png", &right_button_texture));
-    sampled = draw_arrow_feedback(scene, &menu, 1.0f / 60.0f,
-                                  WM_HIT_PREVIEW_NEXT, right_button_texture);
-    sampled = draw_arrow_feedback(scene, &menu, 8.0f / 60.0f,
-                                  WM_HIT_PREVIEW_NEXT, right_button_texture);
+    assert(wm_texture_cache_resolve(textures, "textures/cmnBtn/my_ComBtn_a.png",
+                                    &right_button_texture));
+    sampled = draw_arrow_feedback(scene, &menu, 1.0f / 60.0f, WM_HIT_PREVIEW_NEXT,
+                                  right_button_texture);
+    sampled = draw_arrow_feedback(scene, &menu, 8.0f / 60.0f, WM_HIT_PREVIEW_NEXT,
+                                  right_button_texture);
     assert(sampled.material_alpha[0] > 0.99f);
     assert(wm_menu_change_preview(&menu, 1));
-    sampled = draw_arrow_feedback(scene, &menu, 8.0f / 60.0f,
-                                  WM_HIT_PREVIEW_NEXT, right_button_texture);
+    sampled = draw_arrow_feedback(scene, &menu, 8.0f / 60.0f, WM_HIT_PREVIEW_NEXT,
+                                  right_button_texture);
     assert(sampled.material_alpha[1] == 0.0f);
     wm_menu_tick(&menu, 5.0f / 60.0f);
-    sampled = draw_arrow_feedback(scene, &menu, 13.0f / 60.0f,
-                                  WM_HIT_PREVIEW_NEXT, right_button_texture);
+    sampled = draw_arrow_feedback(scene, &menu, 13.0f / 60.0f, WM_HIT_PREVIEW_NEXT,
+                                  right_button_texture);
     assert(sampled.material_alpha[1] > 0.9f);
     wm_menu_tick(&menu, 15.0f / 60.0f);
     assert(menu.transition == WM_TRANSITION_NONE);
     /* The next accepted click may arrive before a settled frame renders.
      * Start a fresh press clip without restarting held focus. */
     assert(wm_menu_change_preview(&menu, 1));
-    sampled = draw_arrow_feedback(scene, &menu, 28.0f / 60.0f,
-                                  WM_HIT_PREVIEW_NEXT, right_button_texture);
+    sampled = draw_arrow_feedback(scene, &menu, 28.0f / 60.0f, WM_HIT_PREVIEW_NEXT,
+                                  right_button_texture);
     assert(sampled.material_alpha[0] > 0.99f);
     assert(sampled.material_alpha[1] == 0.0f);
     wm_menu_tick(&menu, 5.0f / 60.0f);
-    sampled = draw_arrow_feedback(scene, &menu, 33.0f / 60.0f,
-                                  WM_HIT_PREVIEW_NEXT, right_button_texture);
+    sampled = draw_arrow_feedback(scene, &menu, 33.0f / 60.0f, WM_HIT_PREVIEW_NEXT,
+                                  right_button_texture);
     assert(sampled.material_alpha[0] > 0.99f);
     assert(sampled.material_alpha[1] > 0.9f);
 
@@ -630,33 +598,31 @@ static void check_preview_arrow_feedback(const char *assets)
     puts("Preview arrows follow WAD focus and press clips through change and Back.");
 }
 
-static void check_preview_arrow_entry_and_idle(const char *assets)
-{
+static void check_preview_arrow_entry_and_idle(const char *assets) {
     WmPlatform *platform = (WmPlatform *)1;
     WmMenu menu;
     wm_menu_init(&menu);
     menu.slots[1].occupied = true;
     strcpy(menu.slots[1].id, "disc");
     strcpy(menu.slots[1].title, "Disc Channel");
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 128u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        platform, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 128u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t button_textures[2];
-    assert(wm_texture_cache_resolve(textures,
-        "textures/cmnBtn/my_ComBtn_b.png", &button_textures[0]));
-    assert(wm_texture_cache_resolve(textures,
-        "textures/cmnBtn/my_ComBtn_a.png", &button_textures[1]));
-    WmPreviewScene *scene = wm_preview_scene_create(
-        platform, assets, &menu, textures, fonts);
+    assert(wm_texture_cache_resolve(textures, "textures/cmnBtn/my_ComBtn_b.png",
+                                    &button_textures[0]));
+    assert(wm_texture_cache_resolve(textures, "textures/cmnBtn/my_ComBtn_a.png",
+                                    &button_textures[1]));
+    WmPreviewScene *scene =
+        wm_preview_scene_create(platform, assets, &menu, textures, fonts);
     assert(scene);
     assert(wm_menu_select(&menu, 0));
     wm_menu_tick(&menu, 28.0f / 60.0f);
 
     char path[1024];
-    int length = snprintf(path, sizeof path,
-                          "%s/layouts/cmnBtn/my_IplTop_e.json", assets);
+    int length =
+        snprintf(path, sizeof path, "%s/layouts/cmnBtn/my_IplTop_e.json", assets);
     assert(length > 0 && length < (int)sizeof path);
     char error[160] = {0};
     WmLayout *arrows = wm_layout_load_json(path, error, sizeof error);
@@ -665,40 +631,33 @@ static void check_preview_arrow_entry_and_idle(const char *assets)
     WmSourceRect left = rectangle(arrows, "B_ArwL", true);
     int x = (int)(left.x + left.width * 0.5f);
     int y = (int)(left.y + left.height * 0.5f);
-    assert(wm_preview_scene_draw(scene, &menu, 0.0f,
-                                  (WmHit){WM_HIT_NONE, -1}, NULL));
-    assert(wm_preview_scene_hit(scene, &menu, x, y).type !=
-           WM_HIT_PREVIEW_PREVIOUS);
+    assert(wm_preview_scene_draw(scene, &menu, 0.0f, (WmHit){WM_HIT_NONE, -1}, NULL));
+    assert(wm_preview_scene_hit(scene, &menu, x, y).type != WM_HIT_PREVIEW_PREVIOUS);
     for (size_t side = 0; side < 2; side++) {
         ArrowFeedbackTrace idle = draw_arrow_feedback(
-            scene, &menu, 10.0f / 60.0f, WM_HIT_NONE,
-            button_textures[side]);
+            scene, &menu, 10.0f / 60.0f, WM_HIT_NONE, button_textures[side]);
         assert(idle.material_alpha[0] == 0.0f);
         assert(idle.material_alpha[1] == 0.0f);
     }
-    assert(wm_preview_scene_hit(scene, &menu, x, y).type ==
-           WM_HIT_PREVIEW_PREVIOUS);
+    assert(wm_preview_scene_hit(scene, &menu, x, y).type == WM_HIT_PREVIEW_PREVIOUS);
 
     /* The arrow entry clock is independent of the per-banner clock.
      * A channel change must not move settled arrows back offscreen. */
     assert(wm_menu_change_preview(&menu, -1));
-    assert(wm_preview_scene_draw(scene, &menu, 10.0f / 60.0f,
-                                  (WmHit){WM_HIT_NONE, -1}, NULL));
+    assert(wm_preview_scene_draw(scene, &menu, 10.0f / 60.0f, (WmHit){WM_HIT_NONE, -1},
+                                 NULL));
     wm_menu_tick(&menu, 20.0f / 60.0f);
     assert(menu.transition == WM_TRANSITION_NONE);
-    assert(wm_preview_scene_draw(scene, &menu, 0.0f,
-                                  (WmHit){WM_HIT_NONE, -1}, NULL));
-    assert(wm_preview_scene_hit(scene, &menu, x, y).type ==
-           WM_HIT_PREVIEW_PREVIOUS);
+    assert(wm_preview_scene_draw(scene, &menu, 0.0f, (WmHit){WM_HIT_NONE, -1}, NULL));
+    assert(wm_preview_scene_hit(scene, &menu, x, y).type == WM_HIT_PREVIEW_PREVIOUS);
     for (size_t side = 0; side < 2; side++) {
-        ArrowFeedbackTrace swapped = draw_arrow_feedback(
-            scene, &menu, 0.0f, WM_HIT_NONE, button_textures[side]);
+        ArrowFeedbackTrace swapped =
+            draw_arrow_feedback(scene, &menu, 0.0f, WM_HIT_NONE, button_textures[side]);
         assert(swapped.material_alpha[0] == 0.0f);
     }
     for (size_t side = 0; side < 2; side++) {
         ArrowFeedbackTrace settled = draw_arrow_feedback(
-            scene, &menu, 11.0f / 60.0f, WM_HIT_NONE,
-            button_textures[side]);
+            scene, &menu, 11.0f / 60.0f, WM_HIT_NONE, button_textures[side]);
         assert(settled.material_alpha[0] == 0.0f);
         assert(settled.material_alpha[1] == 0.0f);
     }
@@ -710,53 +669,45 @@ static void check_preview_arrow_entry_and_idle(const char *assets)
     puts("Idle preview arrows stay neutral and do not re-enter after clicks.");
 }
 
-static float preview_back_button_width(WmPreviewScene *scene,
-                                       const WmMenu *menu, float seconds,
-                                       WmHitType hover, uint32_t texture,
-                                       bool capture)
-{
-    preview_button = (PreviewButtonTrace){
-        .active = true,
-        .center_texture = texture
-    };
+static float preview_back_button_width(WmPreviewScene *scene, const WmMenu *menu,
+                                       float seconds, WmHitType hover, uint32_t texture,
+                                       bool capture) {
+    preview_button = (PreviewButtonTrace){.active = true, .center_texture = texture};
     if (capture)
         assert(wm_preview_scene_draw_capture(scene, menu, seconds));
     else
-        assert(wm_preview_scene_draw(scene, menu, seconds,
-                                     (WmHit){hover, -1}, NULL));
+        assert(wm_preview_scene_draw(scene, menu, seconds, (WmHit){hover, -1}, NULL));
     preview_button.active = false;
     assert(preview_button.back_width > 0.0f);
     return preview_button.back_width;
 }
 
-static void check_preview_back_focus_on_click(const char *assets)
-{
+static void check_preview_back_focus_on_click(const char *assets) {
     WmPlatform *platform = (WmPlatform *)1;
     WmMenu menu;
     wm_menu_init(&menu);
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 128u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        platform, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 128u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t center_texture;
-    assert(wm_texture_cache_resolve(textures,
-        "textures/chanTtl/my_ComBtn_c1.png", &center_texture));
-    WmPreviewScene *scene = wm_preview_scene_create(
-        platform, assets, &menu, textures, fonts);
+    assert(wm_texture_cache_resolve(textures, "textures/chanTtl/my_ComBtn_c1.png",
+                                    &center_texture));
+    WmPreviewScene *scene =
+        wm_preview_scene_create(platform, assets, &menu, textures, fonts);
     assert(scene);
     assert(wm_menu_select(&menu, 0));
     wm_menu_tick(&menu, 28.0f / 60.0f);
-    float idle = preview_back_button_width(
-        scene, &menu, 0.0f, WM_HIT_NONE, center_texture, false);
-    (void)preview_back_button_width(
-        scene, &menu, 1.0f / 60.0f, WM_HIT_BACK, center_texture, false);
-    float focused = preview_back_button_width(
-        scene, &menu, 8.0f / 60.0f, WM_HIT_BACK, center_texture, false);
+    float idle = preview_back_button_width(scene, &menu, 0.0f, WM_HIT_NONE,
+                                           center_texture, false);
+    (void)preview_back_button_width(scene, &menu, 1.0f / 60.0f, WM_HIT_BACK,
+                                    center_texture, false);
+    float focused = preview_back_button_width(scene, &menu, 8.0f / 60.0f, WM_HIT_BACK,
+                                              center_texture, false);
     assert(focused > idle * 1.09f);
     assert(wm_menu_back(&menu));
-    float returning = preview_back_button_width(
-        scene, &menu, 8.0f / 60.0f, WM_HIT_NONE, center_texture, true);
+    float returning = preview_back_button_width(scene, &menu, 8.0f / 60.0f, WM_HIT_NONE,
+                                                center_texture, true);
     assert(fabsf(returning - idle) < 0.01f);
 
     wm_preview_scene_destroy(scene);
@@ -768,16 +719,11 @@ static void check_preview_back_focus_on_click(const char *assets)
 static float rendered_banner_alpha(WmPreviewScene *scene, const WmMenu *menu,
                                    bool photo, uint32_t texture, int frame,
                                    bool capture) {
-    banner_fade = (BannerFadeTrace){
-        .active = true,
-        .photo = photo,
-        .texture = texture
-    };
+    banner_fade = (BannerFadeTrace){.active = true, .photo = photo, .texture = texture};
     if (capture)
         assert(wm_preview_scene_draw_capture(scene, menu, frame / 60.0f));
     else
-        assert(wm_preview_scene_draw_layers(scene, menu, frame / 60.0f,
-                                             NULL));
+        assert(wm_preview_scene_draw_layers(scene, menu, frame / 60.0f, NULL));
     banner_fade.active = false;
     assert(banner_fade.quads <= 1);
     return banner_fade.alpha;
@@ -787,26 +733,23 @@ static void check_preview_banner_fades(const char *assets) {
     WmPlatform *platform = (WmPlatform *)1;
     WmMenu menu;
     wm_menu_init(&menu);
-    static const char *const ids[] = {
-        "0001000248415941", "0001000248414241"
-    };
+    static const char *const ids[] = {"0001000248415941", "0001000248414241"};
     static const char *const textures_to_probe[] = {
         "channel-layouts/0001000248415941/banner/textures/plate1.png",
-        "channel-layouts/0001000248414241/banner/textures/logo_pic02.png"
-    };
+        "channel-layouts/0001000248414241/banner/textures/logo_pic02.png"};
     static const float expected_alpha[2][5] = {
         {0.0f, 0.15625f, 0.5f, 0.84375f, 1.0f},
-        {0.5f, 2.0f / 3.0f, 5.0f / 6.0f, 1.0f, 1.0f}
-    };
+        {0.5f, 2.0f / 3.0f, 5.0f / 6.0f, 1.0f, 1.0f}};
     for (int index = 0; index < 2; index++) {
         char path[1024];
-        int length = snprintf(path, sizeof path,
-                              "%s/channel-layouts/%s/banner/banner.json",
-                              assets, ids[index]);
+        int length =
+            snprintf(path, sizeof path, "%s/channel-layouts/%s/banner/banner.json",
+                     assets, ids[index]);
         assert(length > 0 && length < (int)sizeof path);
         FILE *resource = fopen(path, "rb");
         if (!resource) {
-            puts("Preview banner fade comparison skipped: channel layouts unavailable.");
+            puts(
+                "Preview banner fade comparison skipped: channel layouts unavailable.");
             return;
         }
         fclose(resource);
@@ -816,24 +759,22 @@ static void check_preview_banner_fades(const char *assets) {
         snprintf(channel->banner_layout, sizeof channel->banner_layout,
                  "channel-layouts/%s/banner/banner.json", ids[index]);
     }
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 128u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        platform, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 128u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
-    WmPreviewScene *scene = wm_preview_scene_create(
-        platform, assets, &menu, textures, fonts);
+    WmPreviewScene *scene =
+        wm_preview_scene_create(platform, assets, &menu, textures, fonts);
     assert(scene);
     for (int index = 0; index < 2; index++) {
         uint32_t texture;
-        assert(wm_texture_cache_resolve(textures, textures_to_probe[index],
-                                        &texture));
+        assert(wm_texture_cache_resolve(textures, textures_to_probe[index], &texture));
         menu.screen = WM_SCREEN_PREVIEW;
         menu.selected = index + 1;
         float previous = -1.0f;
         for (int sample = 0; sample < 5; sample++) {
-            float alpha = rendered_banner_alpha(scene, &menu, index == 0,
-                                                 texture, sample * 10, false);
+            float alpha = rendered_banner_alpha(scene, &menu, index == 0, texture,
+                                                sample * 10, false);
             assert(fabsf(alpha - expected_alpha[index][sample]) < 0.015f);
             assert(alpha >= previous);
             previous = alpha;
@@ -846,20 +787,18 @@ static void check_preview_banner_fades(const char *assets) {
     menu.selected = -1;
     assert(wm_menu_select(&menu, 2));
     uint32_t shop_texture;
-    assert(wm_texture_cache_resolve(textures, textures_to_probe[1],
-                                    &shop_texture));
-    float shop_start = rendered_banner_alpha(scene, &menu, false,
-                                              shop_texture, 5, true);
+    assert(wm_texture_cache_resolve(textures, textures_to_probe[1], &shop_texture));
+    float shop_start =
+        rendered_banner_alpha(scene, &menu, false, shop_texture, 5, true);
     assert(fabsf(shop_start - 0.5f) < 0.015f);
-    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
-                                       17, true) - shop_start) < 0.015f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture, 17, true) -
+                 shop_start) < 0.015f);
     wm_menu_tick(&menu, 28.0f / 60.0f);
-    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
-                                       5, false) - shop_start) < 0.015f);
-    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
-                                       5, false) - shop_start) < 0.015f);
-    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
-                                       6, false) -
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture, 5, false) -
+                 shop_start) < 0.015f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture, 5, false) -
+                 shop_start) < 0.015f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture, 6, false) -
                  (0.5f + 1.0f / 60.0f)) < 0.005f);
     /* The application still announces the settled entry when every zoom
      * draw was skipped. Reopening the same channel cannot rely on slot or
@@ -872,32 +811,28 @@ static void check_preview_banner_fades(const char *assets) {
     assert(wm_menu_select(&menu, 2));
     wm_menu_tick(&menu, 28.0f / 60.0f);
     wm_preview_scene_set_module_lead(scene, 0.0f);
-    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
-                                       5, false) - shop_start) < 0.015f);
-    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
-                                       6, false) -
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture, 5, false) -
+                 shop_start) < 0.015f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture, 6, false) -
                  (0.5f + 1.0f / 60.0f)) < 0.005f);
-    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
-                                       10, false) -
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture, 10, false) -
                  (0.5f + 5.0f / 60.0f)) < 0.005f);
     assert(wm_menu_change_preview(&menu, -1));
     wm_menu_tick(&menu, 20.0f / 60.0f);
     uint32_t photo_texture;
-    assert(wm_texture_cache_resolve(textures, textures_to_probe[0],
-                                    &photo_texture));
+    assert(wm_texture_cache_resolve(textures, textures_to_probe[0], &photo_texture));
     (void)rendered_banner_alpha(scene, &menu, true, photo_texture, 0, false);
     assert(wm_menu_change_preview(&menu, 1));
     /* The first draw of the incoming Shop may arrive halfway through the
      * replacement window, with the old preview's clock still far ahead. */
     wm_menu_tick(&menu, 15.0f / 60.0f);
     wm_preview_scene_set_module_lead(scene, 10.0f);
-    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
-                                       99, false) - shop_start) < 0.015f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture, 99, false) -
+                 shop_start) < 0.015f);
     wm_menu_tick(&menu, 5.0f / 60.0f);
-    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
-                                       5, false) - shop_start) < 0.015f);
-    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
-                                       6, false) -
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture, 5, false) -
+                 shop_start) < 0.015f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture, 6, false) -
                  (0.5f + 1.0f / 60.0f)) < 0.005f);
     menu.screen = WM_SCREEN_GRID;
     menu.selected = -1;
@@ -908,21 +843,19 @@ static void check_preview_banner_fades(const char *assets) {
     menu.screen = WM_SCREEN_GRID;
     menu.selected = -1;
     assert(wm_menu_select(&menu, 2));
-    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
-                                       5, true) - shop_start) < 0.015f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture, 5, true) -
+                 shop_start) < 0.015f);
     wm_menu_tick(&menu, 28.0f / 60.0f);
-    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
-                                       5, false) - shop_start) < 0.015f);
-    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture,
-                                       6, false) -
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture, 5, false) -
+                 shop_start) < 0.015f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, false, shop_texture, 6, false) -
                  (0.5f + 1.0f / 60.0f)) < 0.005f);
     /* On a preview swap the module clock leads by ten frames while Shop's
      * base Start clock still begins at zero. Photo's Rso0 fade follows the
      * module clock, so its first swapped frame is already partly opaque. */
     wm_preview_scene_set_module_lead(scene, 10.0f);
     menu.selected = 1;
-    assert(fabsf(rendered_banner_alpha(scene, &menu, true, photo_texture, 0,
-                                       false) -
+    assert(fabsf(rendered_banner_alpha(scene, &menu, true, photo_texture, 0, false) -
                  0.15625f) < 0.015f);
     /* A preview swap retains a ten-frame module lead. Leaving that preview
      * and selecting another channel must capture the new banner at frame
@@ -930,16 +863,16 @@ static void check_preview_banner_fades(const char *assets) {
     menu.screen = WM_SCREEN_GRID;
     menu.selected = -1;
     assert(wm_menu_select(&menu, 1));
-    float zoom_start = rendered_banner_alpha(scene, &menu, true,
-                                              photo_texture, 0, true);
-    float zoom_middle = rendered_banner_alpha(scene, &menu, true,
-                                               photo_texture, 14, true);
+    float zoom_start =
+        rendered_banner_alpha(scene, &menu, true, photo_texture, 0, true);
+    float zoom_middle =
+        rendered_banner_alpha(scene, &menu, true, photo_texture, 14, true);
     assert(fabsf(zoom_start) < 0.015f);
     assert(fabsf(zoom_middle - zoom_start) < 0.015f);
     wm_menu_tick(&menu, 28.0f / 60.0f);
     wm_preview_scene_set_module_lead(scene, 0.0f);
-    assert(fabsf(rendered_banner_alpha(scene, &menu, true, photo_texture,
-                                       0, false) - zoom_start) < 0.015f);
+    assert(fabsf(rendered_banner_alpha(scene, &menu, true, photo_texture, 0, false) -
+                 zoom_start) < 0.015f);
     wm_preview_scene_destroy(scene);
     wm_font_cache_destroy(fonts);
     wm_texture_cache_destroy(textures);
@@ -947,13 +880,10 @@ static void check_preview_banner_fades(const char *assets) {
 }
 
 static void check_preview_capture_reentry(const char *assets) {
-    static const char *const ids[] = {
-        "0001000248415941", "0001000248414241"
-    };
+    static const char *const ids[] = {"0001000248415941", "0001000248414241"};
     static const char *const probe_textures[] = {
         "channel-layouts/0001000248415941/banner/textures/plate1.png",
-        "channel-layouts/0001000248414241/banner/textures/logo_pic02.png"
-    };
+        "channel-layouts/0001000248414241/banner/textures/logo_pic02.png"};
     static const float first_alpha[] = {0.0f, 0.5f};
     WmPlatform *platform = (WmPlatform *)1;
     WmMenu menu;
@@ -961,9 +891,9 @@ static void check_preview_capture_reentry(const char *assets) {
 
     for (size_t index = 0; index < 2; index++) {
         char path[1024];
-        int length = snprintf(path, sizeof(path),
-                              "%s/channel-layouts/%s/banner/banner.json",
-                              assets, ids[index]);
+        int length =
+            snprintf(path, sizeof(path), "%s/channel-layouts/%s/banner/banner.json",
+                     assets, ids[index]);
         assert(length > 0 && length < (int)sizeof(path));
         FILE *resource = fopen(path, "rb");
         if (!resource) {
@@ -978,20 +908,19 @@ static void check_preview_capture_reentry(const char *assets) {
                  "channel-layouts/%s/banner/banner.json", ids[index]);
     }
 
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 128u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        platform, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 128u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
-    WmPreviewScene *preview = wm_preview_scene_create(
-        platform, assets, &menu, textures, fonts);
-    WmResourceScene *grid = wm_resource_scene_create(
-        platform, assets, &menu, textures, fonts);
+    WmPreviewScene *preview =
+        wm_preview_scene_create(platform, assets, &menu, textures, fonts);
+    WmResourceScene *grid =
+        wm_resource_scene_create(platform, assets, &menu, textures, fonts);
     assert(preview && grid);
     uint32_t probe[2];
     for (size_t index = 0; index < 2; index++) {
-        assert(wm_texture_cache_resolve(textures, probe_textures[index],
-                                        &probe[index]));
+        assert(
+            wm_texture_cache_resolve(textures, probe_textures[index], &probe[index]));
     }
 
     float clock_seconds = 2.0f;
@@ -1010,17 +939,13 @@ static void check_preview_capture_reentry(const char *assets) {
 
         assert(wm_menu_back(&menu));
         wm_menu_tick(&menu, 8.0f / 60.0f);
-        WmResourceSceneFrame frame = {
-            .elapsed_seconds = clock_seconds,
-            .preview_elapsed_seconds = 1.0f,
-            .preview_scene = preview
-        };
-        banner_fade = (BannerFadeTrace){
-            .active = true,
-            .capture_only = true,
-            .photo = index == 0,
-            .texture = probe[index]
-        };
+        WmResourceSceneFrame frame = {.elapsed_seconds = clock_seconds,
+                                      .preview_elapsed_seconds = 1.0f,
+                                      .preview_scene = preview};
+        banner_fade = (BannerFadeTrace){.active = true,
+                                        .capture_only = true,
+                                        .photo = index == 0,
+                                        .texture = probe[index]};
         capture_trace = (PreviewCaptureTrace){.active = true};
         wm_resource_scene_draw(grid, &menu, &frame);
         banner_fade.active = false;
@@ -1031,8 +956,7 @@ static void check_preview_capture_reentry(const char *assets) {
         assert(capture_trace.draws == 1);
 
         wm_menu_tick(&menu, 20.0f / 60.0f);
-        assert(menu.screen == WM_SCREEN_GRID &&
-               menu.transition == WM_TRANSITION_NONE);
+        assert(menu.screen == WM_SCREEN_GRID && menu.transition == WM_TRANSITION_NONE);
         clock_seconds += 1.0f / 60.0f;
         frame.elapsed_seconds = clock_seconds;
         frame.hover = (WmHit){WM_HIT_CHANNEL, slot};
@@ -1044,12 +968,10 @@ static void check_preview_capture_reentry(const char *assets) {
         frame.elapsed_seconds = clock_seconds;
         frame.preview_elapsed_seconds = 0.0f;
         frame.hover = (WmHit){WM_HIT_NONE, -1};
-        banner_fade = (BannerFadeTrace){
-            .active = true,
-            .capture_only = true,
-            .photo = index == 0,
-            .texture = probe[index]
-        };
+        banner_fade = (BannerFadeTrace){.active = true,
+                                        .capture_only = true,
+                                        .photo = index == 0,
+                                        .texture = probe[index]};
         capture_trace = (PreviewCaptureTrace){.active = true};
         wm_resource_scene_draw(grid, &menu, &frame);
         banner_fade.active = false;
@@ -1071,74 +993,73 @@ static void check_preview_capture_reentry(const char *assets) {
 static bool label_pane(void *context, const WmLayoutPaneView *pane) {
     (void)context;
     label_colors.current_label = -1;
-    if (strcmp(pane->name, "T_BtnA") == 0) label_colors.current_label = 0;
-    if (strcmp(pane->name, "T_BtnB") == 0) label_colors.current_label = 1;
-    if (strcmp(pane->name, "T_WiiMenu") == 0) label_colors.current_label = 2;
+    if (strcmp(pane->name, "T_BtnA") == 0)
+        label_colors.current_label = 0;
+    if (strcmp(pane->name, "T_BtnB") == 0)
+        label_colors.current_label = 1;
+    if (strcmp(pane->name, "T_WiiMenu") == 0)
+        label_colors.current_label = 2;
     return true;
 }
 
 static void check_preview_label_colors(const char *assets) {
     WmPlatform *platform = (WmPlatform *)1;
     char path[1024];
-    int length = snprintf(path, sizeof(path),
-                          "%s/layouts/chanTtl/my_ChTop_a.json", assets);
+    int length =
+        snprintf(path, sizeof(path), "%s/layouts/chanTtl/my_ChTop_a.json", assets);
     assert(length > 0 && length < (int)sizeof path);
     char error[256];
     WmLayout *title = wm_layout_load_json(path, error, sizeof error);
-    if (!title) fprintf(stderr, "Channel title: %s\n", error);
+    if (!title)
+        fprintf(stderr, "Channel title: %s\n", error);
     assert(title);
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 8u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        platform, assets, 8u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 8u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 8u * 1024u * 1024u);
     assert(textures && fonts);
     assert(wm_layout_set_text(title, "T_BtnA", "Wii Menu"));
     assert(wm_layout_set_text(title, "T_BtnB", "Start"));
-    const WmLayoutClip clips[] = {
-        {.animation = "my_ChTop_a_OnBtn", .frame = 10.0f,
-         .group = "G_OnOffBtnA", .loop_override = 0},
-        {.animation = "my_ChTop_a_OnBtn", .frame = 10.0f,
-         .group = "G_OnOffBtnB", .loop_override = 0}
-    };
+    const WmLayoutClip clips[] = {{.animation = "my_ChTop_a_OnBtn",
+                                   .frame = 10.0f,
+                                   .group = "G_OnOffBtnA",
+                                   .loop_override = 0},
+                                  {.animation = "my_ChTop_a_OnBtn",
+                                   .frame = 10.0f,
+                                   .group = "G_OnOffBtnB",
+                                   .loop_override = 0}};
     assert(wm_layout_pose(title, clips, sizeof clips / sizeof clips[0]));
     label_colors = (LabelColorTrace){.active = true, .current_label = -1};
-    wm_layout_present_filtered_with_fonts(
-        platform, textures, fonts, title, true, WM_LAYOUT_IPL, NULL,
-        label_pane, NULL);
+    wm_layout_present_filtered_with_fonts(platform, textures, fonts, title, true,
+                                          WM_LAYOUT_IPL, NULL, label_pane, NULL);
     label_colors.active = false;
     assert(label_colors.glyphs[0] > 0 && label_colors.glyphs[1] > 0);
     const float expected[] = {70.0f / 255.0f, 48.0f / 255.0f};
     for (size_t label = 0; label < 2; label++) {
         for (size_t channel = 0; channel < 3; channel++) {
-            assert(fabsf(label_colors.color[label][channel] - expected[label])
-                   < 0.005f);
+            assert(fabsf(label_colors.color[label][channel] - expected[label]) <
+                   0.005f);
         }
     }
     wm_layout_destroy(title);
 
-    length = snprintf(path, sizeof(path),
-                      "%s/layouts/chanSel/my_Clock_a.json", assets);
+    length = snprintf(path, sizeof(path), "%s/layouts/chanSel/my_Clock_a.json", assets);
     assert(length > 0 && length < (int)sizeof path);
     WmLayout *clock = wm_layout_load_json(path, error, sizeof error);
-    if (!clock) fprintf(stderr, "Clock: %s\n", error);
+    if (!clock)
+        fprintf(stderr, "Clock: %s\n", error);
     assert(clock);
     assert(wm_layout_set_text(clock, "T_WiiMenu", "Wii Menu"));
     const WmLayoutClip clock_intro = {
-        .animation = "my_Clock_a_Change", .frame = 0.0f,
-        .loop_override = 0
-    };
+        .animation = "my_Clock_a_Change", .frame = 0.0f, .loop_override = 0};
     assert(wm_layout_pose(clock, &clock_intro, 1));
     label_colors = (LabelColorTrace){.active = true, .current_label = -1};
-    wm_layout_present_filtered_with_fonts(
-        platform, textures, fonts, clock, true, WM_LAYOUT_IPL, NULL,
-        label_pane, NULL);
+    wm_layout_present_filtered_with_fonts(platform, textures, fonts, clock, true,
+                                          WM_LAYOUT_IPL, NULL, label_pane, NULL);
     label_colors.active = false;
     assert(label_colors.glyphs[2] > 0);
-    const float clock_color[] = {52.0f / 255.0f, 192.0f / 255.0f,
-                                 237.0f / 255.0f};
+    const float clock_color[] = {52.0f / 255.0f, 192.0f / 255.0f, 237.0f / 255.0f};
     for (size_t channel = 0; channel < 3; channel++) {
-        assert(fabsf(label_colors.color[2][channel] - clock_color[channel])
-               < 0.005f);
+        assert(fabsf(label_colors.color[2][channel] - clock_color[channel]) < 0.005f);
     }
     wm_font_cache_destroy(fonts);
     wm_texture_cache_destroy(textures);
@@ -1149,8 +1070,8 @@ static void check_preview_label_colors(const char *assets) {
 int main(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char path[1024];
-    int length = snprintf(path, sizeof(path),
-                          "%s/layouts/cmnBtn/my_IplTop_e.json", assets);
+    int length =
+        snprintf(path, sizeof(path), "%s/layouts/cmnBtn/my_IplTop_e.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     FILE *resource = fopen(path, "rb");
     if (!resource) {

@@ -5,12 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum {
-    BMG_HEADER_BYTES = 32,
-    FIXTURE_SIZE = 92,
-    INFO_OFFSET = 32,
-    DAT_OFFSET = 64
-};
+enum { BMG_HEADER_BYTES = 32, FIXTURE_SIZE = 92, INFO_OFFSET = 32, DAT_OFFSET = 64 };
 
 static void put_be16(uint8_t *output, unsigned value) {
     output[0] = (uint8_t)(value >> 8);
@@ -40,11 +35,9 @@ static void make_fixture(uint8_t data[FIXTURE_SIZE]) {
     put_be32(data + INFO_OFFSET + 28, 0x55667788);
     memcpy(data + DAT_OFFSET, "DAT1", 4);
     put_be32(data + DAT_OFFSET + 4, 28);
-    const uint8_t strings[] = {
-        0x00, 'A', 0x00, 0x1a, 0x04, 0x01,
-        0xd8, 0x3d, 0xde, 0x00, 0x00, 'B', 0x00, 0x00,
-        0x00, 'H', 0x00, 'i', 0x00, 0x00
-    };
+    const uint8_t strings[] = {0x00, 'A',  0x00, 0x1a, 0x04, 0x01, 0xd8,
+                               0x3d, 0xde, 0x00, 0x00, 'B',  0x00, 0x00,
+                               0x00, 'H',  0x00, 'i',  0x00, 0x00};
     memcpy(data + DAT_OFFSET + 8, strings, sizeof(strings));
 }
 
@@ -55,12 +48,12 @@ static void test_parser(void) {
     WmBmg *bmg = wm_bmg_parse(data, sizeof(data), error, sizeof(error));
     assert(bmg);
     assert(wm_bmg_count(bmg) == 2);
-    assert(strcmp(wm_bmg_text(bmg, 0), "A\xf0\x9f\x98\x80" "B") == 0);
+    assert(strcmp(wm_bmg_text(bmg, 0), "A\xf0\x9f\x98\x80"
+                                       "B") == 0);
     assert(strcmp(wm_bmg_message(bmg, 1), "Hi") == 0);
     assert(wm_bmg_text(bmg, 2) == NULL);
     size_t attributes_size = 0;
-    const uint8_t *attributes = wm_bmg_attributes(bmg, 1,
-                                                   &attributes_size);
+    const uint8_t *attributes = wm_bmg_attributes(bmg, 1, &attributes_size);
     assert(attributes && attributes_size == 4);
     assert(attributes[0] == 0x55 && attributes[3] == 0x88);
     memset(data, 0, sizeof(data));
@@ -129,8 +122,7 @@ static void test_repeated_message_budget(void) {
 static void test_local_export(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char path[4096];
-    int length = snprintf(path, sizeof(path),
-                          "%s/messages/eng/ipl_common.bmg", assets);
+    int length = snprintf(path, sizeof(path), "%s/messages/eng/ipl_common.bmg", assets);
     assert(length > 0 && length < (int)sizeof(path));
     FILE *file = fopen(path, "rb");
     if (!file) {
@@ -139,8 +131,7 @@ static void test_local_export(int argc, char **argv) {
     }
     fclose(file);
     char error[160] = {0};
-    WmBmg *bmg = wm_bmg_load_assets(assets, "ENG", error,
-                                     sizeof(error));
+    WmBmg *bmg = wm_bmg_load_assets(assets, "ENG", error, sizeof(error));
     assert(bmg);
     assert(wm_bmg_count(bmg) == 458);
     assert(wm_bmg_text(bmg, 157) && wm_bmg_text(bmg, 157)[0]);

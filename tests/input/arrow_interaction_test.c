@@ -3,19 +3,16 @@
 #include <assert.h>
 #include <stdio.h>
 
-static void check_common_footer(void)
-{
+static void check_common_footer(void) {
     WmArrowInteraction arrows;
-    wm_arrow_interaction_init(&arrows, (WmArrowInteractionConfig){
-        .focus_in_frames = 15.0f,
-        .focus_out_frames = 15.0f,
-        .press_frames = 30.0f,
-        .visibility_frames = 10.0f
-    });
-    const WmArrowSideState *left = wm_arrow_interaction_side(
-        &arrows, WM_ARROW_PREVIOUS);
-    const WmArrowSideState *right = wm_arrow_interaction_side(
-        &arrows, WM_ARROW_NEXT);
+    wm_arrow_interaction_init(&arrows,
+                              (WmArrowInteractionConfig){.focus_in_frames = 15.0f,
+                                                         .focus_out_frames = 15.0f,
+                                                         .press_frames = 30.0f,
+                                                         .visibility_frames = 10.0f});
+    const WmArrowSideState *left =
+        wm_arrow_interaction_side(&arrows, WM_ARROW_PREVIOUS);
+    const WmArrowSideState *right = wm_arrow_interaction_side(&arrows, WM_ARROW_NEXT);
     assert(left && right && !left->focus_active && !right->focus_active);
     assert(wm_arrow_interaction_set_visible(&arrows, WM_ARROW_PREVIOUS, true));
     assert(!wm_arrow_interaction_set_visible(&arrows, WM_ARROW_PREVIOUS, true));
@@ -40,10 +37,8 @@ static void check_common_footer(void)
     assert(!left->pressed);
 
     assert(wm_arrow_interaction_hover(&arrows, WM_ARROW_NEXT));
-    assert(left->focus_active && !left->focus_entering &&
-           left->focus_age == 0.0f);
-    assert(right->focus_active && right->focus_entering &&
-           right->focus_age == 0.0f);
+    assert(left->focus_active && !left->focus_entering && left->focus_age == 0.0f);
+    assert(right->focus_active && right->focus_entering && right->focus_age == 0.0f);
     wm_arrow_interaction_advance(&arrows, 15.0f);
     assert(left->focus_active && left->focus_age == 15.0f);
     assert(wm_arrow_interaction_hover(&arrows, -1));
@@ -53,25 +48,21 @@ static void check_common_footer(void)
     assert(left->visible && left->visibility_age == 10.0f);
 }
 
-static void check_sd_footer(void)
-{
+static void check_sd_footer(void) {
     WmArrowInteraction arrows;
-    wm_arrow_interaction_init(&arrows, (WmArrowInteractionConfig){
-        .focus_in_frames = 13.0f,
-        .focus_out_frames = 13.0f,
-        .press_frames = 28.0f,
-        .visibility_frames = 11.0f,
-        .clear_focus_out_at_end = true,
-        .clear_press_at_end = true
-    });
+    wm_arrow_interaction_init(&arrows,
+                              (WmArrowInteractionConfig){.focus_in_frames = 13.0f,
+                                                         .focus_out_frames = 13.0f,
+                                                         .press_frames = 28.0f,
+                                                         .visibility_frames = 11.0f,
+                                                         .clear_focus_out_at_end = true,
+                                                         .clear_press_at_end = true});
     wm_arrow_interaction_reset(&arrows, false, true, 11.0f);
-    const WmArrowSideState *left = wm_arrow_interaction_side(
-        &arrows, WM_ARROW_PREVIOUS);
-    const WmArrowSideState *right = wm_arrow_interaction_side(
-        &arrows, WM_ARROW_NEXT);
+    const WmArrowSideState *left =
+        wm_arrow_interaction_side(&arrows, WM_ARROW_PREVIOUS);
+    const WmArrowSideState *right = wm_arrow_interaction_side(&arrows, WM_ARROW_NEXT);
     assert(!left->visible && right->visible);
-    assert(left->visibility_age == 11.0f &&
-           right->visibility_age == 11.0f);
+    assert(left->visibility_age == 11.0f && right->visibility_age == 11.0f);
     assert(wm_arrow_interaction_hover(&arrows, WM_ARROW_NEXT));
     wm_arrow_interaction_advance(&arrows, 13.0f);
     assert(right->focus_age == 13.0f);
@@ -95,8 +86,7 @@ static void check_sd_footer(void)
     assert(wm_arrow_interaction_side(&arrows, -1) == NULL);
 }
 
-int main(void)
-{
+int main(void) {
     check_common_footer();
     check_sd_footer();
     puts("Shared arrow focus, press, and visibility timing passed.");

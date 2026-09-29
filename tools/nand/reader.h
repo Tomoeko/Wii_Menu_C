@@ -24,10 +24,8 @@ typedef struct WmNandSummary {
  * keys_path may be NULL. A dump key footer is preferred; otherwise a sibling
  * keys.bin is used. No output is published unless every selected file passes
  * HMAC-SHA1 authentication. The caller owns error and summary. */
-bool wm_nand_extract_channels(const char *source_path,
-                               const char *keys_path,
-                               const char *output_directory,
-                               WmNandSummary *summary,
-                               char *error, size_t error_capacity);
+bool wm_nand_extract_channels(const char *source_path, const char *keys_path,
+                              const char *output_directory, WmNandSummary *summary,
+                              char *error, size_t error_capacity);
 
 #endif

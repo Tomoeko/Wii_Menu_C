@@ -52,12 +52,13 @@ static uint32_t adler32(const uint8_t *data, size_t size) {
 
 static bool read_bits(BitStream *stream, unsigned count, unsigned *value) {
     if (count > 16 || stream->bit > stream->size * 8 ||
-        count > stream->size * 8 - stream->bit) return false;
+        count > stream->size * 8 - stream->bit)
+        return false;
     unsigned result = 0;
     for (unsigned index = 0; index < count; index++) {
         size_t position = stream->bit++;
-        result |= (unsigned)((stream->data[position / 8] >>
-                              (position % 8)) & 1u) << index;
+        result |= (unsigned)((stream->data[position / 8] >> (position % 8)) & 1u)
+                  << index;
     }
     *value = result;
     return true;
@@ -72,12 +73,12 @@ static unsigned reverse_bits(unsigned code, unsigned width) {
     return reversed;
 }
 
-static bool build_huffman(Huffman *table, const uint8_t *lengths,
-                          unsigned count) {
+static bool build_huffman(Huffman *table, const uint8_t *lengths, unsigned count) {
     unsigned totals[16] = {0};
     unsigned next_code[16] = {0};
     for (unsigned symbol = 0; symbol < count; symbol++) {
-        if (lengths[symbol] > DEFLATE_TABLE_BITS) return false;
+        if (lengths[symbol] > DEFLATE_TABLE_BITS)
+            return false;
         totals[lengths[symbol]]++;
     }
     unsigned code = 0;
@@ -85,13 +86,16 @@ static bool build_huffman(Huffman *table, const uint8_t *lengths,
         unsigned previous = width == 1 ? 0 : totals[width - 1];
         code = (code + previous) << 1;
         next_code[width] = code;
-        if (code + totals[width] > (1u << width)) return false;
+        if (code + totals[width] > (1u << width))
+            return false;
     }
     table->entries = calloc(DEFLATE_TABLE_SIZE, sizeof(*table->entries));
-    if (!table->entries) return false;
+    if (!table->entries)
+        return false;
     for (unsigned symbol = 0; symbol < count; symbol++) {
         unsigned width = lengths[symbol];
-        if (!width) continue;
+        if (!width)
+            continue;
         unsigned reversed = reverse_bits(next_code[width]++, width);
         for (unsigned index = reversed; index < DEFLATE_TABLE_SIZE;
              index += 1u << width) {
@@ -102,47 +106,48 @@ static bool build_huffman(Huffman *table, const uint8_t *lengths,
     return true;
 }
 
-static bool huffman_symbol(BitStream *stream, const Huffman *table,
-                           unsigned *symbol) {
-    if (!table->entries || stream->bit >= stream->size * 8) return false;
+static bool huffman_symbol(BitStream *stream, const Huffman *table, unsigned *symbol) {
+    if (!table->entries || stream->bit >= stream->size * 8)
+        return false;
     unsigned index = 0;
     size_t available = stream->size * 8 - stream->bit;
-    unsigned bits = available < DEFLATE_TABLE_BITS
-        ? (unsigned)available : DEFLATE_TABLE_BITS;
+    unsigned bits =
+        available < DEFLATE_TABLE_BITS ? (unsigned)available : DEFLATE_TABLE_BITS;
     for (unsigned offset = 0; offset < bits; offset++) {
         size_t position = stream->bit + offset;
-        index |= (unsigned)((stream->data[position / 8] >>
-                             (position % 8)) & 1u) << offset;
+        index |= (unsigned)((stream->data[position / 8] >> (position % 8)) & 1u)
+                 << offset;
     }
     HuffmanEntry entry = table->entries[index];
-    if (!entry.length || entry.length > available) return false;
+    if (!entry.length || entry.length > available)
+        return false;
     stream->bit += entry.length;
     *symbol = entry.symbol;
     return true;
 }
 
-static bool dynamic_tables(BitStream *stream, Huffman *literal,
-                           Huffman *distance) {
-    static const unsigned order[19] = {
-        16, 17, 18, 0, 8, 7, 9, 6, 10, 5,
-        11, 4, 12, 3, 13, 2, 14, 1, 15
-    };
+static bool dynamic_tables(BitStream *stream, Huffman *literal, Huffman *distance) {
+    static const unsigned order[19] = {16, 17, 18, 0, 8,  7, 9,  6, 10, 5,
+                                       11, 4,  12, 3, 13, 2, 14, 1, 15};
     unsigned h_lit, h_dist, h_code;
-    if (!read_bits(stream, 5, &h_lit) ||
-        !read_bits(stream, 5, &h_dist) ||
-        !read_bits(stream, 4, &h_code)) return false;
+    if (!read_bits(stream, 5, &h_lit) || !read_bits(stream, 5, &h_dist) ||
+        !read_bits(stream, 4, &h_code))
+        return false;
     h_lit += 257;
     h_dist += 1;
     h_code += 4;
-    if (h_lit > 286 || h_dist > 32) return false;
+    if (h_lit > 286 || h_dist > 32)
+        return false;
     uint8_t code_lengths[19] = {0};
     for (unsigned index = 0; index < h_code; index++) {
         unsigned length;
-        if (!read_bits(stream, 3, &length)) return false;
+        if (!read_bits(stream, 3, &length))
+            return false;
         code_lengths[order[index]] = (uint8_t)length;
     }
     Huffman code_table = {0};
-    if (!build_huffman(&code_table, code_lengths, 19)) return false;
+    if (!build_huffman(&code_table, code_lengths, 19))
+        return false;
     uint8_t lengths[286 + 32] = {0};
     unsigned total = h_lit + h_dist;
     unsigned used = 0;
@@ -161,8 +166,7 @@ static bool dynamic_tables(BitStream *stream, Huffman *literal,
         unsigned base = symbol == 16 ? 3 : symbol == 17 ? 3 : 11;
         unsigned value;
         if (symbol > 18 || (symbol == 16 && used == 0) ||
-            !read_bits(stream, extra, &value) ||
-            base + value > total - used) {
+            !read_bits(stream, extra, &value) || base + value > total - used) {
             valid = false;
             break;
         }
@@ -171,71 +175,65 @@ static bool dynamic_tables(BitStream *stream, Huffman *literal,
             lengths[used++] = length;
     }
     free(code_table.entries);
-    if (!valid || !lengths[256] ||
-        !build_huffman(literal, lengths, h_lit) ||
-        !build_huffman(distance, lengths + h_lit, h_dist)) return false;
+    if (!valid || !lengths[256] || !build_huffman(literal, lengths, h_lit) ||
+        !build_huffman(distance, lengths + h_lit, h_dist))
+        return false;
     return true;
 }
 
 static bool fixed_tables(Huffman *literal, Huffman *distance) {
     uint8_t lengths[288];
     for (unsigned symbol = 0; symbol < 288; symbol++)
-        lengths[symbol] = symbol <= 143 ? 8 : symbol <= 255 ? 9
-                          : symbol <= 279 ? 7 : 8;
+        lengths[symbol] = symbol <= 143 ? 8 : symbol <= 255 ? 9 : symbol <= 279 ? 7 : 8;
     uint8_t distances[32];
     memset(distances, 5, sizeof(distances));
     return build_huffman(literal, lengths, 288) &&
            build_huffman(distance, distances, 32);
 }
 
-static bool inflate_block(BitStream *stream, uint8_t *output,
-                          size_t capacity, size_t *used,
-                          const Huffman *literal,
+static bool inflate_block(BitStream *stream, uint8_t *output, size_t capacity,
+                          size_t *used, const Huffman *literal,
                           const Huffman *distance) {
     static const uint16_t length_base[29] = {
-        3, 4, 5, 6, 7, 8, 9, 10, 11, 13,
-        15, 17, 19, 23, 27, 31, 35, 43, 51, 59,
-        67, 83, 99, 115, 131, 163, 195, 227, 258
-    };
-    static const uint8_t length_extra[29] = {
-        0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
-        1, 1, 2, 2, 2, 2, 3, 3, 3, 3,
-        4, 4, 4, 4, 5, 5, 5, 5, 0
-    };
+        3,  4,  5,  6,  7,  8,  9,  10, 11,  13,  15,  17,  19,  23, 27,
+        31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258};
+    static const uint8_t length_extra[29] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+                                             1, 1, 2, 2, 2, 2, 3, 3, 3, 3,
+                                             4, 4, 4, 4, 5, 5, 5, 5, 0};
     static const uint16_t distance_base[30] = {
-        1, 2, 3, 4, 5, 7, 9, 13, 17, 25,
-        33, 49, 65, 97, 129, 193, 257, 385, 513, 769,
-        1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289,
-        16385, 24577
-    };
-    static const uint8_t distance_extra[30] = {
-        0, 0, 0, 0, 1, 1, 2, 2, 3, 3,
-        4, 4, 5, 5, 6, 6, 7, 7, 8, 8,
-        9, 9, 10, 10, 11, 11, 12, 12, 13, 13
-    };
+        1,    2,    3,    4,    5,    7,    9,    13,    17,    25,
+        33,   49,   65,   97,   129,  193,  257,  385,   513,   769,
+        1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577};
+    static const uint8_t distance_extra[30] = {0, 0, 0,  0,  1,  1,  2,  2,  3,  3,
+                                               4, 4, 5,  5,  6,  6,  7,  7,  8,  8,
+                                               9, 9, 10, 10, 11, 11, 12, 12, 13, 13};
     for (;;) {
         unsigned symbol;
-        if (!huffman_symbol(stream, literal, &symbol)) return false;
+        if (!huffman_symbol(stream, literal, &symbol))
+            return false;
         if (symbol < 256) {
-            if (*used >= capacity) return false;
+            if (*used >= capacity)
+                return false;
             output[(*used)++] = (uint8_t)symbol;
         } else if (symbol == 256) {
             return true;
         } else {
-            if (symbol > 285) return false;
+            if (symbol > 285)
+                return false;
             unsigned length_index = symbol - 257;
             unsigned extra_length;
             unsigned distance_symbol;
-            if (!read_bits(stream, length_extra[length_index],
-                           &extra_length) ||
+            if (!read_bits(stream, length_extra[length_index], &extra_length) ||
                 !huffman_symbol(stream, distance, &distance_symbol) ||
-                distance_symbol >= 30) return false;
+                distance_symbol >= 30)
+                return false;
             unsigned extra_distance;
-            if (!read_bits(stream, distance_extra[distance_symbol],
-                           &extra_distance)) return false;
+            if (!read_bits(stream, distance_extra[distance_symbol], &extra_distance))
+                return false;
             size_t length = length_base[length_index] + extra_length;
             size_t offset = distance_base[distance_symbol] + extra_distance;
-            if (offset > *used || length > capacity - *used) return false;
+            if (offset > *used || length > capacity - *used)
+                return false;
             for (size_t index = 0; index < length; index++) {
                 output[*used] = output[*used - offset];
                 (*used)++;
@@ -244,22 +242,19 @@ static bool inflate_block(BitStream *stream, uint8_t *output,
     }
 }
 
-static bool inflate_zlib(const uint8_t *compressed, size_t size,
-                         uint8_t *output, size_t expected) {
-    if (size < 6 || (compressed[0] & 15u) != 8 ||
-        (compressed[0] >> 4) > 7 || (compressed[1] & 0x20u) != 0 ||
+static bool inflate_zlib(const uint8_t *compressed, size_t size, uint8_t *output,
+                         size_t expected) {
+    if (size < 6 || (compressed[0] & 15u) != 8 || (compressed[0] >> 4) > 7 ||
+        (compressed[1] & 0x20u) != 0 ||
         (((unsigned)compressed[0] << 8) | compressed[1]) % 31 != 0)
         return false;
-    BitStream stream = {
-        .data = compressed + 2,
-        .size = size - 6
-    };
+    BitStream stream = {.data = compressed + 2, .size = size - 6};
     size_t used = 0;
     bool final = false;
     while (!final) {
         unsigned last, type;
-        if (!read_bits(&stream, 1, &last) ||
-            !read_bits(&stream, 2, &type)) return false;
+        if (!read_bits(&stream, 1, &last) || !read_bits(&stream, 2, &type))
+            return false;
         final = last != 0;
         if (type == 0) {
             stream.bit = (stream.bit + 7u) & ~(size_t)7u;
@@ -267,30 +262,31 @@ static bool inflate_zlib(const uint8_t *compressed, size_t size,
             if (!read_bits(&stream, 16, &length) ||
                 !read_bits(&stream, 16, &complement) ||
                 ((length ^ complement) & 0xffffu) != 0xffffu ||
-                length > expected - used) return false;
+                length > expected - used)
+                return false;
             for (unsigned index = 0; index < length; index++) {
                 unsigned value;
-                if (!read_bits(&stream, 8, &value)) return false;
+                if (!read_bits(&stream, 8, &value))
+                    return false;
                 output[used++] = (uint8_t)value;
             }
         } else if (type == 1 || type == 2) {
             Huffman literal = {0};
             Huffman distance = {0};
-            bool valid = type == 1
-                ? fixed_tables(&literal, &distance)
-                : dynamic_tables(&stream, &literal, &distance);
+            bool valid = type == 1 ? fixed_tables(&literal, &distance)
+                                   : dynamic_tables(&stream, &literal, &distance);
             if (valid)
-                valid = inflate_block(&stream, output, expected, &used,
-                                      &literal, &distance);
+                valid = inflate_block(&stream, output, expected, &used, &literal,
+                                      &distance);
             free(literal.entries);
             free(distance.entries);
-            if (!valid) return false;
+            if (!valid)
+                return false;
         } else {
             return false;
         }
     }
-    return used == expected &&
-           adler32(output, expected) == be32(compressed + size - 4);
+    return used == expected && adler32(output, expected) == be32(compressed + size - 4);
 }
 
 static uint8_t paeth(uint8_t left, uint8_t above, uint8_t diagonal) {
@@ -298,8 +294,8 @@ static uint8_t paeth(uint8_t left, uint8_t above, uint8_t diagonal) {
     int left_distance = abs(prediction - left);
     int above_distance = abs(prediction - above);
     int diagonal_distance = abs(prediction - diagonal);
-    if (left_distance <= above_distance &&
-        left_distance <= diagonal_distance) return left;
+    if (left_distance <= above_distance && left_distance <= diagonal_distance)
+        return left;
     return above_distance <= diagonal_distance ? above : diagonal;
 }
 
@@ -308,18 +304,19 @@ static bool reconstruct_rows(const uint8_t *filtered, WmImage *image) {
     for (uint32_t y = 0; y < image->height; y++) {
         const uint8_t *source = filtered + (size_t)y * (row_bytes + 1);
         unsigned filter = source[0];
-        if (filter > 4) return false;
+        if (filter > 4)
+            return false;
         uint8_t *row = image->pixels + (size_t)y * row_bytes;
         const uint8_t *previous = y ? row - row_bytes : NULL;
         for (size_t index = 0; index < row_bytes; index++) {
             uint8_t left = index >= 4 ? row[index - 4] : 0;
             uint8_t above = previous ? previous[index] : 0;
-            uint8_t diagonal = previous && index >= 4
-                ? previous[index - 4] : 0;
-            uint8_t predictor = filter == 1 ? left
-                : filter == 2 ? above
-                : filter == 3 ? (uint8_t)(((unsigned)left + above) / 2)
-                : filter == 4 ? paeth(left, above, diagonal) : 0;
+            uint8_t diagonal = previous && index >= 4 ? previous[index - 4] : 0;
+            uint8_t predictor = filter == 1   ? left
+                                : filter == 2 ? above
+                                : filter == 3 ? (uint8_t)(((unsigned)left + above) / 2)
+                                : filter == 4 ? paeth(left, above, diagonal)
+                                              : 0;
             row[index] = (uint8_t)(source[index + 1] + predictor);
         }
     }
@@ -327,50 +324,51 @@ static bool reconstruct_rows(const uint8_t *filtered, WmImage *image) {
 }
 
 bool wm_settings_png_decode(const uint8_t *data, size_t size, WmImage *image) {
-    static const uint8_t signature[8] = {
-        137, 'P', 'N', 'G', 13, 10, 26, 10
-    };
-    if (!data || !image) return false;
+    static const uint8_t signature[8] = {137, 'P', 'N', 'G', 13, 10, 26, 10};
+    if (!data || !image)
+        return false;
     memset(image, 0, sizeof(*image));
-    if (size < sizeof(signature) ||
-        memcmp(data, signature, sizeof(signature)) != 0) return false;
+    if (size < sizeof(signature) || memcmp(data, signature, sizeof(signature)) != 0)
+        return false;
     size_t offset = sizeof(signature);
     uint8_t *compressed = NULL;
     size_t compressed_size = 0;
     bool header_seen = false;
     bool finished = false;
     while (offset < size) {
-        if (size - offset < 12) break;
+        if (size - offset < 12)
+            break;
         size_t length = be32(data + offset);
-        if (length > size - offset - 12) break;
+        if (length > size - offset - 12)
+            break;
         const uint8_t *kind = data + offset + 4;
         const uint8_t *body = data + offset + 8;
-        uint32_t checksum = crc32_update(UINT32_C(0xffffffff),
-                                          kind, length + 4) ^
-                            UINT32_C(0xffffffff);
-        if (checksum != be32(body + length)) break;
+        uint32_t checksum =
+            crc32_update(UINT32_C(0xffffffff), kind, length + 4) ^ UINT32_C(0xffffffff);
+        if (checksum != be32(body + length))
+            break;
         if (memcmp(kind, "IHDR", 4) == 0) {
-            if (header_seen || length != 13 || compressed_size) break;
+            if (header_seen || length != 13 || compressed_size)
+                break;
             image->width = be32(body);
             image->height = be32(body + 4);
-            if (!image->width || !image->height ||
-                image->width > PNG_MAX_DIMENSION ||
-                image->height > PNG_MAX_DIMENSION ||
-                body[8] != 8 || body[9] != 6 || body[10] ||
-                body[11] || body[12]) break;
+            if (!image->width || !image->height || image->width > PNG_MAX_DIMENSION ||
+                image->height > PNG_MAX_DIMENSION || body[8] != 8 || body[9] != 6 ||
+                body[10] || body[11] || body[12])
+                break;
             header_seen = true;
         } else if (memcmp(kind, "IDAT", 4) == 0) {
-            if (!header_seen || length > PNG_MAX_COMPRESSED -
-                                          compressed_size) break;
-            uint8_t *grown = realloc(compressed,
-                                     compressed_size + length);
-            if (!grown) break;
+            if (!header_seen || length > PNG_MAX_COMPRESSED - compressed_size)
+                break;
+            uint8_t *grown = realloc(compressed, compressed_size + length);
+            if (!grown)
+                break;
             compressed = grown;
             memcpy(compressed + compressed_size, body, length);
             compressed_size += length;
         } else if (memcmp(kind, "IEND", 4) == 0) {
-            finished = length == 0 && header_seen && compressed_size &&
-                       offset + 12 == size;
+            finished =
+                length == 0 && header_seen && compressed_size && offset + 12 == size;
             break;
         } else if (!(kind[0] & 0x20u)) {
             break;
@@ -388,11 +386,11 @@ bool wm_settings_png_decode(const uint8_t *data, size_t size, WmImage *image) {
     uint8_t *filtered = valid ? malloc(filtered_size) : NULL;
     image->pixels = valid ? malloc(row_bytes * image->height) : NULL;
     valid = filtered && image->pixels &&
-            inflate_zlib(compressed, compressed_size,
-                         filtered, filtered_size) &&
+            inflate_zlib(compressed, compressed_size, filtered, filtered_size) &&
             reconstruct_rows(filtered, image);
     free(compressed);
     free(filtered);
-    if (!valid) wm_image_free(image);
+    if (!valid)
+        wm_image_free(image);
     return valid;
 }

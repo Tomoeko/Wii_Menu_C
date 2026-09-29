@@ -15,18 +15,17 @@
 
 enum { EXPORT_PATH_CAPACITY = 4096, EXPORT_MAX_APP_BYTES = 16 * 1024 * 1024 };
 
-static const char *const oem_names[3] = {
-    "eZTNintendoENAM.znd",
-    "eZTNintendoFRCA.znd",
-    "eZTNintendoESSA.znd"
-};
+static const char *const oem_names[3] = {"eZTNintendoENAM.znd", "eZTNintendoFRCA.znd",
+                                         "eZTNintendoESSA.znd"};
 
 static bool app_name(const char *name) {
-    if (strlen(name) != 12 || strcmp(name + 8, ".app") != 0) return false;
+    if (strlen(name) != 12 || strcmp(name + 8, ".app") != 0)
+        return false;
     for (unsigned index = 0; index < 8; index++) {
         char character = name[index];
         if (!((character >= '0' && character <= '9') ||
-              (character >= 'a' && character <= 'f'))) return false;
+              (character >= 'a' && character <= 'f')))
+            return false;
     }
     return true;
 }
@@ -39,14 +38,14 @@ static bool join(char output[EXPORT_PATH_CAPACITY], const char *left,
 
 static uint8_t *read_file(const char *path, size_t *size) {
     FILE *file = fopen(path, "rb");
-    if (!file) return NULL;
+    if (!file)
+        return NULL;
     if (fseek(file, 0, SEEK_END) != 0) {
         fclose(file);
         return NULL;
     }
     long length = ftell(file);
-    if (length < 4 || length > EXPORT_MAX_APP_BYTES ||
-        fseek(file, 0, SEEK_SET) != 0) {
+    if (length < 4 || length > EXPORT_MAX_APP_BYTES || fseek(file, 0, SEEK_SET) != 0) {
         fclose(file);
         return NULL;
     }
@@ -56,7 +55,8 @@ static uint8_t *read_file(const char *path, size_t *size) {
         return NULL;
     }
     bool okay = fread(bytes, 1, (size_t)length, file) == (size_t)length;
-    if (fclose(file) != 0) okay = false;
+    if (fclose(file) != 0)
+        okay = false;
     if (!okay) {
         free(bytes);
         return NULL;
@@ -69,17 +69,21 @@ static bool write_file(const char *path, const uint8_t *data, size_t size) {
     return wm_atomic_file_replace(path, data, size);
 }
 
-static bool find_oem_archive(const uint8_t *app, size_t size,
-                             uint8_t *oem[3], size_t oem_size[3],
-                             bool *system_found, bool *oem_found) {
-    if (memcmp(app, "U\xaa" "8-", 4) != 0) return true;
+static bool find_oem_archive(const uint8_t *app, size_t size, uint8_t *oem[3],
+                             size_t oem_size[3], bool *system_found, bool *oem_found) {
+    if (memcmp(app,
+               "U\xaa"
+               "8-",
+               4) != 0)
+        return true;
     char error[160] = {0};
     WmU8Archive outer = {0};
     if (!wm_u8_parse(app, size, &outer, error, sizeof(error))) {
         fprintf(stderr, "Dictionary source U8 parse failed: %s\n", error);
         return false;
     }
-    if (wm_u8_find(&outer, "eZTSystemNA.arc")) *system_found = true;
+    if (wm_u8_find(&outer, "eZTSystemNA.arc"))
+        *system_found = true;
     const WmU8Entry *entry = wm_u8_find(&outer, "eZTNintendoNA.arc");
     if (!entry) {
         wm_u8_free(&outer);
@@ -92,8 +96,7 @@ static bool find_oem_archive(const uint8_t *app, size_t size,
     }
     *oem_found = true;
     WmU8Archive inner = {0};
-    if (!wm_u8_parse(entry->data, entry->size, &inner,
-                     error, sizeof(error))) {
+    if (!wm_u8_parse(entry->data, entry->size, &inner, error, sizeof(error))) {
         fprintf(stderr, "OEM dictionary U8 parse failed: %s\n", error);
         wm_u8_free(&outer);
         return false;
@@ -102,14 +105,13 @@ static bool find_oem_archive(const uint8_t *app, size_t size,
     for (unsigned language = 0; language < 3 && okay; language++) {
         const WmU8Entry *word_file = wm_u8_find(&inner, oem_names[language]);
         if (!word_file) {
-            fprintf(stderr, "Missing OEM dictionary %s.\n",
-                    oem_names[language]);
+            fprintf(stderr, "Missing OEM dictionary %s.\n", oem_names[language]);
             okay = false;
             break;
         }
         WmKeyboardWordList words = {0};
-        okay = wm_keyboard_oem_decode(word_file->data, word_file->size,
-                                      &words, error, sizeof(error));
+        okay = wm_keyboard_oem_decode(word_file->data, word_file->size, &words, error,
+                                      sizeof(error));
         if (!okay) {
             fprintf(stderr, "%s: %s\n", oem_names[language], error);
         } else {
@@ -130,7 +132,8 @@ static bool find_oem_archive(const uint8_t *app, size_t size,
 int main(int argc, char **argv) {
     if (argc != 3) {
         fputs("Usage: wm-keyboard-dictionary-export CONTENT_DIRECTORY "
-              "LOCAL_OUTPUT_DIRECTORY\n", stderr);
+              "LOCAL_OUTPUT_DIRECTORY\n",
+              stderr);
         return 2;
     }
     DIR *directory = opendir(argv[1]);
@@ -143,7 +146,8 @@ int main(int argc, char **argv) {
     bool system_found = false, oem_found = false, okay = true;
     struct dirent *item;
     while ((item = readdir(directory)) != NULL && okay) {
-        if (!app_name(item->d_name)) continue;
+        if (!app_name(item->d_name))
+            continue;
         char path[EXPORT_PATH_CAPACITY];
         size_t size = 0;
         if (!join(path, argv[1], item->d_name)) {
@@ -156,11 +160,11 @@ int main(int argc, char **argv) {
             okay = false;
             break;
         }
-        okay = find_oem_archive(app, size, oem, oem_size,
-                                &system_found, &oem_found);
+        okay = find_oem_archive(app, size, oem, oem_size, &system_found, &oem_found);
         free(app);
     }
-    if (closedir(directory) != 0) okay = false;
+    if (closedir(directory) != 0)
+        okay = false;
     if (okay && system_found && oem_found) {
         char destination[EXPORT_PATH_CAPACITY];
         okay = join(destination, argv[2], "keyboard-dictionary") &&
@@ -170,10 +174,13 @@ int main(int argc, char **argv) {
             okay = join(path, destination, oem_names[language]) &&
                    write_file(path, oem[language], oem_size[language]);
         }
-        if (okay) puts("Prepared local OEM keyboard word containers.");
+        if (okay)
+            puts("Prepared local OEM keyboard word containers.");
     } else if (okay) {
-        puts("OEM keyboard word containers unavailable; built-in fallback remains active.");
+        puts("OEM keyboard word containers unavailable; built-in fallback remains "
+             "active.");
     }
-    for (unsigned language = 0; language < 3; language++) free(oem[language]);
+    for (unsigned language = 0; language < 3; language++)
+        free(oem[language]);
     return okay ? 0 : 1;
 }

@@ -14,17 +14,16 @@
 const OptionButton options_scene_buttons[OPTIONS_BUTTON_COUNT] = {
     {WM_OPTIONS_CONTROL_DATA, "B_DataManage_00", "DataManage", "SetUp",
      "T_Datamanage0_00", "Data Management", WM_OPTIONS_PAGE_DATA},
-    {WM_OPTIONS_CONTROL_SYSTEM, "B_Setting_00", "Setting", "SetUp",
-     "T_Setting_00", "Wii Settings", WM_OPTIONS_PAGE_SYSTEM_SETTINGS},
+    {WM_OPTIONS_CONTROL_SYSTEM, "B_Setting_00", "Setting", "SetUp", "T_Setting_00",
+     "Wii Settings", WM_OPTIONS_PAGE_SYSTEM_SETTINGS},
     {WM_OPTIONS_CONTROL_SAVE, "B_SaveData_00", "SaveData", "DataChannel",
      "T_SaveData_00", "Save Data", WM_OPTIONS_PAGE_SAVE},
     {WM_OPTIONS_CONTROL_CHANNELS, "B_Channel_00", "Channel", "DataChannel",
      "T_Channel_00", "Channels", WM_OPTIONS_PAGE_CHANNEL_STORAGE},
-    {WM_OPTIONS_CONTROL_WII, "B_Wii_00", "Wii", "SaveData",
-     "T_Wii_00", "Wii", WM_OPTIONS_PAGE_WII_STORAGE},
-    {WM_OPTIONS_CONTROL_GAMECUBE, "B_Cube_00", "Cube", "SaveData",
-     "T_Cube_00", "Nintendo\nGameCube", WM_OPTIONS_PAGE_GAMECUBE_STORAGE}
-};
+    {WM_OPTIONS_CONTROL_WII, "B_Wii_00", "Wii", "SaveData", "T_Wii_00", "Wii",
+     WM_OPTIONS_PAGE_WII_STORAGE},
+    {WM_OPTIONS_CONTROL_GAMECUBE, "B_Cube_00", "Cube", "SaveData", "T_Cube_00",
+     "Nintendo\nGameCube", WM_OPTIONS_PAGE_GAMECUBE_STORAGE}};
 
 static WmLayout *load_layout(const char *directory, const char *relative) {
     return wm_layout_load_asset(directory, relative, "Wii Options");
@@ -32,29 +31,47 @@ static WmLayout *load_layout(const char *directory, const char *relative) {
 
 static int button_index(WmOptionsControl control) {
     for (int index = 0; index < OPTIONS_BUTTON_COUNT; index++) {
-        if (options_scene_buttons[index].control == control) return index;
+        if (options_scene_buttons[index].control == control)
+            return index;
     }
     return -1;
 }
 
 bool options_scene_page_pair(WmOptionsPage page, int *first, int *second) {
     switch (page) {
-        case WM_OPTIONS_PAGE_OPTIONS: *first = 0; *second = 1; return true;
-        case WM_OPTIONS_PAGE_DATA: *first = 2; *second = 3; return true;
-        case WM_OPTIONS_PAGE_SAVE: *first = 4; *second = 5; return true;
-        default: return false;
+        case WM_OPTIONS_PAGE_OPTIONS:
+            *first = 0;
+            *second = 1;
+            return true;
+        case WM_OPTIONS_PAGE_DATA:
+            *first = 2;
+            *second = 3;
+            return true;
+        case WM_OPTIONS_PAGE_SAVE:
+            *first = 4;
+            *second = 5;
+            return true;
+        default:
+            return false;
     }
 }
 
 static float phase_duration(WmOptionsPhase phase) {
     switch (phase) {
-        case WM_OPTIONS_ENTER_BACK: return 16.0f;
-        case WM_OPTIONS_ENTER_BUTTONS: return 16.0f;
-        case WM_OPTIONS_SELECT_FLASH: return 40.0f;
-        case WM_OPTIONS_ENTER_LEVEL: return 16.0f;
-        case WM_OPTIONS_BACK_FLASH: return 19.0f;
-        case WM_OPTIONS_BACK_LEVEL: return 20.0f;
-        default: return 0.0f;
+        case WM_OPTIONS_ENTER_BACK:
+            return 16.0f;
+        case WM_OPTIONS_ENTER_BUTTONS:
+            return 16.0f;
+        case WM_OPTIONS_SELECT_FLASH:
+            return 40.0f;
+        case WM_OPTIONS_ENTER_LEVEL:
+            return 16.0f;
+        case WM_OPTIONS_BACK_FLASH:
+            return 19.0f;
+        case WM_OPTIONS_BACK_LEVEL:
+            return 20.0f;
+        default:
+            return 0.0f;
     }
 }
 
@@ -90,24 +107,23 @@ static void retain_focus_pose(WmOptionsScene *scene) {
 }
 
 WmOptionsScene *wm_options_scene_create(WmPlatform *platform,
-                                         const char *assets_directory,
-                                         WmTextureCache *textures,
-                                         WmFontCache *fonts) {
-    if (!platform || !assets_directory || !assets_directory[0] ||
-        !textures || !fonts) return NULL;
+                                        const char *assets_directory,
+                                        WmTextureCache *textures, WmFontCache *fonts) {
+    if (!platform || !assets_directory || !assets_directory[0] || !textures || !fonts)
+        return NULL;
     WmOptionsScene *scene = calloc(1, sizeof(*scene));
-    if (!scene) return NULL;
+    if (!scene)
+        return NULL;
     scene->platform = platform;
     scene->textures = textures;
     scene->fonts = fonts;
-    scene->background = load_layout(assets_directory,
-                                    "layouts/setupBg/it_BgSetUp_a.json");
-    scene->back = load_layout(assets_directory,
-                              "layouts/setupBtn/it_Button_a.json");
-    scene->objects = load_layout(assets_directory,
-                                 "layouts/setupSel/it_ObjSetUp_a.json");
-    scene->settings = wm_settings_scene_create(platform, assets_directory,
-                                               textures, fonts);
+    scene->background =
+        load_layout(assets_directory, "layouts/setupBg/it_BgSetUp_a.json");
+    scene->back = load_layout(assets_directory, "layouts/setupBtn/it_Button_a.json");
+    scene->objects =
+        load_layout(assets_directory, "layouts/setupSel/it_ObjSetUp_a.json");
+    scene->settings =
+        wm_settings_scene_create(platform, assets_directory, textures, fonts);
     wm_settings_scene_set_wide(scene->settings, true);
     if (!scene->background || !scene->back || !scene->objects) {
         wm_options_scene_destroy(scene);
@@ -123,15 +139,13 @@ WmOptionsScene *wm_options_scene_create(WmPlatform *platform,
     static const struct {
         const char *pane;
         const char *value;
-    } heading_labels[] = {
-        {"T_DataManage_01", "Data Management"},
-        {"T_SaveData_01", "Save Data"},
-        {"T_Channel_01", "Channels"},
-        {"T_Wii_01", "Wii"},
-        {"T_Cube_01", "Nintendo\nGameCube"}
-    };
-    for (size_t index = 0; index < sizeof(heading_labels) /
-                                  sizeof(heading_labels[0]); index++) {
+    } heading_labels[] = {{"T_DataManage_01", "Data Management"},
+                          {"T_SaveData_01", "Save Data"},
+                          {"T_Channel_01", "Channels"},
+                          {"T_Wii_01", "Wii"},
+                          {"T_Cube_01", "Nintendo\nGameCube"}};
+    for (size_t index = 0; index < sizeof(heading_labels) / sizeof(heading_labels[0]);
+         index++) {
         wm_layout_set_text(scene->objects, heading_labels[index].pane,
                            heading_labels[index].value);
     }
@@ -141,7 +155,8 @@ WmOptionsScene *wm_options_scene_create(WmPlatform *platform,
 }
 
 void wm_options_scene_destroy(WmOptionsScene *scene) {
-    if (!scene) return;
+    if (!scene)
+        return;
     wm_layout_destroy(scene->objects);
     wm_layout_destroy(scene->back);
     wm_layout_destroy(scene->background);
@@ -150,7 +165,8 @@ void wm_options_scene_destroy(WmOptionsScene *scene) {
 }
 
 void wm_options_scene_reset(WmOptionsScene *scene) {
-    if (!scene) return;
+    if (!scene)
+        return;
     wm_settings_scene_reset(scene->settings);
     scene->page = WM_OPTIONS_PAGE_OPTIONS;
     scene->exiting_page = WM_OPTIONS_PAGE_OPTIONS;
@@ -166,19 +182,18 @@ void wm_options_scene_reset(WmOptionsScene *scene) {
     scene->settings_returning = false;
     scene->direct_settings = false;
     memset(scene->object_base, 0, sizeof(scene->object_base));
-    memset(scene->retained_object_focus, 0,
-           sizeof(scene->retained_object_focus));
+    memset(scene->retained_object_focus, 0, sizeof(scene->retained_object_focus));
     memset(&scene->back_bar, 0, sizeof(scene->back_bar));
     memset(&scene->back_focus, 0, sizeof(scene->back_focus));
     memset(&scene->back_select, 0, sizeof(scene->back_select));
     memset(&scene->back_wii, 0, sizeof(scene->back_wii));
-    memset(&scene->retained_back_focus, 0,
-           sizeof(scene->retained_back_focus));
+    memset(&scene->retained_back_focus, 0, sizeof(scene->retained_back_focus));
     memset(scene->focus, 0, sizeof(scene->focus));
 }
 
 bool wm_options_scene_open(WmOptionsScene *scene) {
-    if (!scene) return false;
+    if (!scene)
+        return false;
     scene->direct_settings = false;
     scene->page = WM_OPTIONS_PAGE_OPTIONS;
     scene->exiting_page = WM_OPTIONS_PAGE_OPTIONS;
@@ -202,12 +217,13 @@ bool wm_options_scene_open(WmOptionsScene *scene) {
 }
 
 static bool open_direct_settings(WmOptionsScene *scene, bool connect24) {
-    if (!scene || !scene->settings) return false;
+    if (!scene || !scene->settings)
+        return false;
     wm_options_scene_reset(scene);
-    bool opened = connect24
-        ? wm_settings_scene_open_connect24(scene->settings)
-        : wm_settings_scene_open_internet(scene->settings);
-    if (!opened) return false;
+    bool opened = connect24 ? wm_settings_scene_open_connect24(scene->settings)
+                            : wm_settings_scene_open_internet(scene->settings);
+    if (!opened)
+        return false;
     scene->page = WM_OPTIONS_PAGE_SYSTEM_SETTINGS;
     scene->exiting_page = WM_OPTIONS_PAGE_SYSTEM_SETTINGS;
     scene->phase = WM_OPTIONS_READY;
@@ -250,10 +266,8 @@ static void finish_phase(WmOptionsScene *scene) {
             start_phase(scene, WM_OPTIONS_READY);
             break;
         case WM_OPTIONS_SELECT_FLASH: {
-            store(&scene->object_base[scene->selected][0],
-                  "FoucusFlash", 39.0f);
-            store(&scene->object_base[scene->selected][1],
-                  "FoucusFlash", 39.0f);
+            store(&scene->object_base[scene->selected][0], "FoucusFlash", 39.0f);
+            store(&scene->object_base[scene->selected][1], "FoucusFlash", 39.0f);
             store(&scene->object_base[scene->sibling][0], "Out", 15.0f);
             scene->retained_object_focus[scene->selected].active = false;
             scene->retained_object_focus[scene->sibling].active = false;
@@ -261,8 +275,7 @@ static void finish_phase(WmOptionsScene *scene) {
             if (options_scene_page_pair(scene->page, &first, &second)) {
                 start_phase(scene, WM_OPTIONS_ENTER_LEVEL);
             } else if (scene->page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS &&
-                       scene->settings &&
-                       wm_settings_scene_open(scene->settings)) {
+                       scene->settings && wm_settings_scene_open(scene->settings)) {
                 start_phase(scene, WM_OPTIONS_READY);
             } else {
                 static const WmOptionsAction leaf_actions[] = {
@@ -272,8 +285,7 @@ static void finish_phase(WmOptionsScene *scene) {
                     WM_OPTIONS_ACTION_SYSTEM_SETTINGS,
                     WM_OPTIONS_ACTION_CHANNEL_STORAGE,
                     WM_OPTIONS_ACTION_WII_STORAGE,
-                    WM_OPTIONS_ACTION_GAMECUBE_STORAGE
-                };
+                    WM_OPTIONS_ACTION_GAMECUBE_STORAGE};
                 scene->action = leaf_actions[scene->page];
                 start_phase(scene, WM_OPTIONS_READY);
             }
@@ -300,14 +312,16 @@ static void finish_phase(WmOptionsScene *scene) {
         case WM_OPTIONS_BACK_LEVEL:
             finish_back_level(scene);
             break;
-        default: break;
+        default:
+            break;
     }
 }
 
 static void advance_focus(WmOptionsScene *scene, float frames) {
     for (int index = 0; index < OPTIONS_FOCUS_COUNT; index++) {
         FocusEffect *effect = &scene->focus[index];
-        if (!effect->active) continue;
+        if (!effect->active)
+            continue;
         float before = effect->frame;
         effect->frame = fminf(7.0f, before + frames);
         if (effect->frame >= 7.0f && effect->requested != effect->entering) {
@@ -319,7 +333,8 @@ static void advance_focus(WmOptionsScene *scene, float frames) {
 }
 
 void wm_options_scene_advance(WmOptionsScene *scene, float frames) {
-    if (!scene || !isfinite(frames) || frames < 0.0f) return;
+    if (!scene || !isfinite(frames) || frames < 0.0f)
+        return;
     if (scene->settings_returning) {
         if (wm_scene_fader_advance(&scene->settings_exit_fader, frames)) {
             wm_settings_scene_reset(scene->settings);
@@ -349,26 +364,30 @@ void wm_options_scene_advance(WmOptionsScene *scene, float frames) {
     float remaining = frames;
     for (int steps = 0; steps < 8; steps++) {
         float duration = phase_duration(scene->phase);
-        if (duration <= 0.0f) break;
+        if (duration <= 0.0f)
+            break;
         float amount = fminf(remaining, duration - scene->phase_frame);
         scene->phase_frame += amount;
         remaining -= amount;
-        if (scene->phase_frame < duration) break;
+        if (scene->phase_frame < duration)
+            break;
         finish_phase(scene);
-        if (remaining <= 0.0f) break;
+        if (remaining <= 0.0f)
+            break;
     }
 }
 
 const char *wm_options_scene_take_repeat_cue(WmOptionsScene *scene) {
     if (!scene || !scene->settings ||
-        !wm_settings_scene_take_repeat_cue(scene->settings)) return NULL;
+        !wm_settings_scene_take_repeat_cue(scene->settings))
+        return NULL;
     return "WIPL_SE_CHOICE_CHG";
 }
 
-WmOptionsControl options_scene_control_from_settings(
-    WmSettingsControl control) {
+WmOptionsControl options_scene_control_from_settings(WmSettingsControl control) {
     switch (control) {
-        case WM_SETTINGS_CONTROL_BACK: return WM_OPTIONS_CONTROL_BACK;
+        case WM_SETTINGS_CONTROL_BACK:
+            return WM_OPTIONS_CONTROL_BACK;
         case WM_SETTINGS_CONTROL_PREVIOUS:
             return WM_OPTIONS_CONTROL_SETTINGS_PREVIOUS;
         case WM_SETTINGS_CONTROL_NEXT:
@@ -379,21 +398,23 @@ WmOptionsControl options_scene_control_from_settings(
         case WM_SETTINGS_CONTROL_ITEM_4:
         case WM_SETTINGS_CONTROL_ITEM_5:
         case WM_SETTINGS_CONTROL_ITEM_6:
-            return (WmOptionsControl)(WM_OPTIONS_CONTROL_SETTINGS_ITEM_1 +
-                control - WM_SETTINGS_CONTROL_ITEM_1);
+            return (WmOptionsControl)(WM_OPTIONS_CONTROL_SETTINGS_ITEM_1 + control -
+                                      WM_SETTINGS_CONTROL_ITEM_1);
         case WM_SETTINGS_CONTROL_NICKNAME_FIELD:
             return WM_OPTIONS_CONTROL_SETTINGS_NICKNAME_FIELD;
-        default: return WM_OPTIONS_CONTROL_NONE;
+        default:
+            return WM_OPTIONS_CONTROL_NONE;
     }
 }
 
 WmOptionsSnapshot wm_options_scene_snapshot(const WmOptionsScene *scene) {
-    if (!scene) return (WmOptionsSnapshot){.phase = WM_OPTIONS_CLOSED};
-    bool settings_active = scene->page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS &&
-                           scene->settings;
+    if (!scene)
+        return (WmOptionsSnapshot){.phase = WM_OPTIONS_CLOSED};
+    bool settings_active =
+        scene->page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS && scene->settings;
     WmSettingsSnapshot settings = settings_active
-        ? wm_settings_scene_snapshot(scene->settings)
-        : (WmSettingsSnapshot){0};
+                                      ? wm_settings_scene_snapshot(scene->settings)
+                                      : (WmSettingsSnapshot){0};
     return (WmOptionsSnapshot){
         .page = scene->page,
         .phase = scene->phase,
@@ -401,57 +422,60 @@ WmOptionsSnapshot wm_options_scene_snapshot(const WmOptionsScene *scene) {
                                  : scene->hover,
         .phase_frame = scene->phase_frame,
         .phase_duration = phase_duration(scene->phase),
-        .locked = scene->settings_returning ||
-                  scene->phase != WM_OPTIONS_READY ||
-                  (settings_active && settings.phase != WM_SETTINGS_READY)
-    };
+        .locked = scene->settings_returning || scene->phase != WM_OPTIONS_READY ||
+                  (settings_active && settings.phase != WM_SETTINGS_READY)};
 }
 
 bool wm_options_scene_update_question(const WmOptionsScene *scene) {
-    if (!scene || scene->page != WM_OPTIONS_PAGE_SYSTEM_SETTINGS ||
-        !scene->settings) return false;
+    if (!scene || scene->page != WM_OPTIONS_PAGE_SYSTEM_SETTINGS || !scene->settings)
+        return false;
     return wm_settings_scene_update_question(scene->settings);
 }
 
 static WmSettingsControl settings_control(WmOptionsControl control);
 
 const char *wm_options_scene_click_cue(const WmOptionsScene *scene,
-                                        WmOptionsControl control) {
-    if (!scene || control == WM_OPTIONS_CONTROL_NONE) return NULL;
+                                       WmOptionsControl control) {
+    if (!scene || control == WM_OPTIONS_CONTROL_NONE)
+        return NULL;
     if (scene->page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS && scene->settings) {
-        return wm_settings_scene_click_cue(scene->settings,
-                                            settings_control(control));
+        return wm_settings_scene_click_cue(scene->settings, settings_control(control));
     }
-    if (control == WM_OPTIONS_CONTROL_BACK) return "WIPL_SE_CANCEL";
+    if (control == WM_OPTIONS_CONTROL_BACK)
+        return "WIPL_SE_CANCEL";
     if (control == WM_OPTIONS_CONTROL_SETTINGS_PREVIOUS ||
-        control == WM_OPTIONS_CONTROL_SETTINGS_NEXT) return "page";
+        control == WM_OPTIONS_CONTROL_SETTINGS_NEXT)
+        return "page";
     return "confirm";
 }
 
 WmOptionsAction wm_options_scene_take_action(WmOptionsScene *scene) {
-    if (!scene) return WM_OPTIONS_ACTION_NONE;
+    if (!scene)
+        return WM_OPTIONS_ACTION_NONE;
     WmOptionsAction action = scene->action;
     scene->action = WM_OPTIONS_ACTION_NONE;
     return action;
 }
 
 unsigned wm_options_scene_take_settings_category(WmOptionsScene *scene) {
-    if (!scene) return 0;
+    if (!scene)
+        return 0;
     unsigned category = scene->settings_category;
     scene->settings_category = 0;
     return category;
 }
 
 bool wm_options_scene_back(WmOptionsScene *scene) {
-    if (!scene || scene->phase != WM_OPTIONS_READY ||
-        scene->settings_returning) return false;
+    if (!scene || scene->phase != WM_OPTIONS_READY || scene->settings_returning)
+        return false;
     if (scene->page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS && scene->settings)
         return wm_settings_scene_back(scene->settings);
     if (scene->page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS ||
         scene->page == WM_OPTIONS_PAGE_CHANNEL_STORAGE ||
         scene->page == WM_OPTIONS_PAGE_WII_STORAGE ||
         scene->page == WM_OPTIONS_PAGE_GAMECUBE_STORAGE) {
-        if (!scene->history_count) return false;
+        if (!scene->history_count)
+            return false;
         int first, second;
         HistoryEntry previous = scene->history[--scene->history_count];
         scene->exiting_page = scene->page;
@@ -466,8 +490,7 @@ bool wm_options_scene_back(WmOptionsScene *scene) {
     return true;
 }
 
-static bool is_control_on_page(const WmOptionsScene *scene,
-                               WmOptionsControl control) {
+static bool is_control_on_page(const WmOptionsScene *scene, WmOptionsControl control) {
     if (control == WM_OPTIONS_CONTROL_BACK) {
         int first, second;
         return options_scene_page_pair(scene->page, &first, &second);
@@ -479,17 +502,20 @@ static bool is_control_on_page(const WmOptionsScene *scene,
 }
 
 static int focus_index(WmOptionsControl control) {
-    if (control == WM_OPTIONS_CONTROL_BACK) return OPTIONS_FOCUS_COUNT - 1;
+    if (control == WM_OPTIONS_CONTROL_BACK)
+        return OPTIONS_FOCUS_COUNT - 1;
     return button_index(control);
 }
 
 static void request_focus(WmOptionsScene *scene, WmOptionsControl control,
                           bool entering) {
     int index = focus_index(control);
-    if (index < 0) return;
+    if (index < 0)
+        return;
     FocusEffect *effect = &scene->focus[index];
     if (!effect->active) {
-        if (entering) *effect = (FocusEffect){true, true, true, 0.0f};
+        if (entering)
+            *effect = (FocusEffect){true, true, true, 0.0f};
         return;
     }
     effect->requested = entering;
@@ -501,8 +527,10 @@ static void request_focus(WmOptionsScene *scene, WmOptionsControl control,
 
 static WmSettingsControl settings_control(WmOptionsControl control) {
     switch (control) {
-        case WM_OPTIONS_CONTROL_NONE: return WM_SETTINGS_CONTROL_NONE;
-        case WM_OPTIONS_CONTROL_BACK: return WM_SETTINGS_CONTROL_BACK;
+        case WM_OPTIONS_CONTROL_NONE:
+            return WM_SETTINGS_CONTROL_NONE;
+        case WM_OPTIONS_CONTROL_BACK:
+            return WM_SETTINGS_CONTROL_BACK;
         case WM_OPTIONS_CONTROL_SETTINGS_PREVIOUS:
             return WM_SETTINGS_CONTROL_PREVIOUS;
         case WM_OPTIONS_CONTROL_SETTINGS_NEXT:
@@ -513,33 +541,32 @@ static WmSettingsControl settings_control(WmOptionsControl control) {
         case WM_OPTIONS_CONTROL_SETTINGS_ITEM_4:
         case WM_OPTIONS_CONTROL_SETTINGS_ITEM_5:
         case WM_OPTIONS_CONTROL_SETTINGS_ITEM_6:
-            return (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 +
-                control - WM_OPTIONS_CONTROL_SETTINGS_ITEM_1);
+            return (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 + control -
+                                       WM_OPTIONS_CONTROL_SETTINGS_ITEM_1);
         case WM_OPTIONS_CONTROL_SETTINGS_NICKNAME_FIELD:
             return WM_SETTINGS_CONTROL_NICKNAME_FIELD;
-        default: return WM_SETTINGS_CONTROL_NONE;
+        default:
+            return WM_SETTINGS_CONTROL_NONE;
     }
 }
 
 const char *wm_options_scene_hover_cue(const WmOptionsScene *scene,
-                                        WmOptionsControl control) {
-    if (control == WM_OPTIONS_CONTROL_NONE) return NULL;
-    if (scene && scene->page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS &&
-        scene->settings &&
+                                       WmOptionsControl control) {
+    if (control == WM_OPTIONS_CONTROL_NONE)
+        return NULL;
+    if (scene && scene->page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS && scene->settings &&
         wm_settings_scene_directional_control(scene->settings,
-                                                settings_control(control))) {
+                                              settings_control(control))) {
         return "WIPL_SE_BT_TARGETTING";
     }
     return "buttonHover";
 }
 
-bool wm_options_scene_pointer_down(WmOptionsScene *scene,
-                                    WmOptionsControl control) {
-    if (!scene || scene->page != WM_OPTIONS_PAGE_SYSTEM_SETTINGS ||
-        !scene->settings || scene->phase != WM_OPTIONS_READY ||
-        scene->settings_returning) return false;
-    return wm_settings_scene_pointer_down(scene->settings,
-                                           settings_control(control));
+bool wm_options_scene_pointer_down(WmOptionsScene *scene, WmOptionsControl control) {
+    if (!scene || scene->page != WM_OPTIONS_PAGE_SYSTEM_SETTINGS || !scene->settings ||
+        scene->phase != WM_OPTIONS_READY || scene->settings_returning)
+        return false;
+    return wm_settings_scene_pointer_down(scene->settings, settings_control(control));
 }
 
 void wm_options_scene_pointer_up(WmOptionsScene *scene) {
@@ -550,7 +577,8 @@ void wm_options_scene_pointer_up(WmOptionsScene *scene) {
 bool wm_options_scene_text_editing(const WmOptionsScene *scene) {
     if (!scene || scene->page != WM_OPTIONS_PAGE_SYSTEM_SETTINGS ||
         scene->phase != WM_OPTIONS_READY || scene->settings_returning ||
-        !scene->settings) return false;
+        !scene->settings)
+        return false;
     return wm_settings_scene_editing_nickname(scene->settings);
 }
 
@@ -565,16 +593,14 @@ bool wm_options_scene_backspace(WmOptionsScene *scene) {
 }
 
 bool wm_options_scene_nickname_keyboard_visible(const WmOptionsScene *scene) {
-    return scene && scene->page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS &&
-           scene->settings &&
+    return scene && scene->page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS && scene->settings &&
            wm_settings_scene_nickname_keyboard_visible(scene->settings);
 }
 
-void wm_options_scene_keyboard_modifiers(WmOptionsScene *scene,
-                                          bool shift_down, bool caps_lock_on) {
+void wm_options_scene_keyboard_modifiers(WmOptionsScene *scene, bool shift_down,
+                                         bool caps_lock_on) {
     if (wm_options_scene_nickname_keyboard_visible(scene))
-        wm_settings_scene_keyboard_modifiers(scene->settings, shift_down,
-                                              caps_lock_on);
+        wm_settings_scene_keyboard_modifiers(scene->settings, shift_down, caps_lock_on);
 }
 
 bool wm_options_scene_place_nickname_caret(WmOptionsScene *scene, int x) {
@@ -582,15 +608,14 @@ bool wm_options_scene_place_nickname_caret(WmOptionsScene *scene, int x) {
            wm_settings_scene_place_nickname_caret(scene->settings, x);
 }
 
-WmBoardKeyboardControl wm_options_scene_keyboard_hit(WmOptionsScene *scene,
-                                                     int x, int y) {
+WmBoardKeyboardControl wm_options_scene_keyboard_hit(WmOptionsScene *scene, int x,
+                                                     int y) {
     return scene && scene->settings
-        ? wm_settings_scene_keyboard_hit(scene->settings, x, y)
-        : WM_KEYBOARD_NONE;
+               ? wm_settings_scene_keyboard_hit(scene->settings, x, y)
+               : WM_KEYBOARD_NONE;
 }
 
-bool wm_options_scene_keyboard_place_caret(WmOptionsScene *scene,
-                                            int x, int y) {
+bool wm_options_scene_keyboard_place_caret(WmOptionsScene *scene, int x, int y) {
     return scene && scene->settings &&
            wm_settings_scene_keyboard_place_caret(scene->settings, x, y);
 }
@@ -604,48 +629,46 @@ void wm_options_scene_keyboard_hover(WmOptionsScene *scene,
 const char *wm_options_scene_keyboard_activate(WmOptionsScene *scene,
                                                WmBoardKeyboardControl control) {
     return scene && scene->settings
-        ? wm_settings_scene_keyboard_activate(scene->settings, control) : NULL;
+               ? wm_settings_scene_keyboard_activate(scene->settings, control)
+               : NULL;
 }
 
-const char *wm_options_scene_keyboard_close(WmOptionsScene *scene,
-                                            bool accept) {
+const char *wm_options_scene_keyboard_close(WmOptionsScene *scene, bool accept) {
     return scene && scene->settings
-        ? wm_settings_scene_keyboard_close(scene->settings, accept) : NULL;
+               ? wm_settings_scene_keyboard_close(scene->settings, accept)
+               : NULL;
 }
 
-bool wm_options_scene_move_nickname_caret(WmOptionsScene *scene,
-                                          int direction) {
+bool wm_options_scene_move_nickname_caret(WmOptionsScene *scene, int direction) {
     return scene && scene->settings &&
            wm_settings_scene_move_nickname_caret(scene->settings, direction);
 }
 
 bool wm_options_scene_hover(WmOptionsScene *scene, WmOptionsControl control) {
-    if (scene && scene->page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS &&
-        scene->settings && scene->phase == WM_OPTIONS_READY &&
-        !scene->settings_returning) {
+    if (scene && scene->page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS && scene->settings &&
+        scene->phase == WM_OPTIONS_READY && !scene->settings_returning) {
         WmSettingsControl mapped = settings_control(control);
-        if (control != WM_OPTIONS_CONTROL_NONE &&
-            mapped == WM_SETTINGS_CONTROL_NONE) return false;
+        if (control != WM_OPTIONS_CONTROL_NONE && mapped == WM_SETTINGS_CONTROL_NONE)
+            return false;
         return wm_settings_scene_hover(scene->settings, mapped);
     }
     if (!scene || scene->phase != WM_OPTIONS_READY ||
-        (control != WM_OPTIONS_CONTROL_NONE &&
-         !is_control_on_page(scene, control)) || scene->hover == control) {
+        (control != WM_OPTIONS_CONTROL_NONE && !is_control_on_page(scene, control)) ||
+        scene->hover == control) {
         return false;
     }
     if (scene->hover != WM_OPTIONS_CONTROL_NONE) {
         request_focus(scene, scene->hover, false);
     }
     scene->hover = control;
-    if (control != WM_OPTIONS_CONTROL_NONE) request_focus(scene, control, true);
+    if (control != WM_OPTIONS_CONTROL_NONE)
+        request_focus(scene, control, true);
     return true;
 }
 
-bool wm_options_scene_activate(WmOptionsScene *scene,
-                                WmOptionsControl control) {
-    if (scene && scene->page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS &&
-        scene->settings && scene->phase == WM_OPTIONS_READY &&
-        !scene->settings_returning) {
+bool wm_options_scene_activate(WmOptionsScene *scene, WmOptionsControl control) {
+    if (scene && scene->page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS && scene->settings &&
+        scene->phase == WM_OPTIONS_READY && !scene->settings_returning) {
         WmSettingsControl mapped = settings_control(control);
         if (mapped == WM_SETTINGS_CONTROL_NONE ||
             !wm_settings_scene_activate(scene->settings, mapped))
@@ -658,18 +681,20 @@ bool wm_options_scene_activate(WmOptionsScene *scene,
         return true;
     }
     if (!scene || scene->phase != WM_OPTIONS_READY ||
-        !is_control_on_page(scene, control)) return false;
-    if (control == WM_OPTIONS_CONTROL_BACK) return wm_options_scene_back(scene);
-    if (scene->history_count >= OPTIONS_HISTORY_CAPACITY) return false;
+        !is_control_on_page(scene, control))
+        return false;
+    if (control == WM_OPTIONS_CONTROL_BACK)
+        return wm_options_scene_back(scene);
+    if (scene->history_count >= OPTIONS_HISTORY_CAPACITY)
+        return false;
     int first, second;
     int selected = button_index(control);
-    if (selected < 0 || !options_scene_page_pair(scene->page, &first, &second)) return false;
+    if (selected < 0 || !options_scene_page_pair(scene->page, &first, &second))
+        return false;
     scene->selected = selected;
     scene->sibling = selected == first ? second : first;
-    scene->history[scene->history_count++] = (HistoryEntry){
-        .page = scene->page,
-        .selected = selected
-    };
+    scene->history[scene->history_count++] =
+        (HistoryEntry){.page = scene->page, .selected = selected};
     retain_focus_pose(scene);
     start_phase(scene, WM_OPTIONS_SELECT_FLASH);
     return true;

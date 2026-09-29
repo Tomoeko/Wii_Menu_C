@@ -53,16 +53,16 @@ const char *board_compose_draft_display(BoardComposeDraft *draft, bool editing,
         size_t prefix_start = draft->caret_bytes - composition.prefix_bytes;
         size_t preview_bytes = strlen(composition.preview_candidate);
         size_t suffix_bytes = draft->text_bytes - draft->caret_bytes;
-        if (prefix_start + preview_bytes + suffix_bytes <
-            sizeof(draft->display_text)) {
+        if (prefix_start + preview_bytes + suffix_bytes < sizeof(draft->display_text)) {
             memcpy(draft->display_text, draft->text, prefix_start);
-            memcpy(draft->display_text + prefix_start,
-                   composition.preview_candidate, preview_bytes);
+            memcpy(draft->display_text + prefix_start, composition.preview_candidate,
+                   preview_bytes);
             memcpy(draft->display_text + prefix_start + preview_bytes,
                    draft->text + draft->caret_bytes, suffix_bytes + 1);
             if (display_caret_bytes) {
                 *display_caret_bytes = composition.preview_hovered
-                    ? prefix_start + preview_bytes : draft->caret_bytes;
+                                           ? prefix_start + preview_bytes
+                                           : draft->caret_bytes;
             }
             return draft->display_text;
         }
@@ -93,9 +93,8 @@ bool board_compose_draft_insert(BoardComposeDraft *draft, const char *utf8,
     if (!draft) {
         return false;
     }
-    if (!wm_board_text_insert(draft->text, sizeof(draft->text),
-                              &draft->text_bytes, &draft->caret_bytes,
-                              utf8, bytes)) {
+    if (!wm_board_text_insert(draft->text, sizeof(draft->text), &draft->text_bytes,
+                              &draft->caret_bytes, utf8, bytes)) {
         return false;
     }
     board_compose_draft_sync_keyboard(draft);
@@ -103,16 +102,15 @@ bool board_compose_draft_insert(BoardComposeDraft *draft, const char *utf8,
 }
 
 bool board_compose_draft_replace_before_caret(BoardComposeDraft *draft,
-                                               size_t prefix_bytes,
-                                               const char *replacement,
-                                               size_t replacement_bytes) {
+                                              size_t prefix_bytes,
+                                              const char *replacement,
+                                              size_t replacement_bytes) {
     if (!draft) {
         return false;
     }
     if (!wm_board_text_replace_before_caret(
-            draft->text, sizeof(draft->text), &draft->text_bytes,
-            &draft->caret_bytes, prefix_bytes, replacement,
-            replacement_bytes)) {
+            draft->text, sizeof(draft->text), &draft->text_bytes, &draft->caret_bytes,
+            prefix_bytes, replacement, replacement_bytes)) {
         return false;
     }
     board_compose_draft_sync_keyboard(draft);
@@ -123,8 +121,8 @@ bool board_compose_draft_backspace(BoardComposeDraft *draft) {
     if (!draft) {
         return false;
     }
-    if (!wm_board_text_backspace(draft->text, sizeof(draft->text),
-                                 &draft->text_bytes, &draft->caret_bytes)) {
+    if (!wm_board_text_backspace(draft->text, sizeof(draft->text), &draft->text_bytes,
+                                 &draft->caret_bytes)) {
         return false;
     }
     board_compose_draft_sync_keyboard(draft);
@@ -132,8 +130,7 @@ bool board_compose_draft_backspace(BoardComposeDraft *draft) {
 }
 
 bool board_compose_draft_replace_last_byte(BoardComposeDraft *draft, char byte) {
-    if (!draft || draft->caret_bytes == 0 ||
-        draft->caret_bytes > draft->text_bytes) {
+    if (!draft || draft->caret_bytes == 0 || draft->caret_bytes > draft->text_bytes) {
         return false;
     }
     draft->text[draft->caret_bytes - 1] = byte;

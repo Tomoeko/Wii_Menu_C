@@ -16,18 +16,18 @@ static uint16_t read_be16(const uint8_t *bytes) {
 }
 
 static uint32_t read_be32(const uint8_t *bytes) {
-    return ((uint32_t)bytes[0] << 24) |
-           ((uint32_t)bytes[1] << 16) |
+    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
            ((uint32_t)bytes[2] << 8) | bytes[3];
 }
 
 static bool fail(char *error, size_t capacity, const char *message) {
-    if (error && capacity) snprintf(error, capacity, "%s", message);
+    if (error && capacity)
+        snprintf(error, capacity, "%s", message);
     return false;
 }
 
-static size_t append_utf8(char output[OEM_MAX_UTF8_BYTES + 1],
-                          size_t used, uint32_t point) {
+static size_t append_utf8(char output[OEM_MAX_UTF8_BYTES + 1], size_t used,
+                          uint32_t point) {
     if (point < 0x80) {
         output[used++] = (char)point;
     } else if (point < 0x800) {
@@ -47,17 +47,18 @@ static size_t append_utf8(char output[OEM_MAX_UTF8_BYTES + 1],
 }
 
 void wm_keyboard_word_list_free(WmKeyboardWordList *words) {
-    if (!words) return;
+    if (!words)
+        return;
     for (size_t index = 0; index < words->count; index++)
         free(words->words[index]);
     free(words->words);
     *words = (WmKeyboardWordList){0};
 }
 
-bool wm_keyboard_oem_decode(const uint8_t *data, size_t size,
-                            WmKeyboardWordList *words,
+bool wm_keyboard_oem_decode(const uint8_t *data, size_t size, WmKeyboardWordList *words,
                             char *error, size_t error_size) {
-    if (!words) return fail(error, error_size, "Missing output word list.");
+    if (!words)
+        return fail(error, error_size, "Missing output word list.");
     *words = (WmKeyboardWordList){0};
     if (!data || size < 4 || size > OEM_MAX_FILE_BYTES)
         return fail(error, error_size, "Invalid OEM dictionary size.");
@@ -66,7 +67,8 @@ bool wm_keyboard_oem_decode(const uint8_t *data, size_t size,
         return fail(error, error_size, "Truncated OEM offset table.");
     size_t table_end = 4 + (size_t)count * 4;
     char **values = calloc(count ? count : 1, sizeof(*values));
-    if (!values) return fail(error, error_size, "Out of memory.");
+    if (!values)
+        return fail(error, error_size, "Out of memory.");
     WmKeyboardWordList parsed = {.words = values};
     for (uint32_t index = 0; index < count; index++) {
         size_t offset = read_be32(data + 4 + (size_t)index * 4);
@@ -87,9 +89,11 @@ bool wm_keyboard_oem_decode(const uint8_t *data, size_t size,
             units++;
             uint32_t point = first;
             if (first >= 0xd800 && first <= 0xdbff) {
-                if (offset + 2 > size) break;
+                if (offset + 2 > size)
+                    break;
                 uint16_t second = read_be16(data + offset);
-                if (second < 0xdc00 || second > 0xdfff) break;
+                if (second < 0xdc00 || second > 0xdfff)
+                    break;
                 offset += 2;
                 units++;
                 point = 0x10000u + (((uint32_t)first - 0xd800u) << 10) +
@@ -97,15 +101,17 @@ bool wm_keyboard_oem_decode(const uint8_t *data, size_t size,
             } else if (first >= 0xdc00 && first <= 0xdfff) {
                 break;
             }
-            if (point < 0x20u || point == 0x7fu ||
-                units > OEM_MAX_UTF16_UNITS) filtered = true;
-            if (!filtered) used = append_utf8(utf8, used, point);
+            if (point < 0x20u || point == 0x7fu || units > OEM_MAX_UTF16_UNITS)
+                filtered = true;
+            if (!filtered)
+                used = append_utf8(utf8, used, point);
         }
         if (!terminated) {
             wm_keyboard_word_list_free(&parsed);
             return fail(error, error_size, "Unterminated or invalid UTF-16 word.");
         }
-        if (filtered || used == 0) continue;
+        if (filtered || used == 0)
+            continue;
         utf8[used] = '\0';
         char *copy = malloc(used + 1);
         if (!copy) {
@@ -119,19 +125,20 @@ bool wm_keyboard_oem_decode(const uint8_t *data, size_t size,
     return true;
 }
 
-bool wm_keyboard_oem_load(const char *path, WmKeyboardWordList *words,
-                          char *error, size_t error_size) {
-    if (!path || !words) return fail(error, error_size, "Missing OEM path.");
+bool wm_keyboard_oem_load(const char *path, WmKeyboardWordList *words, char *error,
+                          size_t error_size) {
+    if (!path || !words)
+        return fail(error, error_size, "Missing OEM path.");
     *words = (WmKeyboardWordList){0};
     FILE *file = fopen(path, "rb");
-    if (!file) return fail(error, error_size, "OEM dictionary is absent.");
+    if (!file)
+        return fail(error, error_size, "OEM dictionary is absent.");
     if (fseek(file, 0, SEEK_END) != 0) {
         fclose(file);
         return fail(error, error_size, "Could not size OEM dictionary.");
     }
     long length = ftell(file);
-    if (length < 4 || length > OEM_MAX_FILE_BYTES ||
-        fseek(file, 0, SEEK_SET) != 0) {
+    if (length < 4 || length > OEM_MAX_FILE_BYTES || fseek(file, 0, SEEK_SET) != 0) {
         fclose(file);
         return fail(error, error_size, "Invalid OEM dictionary size.");
     }
@@ -141,10 +148,12 @@ bool wm_keyboard_oem_load(const char *path, WmKeyboardWordList *words,
         return fail(error, error_size, "Out of memory.");
     }
     bool read_okay = fread(bytes, 1, (size_t)length, file) == (size_t)length;
-    if (fclose(file) != 0) read_okay = false;
-    bool okay = read_okay && wm_keyboard_oem_decode(bytes, (size_t)length,
-                                                   words, error, error_size);
+    if (fclose(file) != 0)
+        read_okay = false;
+    bool okay = read_okay &&
+                wm_keyboard_oem_decode(bytes, (size_t)length, words, error, error_size);
     free(bytes);
-    if (!read_okay) return fail(error, error_size, "Could not read OEM dictionary.");
+    if (!read_okay)
+        return fail(error, error_size, "Could not read OEM dictionary.");
     return okay;
 }

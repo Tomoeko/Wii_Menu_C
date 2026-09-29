@@ -4,27 +4,25 @@
 #include <stdio.h>
 
 static void quad(WmFrameDamage *damage, float x, float y, float width, float height,
-                  uint32_t texture)
-{
-    WmDrawVertex vertices[4] = {
-        {.x = x, .y = y}, {.x = x + width, .y = y},
-        {.x = x, .y = y + height}, {.x = x + width, .y = y + height}
-    };
+                 uint32_t texture) {
+    WmDrawVertex vertices[4] = {{.x = x, .y = y},
+                                {.x = x + width, .y = y},
+                                {.x = x, .y = y + height},
+                                {.x = x + width, .y = y + height}};
     assert(wm_frame_damage_quad(damage, vertices, texture, NULL));
 }
 
-static bool covers(const WmViewport *regions, size_t count, int x, int y)
-{
+static bool covers(const WmViewport *regions, size_t count, int x, int y) {
     for (size_t index = 0; index < count; index++) {
         WmViewport region = regions[index];
-        if (x >= region.x && x < region.x + region.width &&
-            y >= region.y && y < region.y + region.height) return true;
+        if (x >= region.x && x < region.x + region.width && y >= region.y &&
+            y < region.y + region.height)
+            return true;
     }
     return false;
 }
 
-int main(void)
-{
+int main(void) {
     WmFrameDamage *damage = wm_frame_damage_create();
     assert(damage);
     WmColor clear = {0.2f, 0.3f, 0.4f, 0.5f};

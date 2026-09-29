@@ -16,11 +16,7 @@ static void append_clip(WmLayoutClip clips[COMPOSE_CLIP_CAPACITY], size_t *count
         return;
     }
     clips[*count] = (WmLayoutClip){
-        .animation = animation,
-        .group = group,
-        .frame = frame,
-        .loop_override = 0
-    };
+        .animation = animation, .group = group, .frame = frame, .loop_override = 0};
     (*count)++;
 }
 
@@ -30,12 +26,10 @@ static void append_target_clip(WmLayoutClip clips[COMPOSE_CLIP_CAPACITY], size_t
     if (*count >= COMPOSE_CLIP_CAPACITY) {
         return;
     }
-    clips[*count] = (WmLayoutClip){
-        .animation = animation,
-        .target_name = target_name,
-        .frame = frame,
-        .loop_override = 0
-    };
+    clips[*count] = (WmLayoutClip){.animation = animation,
+                                   .target_name = target_name,
+                                   .frame = frame,
+                                   .loop_override = 0};
     (*count)++;
 }
 
@@ -89,20 +83,12 @@ void board_compose_pose_selector(WmBoardCompose *compose) {
         const char *group;
         const char *enter;
         const char *leave;
-    } buttons[] = {
-        {
-            WM_COMPOSE_CONTROL_MEMO, "G_MailFoucus",
-            "my_Mail_a_MailFoucusIn", "my_Mail_a_MailFoucusOut"
-        },
-        {
-            WM_COMPOSE_CONTROL_LETTER, "G_LetterFoucus",
-            "my_Mail_a_LetterFoucusIn", "my_Mail_a_LetterFoucusOut"
-        },
-        {
-            WM_COMPOSE_CONTROL_ADDRESS, "G_AdressFoucus",
-            "my_Mail_a_AdressFoucusIn", "my_Mail_a_AdressFoucusOut"
-        }
-    };
+    } buttons[] = {{WM_COMPOSE_CONTROL_MEMO, "G_MailFoucus", "my_Mail_a_MailFoucusIn",
+                    "my_Mail_a_MailFoucusOut"},
+                   {WM_COMPOSE_CONTROL_LETTER, "G_LetterFoucus",
+                    "my_Mail_a_LetterFoucusIn", "my_Mail_a_LetterFoucusOut"},
+                   {WM_COMPOSE_CONTROL_ADDRESS, "G_AdressFoucus",
+                    "my_Mail_a_AdressFoucusIn", "my_Mail_a_AdressFoucusOut"}};
     /* Selector focus has a constant card alpha track. After selection it
      * would override the full MailIn/AdressIn clip's card exit fade. */
     if (compose->phase == WM_COMPOSE_ENTER_SELECTOR ||

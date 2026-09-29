@@ -13,10 +13,7 @@
 #include <string.h>
 #include <time.h>
 
-enum {
-    CLOCK_IMAGE_COUNT = 5,
-    MAX_TEST_TEXTURES = 4096
-};
+enum { CLOCK_IMAGE_COUNT = 5, MAX_TEST_TEXTURES = 4096 };
 
 typedef struct ClockImage {
     float x;
@@ -80,8 +77,10 @@ static unsigned memo_sheet_draws;
 static bool capture_date_before_memos;
 
 static void capture_memo_sheet(uint32_t texture) {
-    if (!capture_date_glyphs || texture != memo_sheet_texture) return;
-    if (first_memo_sequence == 0) first_memo_sequence = draw_sequence;
+    if (!capture_date_glyphs || texture != memo_sheet_texture)
+        return;
+    if (first_memo_sequence == 0)
+        first_memo_sequence = draw_sequence;
     memo_sheet_draws++;
 }
 
@@ -108,18 +107,19 @@ void wm_platform_draw_quad(WmPlatform *platform, const WmQuad *quad) {
         board_mask_sequence = draw_sequence;
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
     (void)texture;
     draw_sequence++;
-    if (capture_date_before_memos && first_memo_sequence > 0) return;
-    if (!capture_date_glyphs || vertices[0].x < 200.0f ||
-        vertices[0].x > 440.0f || vertices[0].y < 380.0f ||
-        vertices[0].y > 420.0f) return;
+    if (capture_date_before_memos && first_memo_sequence > 0)
+        return;
+    if (!capture_date_glyphs || vertices[0].x < 200.0f || vertices[0].x > 440.0f ||
+        vertices[0].y < 380.0f || vertices[0].y > 420.0f)
+        return;
     assert(texture < MAX_TEST_TEXTURES);
-    if (restrict_date_font && !date_font_textures[texture]) return;
+    if (restrict_date_font && !date_font_textures[texture])
+        return;
     date_font_textures[texture] = true;
     date_glyphs.count++;
     last_date_sequence = draw_sequence;
@@ -131,50 +131,39 @@ void wm_platform_draw_vertices(WmPlatform *platform,
     }
 }
 
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad) {
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     draw_sequence++;
-    if (quad->texture_count > 0) capture_memo_sheet(quad->textures[0]);
+    if (quad->texture_count > 0)
+        capture_memo_sheet(quad->textures[0]);
     if (capture_date_glyphs && quad->texture_count > 0 &&
-        quad->textures[0] == board_mask_texture &&
-        quad->vertices[0].color.a > 0.0f)
+        quad->textures[0] == board_mask_texture && quad->vertices[0].color.a > 0.0f)
         board_mask_sequence = draw_sequence;
     const float x = quad->vertices[0].x;
     const float y = quad->vertices[0].y;
     const float width = quad->vertices[1].x - x;
     const float height = quad->vertices[2].y - y;
-    if (capture_clock_colon &&
-        quad->textures[0] == clock_colon_texture) {
+    if (capture_clock_colon && quad->textures[0] == clock_colon_texture) {
         assert(clock_colon_count < 3);
-        clock_colons[clock_colon_count++] = (ClockColonSample){
-            .x = x,
-            .y = y,
-            .alpha = quad->vertices[0].color.a
-        };
+        clock_colons[clock_colon_count++] =
+            (ClockColonSample){.x = x, .y = y, .alpha = quad->vertices[0].color.a};
     }
-    if (traced_clock_texture &&
-        quad->textures[0] == traced_clock_texture &&
+    if (traced_clock_texture && quad->textures[0] == traced_clock_texture &&
         x > 250.0f && x < 320.0f) {
         traced_clock_y = y;
     }
     if (capture_slide_clock && quad->textures[0] == traced_clock_texture) {
         assert(slide_clock_count < 3);
-        slide_clock[slide_clock_count++] = (ClockSlideSample){
-            .x = x,
-            .y = y,
-            .alpha = quad->vertices[0].color.a
-        };
+        slide_clock[slide_clock_count++] =
+            (ClockSlideSample){.x = x, .y = y, .alpha = quad->vertices[0].color.a};
     }
-    if (x < 280.0f || x > 410.0f || y < 325.0f || y > 375.0f ||
-        width < 30.0f || width > 35.0f ||
-        height < 25.0f || height > 45.0f) {
+    if (x < 280.0f || x > 410.0f || y < 325.0f || y > 375.0f || width < 30.0f ||
+        width > 35.0f || height < 25.0f || height > 45.0f) {
         return;
     }
     assert(clock_image_count < CLOCK_IMAGE_COUNT);
@@ -200,15 +189,16 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
     }
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     assert(width > 0 && height > 0 && rgba);
     assert(next_texture < MAX_TEST_TEXTURES);
     unsigned handle = next_texture++;
     texture_live[handle] = true;
     for (size_t pixel = 0; pixel < (size_t)width * (size_t)height; pixel++) {
-        if (rgba[pixel * 4 + 3]) texture_alpha_pixels[handle]++;
+        if (rgba[pixel * 4 + 3])
+            texture_alpha_pixels[handle]++;
     }
     return handle;
 }
@@ -236,12 +226,10 @@ void wm_platform_destroy_texture(WmPlatform *platform, uint32_t texture) {
 static bool odd_wall_second(void) {
     time_t now = time(NULL);
     struct tm local;
-    return now != (time_t)-1 && localtime_r(&now, &local) &&
-           local.tm_sec % 2 != 0;
+    return now != (time_t)-1 && localtime_r(&now, &local) && local.tm_sec % 2 != 0;
 }
 
-static bool source_colon_pane(void *context,
-                              const WmLayoutPaneView *pane) {
+static bool source_colon_pane(void *context, const WmLayoutPaneView *pane) {
     if (strcmp(pane->name, "ClockTen") == 0) {
         *(float *)context = pane->alpha;
     }
@@ -249,16 +237,14 @@ static bool source_colon_pane(void *context,
 }
 
 static float source_colon_alpha(WmLayout *clock_layout, float frame) {
-    WmLayoutClip clip = {
-        .animation = "my_Clock_a_Min",
-        .frame = frame,
-        .loop_override = 0,
-        .target_name = "ClockTen"
-    };
+    WmLayoutClip clip = {.animation = "my_Clock_a_Min",
+                         .frame = frame,
+                         .loop_override = 0,
+                         .target_name = "ClockTen"};
     assert(wm_layout_pose(clock_layout, &clip, 1));
     float alpha = NAN;
-    wm_layout_visit_all_transforms(clock_layout, true, WM_LAYOUT_IPL,
-                                   NULL, source_colon_pane, &alpha);
+    wm_layout_visit_all_transforms(clock_layout, true, WM_LAYOUT_IPL, NULL,
+                                   source_colon_pane, &alpha);
     assert(isfinite(alpha));
     return alpha;
 }
@@ -271,40 +257,35 @@ static void wait_for_wall_phase(int second_parity) {
         assert(clock_gettime(CLOCK_REALTIME, &wall_time) == 0);
         assert(localtime_r(&wall_time.tv_sec, &local));
         long millisecond = wall_time.tv_nsec / 1000000L;
-        if (local.tm_sec % 2 == second_parity &&
-            millisecond >= 300 && millisecond <= 500) return;
+        if (local.tm_sec % 2 == second_parity && millisecond >= 300 &&
+            millisecond <= 500)
+            return;
         nanosleep(&pause, NULL);
     }
     assert(!"clock did not reach the requested wall-second phase");
 }
 
-static float capture_colon_alpha(WmResourceScene *scene,
-                                 const WmMenu *menu,
-                                 float elapsed_seconds,
-                                 bool board_overlay) {
+static float capture_colon_alpha(WmResourceScene *scene, const WmMenu *menu,
+                                 float elapsed_seconds, bool board_overlay) {
     clock_image_count = 0;
     clock_colon_count = 0;
     capture_clock_colon = true;
     if (board_overlay) {
-        wm_resource_scene_draw_grid_overlay(scene, menu, 70.0f,
-                                             elapsed_seconds);
+        wm_resource_scene_draw_grid_overlay(scene, menu, 70.0f, elapsed_seconds);
     } else {
-        const WmResourceSceneFrame frame = {
-            .elapsed_seconds = elapsed_seconds
-        };
+        const WmResourceSceneFrame frame = {.elapsed_seconds = elapsed_seconds};
         wm_resource_scene_draw(scene, menu, &frame);
     }
     capture_clock_colon = false;
     /* Zero-alpha panes are omitted by the layout presenter. The authored
      * clock has one on-screen and two off-screen anchors when visible. */
     assert(clock_colon_count == 0 || clock_colon_count == 3);
-    if (!clock_colon_count) return 0.0f;
-    assert(clock_colons[1].x >= 0.0f &&
-           clock_colons[1].x < WM_FRAME_WIDTH);
+    if (!clock_colon_count)
+        return 0.0f;
+    assert(clock_colons[1].x >= 0.0f && clock_colons[1].x < WM_FRAME_WIDTH);
     for (size_t index = 0; index < 3; index++) {
         assert(isfinite(clock_colons[index].alpha));
-        assert(fabsf(clock_colons[index].alpha -
-                     clock_colons[1].alpha) < 0.001f);
+        assert(fabsf(clock_colons[index].alpha - clock_colons[1].alpha) < 0.001f);
     }
     return clock_colons[1].alpha;
 }
@@ -320,24 +301,19 @@ static void draw_and_capture(WmResourceScene *scene, const WmMenu *menu,
     memcpy(output, clock_images, sizeof(clock_images));
 }
 
-static void draw_overlay_and_capture(WmResourceScene *scene,
-                                     const WmMenu *menu,
-                                     float grid_frame,
-                                     float elapsed_seconds,
+static void draw_overlay_and_capture(WmResourceScene *scene, const WmMenu *menu,
+                                     float grid_frame, float elapsed_seconds,
                                      unsigned expected_count,
                                      ClockImage output[CLOCK_IMAGE_COUNT]) {
     memset(clock_images, 0, sizeof(clock_images));
     clock_image_count = 0;
-    wm_resource_scene_draw_grid_overlay(scene, menu, grid_frame,
-                                         elapsed_seconds);
+    wm_resource_scene_draw_grid_overlay(scene, menu, grid_frame, elapsed_seconds);
     assert(clock_image_count == expected_count);
     memcpy(output, clock_images, sizeof(clock_images));
 }
 
-static float trace_overlay_clock_y(WmResourceScene *scene,
-                                   const WmMenu *menu,
-                                   float grid_frame,
-                                   uint32_t texture) {
+static float trace_overlay_clock_y(WmResourceScene *scene, const WmMenu *menu,
+                                   float grid_frame, uint32_t texture) {
     traced_clock_texture = texture;
     traced_clock_y = NAN;
     clock_image_count = 0;
@@ -355,11 +331,7 @@ static void begin_date_capture(void) {
     memo_sheet_draws = 0;
     capture_date_before_memos = false;
     date_glyphs = (DateGlyphBounds){
-        .left = INFINITY,
-        .top = INFINITY,
-        .right = -INFINITY,
-        .bottom = -INFINITY
-    };
+        .left = INFINITY, .top = INFINITY, .right = -INFINITY, .bottom = -INFINITY};
     capture_date_glyphs = true;
 }
 
@@ -388,8 +360,7 @@ static void assert_compose_date_background(WmBoardScene *board,
     /* Calendar's foreground month label can share the date's font and region.
      * Capture the Board date before its card draw, then check the footer does
      * not add a second copy. Calendar coverage always includes a memo. */
-    capture_date_before_memos =
-        wm_board_scene_child(board) == WM_BOARD_CHILD_CALENDAR;
+    capture_date_before_memos = wm_board_scene_child(board) == WM_BOARD_CHILD_CALENDAR;
     wm_board_scene_draw_body(board);
     capture_date_before_memos = false;
     unsigned body_date_count = date_glyphs.count;
@@ -407,31 +378,28 @@ static void test_calendar_date_background(WmBoardScene *board,
                                           const DateGlyphBounds *grid_date,
                                           size_t today_cell) {
     for (unsigned select_day = 0; select_day < 2; select_day++) {
-        assert(wm_board_scene_activate(board,
-            (WmBoardHit){WM_BOARD_CONTROL_CALENDAR, SIZE_MAX}));
+        assert(wm_board_scene_activate(
+            board, (WmBoardHit){WM_BOARD_CONTROL_CALENDAR, SIZE_MAX}));
         for (unsigned frame = 0; frame < 50; frame++) {
             assert_compose_date_background(board, grid_date, frame >= 20);
             assert(first_memo_sequence > last_date_sequence);
             wm_board_scene_advance(board, 1.0f);
         }
-        const WmBoardControl month_arrows[] = {
-            WM_BOARD_CONTROL_CALENDAR_PREVIOUS,
-            WM_BOARD_CONTROL_CALENDAR_NEXT
-        };
+        const WmBoardControl month_arrows[] = {WM_BOARD_CONTROL_CALENDAR_PREVIOUS,
+                                               WM_BOARD_CONTROL_CALENDAR_NEXT};
         for (size_t arrow = 0; arrow < 2; arrow++) {
-            assert(wm_board_scene_activate(board,
-                (WmBoardHit){month_arrows[arrow], SIZE_MAX}));
+            assert(wm_board_scene_activate(
+                board, (WmBoardHit){month_arrows[arrow], SIZE_MAX}));
             for (unsigned frame = 0; frame < 30; frame++) {
                 assert_compose_date_background(board, grid_date, true);
                 assert(first_memo_sequence > last_date_sequence);
                 wm_board_scene_advance(board, 1.0f);
             }
         }
-        assert(wm_board_scene_activate(board, (WmBoardHit){
-            select_day ? WM_BOARD_CONTROL_CALENDAR_DAY :
-                         WM_BOARD_CONTROL_CALENDAR_BACK,
-            select_day ? today_cell : SIZE_MAX
-        }));
+        assert(wm_board_scene_activate(
+            board, (WmBoardHit){select_day ? WM_BOARD_CONTROL_CALENDAR_DAY
+                                           : WM_BOARD_CONTROL_CALENDAR_BACK,
+                                select_day ? today_cell : SIZE_MAX}));
         unsigned exit_frames = select_day ? 80 : 50;
         for (unsigned frame = 0; frame < exit_frames; frame++) {
             assert_compose_date_background(board, grid_date, true);
@@ -462,8 +430,8 @@ int main(int argc, char **argv) {
                                "%s/layouts/chanSel/my_Clock_a.json", assets);
     assert(path_length > 0 && path_length < (int)sizeof(clock_path));
     char layout_error[160];
-    WmLayout *clock_layout = wm_layout_load_json(
-        clock_path, layout_error, sizeof(layout_error));
+    WmLayout *clock_layout =
+        wm_layout_load_json(clock_path, layout_error, sizeof(layout_error));
     assert(clock_layout);
     assert(source_colon_alpha(clock_layout, 0.0f) > 0.99f);
     float fade_out_alpha = source_colon_alpha(clock_layout, 2.5f);
@@ -474,20 +442,18 @@ int main(int argc, char **argv) {
     assert(fade_in_alpha > 0.0f && fade_in_alpha < 1.0f);
     assert(source_colon_alpha(clock_layout, 63.0f) > 0.99f);
     wm_layout_destroy(clock_layout);
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 128u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        platform, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 128u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
-    WmResourceScene *scene = wm_resource_scene_create(
-        platform, assets, &menu, textures, fonts);
+    WmResourceScene *scene =
+        wm_resource_scene_create(platform, assets, &menu, textures, fonts);
     assert(scene);
-    assert(wm_texture_cache_resolve(textures,
-        "textures/chanSel/my_Clock_ab.png", &clock_colon_texture));
+    assert(wm_texture_cache_resolve(textures, "textures/chanSel/my_Clock_ab.png",
+                                    &clock_colon_texture));
 
     struct timespec pause = {.tv_nsec = 20000000L};
-    for (unsigned attempt = 0; attempt < 100 && !odd_wall_second();
-         attempt++) {
+    for (unsigned attempt = 0; attempt < 100 && !odd_wall_second(); attempt++) {
         nanosleep(&pause, NULL);
     }
     assert(odd_wall_second());
@@ -506,28 +472,21 @@ int main(int argc, char **argv) {
     /* The keyboard uses a different font atlas and can draw labels in this
      * same rectangle. Keep date checks scoped to the settled date's font. */
     restrict_date_font = true;
-    draw_overlay_and_capture(scene, &menu, 70.0f, 7.0f,
-                             CLOCK_IMAGE_COUNT,
-                             board_enter);
-    draw_overlay_and_capture(scene, &menu, 100.0f, 7.0f,
-                             0, board_exit);
+    draw_overlay_and_capture(scene, &menu, 70.0f, 7.0f, CLOCK_IMAGE_COUNT, board_enter);
+    draw_overlay_and_capture(scene, &menu, 100.0f, 7.0f, 0, board_exit);
     /* The authored exit grid begins above the screen, then the same clock
      * returns with it by frame 120. */
-    draw_overlay_and_capture(scene, &menu, 120.0f, 7.0f,
-                             CLOCK_IMAGE_COUNT,
-                             board_exit);
-    float entry_start = trace_overlay_clock_y(
-        scene, &menu, 70.0f, first_page[0].texture);
-    float entry_middle = trace_overlay_clock_y(
-        scene, &menu, 80.0f, first_page[0].texture);
-    float entry_end = trace_overlay_clock_y(
-        scene, &menu, 89.0f, first_page[0].texture);
-    float exit_start = trace_overlay_clock_y(
-        scene, &menu, 100.0f, first_page[0].texture);
-    float exit_middle = trace_overlay_clock_y(
-        scene, &menu, 110.0f, first_page[0].texture);
-    float exit_end = trace_overlay_clock_y(
-        scene, &menu, 120.0f, first_page[0].texture);
+    draw_overlay_and_capture(scene, &menu, 120.0f, 7.0f, CLOCK_IMAGE_COUNT, board_exit);
+    float entry_start =
+        trace_overlay_clock_y(scene, &menu, 70.0f, first_page[0].texture);
+    float entry_middle =
+        trace_overlay_clock_y(scene, &menu, 80.0f, first_page[0].texture);
+    float entry_end = trace_overlay_clock_y(scene, &menu, 89.0f, first_page[0].texture);
+    float exit_start =
+        trace_overlay_clock_y(scene, &menu, 100.0f, first_page[0].texture);
+    float exit_middle =
+        trace_overlay_clock_y(scene, &menu, 110.0f, first_page[0].texture);
+    float exit_end = trace_overlay_clock_y(scene, &menu, 120.0f, first_page[0].texture);
     assert(entry_start > entry_middle && entry_middle > entry_end);
     assert(exit_start < exit_middle && exit_middle < exit_end);
     assert(entry_end + first_page[0].height < 0.0f);
@@ -556,10 +515,11 @@ int main(int argc, char **argv) {
             const ClockSlideSample *sample = &slide_clock[anchor];
             assert(fabsf(sample->y - first_page[4].y) < 0.01f);
             assert(sample->alpha > 0.99f);
-            if (step < 3) assert(sample->x < previous_x[anchor]);
+            if (step < 3)
+                assert(sample->x < previous_x[anchor]);
             previous_x[anchor] = sample->x;
-            if (sample->x + first_page[4].width > 0.0f &&
-                sample->x < WM_FRAME_WIDTH) visible = true;
+            if (sample->x + first_page[4].width > 0.0f && sample->x < WM_FRAME_WIDTH)
+                visible = true;
         }
         /* The authored page slide moves three clock instances through the
          * screen. At least one remains visible while ownership changes. */
@@ -574,21 +534,18 @@ int main(int argc, char **argv) {
      * draws must preserve that sampled phase instead of restarting it. */
     wait_for_wall_phase(1);
     float visible_colon = capture_colon_alpha(scene, &menu, 9.0f, false);
-    float overlay_visible_colon = capture_colon_alpha(scene, &menu,
-                                                       9.0f, true);
+    float overlay_visible_colon = capture_colon_alpha(scene, &menu, 9.0f, true);
     assert(visible_colon > 0.95f);
     assert(fabsf(overlay_visible_colon - visible_colon) < 0.02f);
     wait_for_wall_phase(0);
     float hidden_colon = capture_colon_alpha(scene, &menu, 10.0f, false);
-    float overlay_hidden_colon = capture_colon_alpha(scene, &menu,
-                                                      10.0f, true);
+    float overlay_hidden_colon = capture_colon_alpha(scene, &menu, 10.0f, true);
     assert(hidden_colon < 0.05f);
     assert(fabsf(overlay_hidden_colon - hidden_colon) < 0.02f);
     for (size_t index = 0; index < CLOCK_IMAGE_COUNT; index++) {
         const ClockImage *first = &first_page[index];
         const ClockImage *second = &second_page[index];
-        assert(first->texture && first->live &&
-               first->nonzero_alpha_pixels > 0);
+        assert(first->texture && first->live && first->nonzero_alpha_pixels > 0);
         assert(second->texture == first->texture && second->live &&
                second->nonzero_alpha_pixels == first->nonzero_alpha_pixels);
         assert(first->texture_count == 1 && second->texture_count == 1);
@@ -615,15 +572,12 @@ int main(int argc, char **argv) {
     time_t now = time(NULL);
     struct tm local_date;
     assert(now != (time_t)-1 && localtime_r(&now, &local_date));
-    WmBoardDate today = {
-        .year = local_date.tm_year + 1900,
-        .month = local_date.tm_mon + 1,
-        .day = local_date.tm_mday
-    };
-    WmBoardScene *board = wm_board_scene_create(
-        platform, assets, textures, fonts);
-    assert(wm_texture_cache_resolve(textures,
-        "textures/board/my_Mask_a.png", &board_mask_texture));
+    WmBoardDate today = {.year = local_date.tm_year + 1900,
+                         .month = local_date.tm_mon + 1,
+                         .day = local_date.tm_mday};
+    WmBoardScene *board = wm_board_scene_create(platform, assets, textures, fonts);
+    assert(wm_texture_cache_resolve(textures, "textures/board/my_Mask_a.png",
+                                    &board_mask_texture));
     assert(board && wm_board_scene_open(board, today));
     assert_board_date_matches(board, &grid_date);
     wm_board_scene_advance(board, 19.0f);
@@ -640,17 +594,15 @@ int main(int argc, char **argv) {
     wm_board_scene_advance(board, 1.0f);
     assert(wm_board_scene_phase(board) == WM_BOARD_CLOSED);
 
-    const WmBoardControl return_cases[] = {
-        WM_BOARD_CONTROL_NEXT,
-        WM_BOARD_CONTROL_PREVIOUS
-    };
+    const WmBoardControl return_cases[] = {WM_BOARD_CONTROL_NEXT,
+                                           WM_BOARD_CONTROL_PREVIOUS};
     for (size_t direction = 0; direction < 2; direction++) {
         for (unsigned days = 1; days <= 2; days++) {
             assert(wm_board_scene_open(board, today));
             wm_board_scene_advance(board, 40.0f);
             for (unsigned day = 0; day < days; day++) {
-                assert(wm_board_scene_activate(board,
-                    (WmBoardHit){return_cases[direction], SIZE_MAX}));
+                assert(wm_board_scene_activate(
+                    board, (WmBoardHit){return_cases[direction], SIZE_MAX}));
                 wm_board_scene_advance(board, 20.0f);
             }
             assert(wm_board_scene_back(board));
@@ -668,7 +620,7 @@ int main(int argc, char **argv) {
     assert(wm_board_scene_open(board, today));
     wm_board_scene_advance(board, 40.0f);
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
     /* The date stays with the background cards under the child shade,
      * exactly once throughout selector entrance and return. */
     for (unsigned frame = 0; frame <= 39; frame++) {
@@ -692,54 +644,52 @@ int main(int argc, char **argv) {
     wm_board_scene_destroy(board);
 
     board = wm_board_scene_create(platform, assets, textures, fonts);
-    WmBoardMemo dragged = {
-        .id = "date-drag", .text = "Drag", .date = today,
-        .has_position = true, .x = 0.0f, .y = 53.0f
-    };
+    WmBoardMemo dragged = {.id = "date-drag",
+                           .text = "Drag",
+                           .date = today,
+                           .has_position = true,
+                           .x = 0.0f,
+                           .y = 53.0f};
     assert(board && wm_board_scene_set_memos(board, &dragged, 1));
-    assert(wm_texture_cache_resolve(textures,
-        "textures/board/my_LetterS_a.png", &memo_sheet_texture));
+    assert(wm_texture_cache_resolve(textures, "textures/board/my_LetterS_a.png",
+                                    &memo_sheet_texture));
     assert(wm_board_scene_open(board, today));
     wm_board_scene_advance(board, 51.0f);
     assert_board_date_matches(board, &grid_date);
     unsigned settled_sheet_draws = memo_sheet_draws;
     assert(settled_sheet_draws > 0);
-    assert(wm_board_scene_pointer_down(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}, 320, 180));
+    assert(wm_board_scene_pointer_down(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0},
+                                       320, 180));
     assert(wm_board_scene_pointer_move(board, 320, 410));
     assert_board_date_matches(board, &grid_date);
     assert(first_memo_sequence > last_date_sequence);
     assert(memo_sheet_draws == settled_sheet_draws);
     assert(wm_board_scene_pointer_up(board, 320, 410));
     assert_board_date_matches(board, &grid_date);
-    unsigned first_weekday = (unsigned)(
-        (local_date.tm_wday - (local_date.tm_mday - 1) % 7 + 7) % 7);
+    unsigned first_weekday =
+        (unsigned)((local_date.tm_wday - (local_date.tm_mday - 1) % 7 + 7) % 7);
     size_t today_cell = first_weekday + (size_t)today.day - 1;
     test_calendar_date_background(board, &grid_date, today_cell);
     wm_board_scene_destroy(board);
 
-    const WmBoardControl choices[] = {
-        WM_BOARD_CONTROL_COMPOSE_MEMO,
-        WM_BOARD_CONTROL_COMPOSE_LETTER,
-        WM_BOARD_CONTROL_COMPOSE_ADDRESS
-    };
-    for (size_t choice = 0; choice < sizeof(choices) / sizeof(choices[0]);
-         choice++) {
+    const WmBoardControl choices[] = {WM_BOARD_CONTROL_COMPOSE_MEMO,
+                                      WM_BOARD_CONTROL_COMPOSE_LETTER,
+                                      WM_BOARD_CONTROL_COMPOSE_ADDRESS};
+    for (size_t choice = 0; choice < sizeof(choices) / sizeof(choices[0]); choice++) {
         board = wm_board_scene_create(platform, assets, textures, fonts);
         assert(board && wm_board_scene_open(board, today));
         wm_board_scene_advance(board, 40.0f);
-        assert(wm_board_scene_activate(board,
-            (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
+        assert(wm_board_scene_activate(
+            board, (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
         wm_board_scene_advance(board, 40.0f);
-        assert(wm_board_scene_activate(board,
-            (WmBoardHit){choices[choice], SIZE_MAX}));
+        assert(wm_board_scene_activate(board, (WmBoardHit){choices[choice], SIZE_MAX}));
         for (unsigned frame = 0; frame <= 75; frame++) {
             assert_compose_date_background(board, &grid_date, true);
             wm_board_scene_advance(board, 1.0f);
         }
         if (choices[choice] == WM_BOARD_CONTROL_COMPOSE_MEMO) {
-            assert(wm_board_scene_activate(board,
-                (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_EDIT, SIZE_MAX}));
+            assert(wm_board_scene_activate(
+                board, (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_EDIT, SIZE_MAX}));
             for (unsigned frame = 0; frame <= 30; frame++) {
                 assert_compose_date_background(board, &grid_date, true);
                 wm_board_scene_advance(board, 1.0f);
@@ -756,6 +706,7 @@ int main(int argc, char **argv) {
     wm_resource_scene_destroy(scene);
     wm_texture_cache_destroy(textures);
     wm_font_cache_destroy(fonts);
-    puts("Clock and date presentation remains continuous through grid and Board transitions.");
+    puts("Clock and date presentation remains continuous through grid and Board "
+         "transitions.");
     return 0;
 }

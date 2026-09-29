@@ -4,44 +4,36 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum {
-    WM_U8_MAX_NODES = 100000,
-    WM_U8_MAX_PATH = 4096
-};
+enum { WM_U8_MAX_NODES = 100000, WM_U8_MAX_PATH = 4096 };
 
 typedef struct WmU8Directory {
     size_t end_index;
     size_t node_index;
 } WmU8Directory;
 
-static uint32_t wm_read_be32(const uint8_t *bytes)
-{
+static uint32_t wm_read_be32(const uint8_t *bytes) {
     return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
            ((uint32_t)bytes[2] << 8) | bytes[3];
 }
 
-static bool wm_range_fits(size_t size, size_t offset, size_t length)
-{
+static bool wm_range_fits(size_t size, size_t offset, size_t length) {
     return offset <= size && length <= size - offset;
 }
 
-static void wm_error(char *error, size_t error_size, const char *message)
-{
+static void wm_error(char *error, size_t error_size, const char *message) {
     if (error != NULL && error_size != 0) {
         snprintf(error, error_size, "%s", message);
     }
 }
 
-static unsigned char wm_ascii_lower(unsigned char value)
-{
+static unsigned char wm_ascii_lower(unsigned char value) {
     if (value >= 'A' && value <= 'Z') {
         return (unsigned char)(value - 'A' + 'a');
     }
     return value;
 }
 
-static bool wm_same_portable_path(const char *left, const char *right)
-{
+static bool wm_same_portable_path(const char *left, const char *right) {
     for (;; left++, right++) {
         if (wm_ascii_lower((unsigned char)*left) !=
             wm_ascii_lower((unsigned char)*right)) {
@@ -53,8 +45,7 @@ static bool wm_same_portable_path(const char *left, const char *right)
     }
 }
 
-static uint64_t wm_path_hash(const char *path)
-{
+static uint64_t wm_path_hash(const char *path) {
     uint64_t hash = UINT64_C(14695981039346656037);
     for (; *path != '\0'; path++) {
         hash ^= wm_ascii_lower((unsigned char)*path);
@@ -63,8 +54,7 @@ static uint64_t wm_path_hash(const char *path)
     return hash;
 }
 
-static bool wm_valid_utf8(const uint8_t *bytes, size_t size)
-{
+static bool wm_valid_utf8(const uint8_t *bytes, size_t size) {
     size_t index = 0;
     while (index < size) {
         uint8_t first = bytes[index];
@@ -110,15 +100,15 @@ static bool wm_valid_utf8(const uint8_t *bytes, size_t size)
     return true;
 }
 
-static bool wm_reserved_name(const uint8_t *name, size_t size)
-{
+static bool wm_reserved_name(const uint8_t *name, size_t size) {
     size_t stem = 0;
     while (stem < size && name[stem] != '.') {
         stem++;
     }
     if (stem == 3) {
         static const char *const reserved[] = {"con", "prn", "aux", "nul"};
-        for (size_t index = 0; index < sizeof(reserved) / sizeof(reserved[0]); index++) {
+        for (size_t index = 0; index < sizeof(reserved) / sizeof(reserved[0]);
+             index++) {
             if (wm_ascii_lower(name[0]) == (unsigned char)reserved[index][0] &&
                 wm_ascii_lower(name[1]) == (unsigned char)reserved[index][1] &&
                 wm_ascii_lower(name[2]) == (unsigned char)reserved[index][2]) {
@@ -127,37 +117,31 @@ static bool wm_reserved_name(const uint8_t *name, size_t size)
         }
     }
     return stem == 4 &&
-           ((wm_ascii_lower(name[0]) == 'c' &&
-             wm_ascii_lower(name[1]) == 'o' &&
+           ((wm_ascii_lower(name[0]) == 'c' && wm_ascii_lower(name[1]) == 'o' &&
              wm_ascii_lower(name[2]) == 'm') ||
-            (wm_ascii_lower(name[0]) == 'l' &&
-             wm_ascii_lower(name[1]) == 'p' &&
+            (wm_ascii_lower(name[0]) == 'l' && wm_ascii_lower(name[1]) == 'p' &&
              wm_ascii_lower(name[2]) == 't')) &&
            name[3] >= '1' && name[3] <= '9';
 }
 
-static bool wm_valid_name(const uint8_t *name, size_t size)
-{
-    if (size == 0 || size > 255 ||
-        (size == 1 && name[0] == '.') ||
-        (size == 2 && name[0] == '.' && name[1] == '.') ||
-        name[size - 1] == '.' || name[size - 1] == ' ' ||
-        wm_reserved_name(name, size) || !wm_valid_utf8(name, size)) {
+static bool wm_valid_name(const uint8_t *name, size_t size) {
+    if (size == 0 || size > 255 || (size == 1 && name[0] == '.') ||
+        (size == 2 && name[0] == '.' && name[1] == '.') || name[size - 1] == '.' ||
+        name[size - 1] == ' ' || wm_reserved_name(name, size) ||
+        !wm_valid_utf8(name, size)) {
         return false;
     }
 
     for (size_t index = 0; index < size; index++) {
         uint8_t value = name[index];
-        if (value < 32 || value == 127 ||
-            strchr("/\\:*?\"<>|", value) != NULL) {
+        if (value < 32 || value == 127 || strchr("/\\:*?\"<>|", value) != NULL) {
             return false;
         }
     }
     return true;
 }
 
-static char *wm_join_path(const char *parent, const uint8_t *name, size_t name_size)
-{
+static char *wm_join_path(const char *parent, const uint8_t *name, size_t name_size) {
     size_t parent_size = strlen(parent);
     size_t separator = parent_size != 0 ? 1 : 0;
     if (parent_size + separator + name_size > WM_U8_MAX_PATH) {
@@ -177,8 +161,7 @@ static char *wm_join_path(const char *parent, const uint8_t *name, size_t name_s
     return path;
 }
 
-void wm_u8_free(WmU8Archive *archive)
-{
+void wm_u8_free(WmU8Archive *archive) {
     if (archive == NULL) {
         return;
     }
@@ -189,8 +172,7 @@ void wm_u8_free(WmU8Archive *archive)
     *archive = (WmU8Archive){0};
 }
 
-const WmU8Entry *wm_u8_find(const WmU8Archive *archive, const char *path)
-{
+const WmU8Entry *wm_u8_find(const WmU8Archive *archive, const char *path) {
     if (archive == NULL || path == NULL) {
         return NULL;
     }
@@ -202,11 +184,13 @@ const WmU8Entry *wm_u8_find(const WmU8Archive *archive, const char *path)
     return NULL;
 }
 
-bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive,
-                 char *error, size_t error_size)
-{
+bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive, char *error,
+                 size_t error_size) {
     if (archive == NULL || data == NULL || size < 32 ||
-        memcmp(data, "U\xaa" "8-", 4) != 0) {
+        memcmp(data,
+               "U\xaa"
+               "8-",
+               4) != 0) {
         wm_error(error, error_size, "Expected a U8 archive.");
         return false;
     }
@@ -224,9 +208,8 @@ bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive,
     uint32_t root_kind = wm_read_be32(data + root);
     uint32_t root_parent = wm_read_be32(data + root + 4);
     size_t node_count = wm_read_be32(data + root + 8);
-    if ((root_kind >> 24) != 1 || root_parent != 0 ||
-        node_count == 0 || node_count > WM_U8_MAX_NODES ||
-        node_count > (size - root) / 12) {
+    if ((root_kind >> 24) != 1 || root_parent != 0 || node_count == 0 ||
+        node_count > WM_U8_MAX_NODES || node_count > (size - root) / 12) {
         wm_error(error, error_size, "Invalid U8 root node.");
         return false;
     }
@@ -247,8 +230,8 @@ bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive,
         hash_capacity *= 2;
     }
     size_t *seen = calloc(hash_capacity, sizeof(*seen));
-    if (paths == NULL || directories == NULL || stack == NULL ||
-        entries == NULL || seen == NULL) {
+    if (paths == NULL || directories == NULL || stack == NULL || entries == NULL ||
+        seen == NULL) {
         wm_error(error, error_size, "Out of memory parsing U8 archive.");
         free(paths);
         free(directories);
@@ -299,8 +282,8 @@ bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive,
         }
 
         const char *parent = paths[stack[depth - 1].node_index];
-        paths[index] = wm_join_path(parent != NULL ? parent : "",
-                                    data + name_start, name_size);
+        paths[index] =
+            wm_join_path(parent != NULL ? parent : "", data + name_start, name_size);
         if (paths[index] == NULL) {
             wm_error(error, error_size, "U8 path is too long or memory is exhausted.");
             valid = false;

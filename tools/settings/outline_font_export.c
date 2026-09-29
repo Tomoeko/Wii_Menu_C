@@ -20,7 +20,8 @@ enum {
 static uint8_t *read_file(const char *path, size_t *size) {
     FILE *file = fopen(path, "rb");
     if (!file || fseek(file, 0, SEEK_END) != 0) {
-        if (file) fclose(file);
+        if (file)
+            fclose(file);
         return NULL;
     }
     long length = ftell(file);
@@ -30,8 +31,8 @@ static uint8_t *read_file(const char *path, size_t *size) {
         return NULL;
     }
     uint8_t *bytes = malloc((size_t)length);
-    if (!bytes || fread(bytes, 1, (size_t)length, file) !=
-                      (size_t)length || fgetc(file) != EOF) {
+    if (!bytes || fread(bytes, 1, (size_t)length, file) != (size_t)length ||
+        fgetc(file) != EOF) {
         free(bytes);
         fclose(file);
         return NULL;
@@ -42,23 +43,22 @@ static uint8_t *read_file(const char *path, size_t *size) {
 }
 
 static bool valid_latin_face(const WmU8Entry *entry) {
-    if (!entry || entry->size < 20 ||
-        memcmp(entry->data, "ttcf", 4) != 0 ||
-        entry->size > OUTLINE_EXPORT_MAX_SOURCE) return false;
+    if (!entry || entry->size < 20 || memcmp(entry->data, "ttcf", 4) != 0 ||
+        entry->size > OUTLINE_EXPORT_MAX_SOURCE)
+        return false;
     WmOutlineFont *font = wm_outline_font_decode(entry->data, entry->size, 1);
-    if (!font) return false;
+    if (!font)
+        return false;
     const uint32_t sample[] = {'A', 'B', '0', 'W', '?'};
     unsigned rendered = 0;
     bool valid = true;
-    for (size_t index = 0; index < sizeof(sample) / sizeof(sample[0]);
-         index++) {
+    for (size_t index = 0; index < sizeof(sample) / sizeof(sample[0]); index++) {
         WmOutlineBitmap bitmap = {0};
         if (!wm_outline_font_raster(font, sample[index], 24, &bitmap)) {
             valid = false;
             break;
         }
-        for (size_t pixel = 0; pixel < (size_t)bitmap.width * bitmap.height;
-             pixel++) {
+        for (size_t pixel = 0; pixel < (size_t)bitmap.width * bitmap.height; pixel++) {
             if (bitmap.alpha[pixel]) {
                 rendered++;
                 break;
@@ -70,8 +70,7 @@ static bool valid_latin_face(const WmU8Entry *entry) {
     return valid && rendered >= 4;
 }
 
-static bool write_new_file(const char *path, const uint8_t *bytes,
-                           size_t size) {
+static bool write_new_file(const char *path, const uint8_t *bytes, size_t size) {
     /* O_CREAT | O_EXCL refuses both existing files and symlinks, including
      * dangling symlinks. Add O_NOFOLLOW where the SDK exposes it. */
     int flags = O_WRONLY | O_CREAT | O_EXCL;
@@ -79,20 +78,24 @@ static bool write_new_file(const char *path, const uint8_t *bytes,
     flags |= O_NOFOLLOW;
 #endif
     int output = open(path, flags, 0600);
-    if (output < 0) return false;
+    if (output < 0)
+        return false;
     bool valid = true;
     size_t cursor = 0;
     while (cursor < size) {
         ssize_t written = write(output, bytes + cursor, size - cursor);
-        if (written < 0 && errno == EINTR) continue;
+        if (written < 0 && errno == EINTR)
+            continue;
         if (written <= 0) {
             valid = false;
             break;
         }
         cursor += (size_t)written;
     }
-    if (close(output) != 0) valid = false;
-    if (!valid) remove(path);
+    if (close(output) != 0)
+        valid = false;
+    if (!valid)
+        remove(path);
     return valid;
 }
 
@@ -105,8 +108,7 @@ int main(int argc, char **argv) {
     uint8_t *source = read_file(argv[1], &source_size);
     WmU8Archive archive = {0};
     char error[160] = {0};
-    if (!source || !wm_u8_parse(source, source_size, &archive,
-                                 error, sizeof(error))) {
+    if (!source || !wm_u8_parse(source, source_size, &archive, error, sizeof(error))) {
         fprintf(stderr, "Invalid outline font archive: %s\n", error);
         free(source);
         return 1;
@@ -121,16 +123,15 @@ int main(int argc, char **argv) {
 
     char directory[OUTLINE_EXPORT_PATH_CAPACITY];
     char path[OUTLINE_EXPORT_PATH_CAPACITY];
-    int directory_length = snprintf(directory, sizeof(directory),
-                                    "%s/fonts", argv[2]);
-    int path_length = snprintf(path, sizeof(path),
-                               "%s/fonts/settings-latin.ttc", argv[2]);
-    bool valid = directory_length > 0 &&
-                 (size_t)directory_length < sizeof(directory) &&
+    int directory_length = snprintf(directory, sizeof(directory), "%s/fonts", argv[2]);
+    int path_length =
+        snprintf(path, sizeof(path), "%s/fonts/settings-latin.ttc", argv[2]);
+    bool valid = directory_length > 0 && (size_t)directory_length < sizeof(directory) &&
                  path_length > 0 && (size_t)path_length < sizeof(path) &&
                  wm_export_directory_root(argv[2], 0700) &&
                  wm_export_directory_child(argv[2], "fonts", 0700);
-    if (valid) valid = write_new_file(path, entry->data, entry->size);
+    if (valid)
+        valid = write_new_file(path, entry->data, entry->size);
     wm_u8_free(&archive);
     free(source);
     if (!valid) {

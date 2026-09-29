@@ -39,26 +39,23 @@ void wm_platform_draw_quad(WmPlatform *platform, const WmQuad *quad) {
     (void)quad;
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
     (void)vertices;
     (void)texture;
 }
 
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad) {
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     for (size_t side = 0; side < 2; side++) {
-        if (quad->texture_count == 0 ||
-            quad->textures[0] != arrow_textures[side]) continue;
+        if (quad->texture_count == 0 || quad->textures[0] != arrow_textures[side])
+            continue;
         ArrowQuad *arrow = &arrows[side];
         arrow->count++;
         arrow->x = quad->vertices[0].x;
@@ -69,8 +66,8 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
     }
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     assert(width > 0 && height > 0 && rgba);
     return next_texture++;
@@ -111,15 +108,13 @@ static bool nearly_equal(float left, float right) {
 }
 
 static void test_day_order_without_assets(void) {
-    WmBoardCalendar calendar = {.phase = WM_CALENDAR_IDLE,
-                                .age = 50.0f,
-                                .cell_count = 3,
-                                .day_order_count = 3};
+    WmBoardCalendar calendar = {
+        .phase = WM_CALENDAR_IDLE, .age = 50.0f, .cell_count = 3, .day_order_count = 3};
     for (unsigned index = 0; index < calendar.cell_count; index++) {
         calendar.day_order[index] = index;
     }
     wm_board_calendar_hover(&calendar,
-        (WmBoardCalendarHit){WM_CALENDAR_CONTROL_DAY, 1});
+                            (WmBoardCalendarHit){WM_CALENDAR_CONTROL_DAY, 1});
     wm_board_calendar_advance(&calendar, 3.0f);
 
     static const unsigned expected[] = {0, 2, 1};
@@ -136,8 +131,7 @@ static void test_day_order_without_assets(void) {
 
 static void test_hit_draw_stability(WmBoardCalendar *calendar) {
     static const unsigned indices[] = {0, 17, 34};
-    for (size_t sample = 0;
-         sample < sizeof(indices) / sizeof(indices[0]); sample++) {
+    for (size_t sample = 0; sample < sizeof(indices) / sizeof(indices[0]); sample++) {
         unsigned index = indices[sample];
         int x = 158 + (int)(index % 7) * 54;
         int y = 91 + (int)(index / 7) * 48;
@@ -149,8 +143,7 @@ static void test_hit_draw_stability(WmBoardCalendar *calendar) {
         wm_board_calendar_draw(calendar);
         wm_board_calendar_draw(calendar);
         WmBoardCalendarHit after = wm_board_calendar_hit(calendar, x, y);
-        assert(before.control == after.control &&
-               before.day_index == after.day_index);
+        assert(before.control == after.control && before.day_index == after.day_index);
     }
 }
 
@@ -158,32 +151,25 @@ static void test_day_hover_continuity(WmBoardCalendar *calendar) {
     /* Every tile should keep one hit owner while the pointer moves inside it
      * and the six-frame focus clip grows. A changed hit would replay the
      * generic hover cue on the next pointer event. */
-    static const int offsets[][2] = {
-        {0, 0}, {24, 20}, {-24, 20}, {-24, -20},
-        {24, -20}, {0, 0}
-    };
+    static const int offsets[][2] = {{0, 0},     {24, 20},  {-24, 20},
+                                     {-24, -20}, {24, -20}, {0, 0}};
     for (unsigned index = 0; index < 35; index++) {
         int center_x = 158 + (int)(index % 7) * 54;
         int center_y = 91 + (int)(index / 7) * 48;
-        for (unsigned step = 0; step < sizeof(offsets) / sizeof(offsets[0]);
-             step++) {
+        for (unsigned step = 0; step < sizeof(offsets) / sizeof(offsets[0]); step++) {
             WmBoardCalendarHit hit = wm_board_calendar_hit(
-                calendar, center_x + offsets[step][0],
-                center_y + offsets[step][1]);
-            if (hit.control != WM_CALENDAR_CONTROL_DAY ||
-                hit.day_index != index) {
+                calendar, center_x + offsets[step][0], center_y + offsets[step][1]);
+            if (hit.control != WM_CALENDAR_CONTROL_DAY || hit.day_index != index) {
                 fprintf(stderr, "Calendar tile %u at (%d,%d), step %u: hit %d/%u\n",
-                        index, center_x, center_y, step, hit.control,
-                        hit.day_index);
+                        index, center_x, center_y, step, hit.control, hit.day_index);
             }
-            assert(hit.control == WM_CALENDAR_CONTROL_DAY &&
-                   hit.day_index == index);
+            assert(hit.control == WM_CALENDAR_CONTROL_DAY && hit.day_index == index);
             wm_board_calendar_hover(calendar, hit);
             wm_board_calendar_advance(calendar, 1.0f);
         }
     }
     wm_board_calendar_hover(calendar,
-        (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NONE, 0});
+                            (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NONE, 0});
     wm_board_calendar_advance(calendar, 16.0f);
 }
 
@@ -191,8 +177,8 @@ int main(int argc, char **argv) {
     test_day_order_without_assets();
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char path[1024];
-    int length = snprintf(path, sizeof(path),
-                          "%s/layouts/cmnBtn/my_IplTop_e.json", assets);
+    int length =
+        snprintf(path, sizeof(path), "%s/layouts/cmnBtn/my_IplTop_e.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     FILE *check = fopen(path, "rb");
     if (!check) {
@@ -202,17 +188,16 @@ int main(int argc, char **argv) {
     fclose(check);
 
     WmPlatform *platform = (WmPlatform *)1;
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 32u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        platform, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 32u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
-    assert(wm_texture_cache_resolve(textures,
-        "textures/cmnBtn/my_arw_b.png", &arrow_textures[0]));
-    assert(wm_texture_cache_resolve(textures,
-        "textures/cmnBtn/my_arw_a.png", &arrow_textures[1]));
-    WmBoardCalendar *calendar = wm_board_calendar_create(
-        platform, assets, textures, fonts);
+    assert(wm_texture_cache_resolve(textures, "textures/cmnBtn/my_arw_b.png",
+                                    &arrow_textures[0]));
+    assert(wm_texture_cache_resolve(textures, "textures/cmnBtn/my_arw_a.png",
+                                    &arrow_textures[1]));
+    WmBoardCalendar *calendar =
+        wm_board_calendar_create(platform, assets, textures, fonts);
     assert(calendar);
     const WmBoardDate today = {2026, 9, 25};
     assert(wm_board_calendar_open(calendar, today, today));
@@ -227,17 +212,15 @@ int main(int argc, char **argv) {
     draw_arrows(calendar, settled);
     test_hit_draw_stability(calendar);
     test_day_hover_continuity(calendar);
-    assert(entering[0].x < middle[0].x &&
-           middle[0].x < settled[0].x);
-    assert(entering[1].x > middle[1].x &&
-           middle[1].x > settled[1].x);
+    assert(entering[0].x < middle[0].x && middle[0].x < settled[0].x);
+    assert(entering[1].x > middle[1].x && middle[1].x > settled[1].x);
     assert(entering[0].x + entering[0].width < 0.0f);
     assert(entering[1].x > WM_FRAME_WIDTH);
     assert(settled[0].x + settled[0].width > 0.0f);
     assert(settled[1].x < WM_FRAME_WIDTH);
 
     wm_board_calendar_hover(calendar,
-        (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NEXT, 0});
+                            (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NEXT, 0});
     wm_board_calendar_advance(calendar, 4.0f);
     draw_arrows(calendar, focused);
     assert(focused[1].height < settled[1].height * 0.8f);
@@ -246,8 +229,8 @@ int main(int argc, char **argv) {
     assert(fabsf(focused[0].x - settled[0].x) < 1.0f);
     assert(nearly_equal(focused[0].height, settled[0].height));
 
-    assert(wm_board_calendar_activate(calendar,
-        (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NEXT, 0}));
+    assert(wm_board_calendar_activate(
+        calendar, (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NEXT, 0}));
     wm_board_calendar_advance(calendar, 3.0f);
     draw_arrows(calendar, pressed);
     assert(pressed[0].x + pressed[0].width > 0.0f);
@@ -256,16 +239,16 @@ int main(int argc, char **argv) {
     assert(wm_board_calendar_phase(calendar) == WM_CALENDAR_IDLE);
 
     wm_board_calendar_hover(calendar,
-        (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NONE, 0});
+                            (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NONE, 0});
     wm_board_calendar_advance(calendar, 15.0f);
     wm_board_calendar_hover(calendar,
-        (WmBoardCalendarHit){WM_CALENDAR_CONTROL_PREVIOUS, 0});
+                            (WmBoardCalendarHit){WM_CALENDAR_CONTROL_PREVIOUS, 0});
     wm_board_calendar_advance(calendar, 4.0f);
     draw_arrows(calendar, left_focused);
     assert(left_focused[0].height < settled[0].height * 0.8f);
     assert(nearly_equal(left_focused[1].height, settled[1].height));
     wm_board_calendar_hover(calendar,
-        (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NONE, 0});
+                            (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NONE, 0});
     wm_board_calendar_advance(calendar, 15.0f);
     assert(wm_board_calendar_back(calendar));
     wm_board_calendar_advance(calendar, 5.0f);

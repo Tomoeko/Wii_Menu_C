@@ -48,40 +48,36 @@ typedef struct WmBoardReaderScroll {
  * Reconfiguration resets scroll, arrows, focus, and the movement sound. */
 void wm_board_reader_scroll_reset(WmBoardReaderScroll *scroll);
 bool wm_board_reader_scroll_configure(WmBoardReaderScroll *scroll,
-                                       size_t measured_lines,
-                                       float body_height,
-                                       float header_height,
-                                       float footer_height);
+                                      size_t measured_lines, float body_height,
+                                      float header_height, float footer_height);
 
 /* Appearance can outlive interactive reading during the Back/Trash press.
  * Phase changes do not cancel an already started movement, matching Scroller. */
-void wm_board_reader_scroll_set_active(WmBoardReaderScroll *scroll,
-                                        bool active);
+void wm_board_reader_scroll_set_active(WmBoardReaderScroll *scroll, bool active);
 /* Silence an in-progress scroll when leaving the reader, while the arrows
  * remain posed until the authored close animation starts. */
 void wm_board_reader_scroll_set_sound_enabled(WmBoardReaderScroll *scroll,
-                                               bool enabled);
-bool wm_board_reader_scroll_advance(WmBoardReaderScroll *scroll,
-                                     float frames);
+                                              bool enabled);
+bool wm_board_reader_scroll_advance(WmBoardReaderScroll *scroll, float frames);
 bool wm_board_reader_scroll_hover(WmBoardReaderScroll *scroll,
-                                   WmBoardReaderArrow arrow);
+                                  WmBoardReaderArrow arrow);
 bool wm_board_reader_scroll_press(WmBoardReaderScroll *scroll,
-                                   WmBoardReaderArrow arrow);
+                                  WmBoardReaderArrow arrow);
 
 /* The display arrows map up to B_ArwR and down to B_ArwL. Supply their
  * current source rectangles after posing my_Memo_a to hit test. */
 const char *wm_board_reader_scroll_pane(WmBoardReaderArrow arrow);
 bool wm_board_reader_scroll_arrow_visible(const WmBoardReaderScroll *scroll,
-                                           WmBoardReaderArrow arrow);
-WmBoardReaderArrow wm_board_reader_scroll_hit(
-    const WmBoardReaderScroll *scroll, float x, float y,
-    const WmSourceRect *up, const WmSourceRect *down);
+                                          WmBoardReaderArrow arrow);
+WmBoardReaderArrow wm_board_reader_scroll_hit(const WmBoardReaderScroll *scroll,
+                                              float x, float y, const WmSourceRect *up,
+                                              const WmSourceRect *down);
 
 /* Append these after SelectLetter/ExitLetter and G_ArwRoop. Four clips are
  * always needed; up to two additional press clips may be active. If capacity
  * is too small, returns the required count without writing partial output. */
 size_t wm_board_reader_scroll_clips(const WmBoardReaderScroll *scroll,
-                                     WmLayoutClip *clips, size_t capacity);
+                                    WmLayoutClip *clips, size_t capacity);
 
 size_t wm_board_reader_scroll_line_count(const WmBoardReaderScroll *scroll);
 size_t wm_board_reader_scroll_repeated_rows(const WmBoardReaderScroll *scroll);

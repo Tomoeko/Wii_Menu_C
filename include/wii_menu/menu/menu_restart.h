@@ -29,9 +29,10 @@ float wm_menu_restart_alpha(const WmMenuRestartClock *clock);
 
 typedef struct WmMenuRestartScene WmMenuRestartScene;
 
-WmMenuRestartScene *wm_menu_restart_scene_create(
-    WmPlatform *platform, const char *assets_directory,
-    WmTextureCache *textures, WmFontCache *fonts);
+WmMenuRestartScene *wm_menu_restart_scene_create(WmPlatform *platform,
+                                                 const char *assets_directory,
+                                                 WmTextureCache *textures,
+                                                 WmFontCache *fonts);
 void wm_menu_restart_scene_destroy(WmMenuRestartScene *scene);
 void wm_menu_restart_scene_draw(WmMenuRestartScene *scene,
                                 const WmMenuRestartClock *clock);

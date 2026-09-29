@@ -49,11 +49,10 @@ typedef enum WmBoardComposeControl {
     WM_COMPOSE_CONTROL_NETWORK_QUIT,
     WM_COMPOSE_CONTROL_NETWORK_SETTINGS,
     WM_COMPOSE_CONTROL_ADDRESS_ENTRY_FIRST,
-    WM_COMPOSE_CONTROL_ADDRESS_ENTRY_LAST =
-        WM_COMPOSE_CONTROL_ADDRESS_ENTRY_FIRST + 4,
+    WM_COMPOSE_CONTROL_ADDRESS_ENTRY_LAST = WM_COMPOSE_CONTROL_ADDRESS_ENTRY_FIRST + 4,
     WM_COMPOSE_CONTROL_KEY_FIRST = 100,
-    WM_COMPOSE_CONTROL_KEY_LAST = WM_COMPOSE_CONTROL_KEY_FIRST +
-                                  WM_KEYBOARD_CONTROL_LAST - 1
+    WM_COMPOSE_CONTROL_KEY_LAST =
+        WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_CONTROL_LAST - 1
 } WmBoardComposeControl;
 
 typedef struct WmBoardComposeScrollState {
@@ -74,13 +73,12 @@ typedef enum WmBoardComposeOutcome {
 } WmBoardComposeOutcome;
 
 WmBoardCompose *wm_board_compose_create(WmPlatform *platform,
-                                         const char *assets_directory,
-                                         WmTextureCache *textures,
-                                         WmFontCache *fonts);
+                                        const char *assets_directory,
+                                        WmTextureCache *textures, WmFontCache *fonts);
 void wm_board_compose_destroy(WmBoardCompose *compose);
-WmBoardContactStoreStatus wm_board_compose_load_contacts(
-    WmBoardCompose *compose, const char *path,
-    char *error, size_t error_capacity);
+WmBoardContactStoreStatus wm_board_compose_load_contacts(WmBoardCompose *compose,
+                                                         const char *path, char *error,
+                                                         size_t error_capacity);
 void wm_board_compose_reset(WmBoardCompose *compose);
 bool wm_board_compose_open(WmBoardCompose *compose);
 void wm_board_compose_advance(WmBoardCompose *compose, float frames);
@@ -90,8 +88,7 @@ float wm_board_compose_phase_frame(const WmBoardCompose *compose);
 float wm_board_compose_frames_to_boundary(const WmBoardCompose *compose);
 WmBoardComposeOutcome wm_board_compose_take_outcome(WmBoardCompose *compose);
 const char *wm_board_compose_take_key_cue(WmBoardCompose *compose);
-bool wm_board_compose_keyboard_overlay_visible(
-    const WmBoardCompose *compose);
+bool wm_board_compose_keyboard_overlay_visible(const WmBoardCompose *compose);
 const char *wm_board_compose_text(const WmBoardCompose *compose);
 /* The retired-service substitute's current modal text; NULL when closed. */
 const char *wm_board_compose_network_message(const WmBoardCompose *compose);
@@ -99,25 +96,22 @@ const char *wm_board_compose_network_message(const WmBoardCompose *compose);
  * only until pointer departure commits that key's cycle. */
 const char *wm_board_compose_display_text(WmBoardCompose *compose);
 void wm_board_compose_draw(WmBoardCompose *compose);
-WmBoardComposeControl wm_board_compose_hit(WmBoardCompose *compose,
-                                           int x, int y);
+WmBoardComposeControl wm_board_compose_hit(WmBoardCompose *compose, int x, int y);
 /* Text hits retain a UTF-8 insertion boundary until EDIT activation. Pointer
  * motion alone never changes the draft or its current insertion point. */
 size_t wm_board_compose_caret(const WmBoardCompose *compose);
 /* Physical arrow keys move the Memo insertion point by UTF-8 boundary or
  * by the source font's wrapped visual lines. */
 bool wm_board_compose_move_caret(WmBoardCompose *compose, WmKey direction);
-void wm_board_compose_hover(WmBoardCompose *compose,
-                            WmBoardComposeControl control);
-bool wm_board_compose_activate(WmBoardCompose *compose,
-                                WmBoardComposeControl control);
+void wm_board_compose_hover(WmBoardCompose *compose, WmBoardComposeControl control);
+bool wm_board_compose_activate(WmBoardCompose *compose, WmBoardComposeControl control);
 /* Wii Remote B reverses only a phone key's multitap cycle. */
 bool wm_board_compose_activate_secondary(WmBoardCompose *compose,
-                                          WmBoardComposeControl control);
+                                         WmBoardComposeControl control);
 /* Pointer-down ownership for the two source keytops that repeat while held.
  * Successful hold performs the first edit immediately. */
 bool wm_board_compose_hold_control(WmBoardCompose *compose,
-                                    WmBoardComposeControl control);
+                                   WmBoardComposeControl control);
 void wm_board_compose_release_control(WmBoardCompose *compose);
 bool wm_board_compose_back(WmBoardCompose *compose);
 /* The source book cover is page zero; numbered pages are one through twenty. */
@@ -127,17 +121,15 @@ const char *wm_board_compose_address_text(const WmBoardCompose *compose);
 
 /* First-party physical-key text path. The caller sends UTF-8 text produced by
  * its platform adapter; Backspace and Return are separate commands. */
-bool wm_board_compose_insert_text(WmBoardCompose *compose,
-                                   const char *utf8);
-void wm_board_compose_press_physical(WmBoardCompose *compose,
-                                      const char *utf8);
-void wm_board_compose_keyboard_modifiers(WmBoardCompose *compose,
-                                          bool shift_down, bool caps_lock_on);
+bool wm_board_compose_insert_text(WmBoardCompose *compose, const char *utf8);
+void wm_board_compose_press_physical(WmBoardCompose *compose, const char *utf8);
+void wm_board_compose_keyboard_modifiers(WmBoardCompose *compose, bool shift_down,
+                                         bool caps_lock_on);
 bool wm_board_compose_backspace(WmBoardCompose *compose);
 bool wm_board_compose_finish_edit(WmBoardCompose *compose);
 /* The Memo's display and two-line editor share a scroll position. The editor
  * arrows enter after the 30-frame edit transition and leave with its exit. */
 bool wm_board_compose_scroll_state(const WmBoardCompose *compose,
-                                    WmBoardComposeScrollState *state);
+                                   WmBoardComposeScrollState *state);
 
 #endif

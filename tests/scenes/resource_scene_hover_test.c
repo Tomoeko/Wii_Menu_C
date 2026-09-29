@@ -31,33 +31,32 @@ void wm_platform_draw_quad(WmPlatform *platform, const WmQuad *quad) {
     (void)quad;
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
     (void)vertices;
     (void)texture;
 }
 
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad) {
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     if (quad->texture_count == 0 || quad->textures[0] != focus_texture)
         return;
     float alpha = quad->vertices[0].color.a;
-    if (alpha <= 0.01f) return;
+    if (alpha <= 0.01f)
+        return;
     focus_quads++;
-    if (alpha > focus_alpha) focus_alpha = alpha;
+    if (alpha > focus_alpha)
+        focus_alpha = alpha;
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     assert(width > 0 && height > 0 && rgba);
     return next_texture++;
@@ -82,14 +81,11 @@ void wm_platform_destroy_texture(WmPlatform *platform, uint32_t texture) {
     (void)texture;
 }
 
-static void draw_hover(WmResourceScene *scene, const WmMenu *menu,
-                       float seconds, WmHit hover) {
+static void draw_hover(WmResourceScene *scene, const WmMenu *menu, float seconds,
+                       WmHit hover) {
     focus_quads = 0;
     focus_alpha = 0.0f;
-    const WmResourceSceneFrame frame = {
-        .elapsed_seconds = seconds,
-        .hover = hover
-    };
+    const WmResourceSceneFrame frame = {.elapsed_seconds = seconds, .hover = hover};
     wm_resource_scene_draw(scene, menu, &frame);
 }
 
@@ -102,15 +98,14 @@ int main(int argc, char **argv) {
         puts("Grid hover comparison skipped: prepared assets unavailable.");
         return 0;
     }
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 128u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        platform, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 128u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
-    assert(wm_texture_cache_resolve(textures,
-        "textures/chanSel/my_TV_f.png", &focus_texture));
-    WmResourceScene *scene = wm_resource_scene_create(
-        platform, assets, &menu, textures, fonts);
+    assert(wm_texture_cache_resolve(textures, "textures/chanSel/my_TV_f.png",
+                                    &focus_texture));
+    WmResourceScene *scene =
+        wm_resource_scene_create(platform, assets, &menu, textures, fonts);
     assert(scene);
 
     /* An occupied channel holds the final FocusOn frame without a blank or
@@ -119,13 +114,14 @@ int main(int argc, char **argv) {
     draw_hover(scene, &menu, 0.0f, channel);
     float steady_alpha = 0.0f;
     for (int frame = 6; frame <= 42; frame++) {
-        WmHit hit = wm_resource_scene_hit(
-            scene, &menu, 172 + frame % 5 - 2, 53 + frame % 3 - 1);
+        WmHit hit = wm_resource_scene_hit(scene, &menu, 172 + frame % 5 - 2,
+                                          53 + frame % 3 - 1);
         assert(hit.type == WM_HIT_CHANNEL && hit.slot == 0);
         draw_hover(scene, &menu, (float)frame / 60.0f, hit);
         assert(focus_quads > 0);
         assert(focus_alpha > 0.0f);
-        if (frame == 6) steady_alpha = focus_alpha;
+        if (frame == 6)
+            steady_alpha = focus_alpha;
         assert(fabsf(focus_alpha - steady_alpha) < 0.01f);
     }
 
@@ -140,8 +136,8 @@ int main(int argc, char **argv) {
         for (int x = 500; x < 640; x++) {
             if (wm_resource_scene_slot_at(scene, &menu, x, y) != 7)
                 continue;
-            if (wm_resource_scene_hit(scene, &menu, x, y).type !=
-                WM_HIT_PAGE_NEXT) continue;
+            if (wm_resource_scene_hit(scene, &menu, x, y).type != WM_HIT_PAGE_NEXT)
+                continue;
             found_overlap = true;
             arrow_x = x;
             arrow_y = y;
@@ -149,10 +145,8 @@ int main(int argc, char **argv) {
         }
     }
     assert(found_overlap);
-    draw_hover(scene, &menu, 0.8f,
-               (WmHit){WM_HIT_PAGE_NEXT, -1});
-    draw_hover(scene, &menu, 1.1f,
-               (WmHit){WM_HIT_PAGE_NEXT, -1});
+    draw_hover(scene, &menu, 0.8f, (WmHit){WM_HIT_PAGE_NEXT, -1});
+    draw_hover(scene, &menu, 1.1f, (WmHit){WM_HIT_PAGE_NEXT, -1});
     assert(wm_resource_scene_hit(scene, &menu, arrow_x, arrow_y).type ==
            WM_HIT_PAGE_NEXT);
 
@@ -166,13 +160,11 @@ int main(int argc, char **argv) {
      * capture; a changed channel label invalidates it even in the same slot. */
     wm_menu_init(&menu);
     wm_resource_scene_restart(scene);
-    WmPreviewScene *preview = wm_preview_scene_create(
-        platform, assets, &menu, textures, fonts);
+    WmPreviewScene *preview =
+        wm_preview_scene_create(platform, assets, &menu, textures, fonts);
     assert(preview);
-    WmResourceSceneFrame frame = {
-        .hover = {WM_HIT_CHANNEL, 0},
-        .preview_scene = preview
-    };
+    WmResourceSceneFrame frame = {.hover = {WM_HIT_CHANNEL, 0},
+                                  .preview_scene = preview};
     capture_count = 0;
     frame.elapsed_seconds = 2.0f;
     wm_resource_scene_draw(scene, &menu, &frame);

@@ -19,8 +19,8 @@ typedef struct WmTpl {
     size_t count;
 } WmTpl;
 
-bool wm_tpl_decode(const uint8_t *data, size_t size, WmTpl *tpl,
-                   char *error, size_t error_size);
+bool wm_tpl_decode(const uint8_t *data, size_t size, WmTpl *tpl, char *error,
+                   size_t error_size);
 void wm_tpl_free(WmTpl *tpl);
 
 #endif

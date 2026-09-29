@@ -7,14 +7,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct WmPlatform { unsigned marker; };
+struct WmPlatform {
+    unsigned marker;
+};
 
 static unsigned texture_creates;
 static unsigned texture_destroys;
 static unsigned draws;
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     assert(platform && rgba && width >= 512 && height >= 512);
     texture_creates++;
     return texture_creates;
@@ -43,13 +45,12 @@ static void put32(uint8_t *bytes, size_t offset, unsigned value) {
 }
 
 static unsigned get32(const uint8_t *bytes, size_t offset) {
-    return ((unsigned)bytes[offset] << 24) |
-           ((unsigned)bytes[offset + 1] << 16) |
+    return ((unsigned)bytes[offset] << 24) | ((unsigned)bytes[offset + 1] << 16) |
            ((unsigned)bytes[offset + 2] << 8) | bytes[offset + 3];
 }
 
-static void directory(uint8_t *bytes, unsigned index, const char *name,
-                      unsigned offset, unsigned length) {
+static void directory(uint8_t *bytes, unsigned index, const char *name, unsigned offset,
+                      unsigned length) {
     size_t entry = 12 + (size_t)index * 16;
     memcpy(bytes + entry, name, 4);
     put32(bytes, entry + 8, offset);
@@ -69,12 +70,12 @@ static void make_font(uint8_t bytes[356]) {
     directory(bytes, 4, "loca", 240, 16);
     directory(bytes, 5, "glyf", 256, 52);
     directory(bytes, 6, "cmap", 312, 44);
-    put16(bytes, 128 + 18, 1000); /* units per em */
-    put16(bytes, 128 + 50, 1); /* 32-bit loca */
-    put16(bytes, 184 + 4, 3); /* numGlyphs */
-    put16(bytes, 192 + 4, 800); /* ascender */
+    put16(bytes, 128 + 18, 1000);                    /* units per em */
+    put16(bytes, 128 + 50, 1);                       /* 32-bit loca */
+    put16(bytes, 184 + 4, 3);                        /* numGlyphs */
+    put16(bytes, 192 + 4, 800);                      /* ascender */
     put16(bytes, 192 + 6, (unsigned)(uint16_t)-200); /* descender */
-    put16(bytes, 192 + 34, 3); /* horizontal metric count */
+    put16(bytes, 192 + 34, 3);                       /* horizontal metric count */
     put16(bytes, 228, 500);
     put16(bytes, 232, 600);
     put16(bytes, 236, 600);
@@ -83,10 +84,10 @@ static void make_font(uint8_t bytes[356]) {
     put32(bytes, 248, 34);
     put32(bytes, 252, 52);
 
-    put16(bytes, 256, 1); /* one simple contour */
-    put16(bytes, 256 + 6, 500); /* xMax */
-    put16(bytes, 256 + 8, 700); /* yMax */
-    put16(bytes, 256 + 10, 3); /* final point */
+    put16(bytes, 256, 1);           /* one simple contour */
+    put16(bytes, 256 + 6, 500);     /* xMax */
+    put16(bytes, 256 + 8, 700);     /* yMax */
+    put16(bytes, 256 + 10, 3);      /* final point */
     memset(bytes + 256 + 14, 1, 4); /* all on-curve */
     put16(bytes, 256 + 20, 500);
     put16(bytes, 256 + 24, (unsigned)(uint16_t)-500);
@@ -128,25 +129,23 @@ int main(void) {
     assert(wm_outline_font_raster(font, 'B', 20, &compound));
     assert(first.width == 10 && first.height == 14 && first.left == 0 &&
            first.top == 14 && fabsf(first.advance - 12.0f) < 0.001f);
-    assert(compound.width == first.width &&
-           compound.height == first.height);
-    assert(memcmp(first.alpha, compound.alpha,
-                  (size_t)first.width * first.height) == 0);
-    for (size_t index = 0; index < (size_t)first.width * first.height;
-         index++) assert(first.alpha[index] == 255);
-    assert(fabsf(wm_outline_font_text_width(font, "AB", 20) - 24.0f)
-           < 0.001f);
+    assert(compound.width == first.width && compound.height == first.height);
+    assert(memcmp(first.alpha, compound.alpha, (size_t)first.width * first.height) ==
+           0);
+    for (size_t index = 0; index < (size_t)first.width * first.height; index++)
+        assert(first.alpha[index] == 255);
+    assert(fabsf(wm_outline_font_text_width(font, "AB", 20) - 24.0f) < 0.001f);
     wm_outline_bitmap_free(&first);
     wm_outline_bitmap_free(&compound);
 
     struct WmPlatform platform = {1};
     assert(wm_outline_font_draw_line(font, &platform, "AB", 20, 10, 20,
-                                     WM_FONT_ALIGN_LEFT, 1, 0,
-                                     (WmColor){1, 1, 1, 1}, false));
+                                     WM_FONT_ALIGN_LEFT, 1, 0, (WmColor){1, 1, 1, 1},
+                                     false));
     assert(texture_creates == 1 && draws == 2);
     assert(wm_outline_font_draw_line(font, &platform, "A", 20, 10, 20,
-                                     WM_FONT_ALIGN_LEFT, 1, 0,
-                                     (WmColor){1, 1, 1, 1}, false));
+                                     WM_FONT_ALIGN_LEFT, 1, 0, (WmColor){1, 1, 1, 1},
+                                     false));
     assert(texture_creates == 1 && draws == 3);
     wm_outline_font_destroy(font, &platform);
     assert(texture_destroys == 1);
@@ -165,8 +164,7 @@ int main(void) {
         size_t offset = 20 + 12 + (size_t)table * 16 + 8;
         put32(collection, offset, 20 + get32(collection, offset));
     }
-    WmOutlineFont *second = wm_outline_font_decode(collection,
-                                                   sizeof(collection), 1);
+    WmOutlineFont *second = wm_outline_font_decode(collection, sizeof(collection), 1);
     assert(second);
     wm_outline_font_destroy(second, NULL);
     put32(collection, 16, 376); /* face 1 points past the TTC */
@@ -182,8 +180,8 @@ int main(void) {
         for (uint32_t codepoint = 32; codepoint < 256; codepoint++) {
             WmOutlineBitmap glyph = {0};
             assert(wm_outline_font_raster(original, codepoint, 24, &glyph));
-            for (size_t pixel = 0; pixel < (size_t)glyph.width *
-                                       glyph.height; pixel++) {
+            for (size_t pixel = 0; pixel < (size_t)glyph.width * glyph.height;
+                 pixel++) {
                 if (glyph.alpha[pixel]) {
                     inked_glyphs++;
                     break;
@@ -192,35 +190,31 @@ int main(void) {
             wm_outline_bitmap_free(&glyph);
         }
         assert(inked_glyphs > 150);
-        assert(wm_outline_font_text_width(original,
-                                          "Wii System Settings 1", 24)
-               > 150.0f);
-        assert(wm_outline_font_draw_line(original, &platform,
-                                         "Wii System Settings 1", 24,
-                                         32, 31, WM_FONT_ALIGN_LEFT, 1, 0,
-                                         (WmColor){0.2f, 0.2f, 0.2f, 1},
-                                         true));
+        assert(wm_outline_font_text_width(original, "Wii System Settings 1", 24) >
+               150.0f);
+        assert(wm_outline_font_draw_line(original, &platform, "Wii System Settings 1",
+                                         24, 32, 31, WM_FONT_ALIGN_LEFT, 1, 0,
+                                         (WmColor){0.2f, 0.2f, 0.2f, 1}, true));
         wm_outline_font_destroy(original, &platform);
     }
     const char *cff_font = getenv("WM_CFF_TEST_FONT");
     if (cff_font && cff_font[0]) {
         WmOutlineFont *otf = wm_outline_font_load(cff_font, 0);
         assert(otf);
-        const char *message =
-            "The system files are corrupted. Please refer to the Wii "
-            "Operations Manual for help troubleshooting.";
-        for (const unsigned char *cursor =
-                 (const unsigned char *)message; *cursor; cursor++) {
+        const char *message = "The system files are corrupted. Please refer to the Wii "
+                              "Operations Manual for help troubleshooting.";
+        for (const unsigned char *cursor = (const unsigned char *)message; *cursor;
+             cursor++) {
             WmOutlineBitmap bitmap = {0};
             if (!wm_outline_font_raster(otf, *cursor, 94, &bitmap)) {
                 fprintf(stderr, "CFF glyph U+%04X failed.\n", *cursor);
                 abort();
             }
-            if (*cursor != ' ') assert(bitmap.width && bitmap.height);
+            if (*cursor != ' ')
+                assert(bitmap.width && bitmap.height);
             wm_outline_bitmap_free(&bitmap);
         }
-        assert(wm_outline_font_text_width(otf, "The system files", 94)
-               > 500.0f);
+        assert(wm_outline_font_text_width(otf, "The system files", 94) > 500.0f);
         wm_outline_font_destroy(otf, NULL);
     }
     puts("Outline SFNT parsing, simple/compound raster, and atlas reuse passed.");

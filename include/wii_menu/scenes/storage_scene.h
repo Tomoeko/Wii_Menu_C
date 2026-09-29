@@ -16,10 +16,7 @@ typedef enum WmStorageKind {
     WM_STORAGE_GAMECUBE_SAVES
 } WmStorageKind;
 
-typedef enum WmStorageTab {
-    WM_STORAGE_WII,
-    WM_STORAGE_SD
-} WmStorageTab;
+typedef enum WmStorageTab { WM_STORAGE_WII, WM_STORAGE_SD } WmStorageTab;
 
 typedef enum WmStorageMediumStatus {
     WM_STORAGE_READY,
@@ -115,10 +112,9 @@ typedef struct WmStorageSnapshot {
 bool wm_storage_manageable_channel(const char *id, bool has_icon);
 
 WmStorageScene *wm_storage_scene_create(WmPlatform *platform,
-                                         const char *assets_directory,
-                                         WmTextureCache *textures,
-                                         WmFontCache *fonts,
-                                         WmStorageKind kind);
+                                        const char *assets_directory,
+                                        WmTextureCache *textures, WmFontCache *fonts,
+                                        WmStorageKind kind);
 void wm_storage_scene_destroy(WmStorageScene *scene);
 
 /* Input records are copied. Channel media filter non-manageable system titles
@@ -126,9 +122,9 @@ void wm_storage_scene_destroy(WmStorageScene *scene);
  * Data medium defaults to a synthetic dummy save; GameCube Slot B defaults
  * to absent. */
 bool wm_storage_scene_set_medium(WmStorageScene *scene, WmStorageTab tab,
-                                  WmStorageMediumStatus status,
-                                  const WmStorageRecord *records,
-                                  size_t count, unsigned free_blocks);
+                                 WmStorageMediumStatus status,
+                                 const WmStorageRecord *records, size_t count,
+                                 unsigned free_blocks);
 bool wm_storage_scene_open(WmStorageScene *scene, WmStorageTab initial_tab);
 void wm_storage_scene_advance(WmStorageScene *scene, float frames);
 WmStorageSnapshot wm_storage_scene_snapshot(const WmStorageScene *scene);
@@ -142,8 +138,8 @@ bool wm_storage_scene_back(WmStorageScene *scene);
  * makes no NAND, SD, or save-file changes. The caller handles any explicit
  * local persistence. */
 WmStorageAction wm_storage_scene_take_action(WmStorageScene *scene,
-                                              WmStorageOperation *operation,
-                                              WmStorageRecord *record);
+                                             WmStorageOperation *operation,
+                                             WmStorageRecord *record);
 /* True once when a held populated slot opens its native title balloon. */
 bool wm_storage_scene_take_balloon_cue(WmStorageScene *scene);
 /* True once when an operation's confirmation window starts rising. */

@@ -39,8 +39,8 @@ int main(void) {
     assert(snprintf(first, sizeof(first), "%s/channels.json", root) > 0);
     assert(snprintf(second, sizeof(second), "%s/layouts/menu.json", root) > 0);
     assert(snprintf(state, sizeof(state), "%s/.board-memos.json", root) > 0);
-    assert(snprintf(manifest, sizeof(manifest), "%s/%s", root,
-                    WM_ASSET_MANIFEST_NAME) > 0);
+    assert(snprintf(manifest, sizeof(manifest), "%s/%s", root, WM_ASSET_MANIFEST_NAME) >
+           0);
     assert(mkdir(nested, 0700) == 0);
     write_file(first, "catalog");
     write_file(second, "layout");

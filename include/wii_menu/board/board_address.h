@@ -103,13 +103,12 @@ typedef enum WmBoardAddressContactAction {
 /* The offline Address Book begins at its closed cover, page zero. Numbered
  * pages one through twenty each hold five local contact slots. */
 WmBoardAddress *wm_board_address_create(WmPlatform *platform,
-                                         const char *assets_directory,
-                                         WmTextureCache *textures,
-                                         WmFontCache *fonts);
+                                        const char *assets_directory,
+                                        WmTextureCache *textures, WmFontCache *fonts);
 void wm_board_address_destroy(WmBoardAddress *address);
-WmBoardContactStoreStatus wm_board_address_load_contacts(
-    WmBoardAddress *address, const char *path,
-    char *error, size_t error_capacity);
+WmBoardContactStoreStatus wm_board_address_load_contacts(WmBoardAddress *address,
+                                                         const char *path, char *error,
+                                                         size_t error_capacity);
 size_t wm_board_address_contact_count(const WmBoardAddress *address);
 bool wm_board_address_contact(const WmBoardAddress *address, size_t slot,
                               WmBoardContact *contact);
@@ -155,18 +154,16 @@ bool wm_board_address_dialog_active(const WmBoardAddress *address);
 bool wm_board_address_dialog_accept(WmBoardAddress *address);
 bool wm_board_address_dialog_choose(WmBoardAddress *address, bool yes);
 void wm_board_address_dialog_hover(WmBoardAddress *address, bool hovering);
-void wm_board_address_dialog_hover_choice(WmBoardAddress *address,
-                                          bool yes, bool hovering);
+void wm_board_address_dialog_hover_choice(WmBoardAddress *address, bool yes,
+                                          bool hovering);
 bool wm_board_address_form_hit(WmBoardAddress *address, int x, int y);
 bool wm_board_address_review_hit(WmBoardAddress *address, int x, int y);
 bool wm_board_address_dialog_hit(WmBoardAddress *address, int x, int y);
-bool wm_board_address_dialog_choice_hit(WmBoardAddress *address, int x,
-                                         int y, bool *yes);
+bool wm_board_address_dialog_choice_hit(WmBoardAddress *address, int x, int y,
+                                        bool *yes);
 void wm_board_address_draw_dialog(WmBoardAddress *address);
 /* Hit rectangles are provided by the extracted th_Adress_d source layout. */
-bool wm_board_address_kind_hit(WmBoardAddress *address, int x, int y,
-                                bool *wii);
-bool wm_board_address_entry_hit(WmBoardAddress *address, int x, int y,
-                                unsigned *row);
+bool wm_board_address_kind_hit(WmBoardAddress *address, int x, int y, bool *wii);
+bool wm_board_address_entry_hit(WmBoardAddress *address, int x, int y, unsigned *row);
 
 #endif

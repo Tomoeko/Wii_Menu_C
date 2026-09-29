@@ -40,26 +40,24 @@ void wm_platform_draw_quad(WmPlatform *platform, const WmQuad *quad) {
     (void)quad;
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
     (void)vertices;
     (void)texture;
 }
 
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad) {
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     if (quad->texture_count == 0 || quad->textures[0] != balloon_texture)
         return;
-    if (quad->vertices[0].color.a <= 0.01f) return;
+    if (quad->vertices[0].color.a <= 0.01f)
+        return;
     for (size_t index = 0; index < 4; index++) {
         const WmMaterialVertex *vertex = &quad->vertices[index];
         drawn.left = fminf(drawn.left, vertex->x);
@@ -71,8 +69,8 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
     drawn.quads++;
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     assert(width > 0 && height > 0 && rgba);
     return next_texture++;
@@ -96,37 +94,31 @@ void wm_platform_destroy_texture(WmPlatform *platform, uint32_t texture) {
     (void)texture;
 }
 
-static BalloonSample sample_with_fade(WmResourceScene *scene,
-                                      const WmMenu *menu, int frame,
-                                      WmHit hover, bool fading) {
+static BalloonSample sample_with_fade(WmResourceScene *scene, const WmMenu *menu,
+                                      int frame, WmHit hover, bool fading) {
     drawn = (BalloonSample){
-        .left = INFINITY, .right = -INFINITY,
-        .top = INFINITY, .bottom = -INFINITY
-    };
-    WmResourceSceneFrame scene_frame = {
-        .elapsed_seconds = (float)frame / 60.0f,
-        .hover = hover,
-        .suppress_balloons = fading
-    };
+        .left = INFINITY, .right = -INFINITY, .top = INFINITY, .bottom = -INFINITY};
+    WmResourceSceneFrame scene_frame = {.elapsed_seconds = (float)frame / 60.0f,
+                                        .hover = hover,
+                                        .suppress_balloons = fading};
     wm_resource_scene_draw(scene, menu, &scene_frame);
     drawn.cue = wm_resource_scene_take_balloon_sound(scene);
     return drawn;
 }
 
-static BalloonSample sample(WmResourceScene *scene, const WmMenu *menu,
-                            int frame, WmHit hover) {
+static BalloonSample sample(WmResourceScene *scene, const WmMenu *menu, int frame,
+                            WmHit hover) {
     return sample_with_fade(scene, menu, frame, hover, false);
 }
 
-static void expect_footer_position(BalloonSample state, float margin,
-                                   bool right_side, float y) {
+static void expect_footer_position(BalloonSample state, float margin, bool right_side,
+                                   float y) {
     assert(state.quads > 0);
     float actual_x = (state.left + state.right) * 0.5f;
     float actual_y = (state.top + state.bottom) * 0.5f;
     float logical_width = (state.right - state.left) * 832.0f / 640.0f;
-    float logical_x = right_side
-        ? 416.0f - margin - logical_width * 0.5f
-        : -416.0f + margin + logical_width * 0.5f;
+    float logical_x = right_side ? 416.0f - margin - logical_width * 0.5f
+                                 : -416.0f + margin + logical_width * 0.5f;
     /* N_Balloon's authored location adjustment compensates geometry, while
      * its translation still inherits the IPL root's 832/608 X scale. */
     float x = 320.0f + logical_x * 640.0f / 608.0f;
@@ -146,15 +138,14 @@ int main(int argc, char **argv) {
         puts("Footer balloon comparison skipped: prepared assets unavailable.");
         return 0;
     }
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 128u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        platform, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 128u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
-    assert(wm_texture_cache_resolve(textures,
-        "textures/balloon/my_Balloon_a.png", &balloon_texture));
-    WmResourceScene *scene = wm_resource_scene_create(
-        platform, assets, &menu, textures, fonts);
+    assert(wm_texture_cache_resolve(textures, "textures/balloon/my_Balloon_a.png",
+                                    &balloon_texture));
+    WmResourceScene *scene =
+        wm_resource_scene_create(platform, assets, &menu, textures, fonts);
     assert(scene);
 
     const WmHit settings = {WM_HIT_SETTINGS, -1};
@@ -183,23 +174,20 @@ int main(int argc, char **argv) {
     wm_resource_scene_restart(scene);
     sample(scene, &menu, 0, (WmHit){WM_HIT_NONE, -1});
     sample(scene, &menu, 0, (WmHit){WM_HIT_BOARD, -1});
-    BalloonSample board = sample(scene, &menu, 23,
-                                 (WmHit){WM_HIT_BOARD, -1});
+    BalloonSample board = sample(scene, &menu, 23, (WmHit){WM_HIT_BOARD, -1});
     expect_footer_position(board, 120.0f, true, 334.0f);
 
     wm_resource_scene_restart(scene);
     sample(scene, &menu, 0, (WmHit){WM_HIT_NONE, -1});
     sample(scene, &menu, 0, (WmHit){WM_HIT_SD, -1});
-    BalloonSample sd = sample(scene, &menu, 23,
-                              (WmHit){WM_HIT_SD, -1});
+    BalloonSample sd = sample(scene, &menu, 23, (WmHit){WM_HIT_SD, -1});
     expect_footer_position(sd, 200.0f, false, 350.0f);
 
     wm_resource_scene_restart(scene);
     sample(scene, &menu, 0, (WmHit){WM_HIT_NONE, -1});
     sample(scene, &menu, 0, settings);
     assert(sample(scene, &menu, 16, settings).quads == 0);
-    BalloonSample fading = sample_with_fade(scene, &menu, 17,
-                                            settings, true);
+    BalloonSample fading = sample_with_fade(scene, &menu, 17, settings, true);
     assert(fading.quads == 0 && !fading.cue);
     fading = sample_with_fade(scene, &menu, 40, settings, true);
     assert(fading.quads == 0 && !fading.cue);
@@ -224,8 +212,7 @@ int main(int argc, char **argv) {
     assert(sample(scene, &menu, 19, disc).quads == 0);
     assert(sample(scene, &menu, 20, disc).cue);
     assert(sample(scene, &menu, 28, disc).quads > 0);
-    assert(sample(scene, &menu, 29,
-                  (WmHit){WM_HIT_NONE, -1}).quads > 0);
+    assert(sample(scene, &menu, 29, (WmHit){WM_HIT_NONE, -1}).quads > 0);
     BalloonSample returning = sample(scene, &menu, 30, disc);
     assert(returning.quads > 0 && !returning.cue);
     assert(sample(scene, &menu, 35, disc).quads > 0);

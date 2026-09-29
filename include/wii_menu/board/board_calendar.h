@@ -35,16 +35,14 @@ typedef enum WmBoardCalendarOutcome {
 } WmBoardCalendarOutcome;
 
 WmBoardCalendar *wm_board_calendar_create(WmPlatform *platform,
-                                           const char *assets_directory,
-                                           WmTextureCache *textures,
-                                           WmFontCache *fonts);
+                                          const char *assets_directory,
+                                          WmTextureCache *textures, WmFontCache *fonts);
 void wm_board_calendar_destroy(WmBoardCalendar *calendar);
 void wm_board_calendar_reset(WmBoardCalendar *calendar);
 bool wm_board_calendar_open(WmBoardCalendar *calendar, WmBoardDate date,
-                             WmBoardDate today);
+                            WmBoardDate today);
 bool wm_board_calendar_set_message_dates(WmBoardCalendar *calendar,
-                                          const WmBoardDate *dates,
-                                          size_t count);
+                                         const WmBoardDate *dates, size_t count);
 void wm_board_calendar_advance(WmBoardCalendar *calendar, float frames);
 WmBoardCalendarPhase wm_board_calendar_phase(const WmBoardCalendar *calendar);
 /* Remaining frames in the current timed phase, or zero when stable. */
@@ -53,12 +51,9 @@ WmBoardDate wm_board_calendar_month(const WmBoardCalendar *calendar);
 WmBoardCalendarOutcome wm_board_calendar_take_outcome(WmBoardCalendar *calendar,
                                                       WmBoardDate *selected_date);
 void wm_board_calendar_draw(WmBoardCalendar *calendar);
-WmBoardCalendarHit wm_board_calendar_hit(WmBoardCalendar *calendar,
-                                         int x, int y);
-void wm_board_calendar_hover(WmBoardCalendar *calendar,
-                             WmBoardCalendarHit hit);
-bool wm_board_calendar_activate(WmBoardCalendar *calendar,
-                                 WmBoardCalendarHit hit);
+WmBoardCalendarHit wm_board_calendar_hit(WmBoardCalendar *calendar, int x, int y);
+void wm_board_calendar_hover(WmBoardCalendar *calendar, WmBoardCalendarHit hit);
+bool wm_board_calendar_activate(WmBoardCalendar *calendar, WmBoardCalendarHit hit);
 bool wm_board_calendar_back(WmBoardCalendar *calendar);
 
 #endif

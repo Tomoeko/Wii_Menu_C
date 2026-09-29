@@ -9,16 +9,15 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define CHECK(condition)                                                       \
-    do {                                                                       \
-        if (!(condition)) {                                                    \
-            fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #condition); \
-            abort();                                                           \
-        }                                                                      \
+#define CHECK(condition)                                                               \
+    do {                                                                               \
+        if (!(condition)) {                                                            \
+            fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #condition);            \
+            abort();                                                                   \
+        }                                                                              \
     } while (0)
 
-static void path_in(char output[512], const char *directory,
-                    const char *name) {
+static void path_in(char output[512], const char *directory, const char *name) {
     int length = snprintf(output, 512, "%s/%s", directory, name);
     CHECK(length > 0 && length < 512);
 }
@@ -64,77 +63,63 @@ int main(void) {
     char error[160];
     WmBoardContactStoreStatus status;
     FILE *output;
-    WmBoardContactStore *store = wm_board_contact_store_open(
-        fresh, &status, error, sizeof(error));
+    WmBoardContactStore *store =
+        wm_board_contact_store_open(fresh, &status, error, sizeof(error));
     CHECK(store && status == WM_BOARD_CONTACT_STORE_MISSING);
     CHECK(wm_board_contact_store_length(store) == 0);
     WmBoardContact email = {
-        .wii = false, .confirmed = true,
-        .address = "a+tag@b.c", .nickname = "Local"
-    };
+        .wii = false, .confirmed = true, .address = "a+tag@b.c", .nickname = "Local"};
     size_t slot = SIZE_MAX;
-    CHECK(wm_board_contact_store_register(store, email, &slot,
-                                            error, sizeof(error)));
+    CHECK(wm_board_contact_store_register(store, email, &slot, error, sizeof(error)));
     CHECK(slot == 0 && wm_board_contact_store_occupied(store) == 1);
     WmBoardContact read;
     CHECK(wm_board_contact_store_get(store, slot, &read));
-    CHECK(!read.wii && read.confirmed &&
-           strcmp(read.address, email.address) == 0 &&
-           strcmp(read.nickname, email.nickname) == 0);
-    CHECK(!wm_board_contact_store_register(store, email, &slot,
-                                             error, sizeof(error)));
+    CHECK(!read.wii && read.confirmed && strcmp(read.address, email.address) == 0 &&
+          strcmp(read.nickname, email.nickname) == 0);
+    CHECK(!wm_board_contact_store_register(store, email, &slot, error, sizeof(error)));
     CHECK(wm_board_contact_store_occupied(store) == 1);
     wm_board_contact_store_destroy(store);
 
     /* A successful write must remain within the loader's own size limit. */
     output = fopen(near_limit, "wb");
     CHECK(output);
-    const char *large_prefix =
-        "[{\"kind\":\"email\",\"address\":\"large@b\","
-        "\"nickname\":\"Large\",\"extra\":\"";
+    const char *large_prefix = "[{\"kind\":\"email\",\"address\":\"large@b\","
+                               "\"nickname\":\"Large\",\"extra\":\"";
     CHECK(fputs(large_prefix, output) >= 0);
     size_t filler = 512u * 1024u - strlen(large_prefix) - 3u - 20u;
     for (size_t index = 0; index < filler; index++)
         CHECK(fputc('a', output) == 'a');
     CHECK(fputs("\"}]", output) >= 0);
     CHECK(fclose(output) == 0);
-    store = wm_board_contact_store_open(near_limit, &status,
-                                        error, sizeof(error));
+    store = wm_board_contact_store_open(near_limit, &status, error, sizeof(error));
     CHECK(store && status == WM_BOARD_CONTACT_STORE_OK);
-    CHECK(!wm_board_contact_store_register(store, email, &slot,
-                                             error, sizeof(error)));
+    CHECK(!wm_board_contact_store_register(store, email, &slot, error, sizeof(error)));
     CHECK(wm_board_contact_store_occupied(store) == 1);
     wm_board_contact_store_destroy(store);
     CHECK(symlink(fresh, linked) == 0);
-    CHECK(!wm_board_contact_store_open(linked, &status, error,
-                                         sizeof(error)));
+    CHECK(!wm_board_contact_store_open(linked, &status, error, sizeof(error)));
     CHECK(status == WM_BOARD_CONTACT_STORE_ERROR);
     CHECK(unlink(linked) == 0);
-    store = wm_board_contact_store_open(fresh, &status, error,
-                                        sizeof(error));
+    store = wm_board_contact_store_open(fresh, &status, error, sizeof(error));
     CHECK(store && status == WM_BOARD_CONTACT_STORE_OK);
     CHECK(wm_board_contact_store_get(store, 0, &read));
     CHECK(strcmp(read.nickname, "Local") == 0);
     wm_board_contact_store_destroy(store);
 
-    write_text(legacy,
-        "[null,{\"kind\":\"email\",\"address\":\"older@b\","
-        "\"nickname\":\"Older\",\"confirmed\":false,"
-        "\"extra\":{\"kept\":true}},"
-        "{\"kind\":\"email\",\"address\":\"later@b\","
-        "\"nickname\":\"Later\"}]");
-    store = wm_board_contact_store_open(legacy, &status, error,
-                                        sizeof(error));
+    write_text(legacy, "[null,{\"kind\":\"email\",\"address\":\"older@b\","
+                       "\"nickname\":\"Older\",\"confirmed\":false,"
+                       "\"extra\":{\"kept\":true}},"
+                       "{\"kind\":\"email\",\"address\":\"later@b\","
+                       "\"nickname\":\"Later\"}]");
+    store = wm_board_contact_store_open(legacy, &status, error, sizeof(error));
     CHECK(store && status == WM_BOARD_CONTACT_STORE_OK);
     CHECK(wm_board_contact_store_length(store) == 3);
     CHECK(wm_board_contact_store_occupied(store) == 2);
     CHECK(!wm_board_contact_store_get(store, 0, &read));
     CHECK(wm_board_contact_store_get(store, 1, &read));
     CHECK(!read.confirmed);
-    CHECK(!wm_board_contact_store_rename(store, 1, "   ",
-                                           error, sizeof(error)));
-    CHECK(wm_board_contact_store_rename(store, 1, "New \"pal\"",
-                                          error, sizeof(error)));
+    CHECK(!wm_board_contact_store_rename(store, 1, "   ", error, sizeof(error)));
+    CHECK(wm_board_contact_store_rename(store, 1, "New \"pal\"", error, sizeof(error)));
     CHECK(wm_board_contact_store_get(store, 1, &read));
     CHECK(strcmp(read.nickname, "New \"pal\"") == 0);
     CHECK(!read.confirmed);
@@ -148,8 +133,7 @@ int main(void) {
     CHECK(!wm_board_contact_store_get(store, 1, &read));
     CHECK(wm_board_contact_store_get(store, 2, &read));
     CHECK(strcmp(read.nickname, "Later") == 0);
-    CHECK(wm_board_contact_store_register(store, email, &slot,
-                                            error, sizeof(error)));
+    CHECK(wm_board_contact_store_register(store, email, &slot, error, sizeof(error)));
     CHECK(slot == 0 && wm_board_contact_store_length(store) == 3);
     written = read_text(legacy);
     CHECK(strstr(written, "null,\n  {\"kind\":\"email\",\"address\":\"later@b\""));
@@ -157,33 +141,24 @@ int main(void) {
     wm_board_contact_store_destroy(store);
 
     write_text(malformed, "{\"contacts\":[]}");
-    store = wm_board_contact_store_open(malformed, &status, error,
-                                        sizeof(error));
+    store = wm_board_contact_store_open(malformed, &status, error, sizeof(error));
     CHECK(!store && status == WM_BOARD_CONTACT_STORE_ERROR);
     written = read_text(malformed);
     CHECK(strcmp(written, "{\"contacts\":[]}") == 0);
     free(written);
-    write_text(malformed,
-        "[{\"kind\":\"email\",\"address\":\"a@b\","
-        "\"nickname\":\"\\u0000bad\"}]");
-    CHECK(!wm_board_contact_store_open(malformed, &status, error,
-                                         sizeof(error)));
+    write_text(malformed, "[{\"kind\":\"email\",\"address\":\"a@b\","
+                          "\"nickname\":\"\\u0000bad\"}]");
+    CHECK(!wm_board_contact_store_open(malformed, &status, error, sizeof(error)));
 
-    write_text(malformed,
-        "[{\"kind\":\"email\",\"address\":\"a@b\\u0000hidden\","
-        "\"nickname\":\"Local\"}]");
-    CHECK(!wm_board_contact_store_open(malformed, &status, error,
-                                         sizeof(error)));
-    write_text(malformed,
-        "[{\"kind\":\"email\\u0000hidden\",\"address\":\"a@b\","
-        "\"nickname\":\"Local\"}]");
-    CHECK(!wm_board_contact_store_open(malformed, &status, error,
-                                         sizeof(error)));
-    write_text(malformed,
-        "[{\"kind\":\"email\",\"address\":\"a@b\","
-        "\"nickname\":\"\\\\u0000\"}]");
-    store = wm_board_contact_store_open(malformed, &status, error,
-                                        sizeof(error));
+    write_text(malformed, "[{\"kind\":\"email\",\"address\":\"a@b\\u0000hidden\","
+                          "\"nickname\":\"Local\"}]");
+    CHECK(!wm_board_contact_store_open(malformed, &status, error, sizeof(error)));
+    write_text(malformed, "[{\"kind\":\"email\\u0000hidden\",\"address\":\"a@b\","
+                          "\"nickname\":\"Local\"}]");
+    CHECK(!wm_board_contact_store_open(malformed, &status, error, sizeof(error)));
+    write_text(malformed, "[{\"kind\":\"email\",\"address\":\"a@b\","
+                          "\"nickname\":\"\\\\u0000\"}]");
+    store = wm_board_contact_store_open(malformed, &status, error, sizeof(error));
     CHECK(store && status == WM_BOARD_CONTACT_STORE_OK);
     CHECK(wm_board_contact_store_get(store, 0, &read));
     CHECK(strcmp(read.nickname, "\\u0000") == 0);
@@ -193,46 +168,38 @@ int main(void) {
     CHECK(output);
     CHECK(fputc('[', output) == '[');
     for (int index = 0; index < 101; index++) {
-        if (index) CHECK(fputc(',', output) == ',');
+        if (index)
+            CHECK(fputc(',', output) == ',');
         CHECK(fputs("null", output) >= 0);
     }
     CHECK(fputc(']', output) == ']');
     CHECK(fclose(output) == 0);
-    CHECK(!wm_board_contact_store_open(full, &status, error,
-                                         sizeof(error)));
+    CHECK(!wm_board_contact_store_open(full, &status, error, sizeof(error)));
 
     write_text(conflict, "[]");
-    store = wm_board_contact_store_open(conflict, &status, error,
-                                        sizeof(error));
+    store = wm_board_contact_store_open(conflict, &status, error, sizeof(error));
     CHECK(store && status == WM_BOARD_CONTACT_STORE_OK);
     CHECK(unlink(conflict) == 0);
     CHECK(symlink(fresh, conflict) == 0);
-    CHECK(!wm_board_contact_store_register(store, email, &slot,
-                                             error, sizeof(error)));
+    CHECK(!wm_board_contact_store_register(store, email, &slot, error, sizeof(error)));
     CHECK(unlink(conflict) == 0);
     write_text(conflict, "[null]");
-    CHECK(!wm_board_contact_store_register(store, email, &slot,
-                                             error, sizeof(error)));
+    CHECK(!wm_board_contact_store_register(store, email, &slot, error, sizeof(error)));
     CHECK(wm_board_contact_store_length(store) == 0);
     written = read_text(conflict);
     CHECK(strcmp(written, "[null]") == 0);
     free(written);
     wm_board_contact_store_destroy(store);
 
-    const char *stable_contact =
-        "[{\"kind\":\"email\",\"address\":\"stable@b\","
-        "\"nickname\":\"Before\",\"extra\":{\"kept\":true}}]";
+    const char *stable_contact = "[{\"kind\":\"email\",\"address\":\"stable@b\","
+                                 "\"nickname\":\"Before\",\"extra\":{\"kept\":true}}]";
     write_text(conflict, stable_contact);
-    store = wm_board_contact_store_open(conflict, &status,
-                                        error, sizeof(error));
+    store = wm_board_contact_store_open(conflict, &status, error, sizeof(error));
     CHECK(store && status == WM_BOARD_CONTACT_STORE_OK);
-    write_text(conflict,
-        "[{\"kind\":\"email\",\"address\":\"stable@b\","
-        "\"nickname\":\"Outside\"}]");
-    CHECK(!wm_board_contact_store_rename(store, 0, "Edited",
-                                           error, sizeof(error)));
-    CHECK(!wm_board_contact_store_erase(store, 0,
-                                          error, sizeof(error)));
+    write_text(conflict, "[{\"kind\":\"email\",\"address\":\"stable@b\","
+                         "\"nickname\":\"Outside\"}]");
+    CHECK(!wm_board_contact_store_rename(store, 0, "Edited", error, sizeof(error)));
+    CHECK(!wm_board_contact_store_erase(store, 0, error, sizeof(error)));
     CHECK(wm_board_contact_store_get(store, 0, &read));
     CHECK(strcmp(read.nickname, "Before") == 0);
     written = read_text(conflict);
@@ -241,8 +208,7 @@ int main(void) {
     /* Failed writes retain the original baseline and slot ownership. Once
      * the external edit is undone, a retry can still preserve extra fields. */
     write_text(conflict, stable_contact);
-    CHECK(wm_board_contact_store_rename(store, 0, "Retry",
-                                          error, sizeof(error)));
+    CHECK(wm_board_contact_store_rename(store, 0, "Retry", error, sizeof(error)));
     CHECK(wm_board_contact_store_get(store, 0, &read));
     CHECK(strcmp(read.nickname, "Retry") == 0);
     written = read_text(conflict);
@@ -251,12 +217,10 @@ int main(void) {
     wm_board_contact_store_destroy(store);
 
     CHECK(unlink(conflict) == 0);
-    store = wm_board_contact_store_open(conflict, &status, error,
-                                        sizeof(error));
+    store = wm_board_contact_store_open(conflict, &status, error, sizeof(error));
     CHECK(store && status == WM_BOARD_CONTACT_STORE_MISSING);
     write_text(conflict, "[]");
-    CHECK(!wm_board_contact_store_register(store, email, &slot,
-                                             error, sizeof(error)));
+    CHECK(!wm_board_contact_store_register(store, email, &slot, error, sizeof(error)));
     CHECK(wm_board_contact_store_length(store) == 0);
     wm_board_contact_store_destroy(store);
 

@@ -58,10 +58,8 @@ static void make_bns(uint8_t bytes[BNS_SIZE]) {
 
     memcpy(bytes + DATA_OFFSET, "DATA", 4);
     write_be32(bytes + DATA_OFFSET + 4, DATA_LENGTH);
-    const uint8_t encoded[16] = {
-        0x00, 0x17, 0x8f, 0, 0, 0, 0, 0,
-        0x00, 0xff, 0xf1, 0, 0, 0, 0, 0
-    };
+    const uint8_t encoded[16] = {0x00, 0x17, 0x8f, 0, 0, 0, 0, 0,
+                                 0x00, 0xff, 0xf1, 0, 0, 0, 0, 0};
     memcpy(bytes + DATA_OFFSET + 8, encoded, sizeof(encoded));
 }
 
@@ -97,19 +95,19 @@ int main(void) {
     const uint8_t frame[8] = {0, 0x17, 0x8f, 0, 0xff, 0, 0, 0};
     const int16_t zero_coefficients[16] = {0};
     int16_t samples[6];
-    assert(wm_dsp_decode(frame, sizeof(frame), 6, zero_coefficients,
-                         0, 0, samples, error, sizeof(error)));
+    assert(wm_dsp_decode(frame, sizeof(frame), 6, zero_coefficients, 0, 0, samples,
+                         error, sizeof(error)));
     const int16_t expected_dsp[6] = {1, 7, -8, -1, 0, 0};
     assert(memcmp(samples, expected_dsp, sizeof(samples)) == 0);
 
     int16_t history_coefficients[16] = {2048};
     const uint8_t saturation_frame[8] = {0, 0x11, 0, 0, 0, 0, 0, 0};
     assert(wm_dsp_decode(saturation_frame, sizeof(saturation_frame), 3,
-                         history_coefficients, 32766, 0,
-                         samples, error, sizeof(error)));
+                         history_coefficients, 32766, 0, samples, error,
+                         sizeof(error)));
     assert(samples[0] == 32767 && samples[1] == 32767 && samples[2] == 32767);
-    assert(!wm_dsp_decode(frame, 1, 1, zero_coefficients,
-                          0, 0, samples, error, sizeof(error)));
+    assert(!wm_dsp_decode(frame, 1, 1, zero_coefficients, 0, 0, samples, error,
+                          sizeof(error)));
     uint8_t invalid_predictor[8] = {0x80};
     assert(!wm_dsp_decode(invalid_predictor, sizeof(invalid_predictor), 1,
                           zero_coefficients, 0, 0, samples, error, sizeof(error)));
@@ -120,9 +118,8 @@ int main(void) {
     assert(wm_bns_decode(bns, sizeof(bns), &audio, error, sizeof(error)));
     assert(audio.channels == 2 && audio.sample_rate == 32000 && audio.frame_count == 6);
     assert(audio.looping && audio.loop_start == 2 && audio.loop_end == 6);
-    const int16_t expected_pcm[12] = {
-        101, 99, 108, 98, 100, 97, 99, 98, 99, 98, 99, 98
-    };
+    const int16_t expected_pcm[12] = {101, 99, 108, 98, 100, 97,
+                                      99,  98, 99,  98, 99,  98};
     assert(memcmp(audio.samples, expected_pcm, sizeof(expected_pcm)) == 0);
     wm_audio_pcm_free(&audio);
     assert(!audio.samples && !audio.frame_count);

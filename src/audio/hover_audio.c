@@ -23,10 +23,8 @@ const char *wm_hover_audio_menu_cue(WmHitType hit) {
 
 static bool keyboard_arrow(WmBoardControl control) {
     int key = (int)control - (int)WM_BOARD_CONTROL_COMPOSE_KEY_FIRST + 1;
-    return key == WM_KEYBOARD_SYMBOL_PREV ||
-           key == WM_KEYBOARD_SYMBOL_NEXT ||
-           key == WM_KEYBOARD_CANDIDATE_PREVIOUS ||
-           key == WM_KEYBOARD_CANDIDATE_NEXT;
+    return key == WM_KEYBOARD_SYMBOL_PREV || key == WM_KEYBOARD_SYMBOL_NEXT ||
+           key == WM_KEYBOARD_CANDIDATE_PREVIOUS || key == WM_KEYBOARD_CANDIDATE_NEXT;
 }
 
 const char *wm_hover_audio_board_cue(WmBoardControl control) {
@@ -36,8 +34,7 @@ const char *wm_hover_audio_board_cue(WmBoardControl control) {
     }
     if (control >= WM_BOARD_CONTROL_COMPOSE_KEY_FIRST &&
         control <= WM_BOARD_CONTROL_COMPOSE_KEY_LAST) {
-        return keyboard_arrow(control) ? "WIPL_SE_BOARD_FOCUS"
-                                       : "WIPL_SE_CHAR_FOCUS";
+        return keyboard_arrow(control) ? "WIPL_SE_BOARD_FOCUS" : "WIPL_SE_CHAR_FOCUS";
     }
     switch (control) {
         case WM_BOARD_CONTROL_NONE:

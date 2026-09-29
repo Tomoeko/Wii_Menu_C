@@ -22,8 +22,7 @@ EGLBoolean __real_eglSwapBuffers(EGLDisplay display, EGLSurface surface);
 
 /* Capture before the swap, where GLES2 guarantees the back buffer contents.
  * Linker wrapping keeps readback and test instrumentation out of the app. */
-EGLBoolean __wrap_eglSwapBuffers(EGLDisplay display, EGLSurface surface)
-{
+EGLBoolean __wrap_eglSwapBuffers(EGLDisplay display, EGLSurface surface) {
     EGLint width = 0, height = 0;
     assert(eglQuerySurface(display, surface, EGL_WIDTH, &width));
     assert(eglQuerySurface(display, surface, EGL_HEIGHT, &height));
@@ -41,7 +40,8 @@ EGLBoolean __wrap_eglSwapBuffers(EGLDisplay display, EGLSurface surface)
         for (size_t index = 0; index < size; index++) {
             if (pixels[index] != reference[frame_index][index]) {
                 fprintf(stderr, "Frame %u differs at byte %zu: %u instead of %u\n",
-                        frame_index, index, pixels[index], reference[frame_index][index]);
+                        frame_index, index, pixels[index],
+                        reference[frame_index][index]);
                 abort();
             }
         }
@@ -51,18 +51,22 @@ EGLBoolean __wrap_eglSwapBuffers(EGLDisplay display, EGLSurface surface)
     return __real_eglSwapBuffers(display, surface);
 }
 
-static void draw_quad(WmPlatform *platform, float x, float y, float width,
-                       float height, WmColor color, uint32_t texture)
-{
-    WmQuad quad = {
-        .x = x, .y = y, .width = width, .height = height,
-        .u0 = 0, .v0 = 0, .u1 = 1, .v1 = 1, .color = color, .texture = texture
-    };
+static void draw_quad(WmPlatform *platform, float x, float y, float width, float height,
+                      WmColor color, uint32_t texture) {
+    WmQuad quad = {.x = x,
+                   .y = y,
+                   .width = width,
+                   .height = height,
+                   .u0 = 0,
+                   .v0 = 0,
+                   .u1 = 1,
+                   .v1 = 1,
+                   .color = color,
+                   .texture = texture};
     wm_platform_draw_quad(platform, &quad);
 }
 
-static void draw_material(WmPlatform *platform, unsigned frame, uint32_t texture)
-{
+static void draw_material(WmPlatform *platform, unsigned frame, uint32_t texture) {
     WmMaterialQuad quad = {0};
     quad.texture_count = 1;
     quad.textures[0] = texture;
@@ -78,8 +82,8 @@ static void draw_material(WmPlatform *platform, unsigned frame, uint32_t texture
     quad.blend_mode[0] = 1;
     quad.blend_mode[1] = 4;
     quad.blend_mode[2] = 5;
-    const float xy[4][2] = {{170.2f, 121.3f}, {270.7f, 129.1f},
-                            {160.5f, 212.6f}, {280.8f, 218.7f}};
+    const float xy[4][2] = {
+        {170.2f, 121.3f}, {270.7f, 129.1f}, {160.5f, 212.6f}, {280.8f, 218.7f}};
     for (unsigned index = 0; index < 4; index++) {
         quad.vertices[index].x = xy[index][0];
         quad.vertices[index].y = xy[index][1];
@@ -106,23 +110,24 @@ static void draw_material(WmPlatform *platform, unsigned frame, uint32_t texture
     wm_platform_draw_material_quad(platform, &quad);
 }
 
-static void render_scene(int width, int height, bool retained)
-{
+static void render_scene(int width, int height, bool retained) {
     assert(setenv("WM_GLES2_RETAIN_FRAME", retained ? "1" : "0", 1) == 0);
-    WmPlatform *platform = wm_platform_create("Retained frame comparison", width, height);
+    WmPlatform *platform =
+        wm_platform_create("Retained frame comparison", width, height);
     assert(platform);
     if (retained) {
         EGLint behavior = EGL_BUFFER_DESTROYED;
         assert(eglQuerySurface(eglGetCurrentDisplay(), eglGetCurrentSurface(EGL_DRAW),
-                                EGL_SWAP_BEHAVIOR, &behavior));
+                               EGL_SWAP_BEHAVIOR, &behavior));
         if (behavior != EGL_BUFFER_PRESERVED) {
             wm_platform_destroy(platform);
-            puts("Retained frame comparison skipped: EGL cannot preserve window pixels.");
+            puts("Retained frame comparison skipped: EGL cannot preserve window "
+                 "pixels.");
             exit(77);
         }
     }
-    const uint8_t rgba[16] = {255, 32, 64, 80, 16, 200, 80, 255,
-                              48, 32, 230, 0, 240, 210, 16, 160};
+    const uint8_t rgba[16] = {255, 32, 64,  80, 16,  200, 80, 255,
+                              48,  32, 230, 0,  240, 210, 16, 160};
     uint32_t texture = wm_platform_create_texture(platform, 2, 2, rgba);
     uint32_t capture = wm_platform_create_render_texture(platform);
     assert(texture && capture);
@@ -130,7 +135,8 @@ static void render_scene(int width, int height, bool retained)
     recording_reference = !retained;
     for (unsigned frame = 0; frame < TEST_FRAMES; frame++) {
         if (frame == 0 || frame == 10) {
-            assert(wm_platform_begin_target(platform, capture, (WmColor){0.2f, 0.3f, 0.4f, 1}));
+            assert(wm_platform_begin_target(platform, capture,
+                                            (WmColor){0.2f, 0.3f, 0.4f, 1}));
             draw_quad(platform, 30, 30, 200, 100,
                       (WmColor){frame == 0 ? 0.6f : 0.9f, 0.8f, 0.4f, 0.5f}, texture);
             wm_platform_end(platform);
@@ -166,14 +172,15 @@ static void render_scene(int width, int height, bool retained)
     wm_platform_destroy(platform);
 }
 
-int main(void)
-{
-    if (!getenv("DISPLAY")) return 77;
+int main(void) {
+    if (!getenv("DISPLAY"))
+        return 77;
     const int sizes[2][2] = {{321, 241}, {960, 540}};
     for (size_t index = 0; index < 2; index++) {
         render_scene(sizes[index][0], sizes[index][1], false);
         render_scene(sizes[index][0], sizes[index][1], true);
-        for (size_t frame = 0; frame < TEST_FRAMES; frame++) free(reference[frame]);
+        for (size_t frame = 0; frame < TEST_FRAMES; frame++)
+            free(reference[frame]);
     }
     puts("Direct and retained GLES2 frames match byte for byte.");
     return 0;

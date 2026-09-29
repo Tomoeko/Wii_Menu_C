@@ -23,11 +23,13 @@ struct WmBoardContactStore {
 };
 
 static void set_error(char *error, size_t capacity, const char *message) {
-    if (error && capacity) snprintf(error, capacity, "%s", message);
+    if (error && capacity)
+        snprintf(error, capacity, "%s", message);
 }
 
 void wm_board_contact_store_destroy(WmBoardContactStore *store) {
-    if (!store) return;
+    if (!store)
+        return;
     for (size_t slot = 0; slot < store->length; slot++)
         free(store->slots[slot].source_json);
     free(store->baseline);
@@ -35,10 +37,11 @@ void wm_board_contact_store_destroy(WmBoardContactStore *store) {
     free(store);
 }
 
-WmBoardContactStore *wm_board_contact_store_open(
-    const char *path, WmBoardContactStoreStatus *status,
-    char *error, size_t error_capacity) {
-    if (status) *status = WM_BOARD_CONTACT_STORE_ERROR;
+WmBoardContactStore *wm_board_contact_store_open(const char *path,
+                                                 WmBoardContactStoreStatus *status,
+                                                 char *error, size_t error_capacity) {
+    if (status)
+        *status = WM_BOARD_CONTACT_STORE_ERROR;
     if (!path || !path[0] || strlen(path) >= 4096) {
         set_error(error, error_capacity, "Invalid Address Book path");
         return NULL;
@@ -56,10 +59,11 @@ WmBoardContactStore *wm_board_contact_store_open(
     }
     char *contents;
     size_t length;
-    WmRegularFileStatus read_status = wm_regular_file_read(
-        path, CONTACT_MAX_JSON_BYTES, &contents, &length);
+    WmRegularFileStatus read_status =
+        wm_regular_file_read(path, CONTACT_MAX_JSON_BYTES, &contents, &length);
     if (read_status == WM_REGULAR_FILE_MISSING) {
-        if (status) *status = WM_BOARD_CONTACT_STORE_MISSING;
+        if (status)
+            *status = WM_BOARD_CONTACT_STORE_MISSING;
         set_error(error, error_capacity, "");
         return store;
     }
@@ -87,7 +91,8 @@ WmBoardContactStore *wm_board_contact_store_open(
                 valid = false;
                 break;
             }
-            if (store->slots[slot].occupied) store->occupied++;
+            if (store->slots[slot].occupied)
+                store->occupied++;
         }
     }
     if (!valid) {
@@ -101,7 +106,8 @@ WmBoardContactStore *wm_board_contact_store_open(
     store->had_file = true;
     json.source = NULL;
     wm_json_free(&json);
-    if (status) *status = WM_BOARD_CONTACT_STORE_OK;
+    if (status)
+        *status = WM_BOARD_CONTACT_STORE_OK;
     set_error(error, error_capacity, "");
     return store;
 }
@@ -114,27 +120,27 @@ size_t wm_board_contact_store_occupied(const WmBoardContactStore *store) {
     return store ? store->occupied : 0;
 }
 
-bool wm_board_contact_store_get(const WmBoardContactStore *store,
-                                size_t slot, WmBoardContact *contact) {
-    if (!store || !contact || slot >= store->length ||
-        !store->slots[slot].occupied) return false;
+bool wm_board_contact_store_get(const WmBoardContactStore *store, size_t slot,
+                                WmBoardContact *contact) {
+    if (!store || !contact || slot >= store->length || !store->slots[slot].occupied)
+        return false;
     const StoredContact *stored = &store->slots[slot];
-    *contact = (WmBoardContact){
-        .wii = stored->wii,
-        .confirmed = stored->confirmed,
-        .address = stored->address,
-        .nickname = stored->nickname
-    };
+    *contact = (WmBoardContact){.wii = stored->wii,
+                                .confirmed = stored->confirmed,
+                                .address = stored->address,
+                                .nickname = stored->nickname};
     return true;
 }
 
 static bool baseline_unchanged(const WmBoardContactStore *store) {
     char *contents;
     size_t length;
-    WmRegularFileStatus status = wm_regular_file_read(
-        store->path, CONTACT_MAX_JSON_BYTES, &contents, &length);
-    if (status == WM_REGULAR_FILE_MISSING) return !store->had_file;
-    if (status != WM_REGULAR_FILE_OK) return false;
+    WmRegularFileStatus status =
+        wm_regular_file_read(store->path, CONTACT_MAX_JSON_BYTES, &contents, &length);
+    if (status == WM_REGULAR_FILE_MISSING)
+        return !store->had_file;
+    if (status != WM_REGULAR_FILE_OK)
+        return false;
     bool equal = store->had_file && length == store->baseline_length &&
                  memcmp(contents, store->baseline, length) == 0;
     free(contents);
@@ -142,18 +148,17 @@ static bool baseline_unchanged(const WmBoardContactStore *store) {
 }
 
 static bool write_replaced_slot(WmBoardContactStore *store, size_t slot,
-                                const char *replacement,
-                                char *error, size_t error_capacity) {
+                                const char *replacement, char *error,
+                                size_t error_capacity) {
     char *output = NULL;
     size_t output_length = 0;
-    if (!contact_build_array(store->slots, store->length, slot,
-                             replacement, &output, &output_length)) {
+    if (!contact_build_array(store->slots, store->length, slot, replacement, &output,
+                             &output_length)) {
         set_error(error, error_capacity, "Address Book is too large");
         return false;
     }
     if (!baseline_unchanged(store)) {
-        set_error(error, error_capacity,
-                  "Address Book changed; reload before saving");
+        set_error(error, error_capacity, "Address Book changed; reload before saving");
         free(output);
         return false;
     }
@@ -173,22 +178,21 @@ static bool write_replaced_slot(WmBoardContactStore *store, size_t slot,
 bool wm_board_contact_store_rename(WmBoardContactStore *store, size_t slot,
                                    const char *nickname, char *error,
                                    size_t error_capacity) {
-    if (!store || slot >= store->length ||
-        !store->slots[slot].occupied || !contact_nickname_valid(nickname)) {
+    if (!store || slot >= store->length || !store->slots[slot].occupied ||
+        !contact_nickname_valid(nickname)) {
         set_error(error, error_capacity, "Invalid Address Book nickname");
         return false;
     }
     const char *original = store->slots[slot].source_json;
     char *changed = NULL;
-    ContactRewriteStatus rewrite = contact_rewrite_nickname(
-        original, nickname, &changed);
+    ContactRewriteStatus rewrite =
+        contact_rewrite_nickname(original, nickname, &changed);
     if (rewrite == CONTACT_REWRITE_INVALID_SOURCE) {
         set_error(error, error_capacity, "Invalid Address Book contact");
         return false;
     }
     if (rewrite != CONTACT_REWRITE_OK) {
-        set_error(error, error_capacity,
-                  "Could not update Address Book nickname");
+        set_error(error, error_capacity, "Could not update Address Book nickname");
         return false;
     }
     if (!write_replaced_slot(store, slot, changed, error, error_capacity)) {
@@ -202,8 +206,8 @@ bool wm_board_contact_store_rename(WmBoardContactStore *store, size_t slot,
     return true;
 }
 
-bool wm_board_contact_store_erase(WmBoardContactStore *store, size_t slot,
-                                  char *error, size_t error_capacity) {
+bool wm_board_contact_store_erase(WmBoardContactStore *store, size_t slot, char *error,
+                                  size_t error_capacity) {
     if (!store || slot >= store->length || !store->slots[slot].occupied) {
         set_error(error, error_capacity, "Invalid Address Book slot");
         return false;
@@ -216,9 +220,8 @@ bool wm_board_contact_store_erase(WmBoardContactStore *store, size_t slot,
     return true;
 }
 
-bool wm_board_contact_store_register(WmBoardContactStore *store,
-                                     WmBoardContact contact, size_t *slot,
-                                     char *error, size_t error_capacity) {
+bool wm_board_contact_store_register(WmBoardContactStore *store, WmBoardContact contact,
+                                     size_t *slot, char *error, size_t error_capacity) {
     if (!store || !contact.address || !contact.nickname ||
         !contact_stored_address_valid(contact.wii, contact.address) ||
         !contact_nickname_valid(contact.nickname)) {
@@ -233,8 +236,7 @@ bool wm_board_contact_store_register(WmBoardContactStore *store,
     for (size_t index = 0; index < store->length; index++) {
         if (!store->slots[index].occupied && target == store->length)
             target = index;
-        if (store->slots[index].occupied &&
-            store->slots[index].wii == contact.wii &&
+        if (store->slots[index].occupied && store->slots[index].wii == contact.wii &&
             strcmp(store->slots[index].address, contact.address) == 0) {
             set_error(error, error_capacity, "Address Book contact already exists");
             return false;
@@ -249,8 +251,7 @@ bool wm_board_contact_store_register(WmBoardContactStore *store,
         set_error(error, error_capacity, "Address Book is too large");
         return false;
     }
-    if (!write_replaced_slot(store, target, canonical,
-                             error, error_capacity)) {
+    if (!write_replaced_slot(store, target, canonical, error, error_capacity)) {
         free(canonical);
         return false;
     }
@@ -259,12 +260,13 @@ bool wm_board_contact_store_register(WmBoardContactStore *store,
     saved->wii = contact.wii;
     saved->confirmed = true;
     snprintf(saved->address, sizeof(saved->address), "%s", contact.address);
-    snprintf(saved->nickname, sizeof(saved->nickname), "%s",
-             contact.nickname);
+    snprintf(saved->nickname, sizeof(saved->nickname), "%s", contact.nickname);
     saved->source_json = canonical;
-    if (target == store->length) store->length++;
+    if (target == store->length)
+        store->length++;
     store->occupied++;
-    if (slot) *slot = target;
+    if (slot)
+        *slot = target;
     set_error(error, error_capacity, "");
     return true;
 }

@@ -9,45 +9,34 @@
  * checked without linking a graphics backend. */
 static WmHit fallback;
 
-WmHit wm_ui_hit(const WmMenu *menu, int x, int y)
-{
+WmHit wm_ui_hit(const WmMenu *menu, int x, int y) {
     (void)menu;
     (void)x;
     (void)y;
     return fallback;
 }
 
-static bool near(float actual, float expected)
-{
+static bool near(float actual, float expected) {
     return fabsf(actual - expected) < 0.01f;
 }
 
-int main(void)
-{
+int main(void) {
     char error[160] = {0};
     WmLayout *grid = wm_layout_load_json("tests/fixtures/source_hit_fixture.json",
-                                          error, sizeof(error));
+                                         error, sizeof(error));
     assert(grid != NULL);
 
     WmSourceRect rect = {0};
-    assert(wm_source_pane_rect(grid, "N_Ch_c01", true, WM_LAYOUT_IPL,
-                                NULL, &rect));
+    assert(wm_source_pane_rect(grid, "N_Ch_c01", true, WM_LAYOUT_IPL, NULL, &rect));
     assert(near(rect.x, 320.0f + 60.0f * 640.0f / 608.0f));
     assert(near(rect.y, 178.0f));
     assert(near(rect.width, 80.0f * 640.0f / 608.0f));
     assert(near(rect.height, 100.0f));
-    assert(!wm_source_pane_rect(grid, "N_Ch_c02", true, WM_LAYOUT_IPL,
-                                 NULL, &rect));
+    assert(!wm_source_pane_rect(grid, "N_Ch_c02", true, WM_LAYOUT_IPL, NULL, &rect));
 
-    const float parent[12] = {
-        1, 0, 0, 50,
-        0, 1, 0, 0,
-        0, 0, 1, 0
-    };
-    assert(wm_source_pane_rect(grid, "N_Ch_c01", true, WM_LAYOUT_IPL,
-                                parent, &rect));
-    assert(near(rect.x, 320.0f + 60.0f * 640.0f / 608.0f +
-                        50.0f * 640.0f / 832.0f));
+    const float parent[12] = {1, 0, 0, 50, 0, 1, 0, 0, 0, 0, 1, 0};
+    assert(wm_source_pane_rect(grid, "N_Ch_c01", true, WM_LAYOUT_IPL, parent, &rect));
+    assert(near(rect.x, 320.0f + 60.0f * 640.0f / 608.0f + 50.0f * 640.0f / 832.0f));
 
     WmMenu menu = {0};
     menu.screen = WM_SCREEN_GRID;

@@ -130,20 +130,18 @@ struct WmBoardKeyboard {
     double held_fraction;
 };
 
-static inline bool wm_board_keyboard_press_pose_active(
-    const WmBoardKeyboard *keyboard, unsigned control) {
+static inline bool wm_board_keyboard_press_pose_active(const WmBoardKeyboard *keyboard,
+                                                       unsigned control) {
     const KeyboardFocus *focus = &keyboard->focus[control];
     return keyboard->press[control].active ||
            (focus->active && focus->from_press && !focus->resting);
 }
 
-static inline bool wm_board_keyboard_shift_active(
-    const WmBoardKeyboard *keyboard) {
+static inline bool wm_board_keyboard_shift_active(const WmBoardKeyboard *keyboard) {
     return keyboard->shift || keyboard->physical_shift;
 }
 
-static inline bool wm_board_keyboard_caps_active(
-    const WmBoardKeyboard *keyboard) {
+static inline bool wm_board_keyboard_caps_active(const WmBoardKeyboard *keyboard) {
     return keyboard->caps || keyboard->physical_caps;
 }
 
@@ -159,8 +157,7 @@ static inline bool is_keytop(WmBoardKeyboardControl control) {
 }
 
 static inline bool is_symbol(WmBoardKeyboardControl control) {
-    return control >= WM_KEYBOARD_SYMBOL_FIRST &&
-           control <= WM_KEYBOARD_SYMBOL_NEXT;
+    return control >= WM_KEYBOARD_SYMBOL_FIRST && control <= WM_KEYBOARD_SYMBOL_NEXT;
 }
 
 static inline bool is_phone_control(const WmBoardKeyboard *keyboard,
@@ -168,9 +165,8 @@ static inline bool is_phone_control(const WmBoardKeyboard *keyboard,
     return (control >= WM_KEYBOARD_PHONE_FIRST &&
             control <= WM_KEYBOARD_PHONE_MODE_LAST) ||
            (keyboard->phone_layout &&
-            (control == WM_KEYBOARD_DELETE ||
-             control == WM_KEYBOARD_RETURN || control == WM_KEYBOARD_MORE ||
-             control == WM_KEYBOARD_LANGUAGE));
+            (control == WM_KEYBOARD_DELETE || control == WM_KEYBOARD_RETURN ||
+             control == WM_KEYBOARD_MORE || control == WM_KEYBOARD_LANGUAGE));
 }
 
 static inline bool is_language_choice(WmBoardKeyboardControl control) {
@@ -186,29 +182,25 @@ static inline bool is_prediction_control(WmBoardKeyboardControl control) {
 
 static inline bool selected_tab(const WmBoardKeyboard *keyboard,
                                 WmBoardKeyboardControl control) {
-    if (control == WM_KEYBOARD_QWERTY) return !keyboard->phone_layout;
-    if (control == WM_KEYBOARD_PHONE) return keyboard->phone_layout;
-    return keyboard->phone_layout &&
-           control >= WM_KEYBOARD_PHONE_MODE_FIRST &&
+    if (control == WM_KEYBOARD_QWERTY)
+        return !keyboard->phone_layout;
+    if (control == WM_KEYBOARD_PHONE)
+        return keyboard->phone_layout;
+    return keyboard->phone_layout && control >= WM_KEYBOARD_PHONE_MODE_FIRST &&
            control <= WM_KEYBOARD_PHONE_MODE_LAST &&
-           (unsigned)(control - WM_KEYBOARD_PHONE_MODE_FIRST) ==
-               keyboard->phone_mode;
+           (unsigned)(control - WM_KEYBOARD_PHONE_MODE_FIRST) == keyboard->phone_mode;
 }
 
 /* The resource's symbol ordering is both displayed and inserted. Keep
  * presentation and activation indexed by the same immutable table. */
-extern const char *const
-    wm_board_keyboard_symbols[SYMBOL_PAGE_COUNT][SYMBOLS_PER_PAGE];
+extern const char *const wm_board_keyboard_symbols[SYMBOL_PAGE_COUNT][SYMBOLS_PER_PAGE];
 
 const char *wm_board_keyboard_phone_label(const WmBoardKeyboard *keyboard,
-                                           unsigned index,
-                                           char output[16]);
-unsigned wm_board_keyboard_candidate_next_index(
-    const WmBoardKeyboard *keyboard);
-char wm_board_keyboard_key_character(const WmBoardKeyboard *keyboard,
-                                     unsigned index);
+                                          unsigned index, char output[16]);
+unsigned wm_board_keyboard_candidate_next_index(const WmBoardKeyboard *keyboard);
+char wm_board_keyboard_key_character(const WmBoardKeyboard *keyboard, unsigned index);
 void wm_board_keyboard_pose_prediction(WmBoardKeyboard *keyboard);
-WmBoardKeyboardControl wm_board_keyboard_hit_unfiltered(
-    WmBoardKeyboard *keyboard, int x, int y);
+WmBoardKeyboardControl wm_board_keyboard_hit_unfiltered(WmBoardKeyboard *keyboard,
+                                                        int x, int y);
 
 #endif

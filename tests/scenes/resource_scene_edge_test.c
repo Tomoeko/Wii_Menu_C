@@ -32,11 +32,11 @@ static bool quad_intersects_visible_clip(const WmMaterialQuad *quad) {
         alpha = fmaxf(alpha, quad->vertices[index].color.a);
     }
     left = fmaxf(left, fmaxf(active_clip.x, 0.0f));
-    right = fminf(right, fminf(active_clip.x + active_clip.width,
-                               (float)WM_FRAME_WIDTH));
+    right =
+        fminf(right, fminf(active_clip.x + active_clip.width, (float)WM_FRAME_WIDTH));
     top = fmaxf(top, fmaxf(active_clip.y, 0.0f));
-    bottom = fminf(bottom, fminf(active_clip.y + active_clip.height,
-                                 (float)WM_FRAME_HEIGHT));
+    bottom = fminf(bottom,
+                   fminf(active_clip.y + active_clip.height, (float)WM_FRAME_HEIGHT));
     return left < right && top < bottom && alpha > 0.01f;
 }
 
@@ -52,12 +52,12 @@ void wm_platform_end(WmPlatform *platform) {
 void wm_platform_set_clip(WmPlatform *platform, const WmClipRect *clip) {
     (void)platform;
     clipped = clip != NULL;
-    if (!clipped) return;
+    if (!clipped)
+        return;
     active_clip = *clip;
     if (clip->x < 0.0f && clip->x + clip->width > 0.0f)
         left_edge_clips++;
-    if (clip->x < WM_FRAME_WIDTH &&
-        clip->x + clip->width > WM_FRAME_WIDTH)
+    if (clip->x < WM_FRAME_WIDTH && clip->x + clip->width > WM_FRAME_WIDTH)
         right_edge_clips++;
 }
 
@@ -66,28 +66,24 @@ void wm_platform_draw_quad(WmPlatform *platform, const WmQuad *quad) {
     (void)quad;
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
     (void)vertices;
     (void)texture;
 }
 
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad) {
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
-    if (!clipped || !quad->texture_count ||
-        !quad_intersects_visible_clip(quad)) return;
+    if (!clipped || !quad->texture_count || !quad_intersects_visible_clip(quad))
+        return;
     if (quad->textures[0] == empty_effect_texture) {
-        if (active_clip.x < 0.0f &&
-            active_clip.x + active_clip.width > 0.0f)
+        if (active_clip.x < 0.0f && active_clip.x + active_clip.width > 0.0f)
             left_edge_effect_quads++;
         if (active_clip.x < WM_FRAME_WIDTH &&
             active_clip.x + active_clip.width > WM_FRAME_WIDTH)
@@ -98,9 +94,9 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
         if (quad->textures[0] == empty_channel_textures[index])
             empty_art = true;
     }
-    if (!empty_art) return;
-    if (active_clip.x < 0.0f &&
-        active_clip.x + active_clip.width > 0.0f) {
+    if (!empty_art)
+        return;
+    if (active_clip.x < 0.0f && active_clip.x + active_clip.width > 0.0f) {
         left_edge_logo_quads++;
     }
     if (active_clip.x < WM_FRAME_WIDTH &&
@@ -109,8 +105,8 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
     }
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     assert(width > 0 && height > 0 && rgba);
     return next_texture++;
@@ -143,10 +139,8 @@ static void draw_edge(WmResourceScene *scene, const WmMenu *menu,
     left_edge_logo_quads = 0;
     right_edge_effect_quads = 0;
     left_edge_effect_quads = 0;
-    const WmResourceSceneFrame frame = {
-        .elapsed_seconds = elapsed_seconds,
-        .hover = {WM_HIT_NONE, -1}
-    };
+    const WmResourceSceneFrame frame = {.elapsed_seconds = elapsed_seconds,
+                                        .hover = {WM_HIT_NONE, -1}};
     wm_resource_scene_draw(scene, menu, &frame);
 }
 
@@ -161,28 +155,26 @@ int main(int argc, char **argv) {
     WmPlatform *platform = (WmPlatform *)1;
     WmMenu menu;
     wm_menu_init(&menu);
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 128u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        platform, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 128u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     for (size_t index = 0; index < 4; index++) {
         char path[80];
-        int length = snprintf(path, sizeof(path),
-            "textures/chanSel/my_TV_c_p%zu.png", index);
+        int length =
+            snprintf(path, sizeof(path), "textures/chanSel/my_TV_c_p%zu.png", index);
         assert(length > 0 && length < (int)sizeof(path));
-        if (!wm_texture_cache_resolve(textures, path,
-                                      &empty_channel_textures[index])) {
+        if (!wm_texture_cache_resolve(textures, path, &empty_channel_textures[index])) {
             puts("Grid edge source art test skipped: local WAD export absent.");
             wm_font_cache_destroy(fonts);
             wm_texture_cache_destroy(textures);
             return 0;
         }
     }
-    assert(wm_texture_cache_resolve(textures,
-        "textures/chanSel/my_TVSpe_a.png", &empty_effect_texture));
-    WmResourceScene *scene = wm_resource_scene_create(
-        platform, assets, &menu, textures, fonts);
+    assert(wm_texture_cache_resolve(textures, "textures/chanSel/my_TVSpe_a.png",
+                                    &empty_effect_texture));
+    WmResourceScene *scene =
+        wm_resource_scene_create(platform, assets, &menu, textures, fonts);
     assert(scene);
 
     draw_edge(scene, &menu, 0.0f);

@@ -21,8 +21,7 @@ typedef struct WmSavedLayout {
 
 /* Parse savedata::Manager RIPL v3 placement. The source's trailing MD5 is
  * checked before any slot is exposed. This is a data checksum, not a signature. */
-bool wm_saved_layout_parse(const uint8_t *bytes, size_t size,
-                            WmSavedLayout *layout, char *error,
-                            size_t error_capacity);
+bool wm_saved_layout_parse(const uint8_t *bytes, size_t size, WmSavedLayout *layout,
+                           char *error, size_t error_capacity);
 
 #endif

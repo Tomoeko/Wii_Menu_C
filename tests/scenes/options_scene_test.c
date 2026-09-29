@@ -41,14 +41,12 @@ void wm_platform_draw_quad(WmPlatform *platform, const WmQuad *quad) {
     assert(false);
 }
 
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad) {
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
     (void)vertices;
@@ -56,31 +54,27 @@ void wm_platform_draw_vertices(WmPlatform *platform,
     assert(capture_render);
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     assert(capture_render);
     const float left = quad->vertices[0].x;
     const float top = quad->vertices[0].y;
     const float width = quad->vertices[1].x - left;
-    if (left > 70.0f && left < 100.0f && top > 350.0f &&
-        top < 380.0f && width > 100.0f && width < 170.0f) {
+    if (left > 70.0f && left < 100.0f && top > 350.0f && top < 380.0f &&
+        width > 100.0f && width < 170.0f) {
         back_button_width = fmaxf(back_button_width, width);
     }
-    if (top > 119.0f && top < 125.0f &&
-        width > 190.0f && width < 205.0f) {
+    if (top > 119.0f && top < 125.0f && width > 190.0f && width < 205.0f) {
         if (left > 70.0f && left < 90.0f) {
-            left_tile_alpha = fmaxf(left_tile_alpha,
-                                    quad->vertices[0].color.a);
+            left_tile_alpha = fmaxf(left_tile_alpha, quad->vertices[0].color.a);
         } else if (left > 355.0f && left < 380.0f) {
-            right_tile_alpha = fmaxf(right_tile_alpha,
-                                     quad->vertices[0].color.a);
+            right_tile_alpha = fmaxf(right_tile_alpha, quad->vertices[0].color.a);
         }
     }
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     assert(width > 0 && height > 0 && rgba);
     return next_texture++;
@@ -94,7 +88,8 @@ void wm_platform_destroy_texture(WmPlatform *platform, uint32_t texture) {
 static bool has_hit(WmOptionsScene *scene, WmOptionsControl control) {
     for (int y = 0; y < WM_FRAME_HEIGHT; y += 8) {
         for (int x = 0; x < WM_FRAME_WIDTH; x += 8) {
-            if (wm_options_scene_hit(scene, x, y) == control) return true;
+            if (wm_options_scene_hit(scene, x, y) == control)
+                return true;
         }
     }
     return false;
@@ -167,10 +162,8 @@ static void test_save_data_leaf_handoffs(WmOptionsScene *scene) {
     assert(wm_options_scene_snapshot(scene).page == WM_OPTIONS_PAGE_SAVE);
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_WII));
     wm_options_scene_advance(scene, 40.0f);
-    assert(wm_options_scene_snapshot(scene).page ==
-           WM_OPTIONS_PAGE_WII_STORAGE);
-    assert(wm_options_scene_take_action(scene) ==
-           WM_OPTIONS_ACTION_WII_STORAGE);
+    assert(wm_options_scene_snapshot(scene).page == WM_OPTIONS_PAGE_WII_STORAGE);
+    assert(wm_options_scene_take_action(scene) == WM_OPTIONS_ACTION_WII_STORAGE);
     assert(wm_options_scene_take_action(scene) == WM_OPTIONS_ACTION_NONE);
     assert(wm_options_scene_back(scene));
     wm_options_scene_advance(scene, 20.0f);
@@ -178,10 +171,8 @@ static void test_save_data_leaf_handoffs(WmOptionsScene *scene) {
 
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_GAMECUBE));
     wm_options_scene_advance(scene, 40.0f);
-    assert(wm_options_scene_snapshot(scene).page ==
-           WM_OPTIONS_PAGE_GAMECUBE_STORAGE);
-    assert(wm_options_scene_take_action(scene) ==
-           WM_OPTIONS_ACTION_GAMECUBE_STORAGE);
+    assert(wm_options_scene_snapshot(scene).page == WM_OPTIONS_PAGE_GAMECUBE_STORAGE);
+    assert(wm_options_scene_take_action(scene) == WM_OPTIONS_ACTION_GAMECUBE_STORAGE);
     assert(wm_options_scene_back(scene));
     wm_options_scene_advance(scene, 20.0f);
     assert(wm_options_scene_snapshot(scene).page == WM_OPTIONS_PAGE_SAVE);
@@ -198,42 +189,32 @@ static void test_leaf_handoffs(WmOptionsScene *scene) {
     wm_options_scene_advance(scene, 32.0f);
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SYSTEM));
     wm_options_scene_advance(scene, 40.0f);
-    assert(wm_options_scene_snapshot(scene).page ==
-           WM_OPTIONS_PAGE_SYSTEM_SETTINGS);
-    assert(wm_options_scene_take_action(scene) ==
-           WM_OPTIONS_ACTION_NONE);
+    assert(wm_options_scene_snapshot(scene).page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS);
+    assert(wm_options_scene_take_action(scene) == WM_OPTIONS_ACTION_NONE);
     assert(wm_options_scene_hit(scene, 320, 228) == WM_OPTIONS_CONTROL_NONE);
     wm_options_scene_advance(scene, 21.0f);
-    assert(wm_options_scene_hit(scene, 320, 228) ==
-           WM_OPTIONS_CONTROL_SETTINGS_ITEM_3);
+    assert(wm_options_scene_hit(scene, 320, 228) == WM_OPTIONS_CONTROL_SETTINGS_ITEM_3);
     assert(!wm_options_scene_hover_cue(scene, WM_OPTIONS_CONTROL_NONE));
-    assert(strcmp(wm_options_scene_hover_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
-        "WIPL_SE_BT_TARGETTING") == 0);
-    assert(strcmp(wm_options_scene_hover_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3), "buttonHover") == 0);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
+    assert(strcmp(wm_options_scene_hover_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "WIPL_SE_BT_TARGETTING") == 0);
+    assert(strcmp(wm_options_scene_hover_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3),
+                  "buttonHover") == 0);
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
     wm_options_scene_advance(scene, 40.0f);
-    assert(wm_options_scene_hit(scene, 320, 228) ==
-           WM_OPTIONS_CONTROL_SETTINGS_ITEM_3);
-    assert(strcmp(wm_options_scene_hover_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_PREVIOUS),
-        "WIPL_SE_BT_TARGETTING") == 0);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2));
-    assert(wm_options_scene_take_action(scene) ==
-           WM_OPTIONS_ACTION_NONE);
+    assert(wm_options_scene_hit(scene, 320, 228) == WM_OPTIONS_CONTROL_SETTINGS_ITEM_3);
+    assert(
+        strcmp(wm_options_scene_hover_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_PREVIOUS),
+               "WIPL_SE_BT_TARGETTING") == 0);
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2));
+    assert(wm_options_scene_take_action(scene) == WM_OPTIONS_ACTION_NONE);
     assert(wm_options_scene_take_settings_category(scene) == 0);
     /* Back first returns from Sensor Bar to the Settings index, then leaves
      * the Settings stack. */
     assert(wm_options_scene_back(scene));
-    assert(wm_options_scene_snapshot(scene).page ==
-           WM_OPTIONS_PAGE_SYSTEM_SETTINGS);
+    assert(wm_options_scene_snapshot(scene).page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS);
     assert(wm_options_scene_back(scene));
     wm_options_scene_advance(scene, 20.0f);
-    assert(wm_options_scene_snapshot(scene).page ==
-           WM_OPTIONS_PAGE_SYSTEM_SETTINGS);
+    assert(wm_options_scene_snapshot(scene).page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS);
     assert(wm_options_scene_snapshot(scene).locked);
     wm_options_scene_advance(scene, 3.0f);
     assert(wm_options_scene_snapshot(scene).page == WM_OPTIONS_PAGE_OPTIONS);
@@ -247,8 +228,7 @@ static void test_leaf_handoffs(WmOptionsScene *scene) {
     wm_options_scene_advance(scene, 56.0f);
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_CHANNELS));
     wm_options_scene_advance(scene, 40.0f);
-    assert(wm_options_scene_take_action(scene) ==
-           WM_OPTIONS_ACTION_CHANNEL_STORAGE);
+    assert(wm_options_scene_take_action(scene) == WM_OPTIONS_ACTION_CHANNEL_STORAGE);
     assert(wm_options_scene_back(scene));
     wm_options_scene_advance(scene, 20.0f);
     assert(wm_options_scene_snapshot(scene).page == WM_OPTIONS_PAGE_DATA);
@@ -268,15 +248,13 @@ static void test_nickname_keyboard(WmOptionsScene *scene) {
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SYSTEM));
     wm_options_scene_advance(scene, 40.0f);
     wm_options_scene_advance(scene, 21.0f);
-    assert(wm_options_scene_snapshot(scene).page ==
-           WM_OPTIONS_PAGE_SYSTEM_SETTINGS);
+    assert(wm_options_scene_snapshot(scene).page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS);
     assert(!wm_options_scene_text_editing(scene));
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
     assert(!wm_options_scene_text_editing(scene));
     assert(wm_options_scene_place_nickname_caret(scene, 400));
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NICKNAME_FIELD));
+    assert(
+        wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_NICKNAME_FIELD));
     assert(wm_options_scene_text_editing(scene));
     assert(wm_options_scene_type_ascii(scene, 'h'));
     assert(wm_options_scene_backspace(scene));
@@ -287,8 +265,7 @@ static void test_nickname_keyboard(WmOptionsScene *scene) {
     assert(wm_options_scene_nickname_keyboard_visible(scene));
     wm_options_scene_advance(scene, 14.0f);
     assert(!wm_options_scene_nickname_keyboard_visible(scene));
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
     assert(!wm_options_scene_text_editing(scene));
     assert(!wm_options_scene_type_ascii(scene, 'h'));
 }
@@ -418,23 +395,20 @@ static void test_update_question_cue_context(WmOptionsScene *scene) {
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SYSTEM));
     wm_options_scene_advance(scene, 40.0f);
     wm_options_scene_advance(scene, 21.0f);
-    assert(wm_options_scene_snapshot(scene).page ==
-           WM_OPTIONS_PAGE_SYSTEM_SETTINGS);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_CANCEL") == 0);
+    assert(wm_options_scene_snapshot(scene).page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK),
+                  "WIPL_SE_CANCEL") == 0);
     for (unsigned page = 1; page < 3; page++) {
-        assert(wm_options_scene_activate(
-            scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
+        assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
         wm_options_scene_advance(scene, 40.0f);
     }
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3));
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3));
     wm_options_scene_advance(scene, 20.0f);
     assert(wm_options_scene_update_question(scene));
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_DECIDE") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT), "WIPL_SE_CANCEL") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK),
+                  "WIPL_SE_DECIDE") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "WIPL_SE_CANCEL") == 0);
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_BACK));
     wm_options_scene_advance(scene, 20.0f);
     assert(!wm_options_scene_update_question(scene));
@@ -447,29 +421,24 @@ static void test_user_agreements_click_cues(WmOptionsScene *scene) {
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SYSTEM));
     wm_options_scene_advance(scene, 40.0f);
     wm_options_scene_advance(scene, 21.0f);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
     wm_options_scene_advance(scene, 40.0f);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3));
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3));
     wm_options_scene_advance(scene, 20.0f);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3));
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3));
     wm_options_scene_advance(scene, 20.0f);
 
     /* The EULA's left Yes uses Decide; right No uses Cancel. */
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_DECIDE") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT), "WIPL_SE_CANCEL") == 0);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK),
+                  "WIPL_SE_DECIDE") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "WIPL_SE_CANCEL") == 0);
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
     wm_options_scene_advance(scene, 20.0f);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3));
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3));
     wm_options_scene_advance(scene, 20.0f);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_DECIDE") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK),
+                  "WIPL_SE_DECIDE") == 0);
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_BACK));
 }
 
@@ -480,89 +449,67 @@ static void test_internet_connection_click_cues(WmOptionsScene *scene) {
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SYSTEM));
     wm_options_scene_advance(scene, 40.0f);
     wm_options_scene_advance(scene, 21.0f);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
     wm_options_scene_advance(scene, 40.0f);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3));
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3));
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
 
     /* Connection slots use Decide; Back uses Cancel. */
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
-        "WIPL_SE_DECIDE") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_CANCEL") == 0);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
+                  "WIPL_SE_DECIDE") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK),
+                  "WIPL_SE_CANCEL") == 0);
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
 
     /* Wireless and Wired use Decide; Back uses Cancel. */
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
-        "WIPL_SE_DECIDE") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2),
-        "WIPL_SE_DECIDE") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_CANCEL") == 0);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
+                  "WIPL_SE_DECIDE") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2),
+                  "WIPL_SE_DECIDE") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK),
+                  "WIPL_SE_CANCEL") == 0);
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
 
     /* Search uses Decide; Back uses Cancel. */
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
-        "WIPL_SE_DECIDE") == 0);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
+                  "WIPL_SE_DECIDE") == 0);
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
     wm_options_scene_advance(scene, 60.0f);
     /* The No Access Point OK action uses Decide. */
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
-        "WIPL_SE_DECIDE") == 0);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "WIPL_SE_DECIDE") == 0);
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
 
     /* Opening the USB Connector instructions uses Decide. */
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2),
-        "WIPL_SE_DECIDE") == 0);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2));
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_CANCEL") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
-        "WIPL_SE_DECIDE") == 0);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_CANCEL") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2),
+                  "WIPL_SE_DECIDE") == 0);
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2));
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK),
+                  "WIPL_SE_CANCEL") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "WIPL_SE_DECIDE") == 0);
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK),
+                  "WIPL_SE_CANCEL") == 0);
     wm_options_scene_advance(scene, 60.0f);
 
     /* The USB retry prompt uses Decide for Yes and Cancel for No. */
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_DECIDE") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
-        "WIPL_SE_CANCEL") == 0);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_CANCEL") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK),
+                  "WIPL_SE_DECIDE") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "WIPL_SE_CANCEL") == 0);
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK),
+                  "WIPL_SE_CANCEL") == 0);
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_BACK));
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2),
-        "WIPL_SE_DECIDE") == 0);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2));
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2),
+                  "WIPL_SE_DECIDE") == 0);
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2));
 
     /* The single OK footer uses Decide. */
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
-        "WIPL_SE_DECIDE") == 0);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "WIPL_SE_DECIDE") == 0);
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
 }
 
 static void test_sensor_position_click_cues(WmOptionsScene *scene) {
@@ -572,24 +519,19 @@ static void test_sensor_position_click_cues(WmOptionsScene *scene) {
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SYSTEM));
     wm_options_scene_advance(scene, 40.0f);
     wm_options_scene_advance(scene, 21.0f);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
     wm_options_scene_advance(scene, 40.0f);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2));
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2));
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
 
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
-        "WIPL_SE_CHOICE_CHG") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2),
-        "WIPL_SE_CHOICE_CHG") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_CANCEL") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT), "WIPL_SE_DECIDE") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
+                  "WIPL_SE_CHOICE_CHG") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2),
+                  "WIPL_SE_CHOICE_CHG") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK),
+                  "WIPL_SE_CANCEL") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "WIPL_SE_DECIDE") == 0);
 }
 
 static void test_screen_position_click_cues(WmOptionsScene *scene) {
@@ -599,35 +541,27 @@ static void test_screen_position_click_cues(WmOptionsScene *scene) {
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SYSTEM));
     wm_options_scene_advance(scene, 40.0f);
     wm_options_scene_advance(scene, 21.0f);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3));
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
-    assert(strcmp(wm_options_scene_hover_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
-        "WIPL_SE_BT_TARGETTING") == 0);
-    assert(strcmp(wm_options_scene_hover_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2),
-        "WIPL_SE_BT_TARGETTING") == 0);
-    assert(strcmp(wm_options_scene_hover_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT), "buttonHover") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
-        "WIPL_SE_CHOICE_CHG") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2),
-        "WIPL_SE_CHOICE_CHG") == 0);
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3));
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
+    assert(strcmp(wm_options_scene_hover_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
+                  "WIPL_SE_BT_TARGETTING") == 0);
+    assert(strcmp(wm_options_scene_hover_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2),
+                  "WIPL_SE_BT_TARGETTING") == 0);
+    assert(strcmp(wm_options_scene_hover_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "buttonHover") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
+                  "WIPL_SE_CHOICE_CHG") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2),
+                  "WIPL_SE_CHOICE_CHG") == 0);
     for (unsigned step = 0; step < 8; step++) {
-        assert(wm_options_scene_activate(
-            scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
+        assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
     }
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
-        "WIPL_SE_CHAR_DELETE_ERROR") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_CANCEL") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT), "WIPL_SE_DECIDE") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
+                  "WIPL_SE_CHAR_DELETE_ERROR") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK),
+                  "WIPL_SE_CANCEL") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "WIPL_SE_DECIDE") == 0);
 }
 
 static void test_settings_arrow_cues(WmOptionsScene *scene) {
@@ -639,15 +573,14 @@ static void test_settings_arrow_cues(WmOptionsScene *scene) {
     wm_options_scene_advance(scene, 21.0f);
 
     /* Index scrolling requests Settings sound ID 1, not WSD_SELECT. */
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT), "WIPL_SE_BT_PUSH") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "WIPL_SE_BT_PUSH") == 0);
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
     wm_options_scene_advance(scene, 40.0f);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_PREVIOUS),
-        "WIPL_SE_BT_PUSH") == 0);
-    assert(wm_options_scene_activate(scene,
-                                    WM_OPTIONS_CONTROL_SETTINGS_PREVIOUS));
+    assert(
+        strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_PREVIOUS),
+               "WIPL_SE_BT_PUSH") == 0);
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_PREVIOUS));
     wm_options_scene_advance(scene, 40.0f);
 
     /* Calendar value arrows request exceptional Settings sound ID 5. */
@@ -655,19 +588,17 @@ static void test_settings_arrow_cues(WmOptionsScene *scene) {
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
     for (WmOptionsControl arrow = WM_OPTIONS_CONTROL_SETTINGS_ITEM_1;
          arrow <= WM_OPTIONS_CONTROL_SETTINGS_ITEM_6; arrow++) {
-        assert(strcmp(wm_options_scene_click_cue(scene, arrow),
-                      "WIPL_SE_CHOICE_CHG") == 0);
+        assert(strcmp(wm_options_scene_click_cue(scene, arrow), "WIPL_SE_CHOICE_CHG") ==
+               0);
     }
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT), "WIPL_SE_DECIDE") == 0);
-    assert(wm_options_scene_pointer_down(scene,
-                                         WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "WIPL_SE_DECIDE") == 0);
+    assert(wm_options_scene_pointer_down(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
     assert(!wm_options_scene_take_repeat_cue(scene));
     wm_options_scene_advance(scene, 23.0f);
     assert(!wm_options_scene_take_repeat_cue(scene));
     wm_options_scene_advance(scene, 1.0f);
-    assert(strcmp(wm_options_scene_take_repeat_cue(scene),
-                  "WIPL_SE_CHOICE_CHG") == 0);
+    assert(strcmp(wm_options_scene_take_repeat_cue(scene), "WIPL_SE_CHOICE_CHG") == 0);
     assert(!wm_options_scene_take_repeat_cue(scene));
     wm_options_scene_pointer_up(scene);
 
@@ -684,19 +615,17 @@ static void test_settings_arrow_cues(WmOptionsScene *scene) {
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2));
 
     /* Country-list vertical scroll uses the same push as index scrolling. */
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_6),
-        "WIPL_SE_BT_PUSH") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_6),
+                  "WIPL_SE_BT_PUSH") == 0);
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_6));
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_PREVIOUS),
-        "WIPL_SE_BT_PUSH") == 0);
+    assert(
+        strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_PREVIOUS),
+               "WIPL_SE_BT_PUSH") == 0);
     /* Choosing a country is sound ID 5; the footer OK is ID 3. */
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
-        "WIPL_SE_CHOICE_CHG") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT), "WIPL_SE_DECIDE") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
+                  "WIPL_SE_CHOICE_CHG") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "WIPL_SE_DECIDE") == 0);
 }
 
 static void test_settings_footer_cues(WmOptionsScene *scene) {
@@ -711,13 +640,13 @@ static void test_settings_footer_cues(WmOptionsScene *scene) {
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1));
 
     /* The parental prompt's Yes/No pair uses IDs 3/4. Later OK uses ID 3. */
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_DECIDE") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT), "WIPL_SE_CANCEL") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK),
+                  "WIPL_SE_DECIDE") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "WIPL_SE_CANCEL") == 0);
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_BACK));
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT), "WIPL_SE_DECIDE") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "WIPL_SE_DECIDE") == 0);
 
     wm_options_scene_reset(scene);
     assert(wm_options_scene_open(scene));
@@ -726,19 +655,18 @@ static void test_settings_footer_cues(WmOptionsScene *scene) {
     wm_options_scene_advance(scene, 40.0f);
     wm_options_scene_advance(scene, 21.0f);
     for (unsigned page = 1; page < 3; page++) {
-        assert(wm_options_scene_activate(scene,
-                                         WM_OPTIONS_CONTROL_SETTINGS_NEXT));
+        assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
         wm_options_scene_advance(scene, 40.0f);
     }
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_4));
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT), "WIPL_SE_DECIDE") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "WIPL_SE_DECIDE") == 0);
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT));
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_DECIDE") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT), "WIPL_SE_CANCEL") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK),
+                  "WIPL_SE_DECIDE") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "WIPL_SE_CANCEL") == 0);
 }
 
 static void test_sound_mode_click_cues(WmOptionsScene *scene) {
@@ -748,18 +676,17 @@ static void test_sound_mode_click_cues(WmOptionsScene *scene) {
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SYSTEM));
     wm_options_scene_advance(scene, 40.0f);
     wm_options_scene_advance(scene, 21.0f);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_4));
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_4));
     for (WmOptionsControl control = WM_OPTIONS_CONTROL_SETTINGS_ITEM_1;
          control <= WM_OPTIONS_CONTROL_SETTINGS_ITEM_3; control++) {
         assert(strcmp(wm_options_scene_click_cue(scene, control),
                       "WIPL_SE_OUTPUT_MODE_SELECT") == 0);
         assert(wm_options_scene_activate(scene, control));
     }
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_CANCEL") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT), "WIPL_SE_DECIDE") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK),
+                  "WIPL_SE_CANCEL") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "WIPL_SE_DECIDE") == 0);
 }
 
 static void test_display_choice_click_cues(WmOptionsScene *scene) {
@@ -769,20 +696,16 @@ static void test_display_choice_click_cues(WmOptionsScene *scene) {
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SYSTEM));
     wm_options_scene_advance(scene, 40.0f);
     wm_options_scene_advance(scene, 21.0f);
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3));
-    assert(wm_options_scene_activate(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2));
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
-        "WIPL_SE_CHOICE_CHG") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2),
-        "WIPL_SE_CHOICE_CHG") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_BACK), "WIPL_SE_CANCEL") == 0);
-    assert(strcmp(wm_options_scene_click_cue(
-        scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT), "WIPL_SE_DECIDE") == 0);
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3));
+    assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2));
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_1),
+                  "WIPL_SE_CHOICE_CHG") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_2),
+                  "WIPL_SE_CHOICE_CHG") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK),
+                  "WIPL_SE_CANCEL") == 0);
+    assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
+                  "WIPL_SE_DECIDE") == 0);
 }
 
 static void test_message_board_internet_route(WmOptionsScene *scene) {
@@ -795,8 +718,7 @@ static void test_message_board_internet_route(WmOptionsScene *scene) {
     assert(wm_options_scene_back(scene));
     wm_options_scene_advance(scene, 1.0f);
     assert(wm_options_scene_take_action(scene) == WM_OPTIONS_ACTION_EXITED);
-    assert(wm_options_scene_snapshot(scene).page ==
-           WM_OPTIONS_PAGE_SYSTEM_SETTINGS);
+    assert(wm_options_scene_snapshot(scene).page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS);
     assert(wm_options_scene_open_connect24(scene));
     assert(wm_options_scene_snapshot(scene).locked);
     wm_options_scene_advance(scene, 21.0f);
@@ -804,8 +726,7 @@ static void test_message_board_internet_route(WmOptionsScene *scene) {
     assert(wm_options_scene_back(scene));
     wm_options_scene_advance(scene, 1.0f);
     assert(wm_options_scene_take_action(scene) == WM_OPTIONS_ACTION_EXITED);
-    assert(wm_options_scene_snapshot(scene).page ==
-           WM_OPTIONS_PAGE_SYSTEM_SETTINGS);
+    assert(wm_options_scene_snapshot(scene).page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS);
     wm_options_scene_reset(scene);
     assert(wm_options_scene_open(scene));
     assert(wm_options_scene_snapshot(scene).page == WM_OPTIONS_PAGE_OPTIONS);
@@ -824,13 +745,11 @@ int main(int argc, char **argv) {
     }
     fclose(check);
     WmPlatform *platform = (WmPlatform *)1;
-    WmTextureCache *textures = wm_texture_cache_create(platform, assets,
-                                                       128u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(platform, assets,
-                                              16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 128u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
-    WmOptionsScene *scene = wm_options_scene_create(
-        platform, assets, textures, fonts);
+    WmOptionsScene *scene = wm_options_scene_create(platform, assets, textures, fonts);
     assert(scene);
     test_options_hierarchy(scene);
     test_save_data_leaf_handoffs(scene);

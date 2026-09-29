@@ -28,7 +28,7 @@ typedef struct WmChannelZoom {
 /* Reproduce ChannelSelect's 28-frame Hermite zoom in the WAD's logical
  * projection. Rectangles use top-left screen coordinates in projection units.
  * `reverse` is the preview-to-grid path, not a second curve. */
-bool wm_channel_zoom(float frame, bool reverse, float center_x,
-                     float center_y, bool wide, WmChannelZoom *zoom);
+bool wm_channel_zoom(float frame, bool reverse, float center_x, float center_y,
+                     bool wide, WmChannelZoom *zoom);
 
 #endif

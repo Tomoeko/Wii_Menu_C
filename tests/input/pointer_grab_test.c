@@ -12,21 +12,18 @@ typedef struct PointerDraw {
 static PointerDraw drawn;
 static uint32_t next_texture = 1;
 
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad) {
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     assert(drawn.count < sizeof(drawn.quads) / sizeof(drawn.quads[0]));
     drawn.quads[drawn.count++] = *quad;
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
     (void)vertices;
@@ -34,8 +31,8 @@ void wm_platform_draw_vertices(WmPlatform *platform,
     assert(false);
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     assert(width > 0 && height > 0 && rgba);
     return next_texture++;
@@ -57,10 +54,8 @@ static uint32_t source_texture(WmTextureCache *textures, const char *name) {
     return handle;
 }
 
-static void assert_pointer_materials(const PointerDraw *draw,
-                                     uint32_t hand_base,
-                                     uint32_t hand_overlay,
-                                     uint32_t shadow) {
+static void assert_pointer_materials(const PointerDraw *draw, uint32_t hand_base,
+                                     uint32_t hand_overlay, uint32_t shadow) {
     assert(draw->count == 2);
     const WmMaterialQuad *shadow_quad = &draw->quads[0];
     const WmMaterialQuad *hand_quad = &draw->quads[1];
@@ -75,8 +70,7 @@ static void assert_pointer_materials(const PointerDraw *draw,
     /* N_SRot offsets the shadow by +3 source X and -3 source Y. */
     assert(near(shadow_quad->vertices[0].x - hand_quad->vertices[0].x,
                 3.0f * 640.0f / 832.0f));
-    assert(near(shadow_quad->vertices[0].y - hand_quad->vertices[0].y,
-                3.0f));
+    assert(near(shadow_quad->vertices[0].y - hand_quad->vertices[0].y, 3.0f));
 }
 
 int main(int argc, char **argv) {
@@ -90,8 +84,8 @@ int main(int argc, char **argv) {
 
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     WmPlatform *platform = (WmPlatform *)1;
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 8u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 8u * 1024u * 1024u);
     if (!textures) {
         puts("Pointer comparison skipped: prepared assets unavailable.");
         return 0;
@@ -103,16 +97,15 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    uint32_t base = source_texture(
-        textures, "textures/cursor/defcursor_final_p1.png");
-    uint32_t default_overlay = source_texture(
-        textures, "textures/cursor/defcursor_final64_a.png");
-    uint32_t grab_overlay = source_texture(
-        textures, "textures/cursor/defcursor_final64_b.png");
-    uint32_t default_shadow = source_texture(
-        textures, "textures/cursor/defcursor_sd_a.png");
-    uint32_t grab_shadow = source_texture(
-        textures, "textures/cursor/defcursor_sd_b.png");
+    uint32_t base = source_texture(textures, "textures/cursor/defcursor_final_p1.png");
+    uint32_t default_overlay =
+        source_texture(textures, "textures/cursor/defcursor_final64_a.png");
+    uint32_t grab_overlay =
+        source_texture(textures, "textures/cursor/defcursor_final64_b.png");
+    uint32_t default_shadow =
+        source_texture(textures, "textures/cursor/defcursor_sd_a.png");
+    uint32_t grab_shadow =
+        source_texture(textures, "textures/cursor/defcursor_sd_b.png");
     assert(default_overlay != grab_overlay);
     assert(default_shadow != grab_shadow);
 
@@ -138,11 +131,10 @@ int main(int argc, char **argv) {
     PointerDraw grabbed = drawn;
     /* The source Cat pane is shifted 8 units left and 24 units up from Def.
      * Horizontal units are fitted from its 832-wide layout into 640 pixels. */
-    assert(near(grabbed.quads[1].vertices[0].x -
-                normal.quads[1].vertices[0].x,
+    assert(near(grabbed.quads[1].vertices[0].x - normal.quads[1].vertices[0].x,
                 -8.0f * 640.0f / 832.0f));
-    assert(near(grabbed.quads[1].vertices[0].y -
-                normal.quads[1].vertices[0].y, -24.0f));
+    assert(
+        near(grabbed.quads[1].vertices[0].y - normal.quads[1].vertices[0].y, -24.0f));
 
     drawn.count = 0;
     wm_pointer_set_grabbed(pointer, false);
@@ -150,10 +142,8 @@ int main(int argc, char **argv) {
     wm_texture_cache_begin_frame(textures);
     wm_pointer_draw(pointer);
     assert_pointer_materials(&drawn, base, default_overlay, default_shadow);
-    assert(near(drawn.quads[1].vertices[0].x -
-                normal.quads[1].vertices[0].x, 40.0f));
-    assert(near(drawn.quads[1].vertices[0].y -
-                normal.quads[1].vertices[0].y, 12.0f));
+    assert(near(drawn.quads[1].vertices[0].x - normal.quads[1].vertices[0].x, 40.0f));
+    assert(near(drawn.quads[1].vertices[0].y - normal.quads[1].vertices[0].y, 12.0f));
 
     drawn.count = 0;
     wm_pointer_set_grabbed(pointer, true);

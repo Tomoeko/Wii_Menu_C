@@ -51,8 +51,7 @@ typedef struct WmSequenceTimeline {
 
 /* Parse only commands handled by the local sequence renderer. Unsupported
  * commands fail visibly instead of silently replacing a sound. */
-bool wm_sequence_parse(const WmRsarSequence *sequence,
-                       WmSequenceTimeline *timeline,
+bool wm_sequence_parse(const WmRsarSequence *sequence, WmSequenceTimeline *timeline,
                        char *error, size_t error_capacity);
 void wm_sequence_timeline_free(WmSequenceTimeline *timeline);
 
@@ -62,15 +61,13 @@ void wm_sequence_timeline_free(WmSequenceTimeline *timeline);
  * loop, with loop_start/end marking the repeatable section. */
 bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
                         const uint8_t *system_menu_dol, size_t dol_size,
-                        WmAudioPcm *output, char *error,
-                        size_t error_capacity);
+                        WmAudioPcm *output, char *error, size_t error_capacity);
 
 /* Extract the audited drag voice shape, keeping its wave unscaled so runtime
  * movement can precede native gain stages. Lookup tables remain local output. */
 bool wm_sequence_extract_held(const WmRsar *archive, const WmRsarSound *sound,
                               const uint8_t *system_menu_dol, size_t dol_size,
-                              WmAudioHeldProfile *profile,
-                              WmAudioHeldTables *tables, WmAudioPcm *output,
-                              char *error, size_t error_capacity);
+                              WmAudioHeldProfile *profile, WmAudioHeldTables *tables,
+                              WmAudioPcm *output, char *error, size_t error_capacity);
 
 #endif

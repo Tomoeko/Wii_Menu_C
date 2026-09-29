@@ -23,7 +23,7 @@ typedef struct WmFontCacheStats {
 /* Fonts are read from assets_root/fonts. gpu_budget_bytes bounds uploaded
  * sheet memory. Destroy the cache after the last frame using its textures. */
 WmFontCache *wm_font_cache_create(WmPlatform *platform, const char *assets_root,
-                                   size_t gpu_budget_bytes);
+                                  size_t gpu_budget_bytes);
 void wm_font_cache_destroy(WmFontCache *cache);
 void wm_font_cache_begin_frame(WmFontCache *cache);
 
@@ -35,8 +35,7 @@ const WmFont *wm_cached_font_resource(const WmCachedFont *face);
 /* Geometry is reused across color and alpha animation. Text and the other
  * WmFontPane fields are compared by value, not by caller pointer identity.
  * The cached layout uses white colors; presentation supplies the current tint. */
-const WmFontTextLayout *wm_font_cache_layout(WmCachedFont *face,
-                                             const char *utf8,
+const WmFontTextLayout *wm_font_cache_layout(WmCachedFont *face, const char *utf8,
                                              const WmFontPane *pane);
 
 /* WmFontSheetProvider adapter. Pass WmCachedFont as callback context. */
@@ -46,7 +45,7 @@ WmFontCacheStats wm_font_cache_stats(const WmFontCache *cache);
 /* Channel animation's source-font measurement callback. Length bounds one
  * line of a multi-line pane and need not end at a NUL terminator. */
 float wm_font_cache_measure_text(void *context, const WmLayout *layout,
-                                  const WmLayoutPaneState *pane,
-                                  const char *utf8, size_t length);
+                                 const WmLayoutPaneState *pane, const char *utf8,
+                                 size_t length);
 
 #endif

@@ -11,32 +11,23 @@ enum {
     FIXTURE_SIZE = FIXTURE_DATA_OFFSET + 64
 };
 
-static const uint8_t fixture_title[8] = {
-    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02
-};
+static const uint8_t fixture_title[8] = {0x00, 0x00, 0x00, 0x01,
+                                         0x00, 0x00, 0x00, 0x02};
 static const char fixture_text[] = "Local WAD test\n";
 
 /* Authored AES-CBC fixtures, not extracted title content. The title key is
  * the test sequence 00 through 0f; index 9 uses that sequence as its override.
  * Ciphertext was independently produced by Node's built-in crypto. */
 static const uint8_t encrypted_title_keys[3][16] = {
-    {
-        0x25, 0x71, 0xe4, 0x86, 0x7a, 0xfa, 0x09, 0x5a,
-        0x7c, 0x72, 0x04, 0xf8, 0x9a, 0xc9, 0x99, 0xb7
-    },
-    {
-        0xa2, 0xe5, 0xed, 0xfb, 0x09, 0xfe, 0x5f, 0xb5,
-        0x3b, 0xfc, 0xe5, 0xe1, 0xef, 0xdb, 0xae, 0xb9
-    },
-    {
-        0x3c, 0x83, 0x8f, 0x35, 0x06, 0x45, 0xa6, 0xe0,
-        0xaf, 0x4a, 0xec, 0x31, 0x25, 0x50, 0x27, 0x79
-    }
-};
-static const uint8_t encrypted_content[16] = {
-    0x70, 0xfd, 0x7e, 0x5c, 0x55, 0x52, 0xf1, 0xeb,
-    0x07, 0xb5, 0xa3, 0x9c, 0xab, 0xf3, 0x6d, 0xc7
-};
+    {0x25, 0x71, 0xe4, 0x86, 0x7a, 0xfa, 0x09, 0x5a, 0x7c, 0x72, 0x04, 0xf8, 0x9a, 0xc9,
+     0x99, 0xb7},
+    {0xa2, 0xe5, 0xed, 0xfb, 0x09, 0xfe, 0x5f, 0xb5, 0x3b, 0xfc, 0xe5, 0xe1, 0xef, 0xdb,
+     0xae, 0xb9},
+    {0x3c, 0x83, 0x8f, 0x35, 0x06, 0x45, 0xa6, 0xe0, 0xaf, 0x4a, 0xec, 0x31, 0x25, 0x50,
+     0x27, 0x79}};
+static const uint8_t encrypted_content[16] = {0x70, 0xfd, 0x7e, 0x5c, 0x55, 0x52,
+                                              0xf1, 0xeb, 0x07, 0xb5, 0xa3, 0x9c,
+                                              0xab, 0xf3, 0x6d, 0xc7};
 
 static void write_be16(uint8_t *bytes, unsigned value) {
     bytes[0] = (uint8_t)(value >> 8);
@@ -61,8 +52,7 @@ static WmWad make_fixture(unsigned key_index) {
     write_be32(wad.bytes + 24, 64);
     write_be32(wad.bytes + FIXTURE_TICKET_OFFSET, 0x10001);
     uint8_t *ticket = wad.bytes + FIXTURE_TICKET_OFFSET + 0x140;
-    memcpy(ticket + 0x7f, encrypted_title_keys[key_index == 9 ? 2 : key_index],
-           16);
+    memcpy(ticket + 0x7f, encrypted_title_keys[key_index == 9 ? 2 : key_index], 16);
     memcpy(ticket + 0x9c, fixture_title, sizeof(fixture_title));
     ticket[0xb1] = (uint8_t)key_index;
     write_be32(wad.bytes + FIXTURE_TMD_OFFSET, 0x10001);
@@ -76,8 +66,7 @@ static WmWad make_fixture(unsigned key_index) {
     write_be32(record + 12, sizeof(fixture_text) - 1);
     WmSha1 digest;
     wm_sha1_init(&digest);
-    wm_sha1_update(&digest, (const uint8_t *)fixture_text,
-                  sizeof(fixture_text) - 1);
+    wm_sha1_update(&digest, (const uint8_t *)fixture_text, sizeof(fixture_text) - 1);
     wm_sha1_final(&digest, record + 16);
     memcpy(wad.bytes + FIXTURE_DATA_OFFSET, encrypted_content,
            sizeof(encrypted_content));
@@ -146,28 +135,32 @@ static void test_override_and_output(void) {
     assert(lstat(".local", &information) != 0 && errno == ENOENT);
 
     uint8_t key[16];
-    for (unsigned byte = 0; byte < 16; byte++) key[byte] = (uint8_t)byte;
+    for (unsigned byte = 0; byte < 16; byte++)
+        key[byte] = (uint8_t)byte;
     write_fixture_file("override.key", key, sizeof(key));
-    char *binary_override[] = {
-        "wm-wad-extract", "--wad", "fixture.wad",
-        "--common-key-file", "override.key", "--verify-only"
-    };
+    char *binary_override[] = {"wm-wad-extract",    "--wad",        "fixture.wad",
+                               "--common-key-file", "override.key", "--verify-only"};
     assert(wm_wad_command_main(6, binary_override) == 0);
-    char *wrong_index[] = {
-        "wm-wad-extract", "--wad", "fixture.wad",
-        "--common-key-file", "override.key", "--common-key-index", "0",
-        "--verify-only"
-    };
+    char *wrong_index[] = {"wm-wad-extract",
+                           "--wad",
+                           "fixture.wad",
+                           "--common-key-file",
+                           "override.key",
+                           "--common-key-index",
+                           "0",
+                           "--verify-only"};
     assert(wm_wad_command_main(8, wrong_index) == 1);
     static const char hexadecimal_key[] =
         "00 01 02 03 04 05 06 07\n08 09 0a 0b 0c 0d 0e 0f\n";
-    write_fixture_file("override.key", hexadecimal_key,
-                       sizeof(hexadecimal_key) - 1);
-    char *hexadecimal_override[] = {
-        "wm-wad-extract", "--wad", "fixture.wad",
-        "--common-key-file", "override.key", "--common-key-index", "9",
-        "--verify-only"
-    };
+    write_fixture_file("override.key", hexadecimal_key, sizeof(hexadecimal_key) - 1);
+    char *hexadecimal_override[] = {"wm-wad-extract",
+                                    "--wad",
+                                    "fixture.wad",
+                                    "--common-key-file",
+                                    "override.key",
+                                    "--common-key-index",
+                                    "9",
+                                    "--verify-only"};
     assert(wm_wad_command_main(8, hexadecimal_override) == 0);
     memset(key, 0, sizeof(key));
     write_fixture_file("override.key", key, sizeof(key));
@@ -194,8 +187,8 @@ static void test_override_and_output(void) {
     assert(wm_wad_command_main(3, without_key) == 1);
     uint8_t *content = NULL;
     size_t content_size = 0;
-    assert(read_file(".local/wad/0000000100000002/content/00000001.app",
-                     &content, &content_size));
+    assert(read_file(".local/wad/0000000100000002/content/00000001.app", &content,
+                     &content_size));
     assert(content_size == sizeof(fixture_text) - 1);
     assert(memcmp(content, fixture_text, content_size) == 0);
     free(content);

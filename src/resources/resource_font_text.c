@@ -4,10 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum {
-    WM_FONT_MAX_TEXT_BYTES = 65536,
-    WM_FONT_MAX_LINES = 4096
-};
+enum { WM_FONT_MAX_TEXT_BYTES = 65536, WM_FONT_MAX_LINES = 4096 };
 
 typedef struct FontLine {
     size_t first_byte;
@@ -28,7 +25,8 @@ struct WmFontTextLayout {
 
 static uint32_t next_codepoint(const char *text, size_t length, size_t *position) {
     uint8_t first = (uint8_t)text[(*position)++];
-    if (first < 0x80) return first;
+    if (first < 0x80)
+        return first;
     uint32_t value;
     size_t following;
     uint32_t minimum;
@@ -47,15 +45,17 @@ static uint32_t next_codepoint(const char *text, size_t length, size_t *position
     } else {
         return 0xfffd;
     }
-    if (following > length - *position) return 0xfffd;
+    if (following > length - *position)
+        return 0xfffd;
     for (size_t index = 0; index < following; index++) {
         uint8_t part = (uint8_t)text[*position];
-        if ((part & 0xc0u) != 0x80u) return 0xfffd;
+        if ((part & 0xc0u) != 0x80u)
+            return 0xfffd;
         value = (value << 6) | (part & 0x3fu);
         (*position)++;
     }
-    if (value < minimum || value > 0x10ffff ||
-        (value >= 0xd800 && value <= 0xdfff)) return 0xfffd;
+    if (value < minimum || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff))
+        return 0xfffd;
     return value;
 }
 
@@ -66,25 +66,29 @@ static float text_width_span(const WmFont *font, const char *text, size_t length
     while (position < length) {
         uint32_t codepoint = next_codepoint(text, length, &position);
         const WmFontGlyph *glyph = wm_font_glyph(font, codepoint);
-        if (characters++) width += spacing;
-        if (glyph) width += glyph->advance * scale_x;
+        if (characters++)
+            width += spacing;
+        if (glyph)
+            width += glyph->advance * scale_x;
     }
     return width;
 }
 
-float wm_font_text_width(const WmFont *font, const char *text,
-                         const float size[2], float spacing) {
-    if (!text) return 0;
+float wm_font_text_width(const WmFont *font, const char *text, const float size[2],
+                         float spacing) {
+    if (!text)
+        return 0;
     return wm_font_text_width_n(font, text, strlen(text), size, spacing);
 }
 
 float wm_font_text_width_n(const WmFont *font, const char *text, size_t length,
                            const float size[2], float spacing) {
     if (!font || !text || !size || !font->metrics.width || !isfinite(size[0]) ||
-        !isfinite(spacing)) return 0;
-    if (length > WM_FONT_MAX_TEXT_BYTES) return 0;
-    return text_width_span(font, text, length,
-                           size[0] / font->metrics.width, spacing);
+        !isfinite(spacing))
+        return 0;
+    if (length > WM_FONT_MAX_TEXT_BYTES)
+        return 0;
+    return text_width_span(font, text, length, size[0] / font->metrics.width, spacing);
 }
 
 static void transform_font_point(const float *matrix, float x, float y,
@@ -101,32 +105,34 @@ static void transform_font_point(const float *matrix, float x, float y,
 }
 
 static void emit_span(const WmFont *font, const char *text, size_t length,
-                      size_t base_byte, float width,
-                      const WmFontDrawOptions *options) {
-    if (!options->on_quad) return;
+                      size_t base_byte, float width, const WmFontDrawOptions *options) {
+    if (!options->on_quad)
+        return;
     float scale_x = options->size[0] / font->metrics.width;
     float scale_y = options->size[1] / font->metrics.height;
     float cursor = options->x;
-    if (options->align == WM_FONT_ALIGN_CENTER) cursor -= width / 2;
-    else if (options->align == WM_FONT_ALIGN_RIGHT) cursor -= width;
+    if (options->align == WM_FONT_ALIGN_CENTER)
+        cursor -= width / 2;
+    else if (options->align == WM_FONT_ALIGN_RIGHT)
+        cursor -= width;
     size_t position = 0;
     while (position < length) {
         size_t glyph_byte = position;
         uint32_t codepoint = next_codepoint(text, length, &position);
         const WmFontGlyph *glyph = wm_font_glyph(font, codepoint);
-        if (!glyph) continue;
+        if (!glyph)
+            continue;
         if (glyph->width && glyph->sheet < font->sheet_count) {
             const WmFontSheetInfo *sheet = &font->sheets[glyph->sheet].info;
             float left = cursor + glyph->left * scale_x;
             float top = options->y;
             float right = left + glyph->width * scale_x;
             float bottom = top - glyph->height * scale_y;
-            WmFontQuad quad = {
-                .sheet = glyph->sheet,
-                .format = sheet->format,
-                .byte_index = base_byte + glyph_byte,
-                .glyph_alpha_only = sheet->format == 0 || sheet->format == 1
-            };
+            WmFontQuad quad = {.sheet = glyph->sheet,
+                               .format = sheet->format,
+                               .byte_index = base_byte + glyph_byte,
+                               .glyph_alpha_only =
+                                   sheet->format == 0 || sheet->format == 1};
             if (options->sheet_provider) {
                 uint32_t texture = 0;
                 if (options->sheet_provider(options->context, glyph->sheet, &texture)) {
@@ -134,9 +140,12 @@ static void emit_span(const WmFont *font, const char *text, size_t length,
                 }
             }
             transform_font_point(options->matrix, left, top, quad.vertices[0].position);
-            transform_font_point(options->matrix, right, top, quad.vertices[1].position);
-            transform_font_point(options->matrix, left, bottom, quad.vertices[2].position);
-            transform_font_point(options->matrix, right, bottom, quad.vertices[3].position);
+            transform_font_point(options->matrix, right, top,
+                                 quad.vertices[1].position);
+            transform_font_point(options->matrix, left, bottom,
+                                 quad.vertices[2].position);
+            transform_font_point(options->matrix, right, bottom,
+                                 quad.vertices[3].position);
             float u0 = (float)glyph->x / sheet->width;
             float u1 = (float)(glyph->x + glyph->width) / sheet->width;
             float v0 = (float)glyph->y / sheet->height;
@@ -146,13 +155,12 @@ static void emit_span(const WmFont *font, const char *text, size_t length,
             quad.vertices[0].uv[1] = quad.vertices[1].uv[1] = v0;
             quad.vertices[2].uv[1] = quad.vertices[3].uv[1] = v1;
             for (size_t vertex = 0; vertex < 4; vertex++) {
-                const uint8_t *color = vertex < 2 ? options->top_color :
-                                                     options->bottom_color;
+                const uint8_t *color =
+                    vertex < 2 ? options->top_color : options->bottom_color;
                 for (size_t channel = 0; channel < 3; channel++) {
                     quad.vertices[vertex].color[channel] = color[channel] / 255.0f;
                 }
-                quad.vertices[vertex].color[3] =
-                    color[3] / 255.0f * options->alpha;
+                quad.vertices[vertex].color[3] = color[3] / 255.0f * options->alpha;
             }
             options->on_quad(options->context, &quad);
         }
@@ -161,54 +169,59 @@ static void emit_span(const WmFont *font, const char *text, size_t length,
 }
 
 void wm_font_emit_line(const WmFont *font, const char *text,
-                        const WmFontDrawOptions *options) {
+                       const WmFontDrawOptions *options) {
     if (!font || !text || !options || !font->metrics.width || !font->metrics.height ||
         !isfinite(options->size[0]) || !isfinite(options->size[1]) ||
-        options->size[0] <= 0 || options->size[1] <= 0 ||
-        !isfinite(options->spacing) || !isfinite(options->alpha)) return;
+        options->size[0] <= 0 || options->size[1] <= 0 || !isfinite(options->spacing) ||
+        !isfinite(options->alpha))
+        return;
     size_t length = strlen(text);
-    if (length > WM_FONT_MAX_TEXT_BYTES) return;
-    float width = text_width_span(font, text, length,
-                                  options->size[0] / font->metrics.width,
-                                  options->spacing);
+    if (length > WM_FONT_MAX_TEXT_BYTES)
+        return;
+    float width = text_width_span(
+        font, text, length, options->size[0] / font->metrics.width, options->spacing);
     emit_span(font, text, length, 0, width, options);
 }
 
 static bool append_line(WmFontTextLayout *layout, size_t first, size_t count,
                         float width) {
-    if (layout->line_count == WM_FONT_MAX_LINES) return false;
+    if (layout->line_count == WM_FONT_MAX_LINES)
+        return false;
     if (layout->line_count == layout->line_capacity) {
         size_t capacity = layout->line_capacity ? layout->line_capacity * 2 : 8;
-        if (capacity > WM_FONT_MAX_LINES) capacity = WM_FONT_MAX_LINES;
+        if (capacity > WM_FONT_MAX_LINES)
+            capacity = WM_FONT_MAX_LINES;
         FontLine *lines = realloc(layout->lines, capacity * sizeof(*lines));
-        if (!lines) return false;
+        if (!lines)
+            return false;
         layout->lines = lines;
         layout->line_capacity = capacity;
     }
-    layout->lines[layout->line_count++] = (FontLine){
-        .first_byte = first,
-        .byte_count = count,
-        .width = width
-    };
+    layout->lines[layout->line_count++] =
+        (FontLine){.first_byte = first, .byte_count = count, .width = width};
     return true;
 }
 
 WmFontTextLayout *wm_font_layout_pane(const WmFont *font, const char *text,
                                       const WmFontPane *pane) {
     if (!font || !text || !pane || pane->origin > 8 || pane->text_position > 8 ||
-        !font->metrics.width || !font->metrics.height ||
-        !isfinite(pane->size[0]) || !isfinite(pane->size[1]) ||
-        !isfinite(pane->font_size[0]) || !isfinite(pane->font_size[1]) ||
-        !isfinite(pane->char_space) || !isfinite(pane->line_space) ||
-        pane->font_size[0] <= 0 || pane->font_size[1] <= 0) return NULL;
+        !font->metrics.width || !font->metrics.height || !isfinite(pane->size[0]) ||
+        !isfinite(pane->size[1]) || !isfinite(pane->font_size[0]) ||
+        !isfinite(pane->font_size[1]) || !isfinite(pane->char_space) ||
+        !isfinite(pane->line_space) || pane->font_size[0] <= 0 ||
+        pane->font_size[1] <= 0)
+        return NULL;
     size_t length = strlen(text);
-    if (length > WM_FONT_MAX_TEXT_BYTES) return NULL;
+    if (length > WM_FONT_MAX_TEXT_BYTES)
+        return NULL;
     WmFontTextLayout *layout = calloc(1, sizeof(*layout));
-    if (!layout) return NULL;
+    if (!layout)
+        return NULL;
     layout->font = font;
     layout->pane = *pane;
     layout->text = malloc(length + 1);
-    if (!layout->text) goto invalid_layout;
+    if (!layout->text)
+        goto invalid_layout;
     memcpy(layout->text, text, length + 1);
 
     float scale_x = pane->font_size[0] / font->metrics.width;
@@ -219,7 +232,8 @@ WmFontTextLayout *wm_font_layout_pane(const WmFont *font, const char *text,
         size_t before = position;
         uint32_t codepoint = next_codepoint(text, length, &position);
         if (codepoint == '\n') {
-            if (!append_line(layout, line_start, before - line_start, width)) goto invalid_layout;
+            if (!append_line(layout, line_start, before - line_start, width))
+                goto invalid_layout;
             line_start = position;
             characters = 0;
             width = 0;
@@ -229,7 +243,8 @@ WmFontTextLayout *wm_font_layout_pane(const WmFont *font, const char *text,
         float advance = glyph ? glyph->advance * scale_x : 0;
         float next_width = width + (characters ? pane->char_space : 0) + advance;
         if (!pane->no_wrap && characters && next_width > pane->size[0]) {
-            if (!append_line(layout, line_start, before - line_start, width)) goto invalid_layout;
+            if (!append_line(layout, line_start, before - line_start, width))
+                goto invalid_layout;
             line_start = before;
             characters = 0;
             width = 0;
@@ -238,7 +253,8 @@ WmFontTextLayout *wm_font_layout_pane(const WmFont *font, const char *text,
         width = next_width;
         characters++;
     }
-    if (!append_line(layout, line_start, length - line_start, width)) goto invalid_layout;
+    if (!append_line(layout, line_start, length - line_start, width))
+        goto invalid_layout;
 
     float line_height = font->metrics.line_feed * scale_y + pane->line_space;
     float text_height = layout->line_count * line_height;
@@ -261,7 +277,8 @@ invalid_layout:
 }
 
 void wm_font_text_layout_destroy(WmFontTextLayout *layout) {
-    if (!layout) return;
+    if (!layout)
+        return;
     free(layout->text);
     free(layout->lines);
     free(layout);
@@ -271,61 +288,66 @@ size_t wm_font_text_layout_line_count(const WmFontTextLayout *layout) {
     return layout ? layout->line_count : 0;
 }
 
-bool wm_font_text_layout_caret(const WmFontTextLayout *layout,
-                               size_t byte_index, float *x, float *y) {
-    if (!layout || !layout->line_count || !x || !y) return false;
+bool wm_font_text_layout_caret(const WmFontTextLayout *layout, size_t byte_index,
+                               float *x, float *y) {
+    if (!layout || !layout->line_count || !x || !y)
+        return false;
     size_t text_bytes = strlen(layout->text);
-    if (byte_index > text_bytes) byte_index = text_bytes;
+    if (byte_index > text_bytes)
+        byte_index = text_bytes;
     while (byte_index > 0 && byte_index < text_bytes &&
            ((unsigned char)layout->text[byte_index] & 0xc0u) == 0x80u) {
         byte_index--;
     }
     const FontLine *line = &layout->lines[0];
     for (size_t index = 1; index < layout->line_count; index++) {
-        if (layout->lines[index].first_byte > byte_index) break;
+        if (layout->lines[index].first_byte > byte_index)
+            break;
         line = &layout->lines[index];
     }
     size_t prefix_bytes = byte_index - line->first_byte;
-    if (prefix_bytes > line->byte_count) prefix_bytes = line->byte_count;
-    float prefix_width = text_width_span(layout->font,
-        layout->text + line->first_byte, prefix_bytes,
-        layout->pane.font_size[0] / layout->font->metrics.width,
-        layout->pane.char_space);
-    *x = line->x + prefix_width +
-         (prefix_bytes ? layout->pane.char_space : 0.0f);
+    if (prefix_bytes > line->byte_count)
+        prefix_bytes = line->byte_count;
+    float prefix_width =
+        text_width_span(layout->font, layout->text + line->first_byte, prefix_bytes,
+                        layout->pane.font_size[0] / layout->font->metrics.width,
+                        layout->pane.char_space);
+    *x = line->x + prefix_width + (prefix_bytes ? layout->pane.char_space : 0.0f);
     *y = line->y;
     return true;
 }
 
-bool wm_font_text_layout_move_caret_vertical(
-    const WmFontTextLayout *layout, size_t from_byte, bool up,
-    float preferred_x, size_t *to_byte) {
-    if (!layout || !layout->line_count || !to_byte ||
-        !isfinite(preferred_x)) return false;
+bool wm_font_text_layout_move_caret_vertical(const WmFontTextLayout *layout,
+                                             size_t from_byte, bool up,
+                                             float preferred_x, size_t *to_byte) {
+    if (!layout || !layout->line_count || !to_byte || !isfinite(preferred_x))
+        return false;
     size_t text_bytes = strlen(layout->text);
-    if (from_byte > text_bytes) from_byte = text_bytes;
+    if (from_byte > text_bytes)
+        from_byte = text_bytes;
     while (from_byte > 0 && from_byte < text_bytes &&
            ((unsigned char)layout->text[from_byte] & 0xc0u) == 0x80u)
         from_byte--;
 
     size_t current = 0;
     for (size_t index = 1; index < layout->line_count; index++) {
-        if (layout->lines[index].first_byte > from_byte) break;
+        if (layout->lines[index].first_byte > from_byte)
+            break;
         current = index;
     }
     float current_y = layout->lines[current].y;
     size_t target = layout->line_count;
     for (size_t index = 0; index < layout->line_count; index++) {
         float y = layout->lines[index].y;
-        bool adjacent = up ? y > current_y + 0.5f
-                           : y < current_y - 0.5f;
-        if (!adjacent) continue;
+        bool adjacent = up ? y > current_y + 0.5f : y < current_y - 0.5f;
+        if (!adjacent)
+            continue;
         if (target == layout->line_count ||
-            (up ? y < layout->lines[target].y
-                : y > layout->lines[target].y))
+            (up ? y < layout->lines[target].y : y > layout->lines[target].y))
             target = index;
     }
-    if (target == layout->line_count) return false;
+    if (target == layout->line_count)
+        return false;
 
     const FontLine *line = &layout->lines[target];
     size_t position = line->first_byte;
@@ -338,8 +360,10 @@ bool wm_font_text_layout_move_caret_vertical(
     while (position < end) {
         uint32_t codepoint = next_codepoint(layout->text, end, &position);
         const WmFontGlyph *glyph = wm_font_glyph(layout->font, codepoint);
-        if (characters++) prefix_width += layout->pane.char_space;
-        if (glyph) prefix_width += glyph->advance * scale;
+        if (characters++)
+            prefix_width += layout->pane.char_space;
+        if (glyph)
+            prefix_width += glyph->advance * scale;
         /* At an automatic wrap, this boundary belongs to the next line. */
         if (target + 1 < layout->line_count &&
             position == layout->lines[target + 1].first_byte)
@@ -355,14 +379,15 @@ bool wm_font_text_layout_move_caret_vertical(
     return true;
 }
 
-bool wm_font_text_layout_hit_caret(const WmFontTextLayout *layout,
-                                   float x, float y, size_t *byte_index) {
-    if (!layout || !layout->line_count || !byte_index ||
-        !isfinite(x) || !isfinite(y)) return false;
+bool wm_font_text_layout_hit_caret(const WmFontTextLayout *layout, float x, float y,
+                                   size_t *byte_index) {
+    if (!layout || !layout->line_count || !byte_index || !isfinite(x) || !isfinite(y))
+        return false;
     const WmFontPane *pane = &layout->pane;
     float scale = pane->font_size[0] / layout->font->metrics.width;
-    float line_height = layout->font->metrics.line_feed *
-        pane->font_size[1] / layout->font->metrics.height + pane->line_space;
+    float line_height = layout->font->metrics.line_feed * pane->font_size[1] /
+                            layout->font->metrics.height +
+                        pane->line_space;
     const FontLine *line = &layout->lines[0];
     float nearest_y = fabsf(y - (line->y - line_height * 0.5f));
     for (size_t index = 1; index < layout->line_count; index++) {
@@ -392,22 +417,20 @@ bool wm_font_text_layout_hit_caret(const WmFontTextLayout *layout,
     return true;
 }
 
-void wm_font_emit_pane(const WmFontTextLayout *layout,
-                        const float parent_matrix[12], float alpha,
-                        WmFontSheetProvider sheet_provider,
-                        WmFontQuadCallback on_quad, void *context) {
-    if (!layout || !isfinite(alpha) || !on_quad) return;
+void wm_font_emit_pane(const WmFontTextLayout *layout, const float parent_matrix[12],
+                       float alpha, WmFontSheetProvider sheet_provider,
+                       WmFontQuadCallback on_quad, void *context) {
+    if (!layout || !isfinite(alpha) || !on_quad)
+        return;
     const WmFontPane *pane = &layout->pane;
-    WmFontDrawOptions options = {
-        .size = {pane->font_size[0], pane->font_size[1]},
-        .spacing = pane->char_space,
-        .alpha = alpha,
-        .align = WM_FONT_ALIGN_LEFT,
-        .matrix = parent_matrix,
-        .sheet_provider = sheet_provider,
-        .on_quad = on_quad,
-        .context = context
-    };
+    WmFontDrawOptions options = {.size = {pane->font_size[0], pane->font_size[1]},
+                                 .spacing = pane->char_space,
+                                 .alpha = alpha,
+                                 .align = WM_FONT_ALIGN_LEFT,
+                                 .matrix = parent_matrix,
+                                 .sheet_provider = sheet_provider,
+                                 .on_quad = on_quad,
+                                 .context = context};
     memcpy(options.top_color, pane->top_color, 4);
     memcpy(options.bottom_color, pane->bottom_color, 4);
     for (size_t index = 0; index < layout->line_count; index++) {

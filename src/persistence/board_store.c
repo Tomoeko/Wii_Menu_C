@@ -21,7 +21,8 @@ enum {
 };
 
 static void set_error(char *error, size_t capacity, const char *message) {
-    if (error && capacity) snprintf(error, capacity, "%s", message);
+    if (error && capacity)
+        snprintf(error, capacity, "%s", message);
 }
 
 static bool token_is(const WmJson *json, size_t token, WmJsonType type) {
@@ -29,7 +30,8 @@ static bool token_is(const WmJson *json, size_t token, WmJsonType type) {
 }
 
 static bool json_bool(const WmJson *json, size_t token, bool *value) {
-    if (!token_is(json, token, WM_JSON_BOOLEAN)) return false;
+    if (!token_is(json, token, WM_JSON_BOOLEAN))
+        return false;
     const WmJsonToken *item = &json->tokens[token];
     size_t length = item->end - item->start;
     const char *source = json->source + item->start;
@@ -45,22 +47,24 @@ static bool json_bool(const WmJson *json, size_t token, bool *value) {
 }
 
 static bool json_float(const WmJson *json, size_t token, float *value) {
-    if (!token_is(json, token, WM_JSON_NUMBER)) return false;
+    if (!token_is(json, token, WM_JSON_NUMBER))
+        return false;
     const WmJsonToken *item = &json->tokens[token];
-    if (item->end <= item->start || item->end - item->start > 64) return false;
+    if (item->end <= item->start || item->end - item->start > 64)
+        return false;
     const char *source = json->source;
     size_t cursor = item->start;
     double result = 0.0;
     bool negative = source[cursor] == '-';
-    if (negative) cursor++;
+    if (negative)
+        cursor++;
     while (cursor < item->end && source[cursor] >= '0' && source[cursor] <= '9') {
         result = result * 10.0 + (source[cursor++] - '0');
     }
     if (cursor < item->end && source[cursor] == '.') {
         cursor++;
         double place = 0.1;
-        while (cursor < item->end && source[cursor] >= '0' &&
-               source[cursor] <= '9') {
+        while (cursor < item->end && source[cursor] >= '0' && source[cursor] <= '9') {
             result += (source[cursor++] - '0') * place;
             place *= 0.1;
         }
@@ -68,37 +72,42 @@ static bool json_float(const WmJson *json, size_t token, float *value) {
     if (cursor < item->end && (source[cursor] == 'e' || source[cursor] == 'E')) {
         cursor++;
         bool exponent_negative = source[cursor] == '-';
-        if (source[cursor] == '-' || source[cursor] == '+') cursor++;
+        if (source[cursor] == '-' || source[cursor] == '+')
+            cursor++;
         unsigned exponent = 0;
-        while (cursor < item->end && source[cursor] >= '0' &&
-               source[cursor] <= '9') {
-            if (exponent > 100) return false;
+        while (cursor < item->end && source[cursor] >= '0' && source[cursor] <= '9') {
+            if (exponent > 100)
+                return false;
             exponent = exponent * 10 + (unsigned)(source[cursor++] - '0');
         }
-        if (exponent > 100) return false;
-        result *= pow(10.0, exponent_negative ? -(double)exponent :
-                                           (double)exponent);
+        if (exponent > 100)
+            return false;
+        result *= pow(10.0, exponent_negative ? -(double)exponent : (double)exponent);
     }
-    if (cursor != item->end) return false;
+    if (cursor != item->end)
+        return false;
     result = negative ? -result : result;
-    if (!isfinite(result) || result < -230.0 || result > 230.0) return false;
+    if (!isfinite(result) || result < -230.0 || result > 230.0)
+        return false;
     *value = (float)result;
     return true;
 }
 
-static bool json_created_at(const WmJson *json, size_t token,
-                            int64_t *value) {
+static bool json_created_at(const WmJson *json, size_t token, int64_t *value) {
     if (token == WM_JSON_INVALID) {
         *value = 0; /* Date-only files retain their original record order. */
         return true;
     }
-    if (!token_is(json, token, WM_JSON_NUMBER)) return false;
+    if (!token_is(json, token, WM_JSON_NUMBER))
+        return false;
     const WmJsonToken *item = &json->tokens[token];
-    if (item->start >= item->end) return false;
+    if (item->start >= item->end)
+        return false;
     int64_t parsed = 0;
     for (size_t cursor = item->start; cursor < item->end; cursor++) {
         char digit = json->source[cursor];
-        if (digit < '0' || digit > '9') return false;
+        if (digit < '0' || digit > '9')
+            return false;
         if (parsed > (INT64_C(253402300799999) - (digit - '0')) / 10) {
             return false;
         }
@@ -133,27 +142,32 @@ static bool valid_utf8(const char *text) {
         } else {
             return false;
         }
-        if (count > length - index) return false;
+        if (count > length - index)
+            return false;
         for (unsigned byte = 1; byte < count; byte++) {
-            if ((bytes[index + byte] & 0xc0) != 0x80) return false;
+            if ((bytes[index + byte] & 0xc0) != 0x80)
+                return false;
             codepoint = (codepoint << 6) | (bytes[index + byte] & 0x3f);
         }
         if (codepoint < minimum || codepoint > 0x10ffff ||
-            (codepoint >= 0xd800 && codepoint <= 0xdfff)) return false;
+            (codepoint >= 0xd800 && codepoint <= 0xdfff))
+            return false;
         index += count;
     }
     return true;
 }
 
 static char *copy_json_string(const WmJson *json, size_t token) {
-    if (!token_is(json, token, WM_JSON_STRING)) return NULL;
+    if (!token_is(json, token, WM_JSON_STRING))
+        return NULL;
     const WmJsonToken *item = &json->tokens[token];
     size_t raw_length = item->end - item->start;
-    if (raw_length > STORE_MAX_TEXT_BYTES) return NULL;
+    if (raw_length > STORE_MAX_TEXT_BYTES)
+        return NULL;
     char *copy = malloc(raw_length + 1);
-    if (!copy) return NULL;
-    if (!wm_json_copy_text(json, token, copy, raw_length + 1) ||
-        !valid_utf8(copy)) {
+    if (!copy)
+        return NULL;
+    if (!wm_json_copy_text(json, token, copy, raw_length + 1) || !valid_utf8(copy)) {
         free(copy);
         return NULL;
     }
@@ -161,7 +175,8 @@ static char *copy_json_string(const WmJson *json, size_t token) {
 }
 
 static void free_records(WmBoardMemo *records, size_t count) {
-    if (!records) return;
+    if (!records)
+        return;
     for (size_t index = 0; index < count; index++) {
         free((void *)records[index].id);
         free((void *)records[index].text);
@@ -169,29 +184,28 @@ static void free_records(WmBoardMemo *records, size_t count) {
     free(records);
 }
 
-static bool parse_record(const WmJson *json, size_t token,
-                         WmBoardMemo *memo, size_t *total_bytes) {
-    if (!token_is(json, token, WM_JSON_OBJECT)) return false;
+static bool parse_record(const WmJson *json, size_t token, WmBoardMemo *memo,
+                         size_t *total_bytes) {
+    if (!token_is(json, token, WM_JSON_OBJECT))
+        return false;
     size_t date = wm_json_member(json, token, "date");
     size_t position = wm_json_member(json, token, "position");
     if (!token_is(json, date, WM_JSON_OBJECT) ||
-        !token_is(json, position, WM_JSON_OBJECT)) return false;
+        !token_is(json, position, WM_JSON_OBJECT))
+        return false;
     memo->id = copy_json_string(json, wm_json_member(json, token, "id"));
     memo->text = copy_json_string(json, wm_json_member(json, token, "text"));
     if (!memo->id || !memo->id[0] || !memo->text ||
-        !wm_json_integer(json, wm_json_member(json, date, "year"),
-                         &memo->date.year) ||
+        !wm_json_integer(json, wm_json_member(json, date, "year"), &memo->date.year) ||
         !wm_json_integer(json, wm_json_member(json, date, "month"),
                          &memo->date.month) ||
-        !wm_json_integer(json, wm_json_member(json, date, "day"),
-                         &memo->date.day) ||
+        !wm_json_integer(json, wm_json_member(json, date, "day"), &memo->date.day) ||
         !wm_board_date_valid(memo->date) ||
         !json_created_at(json, wm_json_member(json, token, "createdAtMs"),
                          &memo->created_at_ms) ||
         !json_float(json, wm_json_member(json, position, "x"), &memo->x) ||
         !json_float(json, wm_json_member(json, position, "y"), &memo->y) ||
-        memo->x < -230.0f || memo->x > 230.0f ||
-        memo->y < -80.0f || memo->y > 180.0f ||
+        memo->x < -230.0f || memo->x > 230.0f || memo->y < -80.0f || memo->y > 180.0f ||
         !json_bool(json, wm_json_member(json, token, "read"), &memo->read)) {
         return false;
     }
@@ -213,8 +227,8 @@ WmBoardStoreStatus wm_board_store_load(const char *path, WmBoardScene *board,
     }
     char *contents;
     size_t length;
-    WmRegularFileStatus status = wm_regular_file_read(
-        path, STORE_MAX_JSON_BYTES, &contents, &length);
+    WmRegularFileStatus status =
+        wm_regular_file_read(path, STORE_MAX_JSON_BYTES, &contents, &length);
     if (status == WM_REGULAR_FILE_MISSING) {
         set_error(error, error_capacity, "");
         return WM_BOARD_STORE_MISSING;
@@ -232,14 +246,15 @@ WmBoardStoreStatus wm_board_store_load(const char *path, WmBoardScene *board,
     }
     int version = 0;
     size_t array = wm_json_member(&json, 0, "memos");
-    bool valid = token_is(&json, 0, WM_JSON_OBJECT) &&
-                 wm_json_integer(&json, wm_json_member(&json, 0,
-                                 "schemaVersion"), &version) &&
-                 version == 1 && token_is(&json, array, WM_JSON_ARRAY) &&
-                 json.tokens[array].children <= STORE_MAX_MEMOS;
+    bool valid =
+        token_is(&json, 0, WM_JSON_OBJECT) &&
+        wm_json_integer(&json, wm_json_member(&json, 0, "schemaVersion"), &version) &&
+        version == 1 && token_is(&json, array, WM_JSON_ARRAY) &&
+        json.tokens[array].children <= STORE_MAX_MEMOS;
     size_t count = valid ? json.tokens[array].children : 0;
     WmBoardMemo *records = count ? calloc(count, sizeof(*records)) : NULL;
-    if (count && !records) valid = false;
+    if (count && !records)
+        valid = false;
     size_t total_bytes = 0;
     for (size_t index = 0; valid && index < count; index++) {
         size_t token = wm_json_index(&json, array, index);
@@ -250,7 +265,8 @@ WmBoardStoreStatus wm_board_store_load(const char *path, WmBoardScene *board,
             }
         }
     }
-    if (valid) valid = wm_board_scene_set_memos(board, records, count);
+    if (valid)
+        valid = wm_board_scene_set_memos(board, records, count);
     free_records(records, count);
     wm_json_free(&json);
     if (!valid) {
@@ -263,11 +279,13 @@ WmBoardStoreStatus wm_board_store_load(const char *path, WmBoardScene *board,
 
 static size_t escaped_length(const char *value) {
     size_t length = 2;
-    for (const unsigned char *byte = (const unsigned char *)value;
-         *byte; byte++) {
-        if (*byte < 0x20) length += 6;
-        else if (*byte == '"' || *byte == '\\') length += 2;
-        else length++;
+    for (const unsigned char *byte = (const unsigned char *)value; *byte; byte++) {
+        if (*byte < 0x20)
+            length += 6;
+        else if (*byte == '"' || *byte == '\\')
+            length += 2;
+        else
+            length++;
     }
     return length;
 }
@@ -275,8 +293,7 @@ static size_t escaped_length(const char *value) {
 static void write_string(FILE *file, const char *value) {
     static const char hex[] = "0123456789abcdef";
     fputc('"', file);
-    for (const unsigned char *byte = (const unsigned char *)value;
-         *byte; byte++) {
+    for (const unsigned char *byte = (const unsigned char *)value; *byte; byte++) {
         if (*byte == '"' || *byte == '\\') {
             fputc('\\', file);
             fputc(*byte, file);
@@ -292,17 +309,20 @@ static void write_string(FILE *file, const char *value) {
 }
 
 static bool json_number(float value, char output[32]) {
-    if (!isfinite(value)) return false;
+    if (!isfinite(value))
+        return false;
     int length = snprintf(output, 32, "%.9g", (double)value);
-    if (length <= 0 || length >= 32) return false;
+    if (length <= 0 || length >= 32)
+        return false;
     for (int index = 0; index < length; index++) {
-        if (output[index] == ',') output[index] = '.';
+        if (output[index] == ',')
+            output[index] = '.';
     }
     return true;
 }
 
-bool wm_board_store_save(const char *path, const WmBoardScene *board,
-                         char *error, size_t error_capacity) {
+bool wm_board_store_save(const char *path, const WmBoardScene *board, char *error,
+                         size_t error_capacity) {
     if (!path || !path[0] || !board) {
         set_error(error, error_capacity, "Invalid Board store input");
         return false;
@@ -315,14 +335,11 @@ bool wm_board_store_save(const char *path, const WmBoardScene *board,
     size_t json_size = 64, text_size = 0;
     for (size_t index = 0; index < count; index++) {
         WmBoardMemo memo;
-        if (!wm_board_scene_get_memo(board, index, &memo) ||
-            !memo.id || !memo.id[0] || !memo.text ||
-            !valid_utf8(memo.id) || !valid_utf8(memo.text) ||
-            !wm_board_date_valid(memo.date) ||
-            memo.created_at_ms < 0 ||
-            memo.created_at_ms > INT64_C(253402300799999) ||
-            !isfinite(memo.x) || !isfinite(memo.y) ||
-            memo.x < -230.0f || memo.x > 230.0f ||
+        if (!wm_board_scene_get_memo(board, index, &memo) || !memo.id || !memo.id[0] ||
+            !memo.text || !valid_utf8(memo.id) || !valid_utf8(memo.text) ||
+            !wm_board_date_valid(memo.date) || memo.created_at_ms < 0 ||
+            memo.created_at_ms > INT64_C(253402300799999) || !isfinite(memo.x) ||
+            !isfinite(memo.y) || memo.x < -230.0f || memo.x > 230.0f ||
             memo.y < -80.0f || memo.y > 180.0f) {
             set_error(error, error_capacity, "Invalid Board memo");
             return false;
@@ -342,8 +359,7 @@ bool wm_board_store_save(const char *path, const WmBoardScene *board,
             return false;
         }
         text_size += id_bytes + text_bytes;
-        size_t estimated = 224 + escaped_length(memo.id) +
-                           escaped_length(memo.text);
+        size_t estimated = 224 + escaped_length(memo.id) + escaped_length(memo.text);
         if (estimated > STORE_MAX_JSON_BYTES - json_size) {
             set_error(error, error_capacity, "Board store size limit exceeded");
             return false;
@@ -390,10 +406,8 @@ bool wm_board_store_save(const char *path, const WmBoardScene *board,
                 ", \"date\": {\"year\": %d, \"month\": %d, \"day\": %d}, "
                 "\"createdAtMs\": %" PRId64 ", "
                 "\"position\": {\"x\": %s, \"y\": %s}, \"read\": %s}%s\n",
-                memo.date.year, memo.date.month, memo.date.day,
-                memo.created_at_ms,
-                x, y, memo.read ? "true" : "false",
-                index + 1 < count ? "," : "");
+                memo.date.year, memo.date.month, memo.date.day, memo.created_at_ms, x,
+                y, memo.read ? "true" : "false", index + 1 < count ? "," : "");
     }
     fputs("    ]\n}\n", file);
     bool success = wm_atomic_file_commit(&temporary, path);

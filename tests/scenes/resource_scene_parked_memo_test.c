@@ -37,36 +37,33 @@ void wm_platform_draw_quad(WmPlatform *platform, const WmQuad *quad) {
     (void)quad;
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
     (void)vertices;
     (void)texture;
 }
 
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad) {
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     draw_number++;
-    if (!quad->texture_count) return;
+    if (!quad->texture_count)
+        return;
     if (quad->textures[0] == memo_texture && !first_memo_draw) {
         first_memo_draw = draw_number;
-        memcpy(first_memo_vertices, quad->vertices,
-               sizeof(first_memo_vertices));
+        memcpy(first_memo_vertices, quad->vertices, sizeof(first_memo_vertices));
     }
     if (quad->textures[0] == grid_texture && !first_grid_draw)
         first_grid_draw = draw_number;
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     assert(width > 0 && height > 0 && rgba);
     return next_texture++;
@@ -118,41 +115,32 @@ int main(int argc, char **argv) {
     WmPlatform *platform = (WmPlatform *)1;
     WmMenu menu;
     wm_menu_init(&menu);
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 128u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        platform, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 128u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
-    if (!wm_texture_cache_resolve(textures,
-                                  "textures/board/my_LetterS_a.png",
+    if (!wm_texture_cache_resolve(textures, "textures/board/my_LetterS_a.png",
                                   &memo_texture)) {
         puts("Parked Memo render test skipped: local WAD export absent.");
         wm_font_cache_destroy(fonts);
         wm_texture_cache_destroy(textures);
         return 0;
     }
-    assert(wm_texture_cache_resolve(textures,
-                                    "textures/chanSel/my_TV_c_p0.png",
+    assert(wm_texture_cache_resolve(textures, "textures/chanSel/my_TV_c_p0.png",
                                     &grid_texture));
-    WmBoardScene *board = wm_board_scene_create(platform, assets,
-                                                textures, fonts);
-    WmResourceScene *grid = wm_resource_scene_create(platform, assets,
-                                                    &menu, textures, fonts);
+    WmBoardScene *board = wm_board_scene_create(platform, assets, textures, fonts);
+    WmResourceScene *grid =
+        wm_resource_scene_create(platform, assets, &menu, textures, fonts);
     assert(board && grid);
     WmBoardDate today = wm_board_scene_date(board);
-    WmBoardMemo memo = {
-        .id = "parked",
-        .text = "Memo",
-        .date = today,
-        .has_position = true,
-        .x = -220.0f,
-        .y = -65.0f
-    };
+    WmBoardMemo memo = {.id = "parked",
+                        .text = "Memo",
+                        .date = today,
+                        .has_position = true,
+                        .x = -220.0f,
+                        .y = -65.0f};
     assert(wm_board_scene_set_memos(board, &memo, 1));
-    WmResourceSceneFrame frame = {
-        .hover = {WM_HIT_NONE, -1},
-        .board_scene = board
-    };
+    WmResourceSceneFrame frame = {.hover = {WM_HIT_NONE, -1}, .board_scene = board};
 
     clear_draws();
     wm_resource_scene_draw(grid, &menu, &frame);
@@ -169,22 +157,18 @@ int main(int argc, char **argv) {
     WmMaterialVertex settled[4];
     memcpy(settled, first_memo_vertices, sizeof(settled));
 
-    const float camera[12] = {
-        1.25f, 0.0f, 0.0f, 32.0f,
-        0.0f, 1.25f, 0.0f, -12.0f,
-        0.0f, 0.0f, 1.0f, 0.0f
-    };
+    const float camera[12] = {1.25f, 0.0f,   0.0f, 32.0f, 0.0f, 1.25f,
+                              0.0f,  -12.0f, 0.0f, 0.0f,  1.0f, 0.0f};
     clear_draws();
     wm_board_scene_draw_parked_memos(board, today, camera);
     assert(first_memo_draw > 0);
-    assert(fabsf(quad_width(first_memo_vertices) /
-                 quad_width(settled) - 1.25f) < 0.01f);
+    assert(fabsf(quad_width(first_memo_vertices) / quad_width(settled) - 1.25f) <
+           0.01f);
     assert(fabsf(first_memo_vertices[0].x - settled[0].x) > 1.0f);
 
     assert(wm_board_scene_open(board, today));
     wm_board_scene_advance(board, 40.0f);
-    wm_board_scene_hover(board,
-                         (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0});
+    wm_board_scene_hover(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0});
     wm_board_scene_advance(board, 6.0f);
     assert(wm_board_scene_back(board));
     wm_board_scene_advance(board, 39.0f);
@@ -200,10 +184,8 @@ int main(int argc, char **argv) {
     wm_board_scene_draw_parked_memos(board, today, NULL);
     assert(first_memo_draw > 0);
     for (size_t index = 0; index < 4; index++) {
-        assert(fabsf(first_memo_vertices[index].x -
-                     before_handoff[index].x) < 0.01f);
-        assert(fabsf(first_memo_vertices[index].y -
-                     before_handoff[index].y) < 0.01f);
+        assert(fabsf(first_memo_vertices[index].x - before_handoff[index].x) < 0.01f);
+        assert(fabsf(first_memo_vertices[index].y - before_handoff[index].y) < 0.01f);
     }
 
     /* A Memo for today must already be drawn while the Board slides home
@@ -216,11 +198,10 @@ int main(int argc, char **argv) {
     assert(wm_board_scene_open(board, today));
     wm_board_scene_advance(board, 40.0f);
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
     wm_board_scene_advance(board, 20.0f);
     WmBoardDate selected = wm_board_scene_date(board);
-    assert(selected.year == yesterday.year &&
-           selected.month == yesterday.month &&
+    assert(selected.year == yesterday.year && selected.month == yesterday.month &&
            selected.day == yesterday.day);
     assert(wm_board_scene_back(board));
     wm_board_scene_advance(board, 10.0f);

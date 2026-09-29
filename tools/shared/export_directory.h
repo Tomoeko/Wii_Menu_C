@@ -11,7 +11,6 @@ bool wm_export_directory_root(const char *path, mode_t mode);
 
 /* Walk below an accepted root without following symlinks. Only the final
  * relative component is created; earlier child directories must exist. */
-bool wm_export_directory_child(const char *root, const char *relative,
-                               mode_t mode);
+bool wm_export_directory_child(const char *root, const char *relative, mode_t mode);
 
 #endif

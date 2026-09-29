@@ -120,5 +120,6 @@ void wm_audio_mix(void *context, float *interleaved, size_t frames) {
         if (interleaved[frame] < -1.0f)
             interleaved[frame] = -1.0f;
     }
-    if (finished) wm_audio_retire_finished(audio);
+    if (finished)
+        wm_audio_retire_finished(audio);
 }

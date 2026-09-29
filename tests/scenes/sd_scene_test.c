@@ -33,17 +33,15 @@ static float sd_button_alpha;
 static float sd_button_width;
 
 static void reset_render_probe(void) {
-    render_probe = (RenderProbe){
-        .next_button_left = INFINITY,
-        .visible_page_label_alpha = -1.0f,
-        .back_button_alpha = -1.0f,
-        .back_center_alpha = -1.0f,
-        .back_right_alpha = -1.0f,
-        .back_label_alpha = -1.0f,
-        .footer_title_left = INFINITY,
-        .footer_title_right = -INFINITY,
-        .footer_title_alpha = INFINITY
-    };
+    render_probe = (RenderProbe){.next_button_left = INFINITY,
+                                 .visible_page_label_alpha = -1.0f,
+                                 .back_button_alpha = -1.0f,
+                                 .back_center_alpha = -1.0f,
+                                 .back_right_alpha = -1.0f,
+                                 .back_label_alpha = -1.0f,
+                                 .footer_title_left = INFINITY,
+                                 .footer_title_right = -INFINITY,
+                                 .footer_title_alpha = INFINITY};
 }
 
 static void assert_back_visuals(float expected_alpha) {
@@ -55,14 +53,13 @@ static void assert_back_visuals(float expected_alpha) {
 }
 
 static void assert_footer_title_unchanged(const RenderProbe *reference) {
-    assert(render_probe.footer_title_glyphs ==
-           reference->footer_title_glyphs);
-    assert(fabsf(render_probe.footer_title_left -
-                 reference->footer_title_left) < 0.01f);
-    assert(fabsf(render_probe.footer_title_right -
-                 reference->footer_title_right) < 0.01f);
-    assert(fabsf(render_probe.footer_title_alpha -
-                 reference->footer_title_alpha) < 0.01f);
+    assert(render_probe.footer_title_glyphs == reference->footer_title_glyphs);
+    assert(fabsf(render_probe.footer_title_left - reference->footer_title_left) <
+           0.01f);
+    assert(fabsf(render_probe.footer_title_right - reference->footer_title_right) <
+           0.01f);
+    assert(fabsf(render_probe.footer_title_alpha - reference->footer_title_alpha) <
+           0.01f);
 }
 
 void wm_platform_begin(WmPlatform *platform, WmColor clear_color) {
@@ -76,8 +73,7 @@ void wm_platform_end(WmPlatform *platform) {
     assert(capture_render);
 }
 
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad) {
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
@@ -94,8 +90,7 @@ void wm_platform_draw_quad(WmPlatform *platform, const WmQuad *quad) {
     assert(capture_render);
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
     (void)texture;
@@ -106,29 +101,28 @@ void wm_platform_draw_vertices(WmPlatform *platform,
         render_probe.visible_glyphs++;
     if (x > 190.0f && x < 265.0f && y > 328.0f && y < 342.0f) {
         render_probe.back_label_glyphs++;
-        render_probe.back_label_alpha = fmaxf(
-            render_probe.back_label_alpha, vertices[0].color.a);
+        render_probe.back_label_alpha =
+            fmaxf(render_probe.back_label_alpha, vertices[0].color.a);
     }
     if (x > 280.0f && x < 355.0f && y > 320.0f && y < 345.0f) {
         render_probe.page_label_glyphs++;
     }
     if (x > 0.0f && x < 640.0f && y > 320.0f && y < 345.0f) {
         render_probe.visible_page_label_glyphs++;
-        render_probe.visible_page_label_alpha = fmaxf(
-            render_probe.visible_page_label_alpha, vertices[0].color.a);
+        render_probe.visible_page_label_alpha =
+            fmaxf(render_probe.visible_page_label_alpha, vertices[0].color.a);
     }
     if (x > 225.0f && x < 415.0f && y > 385.0f && y < 420.0f) {
         render_probe.footer_title_glyphs++;
         render_probe.footer_title_left = fminf(render_probe.footer_title_left, x);
-        render_probe.footer_title_right = fmaxf(render_probe.footer_title_right,
-                                                vertices[1].x);
-        render_probe.footer_title_alpha = fminf(
-            render_probe.footer_title_alpha, vertices[0].color.a);
+        render_probe.footer_title_right =
+            fmaxf(render_probe.footer_title_right, vertices[1].x);
+        render_probe.footer_title_alpha =
+            fminf(render_probe.footer_title_alpha, vertices[0].color.a);
     }
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     assert(capture_render);
     float x = quad->vertices[0].x;
@@ -139,31 +133,27 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
         sd_button_width = fmaxf(sd_button_width, fabsf(width));
     }
     if (y > 305.0f && y < 316.0f && width > 20.0f && width < 30.0f) {
-        if (x > 310.0f && x < 340.0f &&
-            x < render_probe.next_button_left) {
+        if (x > 310.0f && x < 340.0f && x < render_probe.next_button_left) {
             render_probe.next_button_left = x;
         }
         if (x > 115.0f && x < 175.0f) {
-            render_probe.back_button_alpha = fmaxf(
-                render_probe.back_button_alpha,
-                quad->vertices[0].color.a);
+            render_probe.back_button_alpha =
+                fmaxf(render_probe.back_button_alpha, quad->vertices[0].color.a);
         }
         if (x > 265.0f && x < 315.0f) {
-            render_probe.back_right_alpha = fmaxf(
-                render_probe.back_right_alpha,
-                quad->vertices[0].color.a);
+            render_probe.back_right_alpha =
+                fmaxf(render_probe.back_right_alpha, quad->vertices[0].color.a);
         }
     }
-    if (y > 305.0f && y < 316.0f && width > 100.0f &&
-        width < 145.0f && x > 150.0f && x < 195.0f) {
-        render_probe.back_center_alpha = fmaxf(
-            render_probe.back_center_alpha,
-            quad->vertices[0].color.a);
+    if (y > 305.0f && y < 316.0f && width > 100.0f && width < 145.0f && x > 150.0f &&
+        x < 195.0f) {
+        render_probe.back_center_alpha =
+            fmaxf(render_probe.back_center_alpha, quad->vertices[0].color.a);
     }
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     (void)width;
     (void)height;
@@ -219,8 +209,8 @@ static WmSdScene *load_scene(int argc, char **argv) {
         return NULL;
     }
     fclose(check);
-    WmSdScene *scene = wm_sd_scene_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1, (WmFontCache *)1);
+    WmSdScene *scene = wm_sd_scene_create((WmPlatform *)1, assets, (WmTextureCache *)1,
+                                          (WmFontCache *)1);
     assert(scene);
     return scene;
 }
@@ -228,8 +218,8 @@ static WmSdScene *load_scene(int argc, char **argv) {
 static void test_grid_sd_button_anchor(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char path[4096];
-    int length = snprintf(path, sizeof(path),
-                          "%s/layouts/cmnBtn/mn_Sdcard_Btn.json", assets);
+    int length =
+        snprintf(path, sizeof(path), "%s/layouts/cmnBtn/mn_Sdcard_Btn.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     char error[160] = {0};
     WmLayout *button = wm_layout_load_json(path, error, sizeof(error));
@@ -237,14 +227,9 @@ static void test_grid_sd_button_anchor(int argc, char **argv) {
     assert(wm_layout_pose(button, NULL, 0));
     /* The 16:9 SD offset is -245. The shared 640-wide raster maps that
      * position to 131.54, at Y=400 for the -172 footer anchor. */
-    const float parent[12] = {
-        1, 0, 0, -245,
-        0, 1, 0, -172,
-        0, 0, 1, 0
-    };
+    const float parent[12] = {1, 0, 0, -245, 0, 1, 0, -172, 0, 0, 1, 0};
     WmSourceRect rect;
-    assert(wm_source_pane_rect(button, "Ac", true, WM_LAYOUT_IPL,
-                               parent, &rect));
+    assert(wm_source_pane_rect(button, "Ac", true, WM_LAYOUT_IPL, parent, &rect));
     float center_x = rect.x + rect.width * 0.5f;
     float center_y = rect.y + rect.height * 0.5f;
     assert(fabsf(center_x - 131.538f) < 0.05f);
@@ -256,13 +241,13 @@ static void test_grid_sd_button_anchor(int argc, char **argv) {
     WmMenu menu;
     wm_menu_init(&menu);
     capture_render = true;
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 128u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 128u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
-    WmResourceScene *grid = wm_resource_scene_create(
-        (WmPlatform *)1, assets, &menu, textures, fonts);
+    WmResourceScene *grid =
+        wm_resource_scene_create((WmPlatform *)1, assets, &menu, textures, fonts);
     assert(grid);
     assert(wm_resource_scene_hit(grid, &menu, 132, 400).type == WM_HIT_SD);
     assert(wm_resource_scene_hit(grid, &menu, 183, 400).type != WM_HIT_SD);
@@ -312,7 +297,8 @@ static bool find_event(WmSdScene *scene, WmSdEventType wanted) {
     WmSdEvent event;
     bool found = false;
     while (wm_sd_scene_take_event(scene, &event)) {
-        if (event.type == wanted) found = true;
+        if (event.type == wanted)
+            found = true;
     }
     return found;
 }
@@ -334,10 +320,11 @@ static bool probe_alpha(void *context, const WmLayoutPaneView *pane) {
 
 static float displayed_alpha(WmLayout *layout, const char *name) {
     AlphaProbe probe = {.name = name};
-    WmLayoutDrawOptions options = {
-        .wide = true, .mode = WM_LAYOUT_IPL, .alpha = 1.0f,
-        .on_pane = probe_alpha, .context = &probe
-    };
+    WmLayoutDrawOptions options = {.wide = true,
+                                   .mode = WM_LAYOUT_IPL,
+                                   .alpha = 1.0f,
+                                   .on_pane = probe_alpha,
+                                   .context = &probe};
     wm_layout_draw(layout, &options);
     assert(probe.found);
     return probe.alpha;
@@ -354,13 +341,11 @@ static void test_dialog_alpha(int argc, char **argv) {
     assert(layout);
     assert(wm_layout_pose(layout, NULL, 0));
     assert(wm_layout_set_pane_alpha(layout, "T_Dialog", 128.0f));
-    assert(fabsf(displayed_alpha(layout, "T_Dialog") - 128.0f / 255.0f)
-           < 0.001f);
+    assert(fabsf(displayed_alpha(layout, "T_Dialog") - 128.0f / 255.0f) < 0.001f);
     assert(!wm_layout_set_pane_alpha(layout, "T_Dialog", -1.0f));
     assert(!wm_layout_set_pane_alpha(layout, "missing", 64.0f));
     assert(wm_layout_set_descendant_alpha(layout, "N_BtnA_Pic", 64.0f));
-    assert(fabsf(displayed_alpha(layout, "BtnA0") - 64.0f / 255.0f)
-           < 0.001f);
+    assert(fabsf(displayed_alpha(layout, "BtnA0") - 64.0f / 255.0f) < 0.001f);
     assert(wm_layout_pose(layout, NULL, 0));
     assert(displayed_alpha(layout, "T_Dialog") > 0.9f);
     wm_layout_destroy(layout);
@@ -378,20 +363,17 @@ static void test_arrow_source_intervals(int argc, char **argv) {
     const struct {
         const char *name;
         float frames;
-    } intervals[] = {
-        {"mn_SdcardMenu_b_ArwL_in", 11.0f},
-        {"mn_SdcardMenu_b_ArwL_out", 11.0f},
-        {"mn_SdcardMenu_b_ArwL_rollover", 9.0f},
-        {"mn_SdcardMenu_b_ArwL_rollout", 13.0f},
-        {"mn_SdcardMenu_b_ArwL_on", 28.0f},
-        {"mn_SdcardMenu_b_ArwR_in", 11.0f},
-        {"mn_SdcardMenu_b_ArwR_out", 11.0f},
-        {"mn_SdcardMenu_b_ArwR_rollover", 9.0f},
-        {"mn_SdcardMenu_b_ArwR_rollout", 13.0f},
-        {"mn_SdcardMenu_b_ArwR_on", 28.0f}
-    };
-    for (size_t index = 0; index < sizeof(intervals) / sizeof(intervals[0]);
-         index++) {
+    } intervals[] = {{"mn_SdcardMenu_b_ArwL_in", 11.0f},
+                     {"mn_SdcardMenu_b_ArwL_out", 11.0f},
+                     {"mn_SdcardMenu_b_ArwL_rollover", 9.0f},
+                     {"mn_SdcardMenu_b_ArwL_rollout", 13.0f},
+                     {"mn_SdcardMenu_b_ArwL_on", 28.0f},
+                     {"mn_SdcardMenu_b_ArwR_in", 11.0f},
+                     {"mn_SdcardMenu_b_ArwR_out", 11.0f},
+                     {"mn_SdcardMenu_b_ArwR_rollover", 9.0f},
+                     {"mn_SdcardMenu_b_ArwR_rollout", 13.0f},
+                     {"mn_SdcardMenu_b_ArwR_on", 28.0f}};
+    for (size_t index = 0; index < sizeof(intervals) / sizeof(intervals[0]); index++) {
         WmLayoutAnimationInfo info;
         assert(wm_layout_animation_info(footer, intervals[index].name, &info));
         assert(info.frames == intervals[index].frames);
@@ -416,8 +398,7 @@ static void test_page_and_media(WmSdScene *scene) {
     assert(wm_sd_scene_hit(scene, 570, 395).control == WM_SD_CONTROL_HELP);
     assert(wm_sd_scene_hit(scene, 615, 175).control == WM_SD_CONTROL_NEXT);
     assert(wm_sd_scene_hit(scene, 20, 175).control == WM_SD_CONTROL_NONE);
-    assert(!wm_sd_scene_activate(scene,
-           (WmSdHit){WM_SD_CONTROL_PREVIOUS, 0}));
+    assert(!wm_sd_scene_activate(scene, (WmSdHit){WM_SD_CONTROL_PREVIOUS, 0}));
     assert(wm_sd_scene_activate(scene, (WmSdHit){WM_SD_CONTROL_NEXT, 0}));
     assert(wm_sd_scene_phase(scene) == WM_SD_SCROLL);
     wm_sd_scene_advance(scene, 19.0f, false);
@@ -425,11 +406,9 @@ static void test_page_and_media(WmSdScene *scene) {
     wm_sd_scene_advance(scene, 1.0f, false);
     assert(wm_sd_scene_page(scene) == 1);
     wm_sd_scene_advance(scene, 11.0f, false);
-    assert(wm_sd_scene_hit(scene, 20, 175).control ==
-           WM_SD_CONTROL_PREVIOUS);
+    assert(wm_sd_scene_hit(scene, 20, 175).control == WM_SD_CONTROL_PREVIOUS);
     assert(find_event(scene, WM_SD_EVENT_PAGE_CHANGED));
-    assert(wm_sd_scene_activate(scene,
-           (WmSdHit){WM_SD_CONTROL_PREVIOUS, 0}));
+    assert(wm_sd_scene_activate(scene, (WmSdHit){WM_SD_CONTROL_PREVIOUS, 0}));
     wm_sd_scene_advance(scene, 20.0f, false);
     assert(wm_sd_scene_page(scene) == 0);
     assert(wm_sd_scene_back(scene));
@@ -439,8 +418,7 @@ static void test_page_and_media(WmSdScene *scene) {
     assert(wm_sd_scene_open(scene, 5, true, WM_SD_MEDIA_ABSENT));
     wm_sd_scene_advance(scene, 49.0f, false);
     assert(!wm_sd_scene_is_locked(scene));
-    assert(!wm_sd_scene_activate(scene,
-           (WmSdHit){WM_SD_CONTROL_NEXT, 0}));
+    assert(!wm_sd_scene_activate(scene, (WmSdHit){WM_SD_CONTROL_NEXT, 0}));
     assert(wm_sd_scene_activate(scene, (WmSdHit){WM_SD_CONTROL_HELP, 0}));
     assert(wm_sd_scene_help_open(scene));
 
@@ -467,12 +445,10 @@ static void test_welcome_and_help(WmSdScene *scene) {
     assert(find_event(scene, WM_SD_EVENT_HELP_OPEN));
     wm_sd_scene_advance(scene, 25.0f, false);
     assert(!wm_sd_scene_is_locked(scene));
-    assert(!wm_sd_scene_activate(scene,
-           (WmSdHit){WM_SD_CONTROL_HELP_BACK, 0}));
+    assert(!wm_sd_scene_activate(scene, (WmSdHit){WM_SD_CONTROL_HELP_BACK, 0}));
     for (unsigned page = 0; page < 4; page++) {
         assert(wm_sd_scene_help_page(scene) == page);
-        assert(wm_sd_scene_activate(scene,
-               (WmSdHit){WM_SD_CONTROL_HELP_NEXT, 0}));
+        assert(wm_sd_scene_activate(scene, (WmSdHit){WM_SD_CONTROL_HELP_NEXT, 0}));
         wm_sd_scene_advance(scene, page == 3 ? 42.0f : 41.0f, false);
     }
     assert(!wm_sd_scene_help_open(scene));
@@ -490,10 +466,10 @@ static void test_channel_mapping(WmSdScene *scene) {
     WmSdChannel channel = {0, "0001000148414a45"};
     assert(wm_sd_scene_set_channels(scene, &channel, 1));
     assert(wm_sd_scene_channel_id(scene, 0));
-    assert(!wm_sd_scene_set_channels(scene,
-           (WmSdChannel[]){{0, channel.title_id}, {0, channel.title_id}}, 2));
-    assert(!wm_sd_scene_set_channels(scene,
-           (WmSdChannel[]){{0, channel.title_id}, {1, channel.title_id}}, 2));
+    assert(!wm_sd_scene_set_channels(
+        scene, (WmSdChannel[]){{0, channel.title_id}, {0, channel.title_id}}, 2));
+    assert(!wm_sd_scene_set_channels(
+        scene, (WmSdChannel[]){{0, channel.title_id}, {1, channel.title_id}}, 2));
     assert(wm_sd_scene_open(scene, 0, true, WM_SD_MEDIA_READY));
     wm_sd_scene_advance(scene, 33.0f, false);
     assert(wm_sd_scene_is_locked(scene));
@@ -501,8 +477,7 @@ static void test_channel_mapping(WmSdScene *scene) {
     assert(wm_sd_scene_is_locked(scene));
     wm_sd_scene_advance(scene, 17.0f, false);
     assert(!wm_sd_scene_is_locked(scene));
-    assert(wm_sd_scene_activate(scene,
-           (WmSdHit){WM_SD_CONTROL_CHANNEL, 0}));
+    assert(wm_sd_scene_activate(scene, (WmSdHit){WM_SD_CONTROL_CHANNEL, 0}));
     assert(find_event(scene, WM_SD_EVENT_CHANNEL_SELECTED));
 }
 
@@ -516,17 +491,16 @@ static void test_restart_reset(WmSdScene *scene) {
     WmSdEvent event;
     assert(!wm_sd_scene_take_event(scene, &event));
     assert(wm_sd_scene_open(scene, wm_sd_scene_page(scene),
-                            wm_sd_scene_help_seen(scene),
-                            WM_SD_MEDIA_READY));
+                            wm_sd_scene_help_seen(scene), WM_SD_MEDIA_READY));
     assert(wm_sd_scene_phase(scene) == WM_SD_ACTIVE);
 }
 
-static unsigned take_arrow_hover_events(WmSdScene *scene,
-                                         WmSdControl control) {
+static unsigned take_arrow_hover_events(WmSdScene *scene, WmSdControl control) {
     unsigned count = 0;
     WmSdEvent event;
     while (wm_sd_scene_take_event(scene, &event)) {
-        if (event.type != WM_SD_EVENT_HOVER_SOUND) continue;
+        if (event.type != WM_SD_EVENT_HOVER_SOUND)
+            continue;
         assert(event.control == control);
         count++;
     }
@@ -534,10 +508,7 @@ static unsigned take_arrow_hover_events(WmSdScene *scene,
 }
 
 static void test_unified_arrow_hover(WmSdScene *scene) {
-    const WmSdControl controls[] = {
-        WM_SD_CONTROL_PREVIOUS,
-        WM_SD_CONTROL_NEXT
-    };
+    const WmSdControl controls[] = {WM_SD_CONTROL_PREVIOUS, WM_SD_CONTROL_NEXT};
     const int pointer_x[] = {20, 615};
     for (unsigned side = 0; side < 2; side++) {
         assert(wm_sd_scene_open(scene, 10, true, WM_SD_MEDIA_READY));
@@ -549,9 +520,10 @@ static void test_unified_arrow_hover(WmSdScene *scene) {
         int first_y = -1;
         int last_y = -1;
         for (int y = 0; y < 360; y++) {
-            if (wm_sd_scene_hit(scene, pointer_x[side], y).control !=
-                controls[side]) continue;
-            if (first_y < 0) first_y = y;
+            if (wm_sd_scene_hit(scene, pointer_x[side], y).control != controls[side])
+                continue;
+            if (first_y < 0)
+                first_y = y;
             last_y = y;
         }
         assert(first_y >= 0 && last_y - first_y > 20);
@@ -567,8 +539,7 @@ static void test_unified_arrow_hover(WmSdScene *scene) {
         }
         assert(hover_count == 1);
         int center_y = (first_y + last_y) / 2;
-        assert(wm_sd_scene_activate(scene,
-            (WmSdHit){controls[side], 0}));
+        assert(wm_sd_scene_activate(scene, (WmSdHit){controls[side], 0}));
         for (unsigned frame = 0; frame < 40; frame++) {
             wm_sd_scene_advance(scene, 1.0f, false);
             WmSdHit hit = wm_sd_scene_hit(scene, pointer_x[side], center_y);
@@ -578,8 +549,7 @@ static void test_unified_arrow_hover(WmSdScene *scene) {
         }
         assert(hover_count == 1);
         wm_sd_scene_hover(scene, (WmSdHit){WM_SD_CONTROL_NONE, 0});
-        wm_sd_scene_hover(scene,
-            wm_sd_scene_hit(scene, pointer_x[side], center_y));
+        wm_sd_scene_hover(scene, wm_sd_scene_hit(scene, pointer_x[side], center_y));
         assert(take_arrow_hover_events(scene, controls[side]) == 1);
     }
 }
@@ -588,10 +558,9 @@ static void test_source_draw_transitions(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     WmPlatform *platform = (WmPlatform *)1;
     capture_render = true;
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 128u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        platform, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 128u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     WmSdScene *scene = wm_sd_scene_create(platform, assets, textures, fonts);
     assert(scene);
@@ -605,7 +574,8 @@ static void test_source_draw_transitions(int argc, char **argv) {
     RenderProbe footer_reference = render_probe;
     assert(wm_sd_scene_activate(scene, (WmSdHit){WM_SD_CONTROL_NEXT, 0}));
     for (unsigned frame = 0; frame <= 20; frame++) {
-        if (frame) wm_sd_scene_advance(scene, 1.0f, false);
+        if (frame)
+            wm_sd_scene_advance(scene, 1.0f, false);
         reset_render_probe();
         wm_sd_scene_draw(scene);
         assert_footer_title_unchanged(&footer_reference);
@@ -619,10 +589,10 @@ static void test_source_draw_transitions(int argc, char **argv) {
     assert(wm_sd_scene_page(scene) == 1);
     assert(render_probe.page_label_glyphs >= 4);
 
-    assert(wm_sd_scene_activate(scene,
-                                (WmSdHit){WM_SD_CONTROL_PREVIOUS, 0}));
+    assert(wm_sd_scene_activate(scene, (WmSdHit){WM_SD_CONTROL_PREVIOUS, 0}));
     for (unsigned frame = 0; frame <= 20; frame++) {
-        if (frame) wm_sd_scene_advance(scene, 1.0f, false);
+        if (frame)
+            wm_sd_scene_advance(scene, 1.0f, false);
         reset_render_probe();
         wm_sd_scene_draw(scene);
         assert_footer_title_unchanged(&footer_reference);
@@ -638,8 +608,7 @@ static void test_source_draw_transitions(int argc, char **argv) {
     wm_sd_scene_advance(scene, 25.0f, false);
     wm_sd_scene_hover(scene, (WmSdHit){WM_SD_CONTROL_HELP_NEXT, 0});
     wm_sd_scene_advance(scene, 6.0f, false);
-    assert(wm_sd_scene_activate(scene,
-                                (WmSdHit){WM_SD_CONTROL_HELP_NEXT, 0}));
+    assert(wm_sd_scene_activate(scene, (WmSdHit){WM_SD_CONTROL_HELP_NEXT, 0}));
     wm_sd_scene_advance(scene, 21.0f, false);
     reset_render_probe();
     wm_sd_scene_draw(scene);
@@ -671,10 +640,10 @@ static void test_source_draw_transitions(int argc, char **argv) {
      * Sample each rendered frame to catch a one-frame reset or blink. */
     for (unsigned destination = 2; destination <= 3; destination++) {
         assert(wm_sd_scene_help_page(scene) == destination - 1);
-        assert(wm_sd_scene_activate(scene,
-                                    (WmSdHit){WM_SD_CONTROL_HELP_NEXT, 0}));
+        assert(wm_sd_scene_activate(scene, (WmSdHit){WM_SD_CONTROL_HELP_NEXT, 0}));
         for (unsigned frame = 0; frame <= 41; frame++) {
-            if (frame) wm_sd_scene_advance(scene, 1.0f, false);
+            if (frame)
+                wm_sd_scene_advance(scene, 1.0f, false);
             reset_render_probe();
             wm_sd_scene_draw(scene);
             assert_back_visuals(1.0f);
@@ -683,10 +652,10 @@ static void test_source_draw_transitions(int argc, char **argv) {
     }
 
     for (unsigned step = 0; step < 2; step++) {
-        assert(wm_sd_scene_activate(scene,
-                                    (WmSdHit){WM_SD_CONTROL_HELP_BACK, 0}));
+        assert(wm_sd_scene_activate(scene, (WmSdHit){WM_SD_CONTROL_HELP_BACK, 0}));
         for (unsigned frame = 0; frame <= 41; frame++) {
-            if (frame) wm_sd_scene_advance(scene, 1.0f, false);
+            if (frame)
+                wm_sd_scene_advance(scene, 1.0f, false);
             reset_render_probe();
             wm_sd_scene_draw(scene);
             assert_back_visuals(1.0f);
@@ -704,10 +673,9 @@ static void test_footer_balloon_handoff(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     WmPlatform *platform = (WmPlatform *)1;
     capture_render = true;
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 128u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        platform, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 128u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     WmSdScene *scene = wm_sd_scene_create(platform, assets, textures, fonts);
     assert(scene);
@@ -754,7 +722,8 @@ static void test_footer_balloon_handoff(int argc, char **argv) {
 int main(int argc, char **argv) {
     test_page_arithmetic();
     WmSdScene *scene = load_scene(argc, argv);
-    if (!scene) return 0;
+    if (!scene)
+        return 0;
     test_arrow_source_intervals(argc, argv);
     test_dialog_alpha(argc, argv);
     test_grid_sd_button_anchor(argc, argv);

@@ -48,8 +48,7 @@ struct WmTextureCache {
 };
 
 static WmTextureEntry *find_entry(WmTextureCache *cache, const char *url,
-                                   size_t *insertion_index)
-{
+                                  size_t *insertion_index) {
     size_t low = 0;
     size_t high = cache->entry_count;
     while (low < high) {
@@ -69,8 +68,7 @@ static WmTextureEntry *find_entry(WmTextureCache *cache, const char *url,
 }
 
 static WmTextureEntry *insert_entry(WmTextureCache *cache, const char *url,
-                                     size_t url_length, size_t index)
-{
+                                    size_t url_length, size_t index) {
     if (cache->entry_count >= WM_MAX_TEXTURE_SOURCES) {
         return NULL;
     }
@@ -85,8 +83,7 @@ static WmTextureEntry *insert_entry(WmTextureCache *cache, const char *url,
         if (capacity > WM_MAX_TEXTURE_SOURCES) {
             capacity = WM_MAX_TEXTURE_SOURCES;
         }
-        WmTextureEntry *entries = realloc(cache->entries,
-                                          capacity * sizeof(*entries));
+        WmTextureEntry *entries = realloc(cache->entries, capacity * sizeof(*entries));
         if (!entries) {
             free(copy);
             return NULL;
@@ -98,13 +95,12 @@ static WmTextureEntry *insert_entry(WmTextureCache *cache, const char *url,
     memmove(cache->entries + index + 1, cache->entries + index,
             (cache->entry_count - index) * sizeof(*cache->entries));
     WmTextureEntry *entry = cache->entries + index;
-    *entry = (WmTextureEntry){ .url = copy };
+    *entry = (WmTextureEntry){.url = copy};
     cache->entry_count++;
     return entry;
 }
 
-static WmTextureEntry *least_recent_eviction_candidate(WmTextureCache *cache)
-{
+static WmTextureEntry *least_recent_eviction_candidate(WmTextureCache *cache) {
     WmTextureEntry *candidate = NULL;
     for (size_t index = 0; index < cache->entry_count; ++index) {
         WmTextureEntry *entry = cache->entries + index;
@@ -118,8 +114,7 @@ static WmTextureEntry *least_recent_eviction_candidate(WmTextureCache *cache)
     return candidate;
 }
 
-static bool reserve_gpu_bytes(WmTextureCache *cache, size_t bytes)
-{
+static bool reserve_gpu_bytes(WmTextureCache *cache, size_t bytes) {
     if (bytes > cache->budget_bytes) {
         return false;
     }
@@ -137,10 +132,8 @@ static bool reserve_gpu_bytes(WmTextureCache *cache, size_t bytes)
     return true;
 }
 
-WmTextureCache *wm_texture_cache_create(WmPlatform *platform,
-                                         const char *raw_root,
-                                         size_t budget_bytes)
-{
+WmTextureCache *wm_texture_cache_create(WmPlatform *platform, const char *raw_root,
+                                        size_t budget_bytes) {
     if (!platform || !raw_root || !raw_root[0] || budget_bytes == 0) {
         return NULL;
     }
@@ -149,8 +142,7 @@ WmTextureCache *wm_texture_cache_create(WmPlatform *platform,
         return NULL;
     }
     struct stat information;
-    if (fstat(root_directory, &information) != 0 ||
-        !S_ISDIR(information.st_mode)) {
+    if (fstat(root_directory, &information) != 0 || !S_ISDIR(information.st_mode)) {
         close(root_directory);
         return NULL;
     }
@@ -166,8 +158,7 @@ WmTextureCache *wm_texture_cache_create(WmPlatform *platform,
     return cache;
 }
 
-void wm_texture_cache_destroy(WmTextureCache *cache)
-{
+void wm_texture_cache_destroy(WmTextureCache *cache) {
     if (!cache) {
         return;
     }
@@ -183,8 +174,7 @@ void wm_texture_cache_destroy(WmTextureCache *cache)
     free(cache);
 }
 
-void wm_texture_cache_begin_frame(WmTextureCache *cache)
-{
+void wm_texture_cache_begin_frame(WmTextureCache *cache) {
     if (!cache) {
         return;
     }
@@ -198,8 +188,7 @@ void wm_texture_cache_begin_frame(WmTextureCache *cache)
     }
 }
 
-static void record_use(WmTextureCache *cache, WmTextureEntry *entry)
-{
+static void record_use(WmTextureCache *cache, WmTextureEntry *entry) {
     if (cache->use_clock == UINT64_MAX) {
         for (size_t index = 0; index < cache->entry_count; ++index) {
             cache->entries[index].recent_use = 0;
@@ -210,10 +199,8 @@ static void record_use(WmTextureCache *cache, WmTextureEntry *entry)
     entry->recent_use = ++cache->use_clock;
 }
 
-bool wm_texture_cache_resolve(WmTextureCache *cache,
-                              const char *relative_png_url,
-                              uint32_t *handle)
-{
+bool wm_texture_cache_resolve(WmTextureCache *cache, const char *relative_png_url,
+                              uint32_t *handle) {
     if (handle) {
         *handle = 0;
     }
@@ -245,8 +232,8 @@ bool wm_texture_cache_resolve(WmTextureCache *cache,
         return false;
     }
 
-    FILE *source = wm_texture_source_open(cache->raw_root_directory,
-                                           relative_png_url, url_length);
+    FILE *source =
+        wm_texture_source_open(cache->raw_root_directory, relative_png_url, url_length);
     if (!source) {
         entry->state = WM_TEXTURE_FAILED;
         return false;
@@ -268,8 +255,7 @@ bool wm_texture_cache_resolve(WmTextureCache *cache,
         return false;
     }
     WmImage image;
-    bool read_successful = wm_image_read_bounded_stream(source, declared_bytes,
-                                                        &image);
+    bool read_successful = wm_image_read_bounded_stream(source, declared_bytes, &image);
     fclose(source);
     if (!read_successful) {
         entry->state = WM_TEXTURE_FAILED;
@@ -288,10 +274,8 @@ bool wm_texture_cache_resolve(WmTextureCache *cache,
         return false;
     }
 
-    uint32_t texture = wm_platform_create_texture(cache->platform,
-                                                    (int)image.width,
-                                                    (int)image.height,
-                                                    image.pixels);
+    uint32_t texture = wm_platform_create_texture(cache->platform, (int)image.width,
+                                                  (int)image.height, image.pixels);
     wm_image_free(&image);
     if (texture == 0) {
         entry->state = WM_TEXTURE_FAILED;
@@ -305,10 +289,8 @@ bool wm_texture_cache_resolve(WmTextureCache *cache,
     return true;
 }
 
-bool wm_texture_cache_layout_image(void *context,
-                                   const WmLayoutTexture *resource,
-                                   uint32_t *handle)
-{
+bool wm_texture_cache_layout_image(void *context, const WmLayoutTexture *resource,
+                                   uint32_t *handle) {
     if (handle) {
         *handle = 0;
     }
@@ -318,8 +300,7 @@ bool wm_texture_cache_layout_image(void *context,
     return wm_texture_cache_resolve(context, resource->url, handle);
 }
 
-void wm_texture_cache_retry_failed(WmTextureCache *cache)
-{
+void wm_texture_cache_retry_failed(WmTextureCache *cache) {
     if (!cache) {
         return;
     }
@@ -332,9 +313,8 @@ void wm_texture_cache_retry_failed(WmTextureCache *cache)
     }
 }
 
-WmTextureCacheStats wm_texture_cache_stats(const WmTextureCache *cache)
-{
-    WmTextureCacheStats statistics = { 0 };
+WmTextureCacheStats wm_texture_cache_stats(const WmTextureCache *cache) {
+    WmTextureCacheStats statistics = {0};
     if (!cache) {
         return statistics;
     }

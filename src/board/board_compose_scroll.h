@@ -21,11 +21,7 @@ typedef struct BoardComposeScrollArrow {
     float press_frame;
 } BoardComposeScrollArrow;
 
-enum {
-    COMPOSE_SCROLL_UP,
-    COMPOSE_SCROLL_DOWN,
-    COMPOSE_SCROLL_DIRECTIONS
-};
+enum { COMPOSE_SCROLL_UP, COMPOSE_SCROLL_DOWN, COMPOSE_SCROLL_DIRECTIONS };
 
 typedef enum ComposeScrollMode {
     COMPOSE_SCROLL_DISPLAY,

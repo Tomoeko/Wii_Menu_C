@@ -16,19 +16,16 @@
 
 enum { WM_EXPORT_PATH_CAPACITY = 4096 };
 
-static bool ends_with(const char *value, const char *suffix)
-{
+static bool ends_with(const char *value, const char *suffix) {
     size_t value_size = strlen(value);
     size_t suffix_size = strlen(suffix);
     return value_size >= suffix_size &&
            strcmp(value + value_size - suffix_size, suffix) == 0;
 }
 
-static bool package_name(const char *path, char name[128])
-{
+static bool package_name(const char *path, char name[128]) {
     static const char prefix[] = "layout/common/";
-    if (strncmp(path, prefix, sizeof(prefix) - 1) != 0 ||
-        !ends_with(path, ".ash")) {
+    if (strncmp(path, prefix, sizeof(prefix) - 1) != 0 || !ends_with(path, ".ash")) {
         return false;
     }
     size_t length = strlen(path) - (sizeof(prefix) - 1) - 4;
@@ -38,8 +35,7 @@ static bool package_name(const char *path, char name[128])
     const char *start = path + sizeof(prefix) - 1;
     for (size_t index = 0; index < length; index++) {
         char value = start[index];
-        if (!((value >= 'a' && value <= 'z') ||
-              (value >= 'A' && value <= 'Z') ||
+        if (!((value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z') ||
               (value >= '0' && value <= '9') || value == '_' || value == '-')) {
             return false;
         }
@@ -49,9 +45,8 @@ static bool package_name(const char *path, char name[128])
     return true;
 }
 
-static bool resource_stem(const char *path, const char *extension,
-                          char stem[128], char basename[128])
-{
+static bool resource_stem(const char *path, const char *extension, char stem[128],
+                          char basename[128]) {
     if (!ends_with(path, extension)) {
         return false;
     }
@@ -64,8 +59,7 @@ static bool resource_stem(const char *path, const char *extension,
     }
     for (size_t index = 0; index < name_size - extension_size; index++) {
         char value = start[index];
-        if (!((value >= 'a' && value <= 'z') ||
-              (value >= 'A' && value <= 'Z') ||
+        if (!((value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z') ||
               (value >= '0' && value <= '9') || value == '_' || value == '-' ||
               value == '.')) {
             return false;
@@ -77,17 +71,14 @@ static bool resource_stem(const char *path, const char *extension,
     return true;
 }
 
-static bool write_path(char output[WM_EXPORT_PATH_CAPACITY],
-                       const char *directory, const char *subdirectory,
-                       const char *filename)
-{
-    int length = snprintf(output, WM_EXPORT_PATH_CAPACITY,
-                          "%s/%s/%s", directory, subdirectory, filename);
+static bool write_path(char output[WM_EXPORT_PATH_CAPACITY], const char *directory,
+                       const char *subdirectory, const char *filename) {
+    int length = snprintf(output, WM_EXPORT_PATH_CAPACITY, "%s/%s/%s", directory,
+                          subdirectory, filename);
     return length >= 0 && length < WM_EXPORT_PATH_CAPACITY;
 }
 
-static bool ensure_package_directories(const char *output, const char *package)
-{
+static bool ensure_package_directories(const char *output, const char *package) {
     char relative[160];
     int length = snprintf(relative, sizeof(relative), "layouts/%s", package);
     if (length < 0 || length >= (int)sizeof(relative) ||
@@ -102,8 +93,7 @@ static bool ensure_package_directories(const char *output, const char *package)
            wm_export_directory_child(output, relative, 0755);
 }
 
-static uint8_t *read_file(const char *path, size_t *size)
-{
+static uint8_t *read_file(const char *path, size_t *size) {
     FILE *file = fopen(path, "rb");
     if (file == NULL || fseek(file, 0, SEEK_END) != 0) {
         if (file != NULL) {
@@ -127,8 +117,7 @@ static uint8_t *read_file(const char *path, size_t *size)
     return data;
 }
 
-static int compare_entries(const void *left, const void *right)
-{
+static int compare_entries(const void *left, const void *right) {
     const WmU8Entry *a = left;
     const WmU8Entry *b = right;
     return strcmp(a->path, b->path);
@@ -137,8 +126,7 @@ static int compare_entries(const void *left, const void *right)
 static const char *resource_archive_path(const WmU8Entry *item,
                                          const WmU8Entry *common_entry,
                                          const WmU8Entry *localized_entry,
-                                         const WmU8Archive *localized)
-{
+                                         const WmU8Archive *localized) {
     if (localized_entry != NULL) {
         const WmU8Entry *candidate = wm_u8_find(localized, item->path);
         if (candidate != NULL && candidate->path == item->path) {
@@ -148,16 +136,14 @@ static const char *resource_archive_path(const WmU8Entry *item,
     return common_entry->path;
 }
 
-static bool export_package(const WmU8Entry *entry,
-                           const WmU8Entry *localized_entry,
+static bool export_package(const WmU8Entry *entry, const WmU8Entry *localized_entry,
                            const char *output, const char *package,
-                           size_t *layout_total, size_t *texture_total)
-{
+                           size_t *layout_total, size_t *texture_total) {
     char error[160] = {0};
     uint8_t *decoded = NULL;
     size_t decoded_size = 0;
-    if (!wm_ash_decode(entry->data, entry->size, &decoded,
-                       &decoded_size, error, sizeof(error))) {
+    if (!wm_ash_decode(entry->data, entry->size, &decoded, &decoded_size, error,
+                       sizeof(error))) {
         fprintf(stderr, "ASH decode failed: %s\n", error);
         return false;
     }
@@ -172,10 +158,9 @@ static bool export_package(const WmU8Entry *entry,
     if (localized_entry != NULL) {
         size_t localized_size = 0;
         if (!wm_ash_decode(localized_entry->data, localized_entry->size,
-                           &localized_decoded, &localized_size,
-                           error, sizeof(error)) ||
-            !wm_u8_parse(localized_decoded, localized_size, &localized,
-                          error, sizeof(error))) {
+                           &localized_decoded, &localized_size, error, sizeof(error)) ||
+            !wm_u8_parse(localized_decoded, localized_size, &localized, error,
+                         sizeof(error))) {
             fprintf(stderr, "Localized archive decode failed: %s\n", error);
             wm_u8_free(&archive);
             free(decoded);
@@ -191,8 +176,7 @@ static bool export_package(const WmU8Entry *entry,
         free(decoded);
         return false;
     }
-    WmU8Entry *merged = calloc(archive.count + localized.count + 1,
-                                sizeof(*merged));
+    WmU8Entry *merged = calloc(archive.count + localized.count + 1, sizeof(*merged));
     if (merged == NULL) {
         fprintf(stderr, "Out of memory merging local resources.\n");
         wm_u8_free(&localized);
@@ -268,31 +252,27 @@ static bool export_package(const WmU8Entry *entry,
                 break;
             }
             WmTpl tpl = {0};
-            if (!wm_tpl_decode(item->data, item->size, &tpl,
-                               error, sizeof(error))) {
+            if (!wm_tpl_decode(item->data, item->size, &tpl, error, sizeof(error))) {
                 fprintf(stderr, "TPL decode failed: %s\n", error);
                 valid = false;
                 break;
             }
             for (size_t image = 0; image < tpl.count && valid; image++) {
                 char filename[160];
-                int length = snprintf(filename, sizeof(filename),
-                                      image == 0 ? "%s.wmra" : "%s-%zu.wmra",
-                                      stem, image);
+                int length =
+                    snprintf(filename, sizeof(filename),
+                             image == 0 ? "%s.wmra" : "%s-%zu.wmra", stem, image);
                 char subdirectory[160];
                 int sub_length = snprintf(subdirectory, sizeof(subdirectory),
                                           "textures/%s", package);
-                if (length < 0 || length >= (int)sizeof(filename) ||
-                    sub_length < 0 || sub_length >= (int)sizeof(subdirectory) ||
+                if (length < 0 || length >= (int)sizeof(filename) || sub_length < 0 ||
+                    sub_length >= (int)sizeof(subdirectory) ||
                     !write_path(path, output, subdirectory, filename)) {
                     valid = false;
                     break;
                 }
-                WmImage converted = {
-                    tpl.images[image].width,
-                    tpl.images[image].height,
-                    tpl.images[image].rgba
-                };
+                WmImage converted = {tpl.images[image].width, tpl.images[image].height,
+                                     tpl.images[image].rgba};
                 if (!wm_image_write(path, &converted)) {
                     fprintf(stderr, "Could not write a local texture.\n");
                     valid = false;
@@ -302,8 +282,8 @@ static bool export_package(const WmU8Entry *entry,
             }
             if (valid && tpl.count != 0) {
                 char url[WM_EXPORT_PATH_CAPACITY];
-                int length = snprintf(url, sizeof(url),
-                                      "textures/%s/%s.png", package, stem);
+                int length =
+                    snprintf(url, sizeof(url), "textures/%s/%s.png", package, stem);
                 if (length < 0 || length >= (int)sizeof(url)) {
                     valid = false;
                 } else {
@@ -321,12 +301,9 @@ static bool export_package(const WmU8Entry *entry,
                         strcpy(owned_url, url);
                         strcpy(owned_source, source);
                         textures[texture_count++] = (WmResourceTexture){
-                            owned_name, owned_url,
-                            tpl.images[0].width,
-                            tpl.images[0].height,
-                            tpl.images[0].format,
-                            owned_source
-                        };
+                            owned_name,           owned_url,
+                            tpl.images[0].width,  tpl.images[0].height,
+                            tpl.images[0].format, owned_source};
                     }
                 }
             }
@@ -344,15 +321,14 @@ static bool export_package(const WmU8Entry *entry,
         char *json = NULL;
         size_t json_size = 0;
         char source[WM_EXPORT_PATH_CAPACITY];
-        int source_length = snprintf(
-            source, sizeof(source), "%s/%s",
-            resource_archive_path(item, entry, localized_entry, &localized),
-            item->path);
+        int source_length =
+            snprintf(source, sizeof(source), "%s/%s",
+                     resource_archive_path(item, entry, localized_entry, &localized),
+                     item->path);
         if (source_length < 0 || source_length >= (int)sizeof(source) ||
             !wm_brlyt_to_json_with_source(
-                item->data, item->size, stem, package, source,
-                textures, texture_count, animations, animation_count,
-                &json, &json_size, error, sizeof(error))) {
+                item->data, item->size, stem, package, source, textures, texture_count,
+                animations, animation_count, &json, &json_size, error, sizeof(error))) {
             fprintf(stderr, "BRLYT export failed: %s\n", error);
             valid = false;
             break;
@@ -360,8 +336,8 @@ static bool export_package(const WmU8Entry *entry,
         char filename[160];
         char subdirectory[160];
         int filename_size = snprintf(filename, sizeof(filename), "%s.json", stem);
-        int directory_size = snprintf(subdirectory, sizeof(subdirectory),
-                                      "layouts/%s", package);
+        int directory_size =
+            snprintf(subdirectory, sizeof(subdirectory), "layouts/%s", package);
         if (filename_size < 0 || filename_size >= (int)sizeof(filename) ||
             directory_size < 0 || directory_size >= (int)sizeof(subdirectory) ||
             !write_path(path, output, subdirectory, filename) ||
@@ -394,8 +370,7 @@ static bool export_package(const WmU8Entry *entry,
 }
 
 static bool export_fonts(const WmU8Archive *outer, const char *output,
-                         size_t *font_total)
-{
+                         size_t *font_total) {
     const WmU8Entry *entry = wm_u8_find(outer, "font/font.ash");
     if (entry == NULL) {
         return true;
@@ -403,8 +378,8 @@ static bool export_fonts(const WmU8Archive *outer, const char *output,
     char error[160] = {0};
     uint8_t *decoded = NULL;
     size_t decoded_size = 0;
-    if (!wm_ash_decode(entry->data, entry->size, &decoded, &decoded_size,
-                       error, sizeof(error))) {
+    if (!wm_ash_decode(entry->data, entry->size, &decoded, &decoded_size, error,
+                       sizeof(error))) {
         fprintf(stderr, "Font archive decode failed: %s\n", error);
         return false;
     }
@@ -441,28 +416,27 @@ static bool export_fonts(const WmU8Archive *outer, const char *output,
 }
 
 static bool export_messages(const WmU8Archive *outer, const char *output,
-                            const char *language, size_t *message_total)
-{
+                            const char *language, size_t *message_total) {
     char source[64];
-    int source_length = snprintf(source, sizeof(source),
-                                 "message/%s/ipl_common.bmg", language);
-    if (source_length < 0 || source_length >= (int)sizeof(source)) return false;
+    int source_length =
+        snprintf(source, sizeof(source), "message/%s/ipl_common.bmg", language);
+    if (source_length < 0 || source_length >= (int)sizeof(source))
+        return false;
     const WmU8Entry *entry = wm_u8_find(outer, source);
     if (!entry) {
         fprintf(stderr, "The selected locale has no common BMG messages.\n");
         return false;
     }
     char error[160] = {0};
-    WmBmg *messages = wm_bmg_parse(entry->data, entry->size,
-                                    error, sizeof(error));
+    WmBmg *messages = wm_bmg_parse(entry->data, entry->size, error, sizeof(error));
     if (!messages) {
         fprintf(stderr, "Common BMG parse failed: %s\n", error);
         return false;
     }
     char path[WM_EXPORT_PATH_CAPACITY];
     char subdirectory[64];
-    int sub_length = snprintf(subdirectory, sizeof(subdirectory),
-                              "messages/%s", language);
+    int sub_length =
+        snprintf(subdirectory, sizeof(subdirectory), "messages/%s", language);
     bool valid = sub_length >= 0 && sub_length < (int)sizeof(subdirectory) &&
                  wm_export_directory_root(output, 0755) &&
                  write_path(path, output, "messages", "") &&
@@ -480,8 +454,7 @@ static bool export_messages(const WmU8Archive *outer, const char *output,
     return valid;
 }
 
-static bool language_code(const char *argument, char language[4])
-{
+static bool language_code(const char *argument, char language[4]) {
     if (strlen(argument) != 3) {
         return false;
     }
@@ -499,12 +472,13 @@ static bool language_code(const char *argument, char language[4])
     return true;
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     char language[4];
     if ((argc != 3 && argc != 4) ||
         !language_code(argc == 4 ? argv[3] : "eng", language)) {
-        fprintf(stderr, "Usage: layout-export RESOURCE_APP LOCAL_OUTPUT_DIRECTORY [LANGUAGE]\n");
+        fprintf(
+            stderr,
+            "Usage: layout-export RESOURCE_APP LOCAL_OUTPUT_DIRECTORY [LANGUAGE]\n");
         return 2;
     }
     size_t input_size = 0;
@@ -538,8 +512,7 @@ int main(int argc, char **argv)
             break;
         }
         const WmU8Entry *localized = wm_u8_find(&outer, localized_path);
-        valid = export_package(&outer.entries[index], localized,
-                               argv[2], package,
+        valid = export_package(&outer.entries[index], localized, argv[2], package,
                                &layouts, &textures);
     }
     if (valid) {
@@ -553,7 +526,8 @@ int main(int argc, char **argv)
     if (!valid || layouts == 0) {
         return 1;
     }
-    printf("Exported %zu BRLYT layouts, %zu WMRA textures, %zu raw BRFNT fonts, and %zu BMG messages.\n",
+    printf("Exported %zu BRLYT layouts, %zu WMRA textures, %zu raw BRFNT fonts, and "
+           "%zu BMG messages.\n",
            layouts, textures, fonts, messages);
     return 0;
 }

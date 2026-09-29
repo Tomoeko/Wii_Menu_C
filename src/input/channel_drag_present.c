@@ -24,9 +24,9 @@ struct WmChannelDragPresentation {
 
 static WmLayout *load_layout(const char *assets_directory, const char *name) {
     char relative[128];
-    int count = snprintf(relative, sizeof(relative),
-                         "layouts/chanSel/%s.json", name);
-    if (count < 0 || count >= (int)sizeof(relative)) return NULL;
+    int count = snprintf(relative, sizeof(relative), "layouts/chanSel/%s.json", name);
+    if (count < 0 || count >= (int)sizeof(relative))
+        return NULL;
     return wm_layout_load_asset(assets_directory, relative, NULL);
 }
 

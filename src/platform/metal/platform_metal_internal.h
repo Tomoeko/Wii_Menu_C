@@ -103,7 +103,7 @@ struct WmPlatform {
 @end
 
 @interface WmMetalState : NSObject {
-@public
+  @public
     NSWindow *window;
     WmMetalView *view;
     WmWindowDelegate *window_delegate;

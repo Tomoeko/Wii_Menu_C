@@ -13,12 +13,12 @@ typedef struct WmViewport {
 } WmViewport;
 
 WmViewport wm_viewport_fit(int output_width, int output_height);
-bool wm_viewport_map_pointer(WmViewport viewport, int x, int y,
-                              int *menu_x, int *menu_y);
+bool wm_viewport_map_pointer(WmViewport viewport, int x, int y, int *menu_x,
+                             int *menu_y);
 /* Writes logical coordinates even in the letterbox or outside the window.
  * Returns true only inside the fitted picture. Invalid viewports and output
  * pointers return false without writing coordinates. */
-bool wm_viewport_map_pointer_unbounded(WmViewport viewport, int x, int y,
-                                        int *menu_x, int *menu_y);
+bool wm_viewport_map_pointer_unbounded(WmViewport viewport, int x, int y, int *menu_x,
+                                       int *menu_y);
 
 #endif

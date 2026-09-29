@@ -6,10 +6,7 @@
 
 #include <math.h>
 
-enum {
-    ADDRESS_PAGE_COUNT = 20,
-    ADDRESS_TEXT_CAPACITY = 400
-};
+enum { ADDRESS_PAGE_COUNT = 20, ADDRESS_TEXT_CAPACITY = 400 };
 
 typedef enum AddressDialogPhase {
     ADDRESS_DIALOG_CLOSED,

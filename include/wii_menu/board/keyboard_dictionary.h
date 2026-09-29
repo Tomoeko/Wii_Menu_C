@@ -14,11 +14,10 @@ typedef struct WmKeyboardWordList {
     size_t count;
 } WmKeyboardWordList;
 
-bool wm_keyboard_oem_decode(const uint8_t *data, size_t size,
-                            WmKeyboardWordList *words,
+bool wm_keyboard_oem_decode(const uint8_t *data, size_t size, WmKeyboardWordList *words,
                             char *error, size_t error_size);
-bool wm_keyboard_oem_load(const char *path, WmKeyboardWordList *words,
-                          char *error, size_t error_size);
+bool wm_keyboard_oem_load(const char *path, WmKeyboardWordList *words, char *error,
+                          size_t error_size);
 void wm_keyboard_word_list_free(WmKeyboardWordList *words);
 
 #endif

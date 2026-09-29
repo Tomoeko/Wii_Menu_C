@@ -3,7 +3,8 @@
 #include <string.h>
 
 void wm_layout_prepare_materials(WmPlatform *platform, const WmLayout *layout) {
-    if (!platform || !layout) return;
+    if (!platform || !layout)
+        return;
     for (size_t index = 0; index < wm_layout_material_count(layout); index++) {
         WmLayoutMaterialInfo info;
         uint8_t wraps[WM_MATERIAL_TEXTURES][2];
@@ -17,12 +18,9 @@ void wm_layout_prepare_materials(WmPlatform *platform, const WmLayout *layout) {
         quad.tev_stage_count = info.tev_stage_count;
         quad.has_alpha_compare = info.has_alpha_compare;
         quad.has_blend_mode = info.has_blend_mode;
-        memcpy(quad.alpha_compare, info.alpha_compare,
-               sizeof(quad.alpha_compare));
-        memcpy(quad.blend_mode, info.blend_mode,
-               sizeof(quad.blend_mode));
-        memcpy(quad.tev_swap_table, info.tev_swap_table,
-               sizeof(quad.tev_swap_table));
+        memcpy(quad.alpha_compare, info.alpha_compare, sizeof(quad.alpha_compare));
+        memcpy(quad.blend_mode, info.blend_mode, sizeof(quad.blend_mode));
+        memcpy(quad.tev_swap_table, info.tev_swap_table, sizeof(quad.tev_swap_table));
         for (size_t unit = 0; unit < info.texture_map_count; unit++) {
             quad.wrap_s[unit] = wraps[unit][0];
             quad.wrap_t[unit] = wraps[unit][1];

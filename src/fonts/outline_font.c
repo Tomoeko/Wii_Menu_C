@@ -116,16 +116,20 @@ static bool tag_equals(const uint8_t *tag, const char name[4]) {
 
 static bool find_table(const uint8_t *bytes, size_t size, size_t face,
                        const char name[4], FontTable *table) {
-    if (!fits(size, face, 12)) return false;
+    if (!fits(size, face, 12))
+        return false;
     unsigned count = be16(bytes + face + 4);
     if (!count || count > OUTLINE_MAX_TABLES ||
-        !fits(size, face + 12, (size_t)count * 16)) return false;
+        !fits(size, face + 12, (size_t)count * 16))
+        return false;
     for (unsigned index = 0; index < count; index++) {
         const uint8_t *entry = bytes + face + 12 + (size_t)index * 16;
-        if (!tag_equals(entry, name)) continue;
+        if (!tag_equals(entry, name))
+            continue;
         size_t offset = be32(entry + 8);
         size_t length = be32(entry + 12);
-        if (!length || !fits(size, offset, length)) return false;
+        if (!length || !fits(size, offset, length))
+            return false;
         *table = (FontTable){offset, length};
         return true;
     }
@@ -135,7 +139,8 @@ static bool find_table(const uint8_t *bytes, size_t size, size_t face,
 static bool select_cmap(WmOutlineFont *font) {
     const uint8_t *bytes = font->bytes;
     FontTable table = font->cmap;
-    if (table.size < 4) return false;
+    if (table.size < 4)
+        return false;
     unsigned count = be16(bytes + table.offset + 2);
     if (!count || count > 256 || table.size < 4 + (size_t)count * 8)
         return false;
@@ -147,16 +152,18 @@ static bool select_cmap(WmOutlineFont *font) {
         unsigned platform = be16(entry);
         unsigned encoding = be16(entry + 2);
         size_t offset = be32(entry + 4);
-        if (offset > table.size || table.size - offset < 16) continue;
+        if (offset > table.size || table.size - offset < 16)
+            continue;
         size_t subtable = table.offset + offset;
-        if (be16(bytes + subtable) != 4) continue;
+        if (be16(bytes + subtable) != 4)
+            continue;
         size_t length = be16(bytes + subtable + 2);
-        if (length < 24 || length > table.size - offset) continue;
+        if (length < 24 || length > table.size - offset)
+            continue;
         unsigned segments = be16(bytes + subtable + 6) / 2;
-        if (!segments || segments > 8192 ||
-            16 + (size_t)segments * 8 > length) continue;
-        unsigned rank = platform == 3 && encoding == 1 ? 2 :
-                        platform == 0 ? 1 : 0;
+        if (!segments || segments > 8192 || 16 + (size_t)segments * 8 > length)
+            continue;
+        unsigned rank = platform == 3 && encoding == 1 ? 2 : platform == 0 ? 1 : 0;
         if (rank > chosen_rank) {
             chosen = subtable;
             chosen_size = length;
@@ -170,12 +177,14 @@ static bool select_cmap(WmOutlineFont *font) {
 
 WmOutlineFont *wm_outline_font_decode(const uint8_t *bytes, size_t size,
                                       unsigned face_index) {
-    if (!bytes || size < 12 || size > OUTLINE_MAX_FILE) return NULL;
+    if (!bytes || size < 12 || size > OUTLINE_MAX_FILE)
+        return NULL;
     size_t face = 0;
     if (memcmp(bytes, "ttcf", 4) == 0) {
         unsigned count = be32(bytes + 8);
         if (!count || count > 16 || face_index >= count ||
-            !fits(size, 12, (size_t)count * 4)) return NULL;
+            !fits(size, 12, (size_t)count * 4))
+            return NULL;
         face = be32(bytes + 12 + (size_t)face_index * 4);
     } else if (face_index != 0) {
         return NULL;
@@ -184,7 +193,8 @@ WmOutlineFont *wm_outline_font_decode(const uint8_t *bytes, size_t size,
         return NULL;
     uint32_t sfnt_version = be32(bytes + face);
     bool is_cff = sfnt_version == 0x4f54544fu; /* OTTO */
-    if (!is_cff && sfnt_version != 0x00010000u) return NULL;
+    if (!is_cff && sfnt_version != 0x00010000u)
+        return NULL;
 
     FontTable head, maxp, hhea, hmtx, loca = {0}, glyf = {0};
     FontTable cmap, cff = {0};
@@ -195,22 +205,22 @@ WmOutlineFont *wm_outline_font_decode(const uint8_t *bytes, size_t size,
         (!is_cff && (!find_table(bytes, size, face, "loca", &loca) ||
                      !find_table(bytes, size, face, "glyf", &glyf))) ||
         (is_cff && !find_table(bytes, size, face, "CFF ", &cff)) ||
-        !find_table(bytes, size, face, "cmap", &cmap)) return NULL;
+        !find_table(bytes, size, face, "cmap", &cmap))
+        return NULL;
     unsigned units = be16(bytes + head.offset + 18);
     unsigned glyphs = be16(bytes + maxp.offset + 4);
     unsigned metrics = be16(bytes + hhea.offset + 34);
     int loca_format = signed16(bytes + head.offset + 50);
-    if (units < 16 || units > 16384 || !glyphs ||
-        glyphs > OUTLINE_MAX_GLYPHS || !metrics || metrics > glyphs ||
+    if (units < 16 || units > 16384 || !glyphs || glyphs > OUTLINE_MAX_GLYPHS ||
+        !metrics || metrics > glyphs ||
         (!is_cff && loca_format != 0 && loca_format != 1) ||
-        hmtx.size < (size_t)metrics * 4 +
-                    (size_t)(glyphs - metrics) * 2 ||
-        (!is_cff && loca.size < (size_t)(glyphs + 1) *
-                                  (loca_format ? 4u : 2u)))
+        hmtx.size < (size_t)metrics * 4 + (size_t)(glyphs - metrics) * 2 ||
+        (!is_cff && loca.size < (size_t)(glyphs + 1) * (loca_format ? 4u : 2u)))
         return NULL;
 
     WmOutlineFont *font = calloc(1, sizeof(*font));
-    if (!font) return NULL;
+    if (!font)
+        return NULL;
     font->bytes = malloc(size);
     if (!font->bytes) {
         free(font);
@@ -229,8 +239,7 @@ WmOutlineFont *wm_outline_font_decode(const uint8_t *bytes, size_t size,
     font->descent = signed16(bytes + hhea.offset + 6);
     font->long_loca = loca_format == 1;
     if (is_cff) {
-        font->cff = wm_cff_font_parse(font->bytes, size, cff.offset,
-                                      cff.size, glyphs);
+        font->cff = wm_cff_font_parse(font->bytes, size, cff.offset, cff.size, glyphs);
         if (!font->cff) {
             wm_outline_font_destroy(font, NULL);
             return NULL;
@@ -244,19 +253,19 @@ WmOutlineFont *wm_outline_font_decode(const uint8_t *bytes, size_t size,
 }
 
 WmOutlineFont *wm_outline_font_load(const char *path, unsigned face_index) {
-    if (!path) return NULL;
+    if (!path)
+        return NULL;
     FILE *file = fopen(path, "rb");
-    if (!file) return NULL;
+    if (!file)
+        return NULL;
     WmOutlineFont *font = NULL;
     if (fseek(file, 0, SEEK_END) == 0) {
         long length = ftell(file);
-        if (length > 0 && length <= OUTLINE_MAX_FILE &&
-            fseek(file, 0, SEEK_SET) == 0) {
+        if (length > 0 && length <= OUTLINE_MAX_FILE && fseek(file, 0, SEEK_SET) == 0) {
             uint8_t *bytes = malloc((size_t)length);
-            if (bytes && fread(bytes, 1, (size_t)length, file) ==
-                             (size_t)length && fgetc(file) == EOF)
-                font = wm_outline_font_decode(bytes, (size_t)length,
-                                              face_index);
+            if (bytes && fread(bytes, 1, (size_t)length, file) == (size_t)length &&
+                fgetc(file) == EOF)
+                font = wm_outline_font_decode(bytes, (size_t)length, face_index);
             free(bytes);
         }
     }
@@ -265,13 +274,13 @@ WmOutlineFont *wm_outline_font_load(const char *path, unsigned face_index) {
 }
 
 void wm_outline_font_destroy(WmOutlineFont *font, WmPlatform *platform) {
-    if (!font) return;
+    if (!font)
+        return;
 #ifndef WM_OUTLINE_FONT_PARSE_ONLY
     if (platform) {
         for (unsigned index = 0; index < font->atlas_count; index++) {
             if (font->atlases[index].texture)
-                wm_platform_destroy_texture(platform,
-                                            font->atlases[index].texture);
+                wm_platform_destroy_texture(platform, font->atlases[index].texture);
         }
     }
 #else
@@ -282,9 +291,9 @@ void wm_outline_font_destroy(WmOutlineFont *font, WmPlatform *platform) {
     free(font);
 }
 
-static unsigned glyph_for_codepoint(const WmOutlineFont *font,
-                                    uint32_t codepoint) {
-    if (codepoint > 0xffff || codepoint == 0xffff) return 0;
+static unsigned glyph_for_codepoint(const WmOutlineFont *font, uint32_t codepoint) {
+    if (codepoint > 0xffff || codepoint == 0xffff)
+        return 0;
     const uint8_t *table = font->bytes + font->format4;
     unsigned segments = be16(table + 6) / 2;
     size_t start_array = 16 + (size_t)segments * 2;
@@ -292,9 +301,11 @@ static unsigned glyph_for_codepoint(const WmOutlineFont *font,
     size_t range_array = delta_array + (size_t)segments * 2;
     for (unsigned index = 0; index < segments; index++) {
         unsigned end = be16(table + 14 + (size_t)index * 2);
-        if (codepoint > end) continue;
+        if (codepoint > end)
+            continue;
         unsigned start = be16(table + start_array + (size_t)index * 2);
-        if (codepoint < start) return 0;
+        if (codepoint < start)
+            return 0;
         unsigned delta = be16(table + delta_array + (size_t)index * 2);
         unsigned range = be16(table + range_array + (size_t)index * 2);
         unsigned glyph;
@@ -303,58 +314,60 @@ static unsigned glyph_for_codepoint(const WmOutlineFont *font,
         } else {
             size_t offset = range_array + (size_t)index * 2 + range +
                             (size_t)(codepoint - start) * 2;
-            if (!fits(font->format4_size, offset, 2)) return 0;
+            if (!fits(font->format4_size, offset, 2))
+                return 0;
             glyph = be16(table + offset);
-            if (glyph) glyph = (glyph + delta) & 0xffffu;
+            if (glyph)
+                glyph = (glyph + delta) & 0xffffu;
         }
         return glyph < font->glyph_count ? glyph : 0;
     }
     return 0;
 }
 
-static float glyph_advance(const WmOutlineFont *font, unsigned glyph,
-                           unsigned pixels) {
-    unsigned metric = glyph < font->horizontal_metrics
-        ? glyph : font->horizontal_metrics - 1;
-    unsigned width = be16(font->bytes + font->hmtx.offset +
-                          (size_t)metric * 4);
+static float glyph_advance(const WmOutlineFont *font, unsigned glyph, unsigned pixels) {
+    unsigned metric =
+        glyph < font->horizontal_metrics ? glyph : font->horizontal_metrics - 1;
+    unsigned width = be16(font->bytes + font->hmtx.offset + (size_t)metric * 4);
     return (float)width * pixels / font->units_per_em;
 }
 
-static bool glyph_range(const WmOutlineFont *font, unsigned glyph,
-                        size_t *offset, size_t *length) {
-    if (glyph >= font->glyph_count) return false;
+static bool glyph_range(const WmOutlineFont *font, unsigned glyph, size_t *offset,
+                        size_t *length) {
+    if (glyph >= font->glyph_count)
+        return false;
     size_t first, last;
     if (font->long_loca) {
         first = be32(font->bytes + font->loca.offset + (size_t)glyph * 4);
-        last = be32(font->bytes + font->loca.offset +
-                    (size_t)(glyph + 1) * 4);
+        last = be32(font->bytes + font->loca.offset + (size_t)(glyph + 1) * 4);
     } else {
-        first = (size_t)be16(font->bytes + font->loca.offset +
-                             (size_t)glyph * 2) * 2;
-        last = (size_t)be16(font->bytes + font->loca.offset +
-                            (size_t)(glyph + 1) * 2) * 2;
+        first = (size_t)be16(font->bytes + font->loca.offset + (size_t)glyph * 2) * 2;
+        last =
+            (size_t)be16(font->bytes + font->loca.offset + (size_t)(glyph + 1) * 2) * 2;
     }
-    if (last < first || last > font->glyf.size) return false;
+    if (last < first || last > font->glyf.size)
+        return false;
     *offset = font->glyf.offset + first;
     *length = last - first;
     return true;
 }
 
-static bool append_simple(const uint8_t *bytes, size_t length,
-                          unsigned contours, OutlineShape *shape) {
-    if (!contours) return true;
+static bool append_simple(const uint8_t *bytes, size_t length, unsigned contours,
+                          OutlineShape *shape) {
+    if (!contours)
+        return true;
     size_t end_size = (size_t)contours * 2;
-    if (length < 10 || contours > OUTLINE_MAX_CONTOURS -
-                               shape->contour_count ||
-        !fits(length, 10, end_size + 2)) return false;
+    if (length < 10 || contours > OUTLINE_MAX_CONTOURS - shape->contour_count ||
+        !fits(length, 10, end_size + 2))
+        return false;
     unsigned points = be16(bytes + 10 + end_size - 2) + 1;
     if (!points || points > OUTLINE_MAX_POINTS - shape->point_count)
         return false;
     unsigned previous = 0;
     for (unsigned index = 0; index < contours; index++) {
         unsigned end = be16(bytes + 10 + (size_t)index * 2);
-        if (end >= points || (index && end <= previous)) return false;
+        if (end >= points || (index && end <= previous))
+            return false;
         shape->end_points[shape->contour_count + index] =
             (uint16_t)(shape->point_count + end);
         previous = end;
@@ -362,48 +375,58 @@ static bool append_simple(const uint8_t *bytes, size_t length,
     size_t cursor = 10 + end_size;
     unsigned instruction_size = be16(bytes + cursor);
     cursor += 2;
-    if (!fits(length, cursor, instruction_size)) return false;
+    if (!fits(length, cursor, instruction_size))
+        return false;
     cursor += instruction_size;
     uint8_t flags[OUTLINE_MAX_POINTS];
     for (unsigned index = 0; index < points;) {
-        if (!fits(length, cursor, 1)) return false;
+        if (!fits(length, cursor, 1))
+            return false;
         uint8_t flag = bytes[cursor++];
         unsigned repeats = 1;
         if (flag & 0x08) {
-            if (!fits(length, cursor, 1)) return false;
+            if (!fits(length, cursor, 1))
+                return false;
             repeats += bytes[cursor++];
         }
-        if (repeats > points - index) return false;
-        for (unsigned copy = 0; copy < repeats; copy++) flags[index++] = flag;
+        if (repeats > points - index)
+            return false;
+        for (unsigned copy = 0; copy < repeats; copy++)
+            flags[index++] = flag;
     }
     int coordinate = 0;
     for (unsigned index = 0; index < points; index++) {
         uint8_t flag = flags[index];
         int delta = 0;
         if (flag & 0x02) {
-            if (!fits(length, cursor, 1)) return false;
+            if (!fits(length, cursor, 1))
+                return false;
             delta = bytes[cursor++];
-            if (!(flag & 0x10)) delta = -delta;
+            if (!(flag & 0x10))
+                delta = -delta;
         } else if (!(flag & 0x10)) {
-            if (!fits(length, cursor, 2)) return false;
+            if (!fits(length, cursor, 2))
+                return false;
             delta = signed16(bytes + cursor);
             cursor += 2;
         }
         coordinate += delta;
         shape->points[shape->point_count + index].x = (float)coordinate;
-        shape->points[shape->point_count + index].on_curve =
-            (flag & 0x01) != 0;
+        shape->points[shape->point_count + index].on_curve = (flag & 0x01) != 0;
     }
     coordinate = 0;
     for (unsigned index = 0; index < points; index++) {
         uint8_t flag = flags[index];
         int delta = 0;
         if (flag & 0x04) {
-            if (!fits(length, cursor, 1)) return false;
+            if (!fits(length, cursor, 1))
+                return false;
             delta = bytes[cursor++];
-            if (!(flag & 0x20)) delta = -delta;
+            if (!(flag & 0x20))
+                delta = -delta;
         } else if (!(flag & 0x20)) {
-            if (!fits(length, cursor, 2)) return false;
+            if (!fits(length, cursor, 2))
+                return false;
             delta = signed16(bytes + cursor);
             cursor += 2;
         }
@@ -415,46 +438,55 @@ static bool append_simple(const uint8_t *bytes, size_t length,
     return true;
 }
 
-static bool append_glyph(const WmOutlineFont *font, unsigned glyph,
-                         OutlineShape *shape, unsigned depth) {
-    if (depth > 8) return false;
+static bool append_glyph(const WmOutlineFont *font, unsigned glyph, OutlineShape *shape,
+                         unsigned depth) {
+    if (depth > 8)
+        return false;
     size_t offset, length;
-    if (!glyph_range(font, glyph, &offset, &length)) return false;
-    if (!length) return true;
-    if (length < 10) return false;
+    if (!glyph_range(font, glyph, &offset, &length))
+        return false;
+    if (!length)
+        return true;
+    if (length < 10)
+        return false;
     const uint8_t *bytes = font->bytes + offset;
     int contours = signed16(bytes);
     if (contours >= 0)
         return append_simple(bytes, length, (unsigned)contours, shape);
-    if (contours != -1) return false;
+    if (contours != -1)
+        return false;
 
     size_t cursor = 10;
     unsigned flags;
     unsigned components = 0;
     do {
-        if (!fits(length, cursor, 4) || ++components > 64) return false;
+        if (!fits(length, cursor, 4) || ++components > 64)
+            return false;
         flags = be16(bytes + cursor);
         unsigned child = be16(bytes + cursor + 2);
         cursor += 4;
         bool words = (flags & 0x0001) != 0;
         bool xy_values = (flags & 0x0002) != 0;
-        if (!xy_values || !fits(length, cursor, words ? 4 : 2)) return false;
+        if (!xy_values || !fits(length, cursor, words ? 4 : 2))
+            return false;
         int dx = words ? signed16(bytes + cursor) : (int8_t)bytes[cursor];
-        int dy = words ? signed16(bytes + cursor + 2) :
-                         (int8_t)bytes[cursor + 1];
+        int dy = words ? signed16(bytes + cursor + 2) : (int8_t)bytes[cursor + 1];
         cursor += words ? 4 : 2;
         float xx = 1, xy = 0, yx = 0, yy = 1;
         if (flags & 0x0008) {
-            if (!fits(length, cursor, 2)) return false;
+            if (!fits(length, cursor, 2))
+                return false;
             xx = yy = signed16(bytes + cursor) / 16384.0f;
             cursor += 2;
         } else if (flags & 0x0040) {
-            if (!fits(length, cursor, 4)) return false;
+            if (!fits(length, cursor, 4))
+                return false;
             xx = signed16(bytes + cursor) / 16384.0f;
             yy = signed16(bytes + cursor + 2) / 16384.0f;
             cursor += 4;
         } else if (flags & 0x0080) {
-            if (!fits(length, cursor, 8)) return false;
+            if (!fits(length, cursor, 8))
+                return false;
             xx = signed16(bytes + cursor) / 16384.0f;
             xy = signed16(bytes + cursor + 2) / 16384.0f;
             yx = signed16(bytes + cursor + 4) / 16384.0f;
@@ -462,7 +494,8 @@ static bool append_glyph(const WmOutlineFont *font, unsigned glyph,
             cursor += 8;
         }
         unsigned first = shape->point_count;
-        if (!append_glyph(font, child, shape, depth + 1)) return false;
+        if (!append_glyph(font, child, shape, depth + 1))
+            return false;
         for (unsigned index = first; index < shape->point_count; index++) {
             float x = shape->points[index].x;
             float y = shape->points[index].y;
@@ -471,10 +504,12 @@ static bool append_glyph(const WmOutlineFont *font, unsigned glyph,
         }
     } while (flags & 0x0020);
     if (flags & 0x0100) {
-        if (!fits(length, cursor, 2)) return false;
+        if (!fits(length, cursor, 2))
+            return false;
         unsigned instructions = be16(bytes + cursor);
         cursor += 2;
-        if (!fits(length, cursor, instructions)) return false;
+        if (!fits(length, cursor, instructions))
+            return false;
     }
     return true;
 }
@@ -483,25 +518,24 @@ static OutlinePoint midpoint(OutlinePoint a, OutlinePoint b) {
     return (OutlinePoint){(a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f, true};
 }
 
-static bool add_line(OutlineEdges *output, OutlinePoint from,
-                     OutlinePoint to) {
-    if (output->count == OUTLINE_MAX_EDGES) return false;
-    if (from.y == to.y) return true;
-    output->edges[output->count++] = (OutlineEdge){
-        from.x * output->scale - output->x_origin,
-        output->y_origin - from.y * output->scale,
-        to.x * output->scale - output->x_origin,
-        output->y_origin - to.y * output->scale
-    };
+static bool add_line(OutlineEdges *output, OutlinePoint from, OutlinePoint to) {
+    if (output->count == OUTLINE_MAX_EDGES)
+        return false;
+    if (from.y == to.y)
+        return true;
+    output->edges[output->count++] =
+        (OutlineEdge){from.x * output->scale - output->x_origin,
+                      output->y_origin - from.y * output->scale,
+                      to.x * output->scale - output->x_origin,
+                      output->y_origin - to.y * output->scale};
     return true;
 }
 
-static bool add_curve(OutlineEdges *output, OutlinePoint from,
-                      OutlinePoint control, OutlinePoint to,
-                      unsigned depth) {
-    float deviation = hypotf(from.x - 2.0f * control.x + to.x,
-                             from.y - 2.0f * control.y + to.y) *
-                      output->scale;
+static bool add_curve(OutlineEdges *output, OutlinePoint from, OutlinePoint control,
+                      OutlinePoint to, unsigned depth) {
+    float deviation =
+        hypotf(from.x - 2.0f * control.x + to.x, from.y - 2.0f * control.y + to.y) *
+        output->scale;
     if (depth == 8 || deviation < 0.25f)
         return add_line(output, from, to);
     OutlinePoint first = midpoint(from, control);
@@ -516,30 +550,32 @@ static bool shape_edges(const OutlineShape *shape, OutlineEdges *edges) {
     for (unsigned contour = 0; contour < shape->contour_count; contour++) {
         unsigned end = shape->end_points[contour];
         unsigned count = end - first + 1;
-        if (!count) return false;
+        if (!count)
+            return false;
         OutlinePoint begin = shape->points[first];
         OutlinePoint last = shape->points[end];
-        OutlinePoint current = begin.on_curve ? begin :
-            last.on_curve ? last : midpoint(begin, last);
+        OutlinePoint current = begin.on_curve  ? begin
+                               : last.on_curve ? last
+                                               : midpoint(begin, last);
         OutlinePoint start = current;
         for (unsigned step = begin.on_curve ? 1 : 0; step < count;) {
             OutlinePoint point = shape->points[first + step % count];
             if (point.on_curve) {
-                if (!add_line(edges, current, point)) return false;
+                if (!add_line(edges, current, point))
+                    return false;
                 current = point;
                 step++;
             } else {
-                OutlinePoint next =
-                    shape->points[first + (step + 1) % count];
-                OutlinePoint target = next.on_curve
-                    ? next : midpoint(point, next);
+                OutlinePoint next = shape->points[first + (step + 1) % count];
+                OutlinePoint target = next.on_curve ? next : midpoint(point, next);
                 if (!add_curve(edges, current, point, target, 0))
                     return false;
                 current = target;
                 step += next.on_curve ? 2 : 1;
             }
         }
-        if (!add_line(edges, current, start)) return false;
+        if (!add_line(edges, current, start))
+            return false;
         first = end + 1;
     }
     return first == shape->point_count;
@@ -549,9 +585,8 @@ static OutlinePoint cff_point(WmCffPoint point) {
     return (OutlinePoint){point.x, point.y, true};
 }
 
-static bool add_cubic(OutlineEdges *edges, WmCffPoint start,
-                      WmCffPoint first, WmCffPoint second,
-                      WmCffPoint end, unsigned depth) {
+static bool add_cubic(OutlineEdges *edges, WmCffPoint start, WmCffPoint first,
+                      WmCffPoint second, WmCffPoint end, unsigned depth) {
     float deviation = fmaxf(hypotf(start.x - 2.0f * first.x + second.x,
                                    start.y - 2.0f * first.y + second.y),
                             hypotf(first.x - 2.0f * second.x + end.x,
@@ -559,16 +594,12 @@ static bool add_cubic(OutlineEdges *edges, WmCffPoint start,
                       edges->scale;
     if (depth == 10 || deviation < 0.3f)
         return add_line(edges, cff_point(start), cff_point(end));
-    WmCffPoint a = {(start.x + first.x) * 0.5f,
-                    (start.y + first.y) * 0.5f};
-    WmCffPoint b = {(first.x + second.x) * 0.5f,
-                    (first.y + second.y) * 0.5f};
-    WmCffPoint c = {(second.x + end.x) * 0.5f,
-                    (second.y + end.y) * 0.5f};
+    WmCffPoint a = {(start.x + first.x) * 0.5f, (start.y + first.y) * 0.5f};
+    WmCffPoint b = {(first.x + second.x) * 0.5f, (first.y + second.y) * 0.5f};
+    WmCffPoint c = {(second.x + end.x) * 0.5f, (second.y + end.y) * 0.5f};
     WmCffPoint d = {(a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f};
     WmCffPoint e = {(b.x + c.x) * 0.5f, (b.y + c.y) * 0.5f};
-    WmCffPoint middle = {(d.x + e.x) * 0.5f,
-                         (d.y + e.y) * 0.5f};
+    WmCffPoint middle = {(d.x + e.x) * 0.5f, (d.y + e.y) * 0.5f};
     return add_cubic(edges, start, a, d, middle, depth + 1) &&
            add_cubic(edges, middle, e, c, end, depth + 1);
 }
@@ -580,19 +611,20 @@ static bool cff_edges(const WmCffSegment *segments, unsigned count,
     for (unsigned index = 0; index < count; index++) {
         const WmCffSegment *segment = &segments[index];
         if (segment->kind == WM_CFF_MOVE) {
-            if (open && !add_line(edges, cff_point(current),
-                                  cff_point(start))) return false;
+            if (open && !add_line(edges, cff_point(current), cff_point(start)))
+                return false;
             start = current = segment->end;
             open = true;
         } else if (!open) {
             return false;
         } else if (segment->kind == WM_CFF_LINE) {
-            if (!add_line(edges, cff_point(current),
-                          cff_point(segment->end))) return false;
+            if (!add_line(edges, cff_point(current), cff_point(segment->end)))
+                return false;
             current = segment->end;
         } else if (segment->kind == WM_CFF_CUBIC) {
-            if (!add_cubic(edges, current, segment->first,
-                           segment->second, segment->end, 0)) return false;
+            if (!add_cubic(edges, current, segment->first, segment->second,
+                           segment->end, 0))
+                return false;
             current = segment->end;
         } else {
             return false;
@@ -601,8 +633,7 @@ static bool cff_edges(const WmCffSegment *segments, unsigned count,
     return !open || add_line(edges, cff_point(current), cff_point(start));
 }
 
-static bool cff_bounds(const WmCffSegment *segments, unsigned count,
-                       float scale,
+static bool cff_bounds(const WmCffSegment *segments, unsigned count, float scale,
                        int *left, int *right, int *bottom, int *top) {
     if (!count) {
         *left = *right = *bottom = *top = 0;
@@ -612,8 +643,7 @@ static bool cff_bounds(const WmCffSegment *segments, unsigned count,
     float min_y = INFINITY, max_y = -INFINITY;
     for (unsigned index = 0; index < count; index++) {
         const WmCffSegment *segment = &segments[index];
-        WmCffPoint points[3] = {segment->first, segment->second,
-                                segment->end};
+        WmCffPoint points[3] = {segment->first, segment->second, segment->end};
         unsigned count = segment->kind == WM_CFF_CUBIC ? 3 : 1;
         for (unsigned point = 0; point < count; point++) {
             WmCffPoint position = count == 1 ? segment->end : points[point];
@@ -623,14 +653,14 @@ static bool cff_bounds(const WmCffSegment *segments, unsigned count,
             max_y = fmaxf(max_y, position.y);
         }
     }
-    if (!isfinite(min_x) || !isfinite(max_x) ||
-        !isfinite(min_y) || !isfinite(max_y)) return false;
+    if (!isfinite(min_x) || !isfinite(max_x) || !isfinite(min_y) || !isfinite(max_y))
+        return false;
     *left = (int)floorf(min_x * scale);
     *right = (int)ceilf(max_x * scale);
     *bottom = (int)floorf(min_y * scale);
     *top = (int)ceilf(max_y * scale);
-    return *right >= *left && *top >= *bottom &&
-           *right - *left <= 128 && *top - *bottom <= 128;
+    return *right >= *left && *top >= *bottom && *right - *left <= 128 &&
+           *top - *bottom <= 128;
 }
 
 static bool inside_shape(const OutlineEdges *shape, float x, float y) {
@@ -638,30 +668,28 @@ static bool inside_shape(const OutlineEdges *shape, float x, float y) {
     for (unsigned index = 0; index < shape->count; index++) {
         const OutlineEdge *edge = &shape->edges[index];
         if (edge->y0 <= y && edge->y1 > y) {
-            float crossing = edge->x0 + (y - edge->y0) *
-                             (edge->x1 - edge->x0) /
-                             (edge->y1 - edge->y0);
-            if (crossing > x) winding++;
+            float crossing = edge->x0 + (y - edge->y0) * (edge->x1 - edge->x0) /
+                                            (edge->y1 - edge->y0);
+            if (crossing > x)
+                winding++;
         } else if (edge->y1 <= y && edge->y0 > y) {
-            float crossing = edge->x0 + (y - edge->y0) *
-                             (edge->x1 - edge->x0) /
-                             (edge->y1 - edge->y0);
-            if (crossing > x) winding--;
+            float crossing = edge->x0 + (y - edge->y0) * (edge->x1 - edge->x0) /
+                                            (edge->y1 - edge->y0);
+            if (crossing > x)
+                winding--;
         }
     }
     return winding != 0;
 }
 
-static void raster_coverage(const OutlineEdges *edges,
-                            WmOutlineBitmap *bitmap) {
+static void raster_coverage(const OutlineEdges *edges, WmOutlineBitmap *bitmap) {
     for (unsigned y = 0; y < bitmap->height; y++) {
         for (unsigned x = 0; x < bitmap->width; x++) {
             unsigned covered = 0;
             for (unsigned sample_y = 0; sample_y < 4; sample_y++) {
                 for (unsigned sample_x = 0; sample_x < 4; sample_x++) {
-                    if (inside_shape(edges,
-                            x + (sample_x + 0.5f) * 0.25f,
-                            y + (sample_y + 0.5f) * 0.25f))
+                    if (inside_shape(edges, x + (sample_x + 0.5f) * 0.25f,
+                                     y + (sample_y + 0.5f) * 0.25f))
                         covered++;
                 }
             }
@@ -671,26 +699,26 @@ static void raster_coverage(const OutlineEdges *edges,
     }
 }
 
-bool wm_outline_raster_vector(const WmCffSegment *segments,
-                              unsigned segment_count, unsigned units_per_em,
-                              unsigned pixel_size, float advance_units,
-                              WmOutlineBitmap *bitmap) {
+bool wm_outline_raster_vector(const WmCffSegment *segments, unsigned segment_count,
+                              unsigned units_per_em, unsigned pixel_size,
+                              float advance_units, WmOutlineBitmap *bitmap) {
     if (!bitmap || (!segments && segment_count) ||
-        segment_count > WM_CFF_MAX_SEGMENTS ||
-        units_per_em < 16 || units_per_em > 16384 ||
-        pixel_size < 8 || pixel_size > OUTLINE_MAX_PIXEL_SIZE ||
-        !isfinite(advance_units) || advance_units < 0) return false;
+        segment_count > WM_CFF_MAX_SEGMENTS || units_per_em < 16 ||
+        units_per_em > 16384 || pixel_size < 8 || pixel_size > OUTLINE_MAX_PIXEL_SIZE ||
+        !isfinite(advance_units) || advance_units < 0)
+        return false;
     memset(bitmap, 0, sizeof(*bitmap));
     float scale = (float)pixel_size / units_per_em;
     bitmap->advance = advance_units * scale;
     int left, right, bottom, top;
-    if (!cff_bounds(segments, segment_count, scale,
-                    &left, &right, &bottom, &top)) return false;
+    if (!cff_bounds(segments, segment_count, scale, &left, &right, &bottom, &top))
+        return false;
     bitmap->left = left;
     bitmap->top = top;
     bitmap->width = (unsigned)(right - left);
     bitmap->height = (unsigned)(top - bottom);
-    if (!bitmap->width || !bitmap->height) return true;
+    if (!bitmap->width || !bitmap->height)
+        return true;
     bitmap->alpha = calloc((size_t)bitmap->width * bitmap->height, 1);
     OutlineEdges *edges = calloc(1, sizeof(*edges));
     if (!bitmap->alpha || !edges) {
@@ -702,55 +730,60 @@ bool wm_outline_raster_vector(const WmCffSegment *segments,
     edges->x_origin = (float)left;
     edges->y_origin = (float)top;
     bool valid = cff_edges(segments, segment_count, edges);
-    if (valid) raster_coverage(edges, bitmap);
+    if (valid)
+        raster_coverage(edges, bitmap);
     free(edges);
-    if (!valid) wm_outline_bitmap_free(bitmap);
+    if (!valid)
+        wm_outline_bitmap_free(bitmap);
     return valid;
 }
 
 bool wm_outline_font_raster(const WmOutlineFont *font, uint32_t codepoint,
                             unsigned pixel_size, WmOutlineBitmap *bitmap) {
-    if (!font || !bitmap || pixel_size < 8 ||
-        pixel_size > OUTLINE_MAX_PIXEL_SIZE) return false;
+    if (!font || !bitmap || pixel_size < 8 || pixel_size > OUTLINE_MAX_PIXEL_SIZE)
+        return false;
     memset(bitmap, 0, sizeof(*bitmap));
     unsigned glyph = glyph_for_codepoint(font, codepoint);
-    if (!glyph && codepoint != 0) glyph = glyph_for_codepoint(font, '?');
+    if (!glyph && codepoint != 0)
+        glyph = glyph_for_codepoint(font, '?');
     if (font->cff) {
         WmCffGlyph *path = malloc(sizeof(*path));
-        if (!path) return false;
+        if (!path)
+            return false;
         bool valid = wm_cff_font_glyph(font->cff, glyph, path) &&
-            wm_outline_raster_vector(path->segments, path->count,
-                                     font->units_per_em, pixel_size,
-                                     glyph_advance(font, glyph,
-                                                   font->units_per_em),
-                                     bitmap);
+                     wm_outline_raster_vector(
+                         path->segments, path->count, font->units_per_em, pixel_size,
+                         glyph_advance(font, glyph, font->units_per_em), bitmap);
         free(path);
         return valid;
     }
 
     bitmap->advance = glyph_advance(font, glyph, pixel_size);
     size_t offset, length;
-    if (!glyph_range(font, glyph, &offset, &length)) return false;
-    if (!length) return true;
-    if (length < 10) return false;
+    if (!glyph_range(font, glyph, &offset, &length))
+        return false;
+    if (!length)
+        return true;
+    if (length < 10)
+        return false;
     const uint8_t *source = font->bytes + offset;
     float scale = (float)pixel_size / font->units_per_em;
     int left = (int)floorf(signed16(source + 2) * scale);
     int right = (int)ceilf(signed16(source + 6) * scale);
     int bottom = (int)floorf(signed16(source + 4) * scale);
     int top = (int)ceilf(signed16(source + 8) * scale);
-    if (right < left || top < bottom || right - left > 128 ||
-        top - bottom > 128) return false;
+    if (right < left || top < bottom || right - left > 128 || top - bottom > 128)
+        return false;
     bitmap->left = left;
     bitmap->top = top;
     bitmap->width = (unsigned)(right - left);
     bitmap->height = (unsigned)(top - bottom);
-    if (!bitmap->width || !bitmap->height) return true;
+    if (!bitmap->width || !bitmap->height)
+        return true;
     bitmap->alpha = calloc((size_t)bitmap->width * bitmap->height, 1);
     OutlineShape *shape = calloc(1, sizeof(*shape));
     OutlineEdges *edges = calloc(1, sizeof(*edges));
-    if (!bitmap->alpha || !shape || !edges ||
-        !append_glyph(font, glyph, shape, 0)) {
+    if (!bitmap->alpha || !shape || !edges || !append_glyph(font, glyph, shape, 0)) {
         free(shape);
         free(edges);
         wm_outline_bitmap_free(bitmap);
@@ -760,15 +793,18 @@ bool wm_outline_font_raster(const WmOutlineFont *font, uint32_t codepoint,
     edges->x_origin = (float)left;
     edges->y_origin = (float)top;
     bool valid = shape_edges(shape, edges);
-    if (valid) raster_coverage(edges, bitmap);
+    if (valid)
+        raster_coverage(edges, bitmap);
     free(shape);
     free(edges);
-    if (!valid) wm_outline_bitmap_free(bitmap);
+    if (!valid)
+        wm_outline_bitmap_free(bitmap);
     return valid;
 }
 
 void wm_outline_bitmap_free(WmOutlineBitmap *bitmap) {
-    if (!bitmap) return;
+    if (!bitmap)
+        return;
     free(bitmap->alpha);
     memset(bitmap, 0, sizeof(*bitmap));
 }
@@ -776,36 +812,37 @@ void wm_outline_bitmap_free(WmOutlineBitmap *bitmap) {
 static uint32_t next_codepoint(const char **text) {
     const unsigned char *bytes = (const unsigned char *)*text;
     uint32_t codepoint = bytes[0];
-    if (!codepoint) return 0;
+    if (!codepoint)
+        return 0;
     if (codepoint < 0x80) {
         *text += 1;
         return codepoint;
     }
-    if (codepoint >= 0xc2 && codepoint <= 0xdf &&
-        (bytes[1] & 0xc0) == 0x80) {
+    if (codepoint >= 0xc2 && codepoint <= 0xdf && (bytes[1] & 0xc0) == 0x80) {
         *text += 2;
         return ((codepoint & 0x1f) << 6) | (bytes[1] & 0x3f);
     }
     if (codepoint >= 0xe0 && codepoint <= 0xef && bytes[1] &&
-        (bytes[1] & 0xc0) == 0x80 && bytes[2] &&
-        (bytes[2] & 0xc0) == 0x80) {
+        (bytes[1] & 0xc0) == 0x80 && bytes[2] && (bytes[2] & 0xc0) == 0x80) {
         *text += 3;
-        return ((codepoint & 0x0f) << 12) |
-               ((uint32_t)(bytes[1] & 0x3f) << 6) | (bytes[2] & 0x3f);
+        return ((codepoint & 0x0f) << 12) | ((uint32_t)(bytes[1] & 0x3f) << 6) |
+               (bytes[2] & 0x3f);
     }
     *text += 1;
     return '?';
 }
 
-float wm_outline_font_text_width(const WmOutlineFont *font,
-                                 const char *utf8, unsigned pixel_size) {
-    if (!font || !utf8 || !pixel_size) return 0;
+float wm_outline_font_text_width(const WmOutlineFont *font, const char *utf8,
+                                 unsigned pixel_size) {
+    if (!font || !utf8 || !pixel_size)
+        return 0;
     float width = 0;
     const char *cursor = utf8;
     while (*cursor) {
         uint32_t codepoint = next_codepoint(&cursor);
         unsigned glyph = glyph_for_codepoint(font, codepoint);
-        if (!glyph && codepoint) glyph = glyph_for_codepoint(font, '?');
+        if (!glyph && codepoint)
+            glyph = glyph_for_codepoint(font, '?');
         width += glyph_advance(font, glyph, pixel_size);
     }
     return width;
@@ -817,11 +854,11 @@ static bool populate_atlas(const WmOutlineFont *font, OutlineAtlas *atlas,
     unsigned x = 1, y = 1, row_height = 0;
     for (unsigned index = 0; index < OUTLINE_CODEPOINT_COUNT; index++) {
         WmOutlineBitmap bitmap;
-        if (!wm_outline_font_raster(font,
-                                    OUTLINE_FIRST_CODEPOINT + index,
-                                    atlas->pixel_size, &bitmap)) return false;
-        unsigned ink_width = bitmap.width +
-                             (atlas->synthetic_bold && bitmap.width ? 1u : 0u);
+        if (!wm_outline_font_raster(font, OUTLINE_FIRST_CODEPOINT + index,
+                                    atlas->pixel_size, &bitmap))
+            return false;
+        unsigned ink_width =
+            bitmap.width + (atlas->synthetic_bold && bitmap.width ? 1u : 0u);
         unsigned cell_width = ink_width + 2;
         unsigned cell_height = bitmap.height + 2;
         if (x + cell_width > dimension) {
@@ -845,15 +882,16 @@ static bool populate_atlas(const WmOutlineFont *font, OutlineAtlas *atlas,
         glyph->v1 = (float)(y + bitmap.height) / dimension;
         for (unsigned row = 0; row < bitmap.height; row++) {
             for (unsigned column = 0; column < ink_width; column++) {
-                size_t pixel = ((size_t)(y + row) * dimension +
-                                x + column) * 4;
-                uint8_t coverage = column < bitmap.width
-                    ? bitmap.alpha[(size_t)row * bitmap.width + column]
-                    : 0;
+                size_t pixel = ((size_t)(y + row) * dimension + x + column) * 4;
+                uint8_t coverage =
+                    column < bitmap.width
+                        ? bitmap.alpha[(size_t)row * bitmap.width + column]
+                        : 0;
                 if (atlas->synthetic_bold && column > 0) {
-                    uint8_t previous = bitmap.alpha[
-                        (size_t)row * bitmap.width + column - 1];
-                    if (previous > coverage) coverage = previous;
+                    uint8_t previous =
+                        bitmap.alpha[(size_t)row * bitmap.width + column - 1];
+                    if (previous > coverage)
+                        coverage = previous;
                 }
                 rgba[pixel] = 255;
                 rgba[pixel + 1] = 255;
@@ -862,82 +900,80 @@ static bool populate_atlas(const WmOutlineFont *font, OutlineAtlas *atlas,
             }
         }
         x += cell_width;
-        if (cell_height > row_height) row_height = cell_height;
+        if (cell_height > row_height)
+            row_height = cell_height;
         wm_outline_bitmap_free(&bitmap);
     }
     return true;
 }
 
-static OutlineAtlas *atlas_for_size(WmOutlineFont *font,
-                                    WmPlatform *platform,
+static OutlineAtlas *atlas_for_size(WmOutlineFont *font, WmPlatform *platform,
                                     unsigned pixel_size, bool synthetic_bold) {
     for (unsigned index = 0; index < font->atlas_count; index++) {
         if (font->atlases[index].pixel_size == pixel_size &&
             font->atlases[index].synthetic_bold == synthetic_bold)
             return &font->atlases[index];
     }
-    if (font->atlas_count == OUTLINE_MAX_ATLASES ||
-        pixel_size < 8 || pixel_size > OUTLINE_MAX_PIXEL_SIZE) return NULL;
-    OutlineAtlas atlas = {
-        .pixel_size = pixel_size,
-        .synthetic_bold = synthetic_bold
-    };
+    if (font->atlas_count == OUTLINE_MAX_ATLASES || pixel_size < 8 ||
+        pixel_size > OUTLINE_MAX_PIXEL_SIZE)
+        return NULL;
+    OutlineAtlas atlas = {.pixel_size = pixel_size, .synthetic_bold = synthetic_bold};
     unsigned dimension = pixel_size <= 32 ? 512 : 1024;
     for (; dimension <= 2048; dimension *= 2) {
         uint8_t *rgba = calloc((size_t)dimension * dimension, 4);
-        if (!rgba) return NULL;
+        if (!rgba)
+            return NULL;
         bool complete = populate_atlas(font, &atlas, rgba, dimension);
         if (complete) {
-            atlas.texture = wm_platform_create_texture(platform,
-                                                        (int)dimension,
-                                                        (int)dimension,
-                                                        rgba);
+            atlas.texture = wm_platform_create_texture(platform, (int)dimension,
+                                                       (int)dimension, rgba);
             atlas.dimension = dimension;
         }
         free(rgba);
-        if (complete) break;
+        if (complete)
+            break;
     }
-    if (!atlas.texture) return NULL;
+    if (!atlas.texture)
+        return NULL;
     font->atlases[font->atlas_count] = atlas;
     return &font->atlases[font->atlas_count++];
 }
 
 bool wm_outline_font_draw_line(WmOutlineFont *font, WmPlatform *platform,
-                                const char *utf8, unsigned pixel_size,
-                                float x, float top, WmFontAlign align,
-                                float x_scale, float x_offset,
-                                WmColor color, bool synthetic_bold) {
+                               const char *utf8, unsigned pixel_size, float x,
+                               float top, WmFontAlign align, float x_scale,
+                               float x_offset, WmColor color, bool synthetic_bold) {
     if (!font || !platform || !utf8 || !isfinite(x) || !isfinite(top) ||
         !isfinite(x_scale) || !isfinite(x_offset) || x_scale <= 0)
         return false;
-    OutlineAtlas *atlas = atlas_for_size(font, platform, pixel_size,
-                                         synthetic_bold);
-    if (!atlas) return false;
+    OutlineAtlas *atlas = atlas_for_size(font, platform, pixel_size, synthetic_bold);
+    if (!atlas)
+        return false;
     float pen = x;
     float width = wm_outline_font_text_width(font, utf8, pixel_size);
-    if (align == WM_FONT_ALIGN_CENTER) pen -= width * 0.5f;
-    else if (align == WM_FONT_ALIGN_RIGHT) pen -= width;
-    float baseline = top + (float)font->ascent * pixel_size /
-                           font->units_per_em;
+    if (align == WM_FONT_ALIGN_CENTER)
+        pen -= width * 0.5f;
+    else if (align == WM_FONT_ALIGN_RIGHT)
+        pen -= width;
+    float baseline = top + (float)font->ascent * pixel_size / font->units_per_em;
     const char *cursor = utf8;
     while (*cursor) {
         uint32_t codepoint = next_codepoint(&cursor);
         if (codepoint < OUTLINE_FIRST_CODEPOINT ||
             codepoint >= OUTLINE_FIRST_CODEPOINT + OUTLINE_CODEPOINT_COUNT)
             codepoint = '?';
-        const AtlasGlyph *glyph =
-            &atlas->glyphs[codepoint - OUTLINE_FIRST_CODEPOINT];
+        const AtlasGlyph *glyph = &atlas->glyphs[codepoint - OUTLINE_FIRST_CODEPOINT];
         if (glyph->width && glyph->height) {
-            WmQuad quad = {
-                .x = (pen + glyph->left) * x_scale + x_offset,
-                .y = baseline - glyph->top,
-                .width = glyph->width * x_scale,
-                .height = glyph->height,
-                .u0 = glyph->u0, .v0 = glyph->v0,
-                .u1 = glyph->u1, .v1 = glyph->v1,
-                .color = color,
-                .texture = atlas->texture
-            };
+            WmQuad quad = {.x = (pen + glyph->left) * x_scale + x_offset,
+                           .y = baseline - glyph->top,
+                           .width = glyph->width * x_scale,
+                           .height = glyph->height,
+                           .u0 = glyph->u0,
+                           .v0 = glyph->v0,
+                           .u1 = glyph->u1,
+                           .v1 = glyph->v1,
+                           .color = color,
+                           .texture = atlas->texture};
             wm_platform_draw_quad(platform, &quad);
         }
         pen += glyph->advance;

@@ -6,9 +6,8 @@
 
 /* Render an authored cubic path through the same coverage rasterizer as
  * OpenType/CFF glyphs. Coordinates and advance are in font units. */
-bool wm_outline_raster_vector(const WmCffSegment *segments,
-                              unsigned segment_count, unsigned units_per_em,
-                              unsigned pixel_size, float advance_units,
-                              WmOutlineBitmap *bitmap);
+bool wm_outline_raster_vector(const WmCffSegment *segments, unsigned segment_count,
+                              unsigned units_per_em, unsigned pixel_size,
+                              float advance_units, WmOutlineBitmap *bitmap);
 
 #endif

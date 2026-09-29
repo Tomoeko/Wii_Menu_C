@@ -132,15 +132,13 @@ void wm_platform_begin(WmPlatform *platform, WmColor clear_color);
  * clipping. Both backends preserve draw order across clip changes. */
 void wm_platform_set_clip(WmPlatform *platform, const WmClipRect *rect);
 void wm_platform_draw_quad(WmPlatform *platform, const WmQuad *quad);
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4], uint32_t texture);
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad);
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
+                               uint32_t texture);
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad);
 /* Prepare a material's shader while layouts load. Call after platform creation
  * on its rendering thread. GLES2 caches supported TEV programs (up to six
  * stages); Metal already has its shader ready and treats this as a no-op. */
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad);
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad);
 /* Apply the source scene fader after the scene's last draw, before presenting.
  * This is ignored for offscreen preview captures. */
 void wm_platform_set_fade_alpha(WmPlatform *platform, float alpha);

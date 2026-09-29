@@ -38,11 +38,9 @@ bool contact_parse(const WmJson *json, size_t token, StoredContact *contact);
 /* On success, the caller owns output. On failure output remains NULL. */
 bool contact_serialize(WmBoardContact contact, char **output);
 ContactRewriteStatus contact_rewrite_nickname(const char *original,
-                                              const char *nickname,
-                                              char **output);
+                                              const char *nickname, char **output);
 bool contact_build_array(const StoredContact slots[WM_BOARD_CONTACT_CAPACITY],
-                         size_t current_length, size_t slot,
-                         const char *replacement, char **output,
-                         size_t *output_length);
+                         size_t current_length, size_t slot, const char *replacement,
+                         char **output, size_t *output_length);
 
 #endif

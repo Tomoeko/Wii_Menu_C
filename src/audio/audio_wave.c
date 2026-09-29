@@ -6,57 +6,47 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum {
-    WM_WAV_MAX_BYTES = 128 * 1024 * 1024,
-    WM_WAV_MAX_FRAMES = 20000000
-};
+enum { WM_WAV_MAX_BYTES = 128 * 1024 * 1024, WM_WAV_MAX_FRAMES = 20000000 };
 
-static void set_error(char *error, size_t capacity, const char *message)
-{
-    if (error && capacity) snprintf(error, capacity, "%s", message);
+static void set_error(char *error, size_t capacity, const char *message) {
+    if (error && capacity)
+        snprintf(error, capacity, "%s", message);
 }
 
-static uint16_t le16(const uint8_t *bytes)
-{
+static uint16_t le16(const uint8_t *bytes) {
     return (uint16_t)(bytes[0] | ((uint16_t)bytes[1] << 8));
 }
 
-static uint32_t le32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8) |
-           ((uint32_t)bytes[2] << 16) | ((uint32_t)bytes[3] << 24);
+static uint32_t le32(const uint8_t *bytes) {
+    return (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8) | ((uint32_t)bytes[2] << 16) |
+           ((uint32_t)bytes[3] << 24);
 }
 
-static void put16(uint8_t *bytes, uint16_t value)
-{
+static void put16(uint8_t *bytes, uint16_t value) {
     bytes[0] = (uint8_t)value;
     bytes[1] = (uint8_t)(value >> 8);
 }
 
-static void put32(uint8_t *bytes, uint32_t value)
-{
+static void put32(uint8_t *bytes, uint32_t value) {
     bytes[0] = (uint8_t)value;
     bytes[1] = (uint8_t)(value >> 8);
     bytes[2] = (uint8_t)(value >> 16);
     bytes[3] = (uint8_t)(value >> 24);
 }
 
-static bool write_bytes(FILE *file, const void *data, size_t size)
-{
+static bool write_bytes(FILE *file, const void *data, size_t size) {
     return fwrite(data, 1, size, file) == size;
 }
 
-bool wm_audio_wav_write(const char *path, const WmAudioPcm *audio,
-                        char *error, size_t error_capacity)
-{
+bool wm_audio_wav_write(const char *path, const WmAudioPcm *audio, char *error,
+                        size_t error_capacity) {
     set_error(error, error_capacity, "");
     if (!path || !audio || !audio->samples ||
-        (audio->channels != 1 && audio->channels != 2) ||
-        !audio->sample_rate || audio->sample_rate > 192000 ||
-        !audio->frame_count || audio->frame_count > WM_WAV_MAX_FRAMES ||
-        (audio->looping &&
-         (audio->loop_start >= audio->loop_end ||
-          audio->loop_end > audio->frame_count))) {
+        (audio->channels != 1 && audio->channels != 2) || !audio->sample_rate ||
+        audio->sample_rate > 192000 || !audio->frame_count ||
+        audio->frame_count > WM_WAV_MAX_FRAMES ||
+        (audio->looping && (audio->loop_start >= audio->loop_end ||
+                            audio->loop_end > audio->frame_count))) {
         set_error(error, error_capacity, "Invalid PCM data for WAV export.");
         return false;
     }
@@ -90,10 +80,10 @@ bool wm_audio_wav_write(const char *path, const WmAudioPcm *audio,
     size_t values = (size_t)audio->frame_count * audio->channels;
     for (size_t position = 0; position < values && valid;) {
         size_t count = values - position;
-        if (count > sizeof(buffer) / 2) count = sizeof(buffer) / 2;
+        if (count > sizeof(buffer) / 2)
+            count = sizeof(buffer) / 2;
         for (size_t index = 0; index < count; index++) {
-            put16(buffer + index * 2,
-                  (uint16_t)audio->samples[position + index]);
+            put16(buffer + index * 2, (uint16_t)audio->samples[position + index]);
         }
         valid = write_bytes(file, buffer, count * 2);
         position += count;
@@ -118,28 +108,36 @@ bool wm_audio_wav_write(const char *path, const WmAudioPcm *audio,
     return valid;
 }
 
-bool wm_audio_wav_read(const char *path, WmAudioPcm *audio,
-                       char *error, size_t error_capacity)
-{
+bool wm_audio_wav_read(const char *path, WmAudioPcm *audio, char *error,
+                       size_t error_capacity) {
     set_error(error, error_capacity, "");
-    if (!path || !audio) return false;
+    if (!path || !audio)
+        return false;
     *audio = (WmAudioPcm){0};
     FILE *file = fopen(path, "rb");
     if (!file) {
         set_error(error, error_capacity, "Could not open WAV input.");
         return false;
     }
-    if (fseek(file, 0, SEEK_END) != 0) { fclose(file); return false; }
+    if (fseek(file, 0, SEEK_END) != 0) {
+        fclose(file);
+        return false;
+    }
     long length = ftell(file);
     if (length < 44 || (unsigned long)length > WM_WAV_MAX_BYTES ||
-        fseek(file, 0, SEEK_SET) != 0) { fclose(file); return false; }
+        fseek(file, 0, SEEK_SET) != 0) {
+        fclose(file);
+        return false;
+    }
     size_t size = (size_t)length;
     uint8_t *bytes = malloc(size);
-    if (!bytes) { fclose(file); return false; }
+    if (!bytes) {
+        fclose(file);
+        return false;
+    }
     bool valid = fread(bytes, 1, size, file) == size;
     fclose(file);
-    if (!valid || memcmp(bytes, "RIFF", 4) != 0 ||
-        memcmp(bytes + 8, "WAVE", 4) != 0 ||
+    if (!valid || memcmp(bytes, "RIFF", 4) != 0 || memcmp(bytes + 8, "WAVE", 4) != 0 ||
         le32(bytes + 4) > size - 8 || le32(bytes + 4) < 36) {
         free(bytes);
         set_error(error, error_capacity, "Invalid RIFF/WAVE header.");
@@ -151,21 +149,29 @@ bool wm_audio_wav_read(const char *path, WmAudioPcm *audio,
     for (size_t offset = 12; offset + 8 <= end;) {
         size_t part_size = le32(bytes + offset + 4);
         size_t payload = offset + 8;
-        if (part_size > end - payload) { valid = false; break; }
+        if (part_size > end - payload) {
+            valid = false;
+            break;
+        }
         if (memcmp(bytes + offset, "fmt ", 4) == 0 && !format) {
-            format = bytes + payload; format_size = part_size;
+            format = bytes + payload;
+            format_size = part_size;
         } else if (memcmp(bytes + offset, "data", 4) == 0 && !pcm_data) {
-            pcm_data = bytes + payload; pcm_size = part_size;
+            pcm_data = bytes + payload;
+            pcm_size = part_size;
         } else if (memcmp(bytes + offset, "smpl", 4) == 0 && !loop) {
-            loop = bytes + payload; loop_size = part_size;
+            loop = bytes + payload;
+            loop_size = part_size;
         }
         offset = payload + part_size + (part_size & 1);
-        if (offset > end) { valid = false; break; }
+        if (offset > end) {
+            valid = false;
+            break;
+        }
     }
-    if (!valid || !format || format_size < 16 || !pcm_data ||
-        le16(format) != 1 || (le16(format + 2) != 1 && le16(format + 2) != 2) ||
-        le16(format + 14) != 16 || le32(format + 4) == 0 ||
-        le32(format + 4) > 192000 ||
+    if (!valid || !format || format_size < 16 || !pcm_data || le16(format) != 1 ||
+        (le16(format + 2) != 1 && le16(format + 2) != 2) || le16(format + 14) != 16 ||
+        le32(format + 4) == 0 || le32(format + 4) > 192000 ||
         le16(format + 12) != le16(format + 2) * 2 ||
         le32(format + 8) != le32(format + 4) * le16(format + 12) ||
         pcm_size % le16(format + 12) != 0) {
@@ -181,7 +187,10 @@ bool wm_audio_wav_read(const char *path, WmAudioPcm *audio,
         return false;
     }
     int16_t *samples = malloc(pcm_size);
-    if (!samples) { free(bytes); return false; }
+    if (!samples) {
+        free(bytes);
+        return false;
+    }
     for (size_t index = 0; index < frames * channels; index++) {
         samples[index] = (int16_t)le16(pcm_data + index * 2);
     }
@@ -189,8 +198,7 @@ bool wm_audio_wav_read(const char *path, WmAudioPcm *audio,
     audio->channels = (uint8_t)channels;
     audio->sample_rate = le32(format + 4);
     audio->frame_count = (uint32_t)frames;
-    if (loop && loop_size >= 60 && le32(loop + 28) > 0 &&
-        le32(loop + 40) == 0) {
+    if (loop && loop_size >= 60 && le32(loop + 28) > 0 && le32(loop + 40) == 0) {
         uint32_t start = le32(loop + 44);
         uint32_t last = le32(loop + 48);
         if (start < frames && last >= start && last < frames) {

@@ -23,6 +23,33 @@ include(cmake/WiiMenuBuild.cmake)
 add_subdirectory(src)
 add_subdirectory(tools)
 
+find_program(WM_CLANG_FORMAT NAMES clang-format clang-format-16)
+if(APPLE AND NOT WM_CLANG_FORMAT)
+    execute_process(
+        COMMAND xcrun --find clang-format
+        OUTPUT_VARIABLE WM_CLANG_FORMAT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE WM_FORMAT_LOOKUP_RESULT)
+    if(NOT WM_FORMAT_LOOKUP_RESULT EQUAL 0)
+        unset(WM_CLANG_FORMAT)
+    endif()
+endif()
+if(WM_CLANG_FORMAT)
+    file(GLOB_RECURSE WM_FORMAT_SOURCES CONFIGURE_DEPENDS
+        "${PROJECT_SOURCE_DIR}/include/*.c"
+        "${PROJECT_SOURCE_DIR}/include/*.h"
+        "${PROJECT_SOURCE_DIR}/src/*.c"
+        "${PROJECT_SOURCE_DIR}/src/*.h"
+        "${PROJECT_SOURCE_DIR}/tests/*.c"
+        "${PROJECT_SOURCE_DIR}/tests/*.h"
+        "${PROJECT_SOURCE_DIR}/tools/*.c"
+        "${PROJECT_SOURCE_DIR}/tools/*.h")
+    add_custom_target(wm-check-format
+        COMMAND "${WM_CLANG_FORMAT}" --dry-run --Werror ${WM_FORMAT_SOURCES}
+        VERBATIM)
+endif()
+
 include(CTest)
 if(BUILD_TESTING)
     add_subdirectory(tests)

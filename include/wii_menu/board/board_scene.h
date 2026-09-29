@@ -45,8 +45,8 @@ typedef enum WmBoardPinKind {
 /* BoardObject samples the clock once when a card first appears. A caller may
  * supply a console clock; NULL restores the local system clock. */
 typedef int64_t (*WmBoardTimeNow)(void *context);
-void wm_board_scene_set_pin_clock(WmBoardScene *board,
-                                   WmBoardTimeNow time_now, void *context);
+void wm_board_scene_set_pin_clock(WmBoardScene *board, WmBoardTimeNow time_now,
+                                  void *context);
 
 typedef enum WmBoardPhase {
     WM_BOARD_CLOSED,
@@ -116,8 +116,7 @@ typedef enum WmBoardControl {
 
 /* Consume each Memo keyboard cue after activating a Board control. */
 const char *wm_board_scene_take_compose_key_cue(WmBoardScene *board);
-bool wm_board_scene_hold_compose_control(WmBoardScene *board,
-                                          WmBoardControl control);
+bool wm_board_scene_hold_compose_control(WmBoardScene *board, WmBoardControl control);
 void wm_board_scene_release_compose_control(WmBoardScene *board);
 
 typedef struct WmBoardHit {
@@ -176,16 +175,14 @@ unsigned wm_board_badge_count(const WmBoardMemo *memos, size_t count,
 /* The scene owns parsed layouts and memo strings. All GPU objects remain owned
  * by the caller's platform and caches. Source assets are created locally from
  * the supplied System Menu WAD; no extracted resource is embedded in C. */
-WmBoardScene *wm_board_scene_create(WmPlatform *platform,
-                                     const char *assets_directory,
-                                     WmTextureCache *textures,
-                                     WmFontCache *fonts);
+WmBoardScene *wm_board_scene_create(WmPlatform *platform, const char *assets_directory,
+                                    WmTextureCache *textures, WmFontCache *fonts);
 void wm_board_scene_destroy(WmBoardScene *board);
-WmBoardContactStoreStatus wm_board_scene_load_contacts(
-    WmBoardScene *board, const char *path,
-    char *error, size_t error_capacity);
-bool wm_board_scene_set_memos(WmBoardScene *board,
-                               const WmBoardMemo *memos, size_t count);
+WmBoardContactStoreStatus wm_board_scene_load_contacts(WmBoardScene *board,
+                                                       const char *path, char *error,
+                                                       size_t error_capacity);
+bool wm_board_scene_set_memos(WmBoardScene *board, const WmBoardMemo *memos,
+                              size_t count);
 /* Open today's Board with existing cards already present. Delivery animation
  * belongs to a newly posted memo, not an entry/return to the current date. */
 bool wm_board_scene_open(WmBoardScene *board, WmBoardDate date);
@@ -206,11 +203,10 @@ WmBoardPhase wm_board_scene_phase(const WmBoardScene *board);
 WmBoardChild wm_board_scene_child(const WmBoardScene *board);
 /* True for an active Memo or Address Book text editor. */
 bool wm_board_scene_compose_editor_active(const WmBoardScene *board);
-void wm_board_scene_keyboard_modifiers(WmBoardScene *board,
-                                        bool shift_down, bool caps_lock_on);
+void wm_board_scene_keyboard_modifiers(WmBoardScene *board, bool shift_down,
+                                       bool caps_lock_on);
 bool wm_board_scene_move_memo_caret(WmBoardScene *board, WmKey direction);
-bool wm_board_scene_compose_keyboard_overlay_visible(
-    const WmBoardScene *board);
+bool wm_board_scene_compose_keyboard_overlay_visible(const WmBoardScene *board);
 /* Narrow route for physical Enter in an Address Book text editor. */
 bool wm_board_scene_address_editor_active(const WmBoardScene *board);
 WmBoardDate wm_board_scene_date(const WmBoardScene *board);
@@ -225,11 +221,10 @@ size_t wm_board_scene_memo_count(const WmBoardScene *board);
 /* Returned ID/text pointers remain Board-owned until set_memos, a new post,
  * erase, or destroy. The caller copies them before persisting. */
 bool wm_board_scene_get_memo(const WmBoardScene *board, size_t index,
-                              WmBoardMemo *memo);
+                             WmBoardMemo *memo);
 /* The deleted ID is Board-owned until the next completed erase or destroy. */
 const char *wm_board_scene_last_erased_id(const WmBoardScene *board);
-WmBoardAction wm_board_scene_take_action(WmBoardScene *board,
-                                         size_t *memo_index);
+WmBoardAction wm_board_scene_take_action(WmBoardScene *board, size_t *memo_index);
 typedef struct WmBoardSoundEvent {
     const char *cue;
     float pan;
@@ -238,16 +233,14 @@ typedef struct WmBoardSoundEvent {
 
 /* Page selection and card appearance cues are queued in scene order. Cue
  * names are static; memo_index is SIZE_MAX for a page cue. */
-bool wm_board_scene_take_sound_event(WmBoardScene *board,
-                                      WmBoardSoundEvent *event);
+bool wm_board_scene_take_sound_event(WmBoardScene *board, WmBoardSoundEvent *event);
 bool wm_board_scene_insert_text(WmBoardScene *board, const char *utf8);
 bool wm_board_scene_backspace(WmBoardScene *board);
 bool wm_board_scene_finish_edit(WmBoardScene *board);
 
 /* Pointer coordinates use the 640 x 456 raster. A card becomes pointer-owned
  * on down, draws last while held, and commits its clamped position on up. */
-bool wm_board_scene_pointer_down(WmBoardScene *board, WmBoardHit hit,
-                                  int x, int y);
+bool wm_board_scene_pointer_down(WmBoardScene *board, WmBoardHit hit, int x, int y);
 bool wm_board_scene_pointer_move(WmBoardScene *board, int x, int y);
 bool wm_board_scene_pointer_up(WmBoardScene *board, int x, int y);
 /* Commit the last held position when the pointer leaves the Board without
@@ -255,10 +248,9 @@ bool wm_board_scene_pointer_up(WmBoardScene *board, int x, int y);
 bool wm_board_scene_pointer_finish(WmBoardScene *board);
 bool wm_board_scene_cancel_pointer(WmBoardScene *board);
 bool wm_board_scene_dragging(const WmBoardScene *board);
-WmBoardDragCue wm_board_scene_take_drag_cue(WmBoardScene *board,
-                                             float *pan);
-bool wm_board_scene_drag_mix(const WmBoardScene *board, float *gain,
-                              float *pan, float *pitch);
+WmBoardDragCue wm_board_scene_take_drag_cue(WmBoardScene *board, float *pan);
+bool wm_board_scene_drag_mix(const WmBoardScene *board, float *gain, float *pan,
+                             float *pitch);
 
 /* Source reader scroll arrows move the text/card by 300 units with a
  * 20-frame Hermite curve. Sound is the WIPL_SE_MESSAGE_SCROLL loop. */
@@ -270,7 +262,7 @@ const char *wm_board_scene_take_reader_cue(WmBoardScene *board);
 /* The arrow's requested visibility stays true during the reader's Back/Trash
  * press; the authored Lost clip begins at the close-phase handoff. */
 bool wm_board_scene_reader_arrow_target_visible(const WmBoardScene *board,
-                                                 WmBoardControl control);
+                                                WmBoardControl control);
 
 /* During entry, draw the grid over the board body at layout frames 70–90 for
  * the first 20 updates. During exit, use frames 100–120 for all 40 updates.
@@ -279,8 +271,7 @@ bool wm_board_scene_grid_overlay(const WmBoardScene *board, float *grid_frame);
 /* Board date and Memo-page changes replay ordered incoming PasteLetter.
  * Existing today's cards stay settled only during Home entry and return. */
 size_t wm_board_scene_memo_presentation(
-    WmBoardScene *board,
-    WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS]);
+    WmBoardScene *board, WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS]);
 /* The closed Board leaves today's first Memo page parked behind ChannelSelect.
  * Cards keep a neutral focus and any unfinished arrival. The caller's
  * date tracks the Home Menu wall clock, including a day change while idle. */
@@ -289,9 +280,8 @@ size_t wm_board_scene_parked_memo_presentation(
     WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS]);
 /* Draw parked cards in Home Menu world coordinates. An optional camera is the
  * ChannelSelect zoom transform, applied to the Memo translation as well. */
-void wm_board_scene_draw_parked_memos(WmBoardScene *board,
-                                       WmBoardDate today,
-                                       const float camera[12]);
+void wm_board_scene_draw_parked_memos(WmBoardScene *board, WmBoardDate today,
+                                      const float camera[12]);
 void wm_board_scene_draw_body(WmBoardScene *board);
 /* Align the shared footer-arrow loop with the grid's scene clock. */
 void wm_board_scene_set_menu_elapsed_seconds(WmBoardScene *board, float seconds);
@@ -299,13 +289,11 @@ void wm_board_scene_draw_footer(WmBoardScene *board);
 /* Read a footer button's WAD world anchor after draw_footer or hit has posed
  * it. Page-arrow visual anchors remain available during posted-Memo phases. */
 bool wm_board_scene_footer_button_anchor(const WmBoardScene *board,
-                                          WmBoardControl control,
-                                          float *x, float *y);
+                                         WmBoardControl control, float *x, float *y);
 /* Read the authored focus visual's horizontal scale after draw_footer or hit
  * has posed it. Board Back is available during posted-Memo transitions. */
 bool wm_board_scene_footer_button_visual_scale(const WmBoardScene *board,
-                                                WmBoardControl control,
-                                                float *scale);
+                                               WmBoardControl control, float *scale);
 
 /* Hit rectangles come from the posed source button and memo layouts. The
  * caller routes pointer and keyboard actions through the same controls. */

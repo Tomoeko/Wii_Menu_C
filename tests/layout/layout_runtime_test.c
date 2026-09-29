@@ -45,8 +45,8 @@ typedef struct PaneOrder {
 
 static bool collect_pane_order(void *context, const WmLayoutPaneView *pane) {
     PaneOrder *order = context;
-    if ((strcmp(pane->name, "Source") == 0 ||
-         strcmp(pane->name, "Destination") == 0) && order->count < 2)
+    if ((strcmp(pane->name, "Source") == 0 || strcmp(pane->name, "Destination") == 0) &&
+        order->count < 2)
         order->names[order->count++] = pane->name;
     return true;
 }
@@ -54,7 +54,7 @@ static bool collect_pane_order(void *context, const WmLayoutPaneView *pane) {
 static void test_raise_pane_restores_on_pose(void) {
     char error[128] = {0};
     WmLayout *layout = wm_layout_load_json("tests/fixtures/layout_rebind_fixture.json",
-                                            error, sizeof(error));
+                                           error, sizeof(error));
     assert(layout);
     assert(!wm_layout_raise_pane(layout, "Missing"));
     assert(!wm_layout_raise_pane_within(layout, "Missing", "Source"));
@@ -64,14 +64,14 @@ static void test_raise_pane_restores_on_pose(void) {
     assert(wm_layout_raise_pane(layout, "Source"));
     PaneOrder raised = {0};
     wm_layout_visit_all_transforms(layout, false, WM_LAYOUT_IPL, NULL,
-                                    collect_pane_order, &raised);
+                                   collect_pane_order, &raised);
     assert(raised.count == 2);
     assert(strcmp(raised.names[0], "Destination") == 0);
     assert(strcmp(raised.names[1], "Source") == 0);
     assert(wm_layout_pose(layout, NULL, 0));
     PaneOrder reset = {0};
     wm_layout_visit_all_transforms(layout, false, WM_LAYOUT_IPL, NULL,
-                                    collect_pane_order, &reset);
+                                   collect_pane_order, &reset);
     assert(reset.count == 2);
     assert(strcmp(reset.names[0], "Source") == 0);
     assert(strcmp(reset.names[1], "Destination") == 0);
@@ -85,9 +85,8 @@ typedef struct HiddenAnchors {
 
 static bool collect_clock_anchor(void *context, const WmLayoutPaneView *pane) {
     HiddenAnchors *anchors = context;
-    if (strncmp(pane->name, "N_Clock", 7) == 0 &&
-        pane->name[7] >= '0' && pane->name[7] <= '2' &&
-        pane->name[8] == '\0') {
+    if (strncmp(pane->name, "N_Clock", 7) == 0 && pane->name[7] >= '0' &&
+        pane->name[7] <= '2' && pane->name[8] == '\0') {
         int index = pane->name[7] - '0';
         anchors->found[index] = true;
         anchors->x[index] = pane->matrix[3];
@@ -99,12 +98,13 @@ static bool collect_clock_anchor(void *context, const WmLayoutPaneView *pane) {
 static void test_hidden_clock_anchors(void) {
     char error[128] = {0};
     WmLayout *layout = wm_layout_load_json("tests/fixtures/hidden_anchor_fixture.json",
-                                            error, sizeof(error));
-    if (!layout) fprintf(stderr, "hidden anchor fixture: %s\n", error);
+                                           error, sizeof(error));
+    if (!layout)
+        fprintf(stderr, "hidden anchor fixture: %s\n", error);
     assert(layout);
     HiddenAnchors anchors = {0};
     wm_layout_visit_all_transforms(layout, false, WM_LAYOUT_IPL, NULL,
-                                    collect_clock_anchor, &anchors);
+                                   collect_clock_anchor, &anchors);
     assert(anchors.found[0] && anchors.found[2]);
     assert(!anchors.found[1]);
     assert(near(anchors.x[0], 0) && near(anchors.y[0], 32));
@@ -115,15 +115,14 @@ static void test_hidden_clock_anchors(void) {
 static void test_pane_and_material_rebind(void) {
     char error[128] = {0};
     WmLayout *layout = wm_layout_load_json("tests/fixtures/layout_rebind_fixture.json",
-                                            error, sizeof(error));
-    if (!layout) fprintf(stderr, "rebind fixture: %s\n", error);
+                                           error, sizeof(error));
+    if (!layout)
+        fprintf(stderr, "rebind fixture: %s\n", error);
     assert(layout);
-    WmLayoutClip clip = {
-        .animation = "MoveAndTint",
-        .frame = 10.0f,
-        .target_name = "Source",
-        .rebind_name = "Destination"
-    };
+    WmLayoutClip clip = {.animation = "MoveAndTint",
+                         .frame = 10.0f,
+                         .target_name = "Source",
+                         .rebind_name = "Destination"};
     assert(wm_layout_pose(layout, &clip, 1));
     WmLayoutPaneState source;
     WmLayoutPaneState destination;
@@ -201,15 +200,13 @@ static void capture_quad(void *context, const WmLayoutQuad *quad) {
 
 static Capture draw(WmLayout *layout, bool wide) {
     Capture capture = {0};
-    WmLayoutDrawOptions options = {
-        .wide = wide,
-        .mode = WM_LAYOUT_IPL,
-        .alpha = 1,
-        .on_pane = capture_pane,
-        .on_quad = capture_quad,
-        .image_provider = resolve_image,
-        .context = &capture
-    };
+    WmLayoutDrawOptions options = {.wide = wide,
+                                   .mode = WM_LAYOUT_IPL,
+                                   .alpha = 1,
+                                   .on_pane = capture_pane,
+                                   .on_quad = capture_quad,
+                                   .image_provider = resolve_image,
+                                   .context = &capture};
     wm_layout_draw(layout, &options);
     return capture;
 }
@@ -220,8 +217,8 @@ static void capture_window_quad(void *context, const WmLayoutQuad *quad) {
     int index = capture->count++;
     const WmLayoutTexture *texture = quad->textures[0].resource;
     assert(texture);
-    snprintf(capture->texture_names[index], sizeof(capture->texture_names[index]),
-             "%s", texture->name);
+    snprintf(capture->texture_names[index], sizeof(capture->texture_names[index]), "%s",
+             texture->name);
     capture->x[index] = quad->vertices[0].position[0];
     capture->y[index] = quad->vertices[0].position[1];
     capture->width[index] = quad->vertices[1].position[0] - capture->x[index];
@@ -236,21 +233,16 @@ static void capture_window_quad(void *context, const WmLayoutQuad *quad) {
 static void test_window_frames(void) {
     char error[128];
     WmLayout *layout = wm_layout_load_json("tests/fixtures/layout_window_fixture.json",
-                                            error, sizeof(error));
+                                           error, sizeof(error));
     assert(layout);
     WindowCapture capture = {0};
     WmLayoutDrawOptions options = {
-        .alpha = 1,
-        .on_quad = capture_window_quad,
-        .context = &capture
-    };
+        .alpha = 1, .on_quad = capture_window_quad, .context = &capture};
     wm_layout_draw(layout, &options);
     assert(capture.count == 19);
-    const char *order[19] = {
-        "content", "f0", "f0", "f0", "f0",
-        "content", "f0", "f1", "f3", "f2",
-        "content", "f0", "f6", "f1", "f5", "f3", "f7", "f2", "f4"
-    };
+    const char *order[19] = {"content", "f0", "f0", "f0",      "f0", "content", "f0",
+                             "f1",      "f3", "f2", "content", "f0", "f6",      "f1",
+                             "f5",      "f3", "f7", "f2",      "f4"};
     for (int index = 0; index < 19; index++) {
         assert(strcmp(capture.texture_names[index], order[index]) == 0);
     }
@@ -263,15 +255,15 @@ static void test_window_frames(void) {
     assert(near(capture.x[2], 46) && near(capture.y[2], 0));
     assert(near(capture.width[2], 4) && near(capture.height[2], 25));
     /* Fixed expected values for window-pane geometry. */
-    assert(near(capture.uv[1][1][0], 11.5f));        /* flip 0 */
-    assert(near(capture.uv[2][0][0], 1));            /* flip 1 */
+    assert(near(capture.uv[1][1][0], 11.5f)); /* flip 0 */
+    assert(near(capture.uv[2][0][0], 1));     /* flip 1 */
     assert(near(capture.uv[2][2][1], 5));
-    assert(near(capture.uv[4][0][1], 5));            /* flip 2 */
-    assert(near(capture.uv[8][0][0], -1.0f / 6));   /* flip 3 */
+    assert(near(capture.uv[4][0][1], 5));         /* flip 2 */
+    assert(near(capture.uv[8][0][0], -1.0f / 6)); /* flip 3 */
     assert(near(capture.uv[8][0][1], 46.0f / 7));
-    assert(near(capture.uv[3][0][0], 11.5f));        /* flip 4 */
+    assert(near(capture.uv[3][0][0], 11.5f)); /* flip 4 */
     assert(near(capture.uv[3][0][1], 1));
-    assert(near(capture.uv[14][0][0], 1));           /* flip 5 */
+    assert(near(capture.uv[14][0][0], 1)); /* flip 5 */
     assert(near(capture.uv[14][0][1], -0.2f));
     assert(near(capture.uv[14][2][0], -3.5f));
     wm_layout_destroy(layout);
@@ -279,7 +271,8 @@ static void test_window_frames(void) {
 
 static bool capture_text_pane(void *context, const WmLayoutPaneView *pane) {
     TextCapture *capture = context;
-    if (!pane->text) return true;
+    if (!pane->text)
+        return true;
     const WmLayoutTextInfo *text = pane->text;
     capture->text_count++;
     assert(strcmp(pane->name, "Label") == 0);
@@ -308,10 +301,7 @@ static bool capture_text_pane(void *context, const WmLayoutPaneView *pane) {
 static TextCapture draw_text(WmLayout *layout) {
     TextCapture capture = {0};
     WmLayoutDrawOptions options = {
-        .alpha = 1,
-        .on_pane = capture_text_pane,
-        .context = &capture
-    };
+        .alpha = 1, .on_pane = capture_text_pane, .context = &capture};
     wm_layout_draw(layout, &options);
     return capture;
 }
@@ -319,7 +309,7 @@ static TextCapture draw_text(WmLayout *layout) {
 static void test_text_metadata(void) {
     char error[128];
     WmLayout *layout = wm_layout_load_json("tests/fixtures/layout_text_fixture.json",
-                                            error, sizeof(error));
+                                           error, sizeof(error));
     assert(layout);
     assert(wm_layout_font_count(layout) == 2);
     assert(strcmp(wm_layout_font_name(layout, 0), "First.brfnt") == 0);
@@ -341,11 +331,7 @@ static void test_text_metadata(void) {
     assert(font_pane.no_wrap);
     assert(font_pane.top_color[0] == 12);
     assert(!wm_layout_pane_font(layout, "Missing", &font_pane, &font_name));
-    WmLayoutClip clip = {
-        .animation = "TintAndHide",
-        .frame = 5,
-        .loop_override = -1
-    };
+    WmLayoutClip clip = {.animation = "TintAndHide", .frame = 5, .loop_override = -1};
     assert(wm_layout_pose(layout, &clip, 1));
     TextCapture posed = draw_text(layout);
     assert(posed.text_count == 1);
@@ -367,7 +353,7 @@ static void test_text_metadata(void) {
 static void test_pose_text_reuse(void) {
     char error[128] = {0};
     WmLayout *layout = wm_layout_load_json("tests/fixtures/layout_text_fixture.json",
-                                            error, sizeof(error));
+                                           error, sizeof(error));
     assert(layout);
     assert(wm_layout_set_pose_text(layout, "Label", "12:34 PM"));
     WmLayoutPaneState state;
@@ -408,8 +394,8 @@ static void test_pose_text_reuse(void) {
 
 static void test_pane_translation(void) {
     char error[128];
-    WmLayout *layout = wm_layout_load_json("tests/fixtures/layout_fixture.json",
-                                            error, sizeof(error));
+    WmLayout *layout =
+        wm_layout_load_json("tests/fixtures/layout_fixture.json", error, sizeof(error));
     assert(layout);
     assert(!wm_layout_set_pane_translation(layout, "Missing", 1, 2, 3));
     assert(!wm_layout_set_pane_translation(layout, "Picture", NAN, 2, 3));
@@ -442,10 +428,8 @@ int main(int argc, char **argv) {
     assert(wm_layout_pane_count(layout) == 2);
     assert(wm_layout_material_count(layout) == 1);
     assert(wm_layout_texture_count(layout) == 2);
-    assert(strcmp(wm_layout_texture_at(layout, 0)->url,
-                  "textures/base.png") == 0);
-    assert(strcmp(wm_layout_texture_at(layout, 1)->url,
-                  "textures/other.png") == 0);
+    assert(strcmp(wm_layout_texture_at(layout, 0)->url, "textures/base.png") == 0);
+    assert(strcmp(wm_layout_texture_at(layout, 1)->url, "textures/other.png") == 0);
     assert(wm_layout_texture_at(layout, 2) == NULL);
 
     Capture initial = draw(layout, false);
@@ -454,13 +438,11 @@ int main(int argc, char **argv) {
     assert(near(initial.alpha, 128.0f / 255.0f));
     assert(initial.image == 55);
 
-    WmLayoutClip clip = {
-        .animation = "MoveAndSwap",
-        .frame = 5,
-        .group = "Root",
-        .recursive_group = false,
-        .loop_override = -1
-    };
+    WmLayoutClip clip = {.animation = "MoveAndSwap",
+                         .frame = 5,
+                         .group = "Root",
+                         .recursive_group = false,
+                         .loop_override = -1};
     assert(wm_layout_pose(layout, &clip, 1));
     Capture restricted = draw(layout, false);
     assert(near(restricted.left, -40) && restricted.image == 55);
@@ -489,30 +471,20 @@ int main(int argc, char **argv) {
     assert(material_only.image == 77);
     assert(near(material_only.register_red, 128.0f / 255.0f));
 
-    WmLayoutClip overlay[] = {
-        {
-            .animation = "MoveAndSwap",
-            .frame = 5,
-            .loop_override = 0,
-            .target_name = "Picture"
-        },
-        {
-            .animation = "MoveAndSwap",
-            .frame = 5,
-            .loop_override = 0,
-            .target_name = "PictureMat"
-        }
-    };
+    WmLayoutClip overlay[] = {{.animation = "MoveAndSwap",
+                               .frame = 5,
+                               .loop_override = 0,
+                               .target_name = "Picture"},
+                              {.animation = "MoveAndSwap",
+                               .frame = 5,
+                               .loop_override = 0,
+                               .target_name = "PictureMat"}};
     assert(wm_layout_pose(layout, overlay, 2));
     Capture combined = draw(layout, false);
     assert(near(combined.left, -30));
     assert(combined.image == 77);
 
-    WmLayoutClip hide = {
-        .animation = "Hide",
-        .frame = 5,
-        .loop_override = -1
-    };
+    WmLayoutClip hide = {.animation = "Hide", .frame = 5, .loop_override = -1};
     assert(wm_layout_pose(layout, &hide, 1));
     Capture hidden = draw(layout, false);
     assert(hidden.pane_count == 1 && hidden.quad_count == 0);

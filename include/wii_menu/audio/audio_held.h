@@ -45,11 +45,9 @@ bool wm_audio_held_tables_valid(const WmAudioHeldTables *tables);
  * 32 kHz wave. Controls apply before the integer envelope and pan stages.
  * Linear source interpolation remains an approximation to the AX four-tap SRC.
  * Returns false for invalid inputs; inactive states produce a silent block. */
-bool wm_audio_held_render(WmAudioHeldState *state,
-                          const WmAudioHeldProfile *profile,
-                          const WmAudioHeldTables *tables,
-                          const WmAudioPcm *pcm, float gain, float pan,
-                          float pitch,
+bool wm_audio_held_render(WmAudioHeldState *state, const WmAudioHeldProfile *profile,
+                          const WmAudioHeldTables *tables, const WmAudioPcm *pcm,
+                          float gain, float pan, float pitch,
                           float stereo[WM_AUDIO_HELD_BLOCK * 2]);
 
 #endif

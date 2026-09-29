@@ -10,7 +10,8 @@ enum {
 };
 
 static void audio_error(char *error, size_t capacity, const char *message) {
-    if (error && capacity) snprintf(error, capacity, "%s", message);
+    if (error && capacity)
+        snprintf(error, capacity, "%s", message);
 }
 
 static bool range_fits(size_t size, size_t offset, size_t length) {
@@ -36,11 +37,9 @@ static int64_t floor_div_2048(int64_t value) {
     return value >= 0 ? value / 2048 : -((-value + 2047) / 2048);
 }
 
-static bool dsp_decode_channel(const uint8_t *data, size_t size,
-                               uint32_t sample_count,
-                               const int16_t coefficients[16],
-                               int16_t history1, int16_t history2,
-                               int16_t *output, size_t stride,
+static bool dsp_decode_channel(const uint8_t *data, size_t size, uint32_t sample_count,
+                               const int16_t coefficients[16], int16_t history1,
+                               int16_t history2, int16_t *output, size_t stride,
                                char *error, size_t error_capacity) {
     if (!data || !coefficients || !output || !sample_count ||
         sample_count > WM_AUDIO_MAX_FRAMES) {
@@ -67,14 +66,16 @@ static bool dsp_decode_channel(const uint8_t *data, size_t size,
         for (size_t byte = 1; byte < 8 && produced < sample_count; byte++) {
             for (int half = 0; half < 2 && produced < sample_count; half++) {
                 unsigned nibble = half == 0 ? frame[byte] >> 4 : frame[byte] & 15u;
-                int32_t signed_nibble = nibble < 8 ? (int32_t)nibble :
-                                                      (int32_t)nibble - 16;
+                int32_t signed_nibble =
+                    nibble < 8 ? (int32_t)nibble : (int32_t)nibble - 16;
                 int64_t predicted = (int64_t)signed_nibble * scale * 2048 +
                                     (int64_t)first * previous +
                                     (int64_t)second * older + 1024;
                 int64_t sample = floor_div_2048(predicted);
-                if (sample < -32768) sample = -32768;
-                if (sample > 32767) sample = 32767;
+                if (sample < -32768)
+                    sample = -32768;
+                if (sample > 32767)
+                    sample = 32767;
                 output[(size_t)produced * stride] = (int16_t)sample;
                 older = previous;
                 previous = (int32_t)sample;
@@ -86,23 +87,22 @@ static bool dsp_decode_channel(const uint8_t *data, size_t size,
 }
 
 bool wm_dsp_decode(const uint8_t *data, size_t size, uint32_t sample_count,
-                   const int16_t coefficients[16], int16_t history1,
-                   int16_t history2, int16_t *output,
-                   char *error, size_t error_capacity) {
+                   const int16_t coefficients[16], int16_t history1, int16_t history2,
+                   int16_t *output, char *error, size_t error_capacity) {
     audio_error(error, error_capacity, "");
-    return dsp_decode_channel(data, size, sample_count, coefficients,
-                              history1, history2, output, 1,
-                              error, error_capacity);
+    return dsp_decode_channel(data, size, sample_count, coefficients, history1,
+                              history2, output, 1, error, error_capacity);
 }
 
 void wm_audio_pcm_free(WmAudioPcm *audio) {
-    if (!audio) return;
+    if (!audio)
+        return;
     free(audio->samples);
     *audio = (WmAudioPcm){0};
 }
 
-bool wm_bns_decode(const uint8_t *data, size_t size, WmAudioPcm *output,
-                   char *error, size_t error_capacity) {
+bool wm_bns_decode(const uint8_t *data, size_t size, WmAudioPcm *output, char *error,
+                   size_t error_capacity) {
     audio_error(error, error_capacity, "");
     if (!output) {
         audio_error(error, error_capacity, "Missing audio output.");
@@ -115,8 +115,7 @@ bool wm_bns_decode(const uint8_t *data, size_t size, WmAudioPcm *output,
         audio_error(error, error_capacity, "Expected bounded BNS 1.0 resource.");
         return false;
     }
-    if (be32(data + 8) != size || be16(data + 12) != 32 ||
-        be16(data + 14) != 2) {
+    if (be32(data + 8) != size || be16(data + 12) != 32 || be16(data + 14) != 2) {
         audio_error(error, error_capacity, "Invalid BNS header.");
         return false;
     }
@@ -124,8 +123,8 @@ bool wm_bns_decode(const uint8_t *data, size_t size, WmAudioPcm *output,
     size_t data_offset = be32(data + 24), data_length = be32(data + 28);
     if (info_offset < 32 || data_offset < 32 || info_length < 8 || data_length < 8 ||
         !range_fits(size, info_offset, info_length) ||
-        !range_fits(size, data_offset, data_length) ||
-        info_offset > data_offset || info_length > data_offset - info_offset ||
+        !range_fits(size, data_offset, data_length) || info_offset > data_offset ||
+        info_length > data_offset - info_offset ||
         memcmp(data + info_offset, "INFO", 4) != 0 ||
         memcmp(data + data_offset, "DATA", 4) != 0 ||
         be32(data + info_offset + 4) != info_length ||
@@ -175,7 +174,8 @@ bool wm_bns_decode(const uint8_t *data, size_t size, WmAudioPcm *output,
         size_t context_offset = be32(info + entry_offset + 4);
         if (!range_fits(info_size, context_offset, 48) ||
             !range_fits(encoded_size, sample_offset, encoded_bytes)) {
-            audio_error(error, error_capacity, "Invalid BNS DSP context or sample range.");
+            audio_error(error, error_capacity,
+                        "Invalid BNS DSP context or sample range.");
             free(pcm);
             return false;
         }
@@ -187,9 +187,8 @@ bool wm_bns_decode(const uint8_t *data, size_t size, WmAudioPcm *output,
         int16_t history1 = signed_be16(context + 36);
         int16_t history2 = signed_be16(context + 38);
         if (!dsp_decode_channel(encoded + sample_offset, encoded_bytes, frames,
-                                coefficients, history1, history2,
-                                pcm + channel, channels,
-                                error, error_capacity)) {
+                                coefficients, history1, history2, pcm + channel,
+                                channels, error, error_capacity)) {
             free(pcm);
             return false;
         }

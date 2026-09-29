@@ -22,7 +22,7 @@ WmBoardStoreStatus wm_board_store_load(const char *path, WmBoardScene *board,
 
 /* Write through a private same-directory temporary file and atomically
  * replace path after the data reaches disk. Saves the complete Board state. */
-bool wm_board_store_save(const char *path, const WmBoardScene *board,
-                         char *error, size_t error_capacity);
+bool wm_board_store_save(const char *path, const WmBoardScene *board, char *error,
+                         size_t error_capacity);
 
 #endif

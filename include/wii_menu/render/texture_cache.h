@@ -21,9 +21,8 @@ typedef struct WmTextureCacheStats {
 
 /* raw_root must be an existing directory containing prepared .wmra images.
  * Destroy the cache after the last platform_end for its submitted quads. */
-WmTextureCache *wm_texture_cache_create(WmPlatform *platform,
-                                         const char *raw_root,
-                                         size_t budget_bytes);
+WmTextureCache *wm_texture_cache_create(WmPlatform *platform, const char *raw_root,
+                                        size_t budget_bytes);
 void wm_texture_cache_destroy(WmTextureCache *cache);
 
 /* Call once before each frame's draw submissions. A texture requested during
@@ -32,14 +31,12 @@ void wm_texture_cache_begin_frame(WmTextureCache *cache);
 
 /* Accepts a relative prepared .png URL and loads its sibling .wmra file.
  * Returns false with handle zero when invalid, absent, or over budget. */
-bool wm_texture_cache_resolve(WmTextureCache *cache,
-                              const char *relative_png_url,
+bool wm_texture_cache_resolve(WmTextureCache *cache, const char *relative_png_url,
                               uint32_t *handle);
 
 /* Direct adapter for WmLayoutDrawOptions.image_provider. Its context must be
  * the cache; resources marked missing resolve to the white fallback. */
-bool wm_texture_cache_layout_image(void *context,
-                                   const WmLayoutTexture *resource,
+bool wm_texture_cache_layout_image(void *context, const WmLayoutTexture *resource,
                                    uint32_t *handle);
 
 /* Missing/corrupt files and failed uploads are not retried each frame. Call

@@ -31,41 +31,41 @@ static void wm_report_egl_error(const char *operation) {
 
 static bool wm_choose_config(EGLDisplay display, EGLConfig *config) {
     EGLint rgba8888[] = {EGL_SURFACE_TYPE,
-                                      EGL_WINDOW_BIT,
-                                      EGL_RENDERABLE_TYPE,
-                                      EGL_OPENGL_ES2_BIT,
-                                      EGL_RED_SIZE,
-                                      8,
-                                      EGL_GREEN_SIZE,
-                                      8,
-                                      EGL_BLUE_SIZE,
-                                      8,
-                                      EGL_ALPHA_SIZE,
-                                      8,
-                                      EGL_NONE};
+                         EGL_WINDOW_BIT,
+                         EGL_RENDERABLE_TYPE,
+                         EGL_OPENGL_ES2_BIT,
+                         EGL_RED_SIZE,
+                         8,
+                         EGL_GREEN_SIZE,
+                         8,
+                         EGL_BLUE_SIZE,
+                         8,
+                         EGL_ALPHA_SIZE,
+                         8,
+                         EGL_NONE};
     EGLint rgb565[] = {EGL_SURFACE_TYPE,
-                                    EGL_WINDOW_BIT,
-                                    EGL_RENDERABLE_TYPE,
-                                    EGL_OPENGL_ES2_BIT,
-                                    EGL_RED_SIZE,
-                                    5,
-                                    EGL_GREEN_SIZE,
-                                    6,
-                                    EGL_BLUE_SIZE,
-                                    5,
-                                    EGL_ALPHA_SIZE,
-                                    0,
-                                    EGL_NONE};
+                       EGL_WINDOW_BIT,
+                       EGL_RENDERABLE_TYPE,
+                       EGL_OPENGL_ES2_BIT,
+                       EGL_RED_SIZE,
+                       5,
+                       EGL_GREEN_SIZE,
+                       6,
+                       EGL_BLUE_SIZE,
+                       5,
+                       EGL_ALPHA_SIZE,
+                       0,
+                       EGL_NONE};
     EGLint *formats[] = {rgba8888, rgb565};
     for (size_t index = 0; index < sizeof(formats) / sizeof(formats[0]); index++) {
         /* Prefer retained window pixels without requiring this EGL capability. */
         const EGLint surface_types[] = {
-            EGL_WINDOW_BIT | EGL_SWAP_BEHAVIOR_PRESERVED_BIT, EGL_WINDOW_BIT
-        };
+            EGL_WINDOW_BIT | EGL_SWAP_BEHAVIOR_PRESERVED_BIT, EGL_WINDOW_BIT};
         for (size_t choice = 0; choice < 2; choice++) {
             EGLint count = 0;
             formats[index][1] = surface_types[choice];
-            if (eglChooseConfig(display, formats[index], config, 1, &count) && count > 0)
+            if (eglChooseConfig(display, formats[index], config, 1, &count) &&
+                count > 0)
                 return true;
         }
     }
@@ -150,8 +150,8 @@ WmGles2Host *wm_gles2_host_create(const char *title, int width, int height) {
     attributes.border_pixel = 0;
     attributes.event_mask = StructureNotifyMask | ExposureMask | PointerMotionMask |
                             ButtonPressMask | ButtonReleaseMask | KeyPressMask |
-                            KeyReleaseMask |
-                            EnterWindowMask | LeaveWindowMask | FocusChangeMask;
+                            KeyReleaseMask | EnterWindowMask | LeaveWindowMask |
+                            FocusChangeMask;
     host->window = XCreateWindow(host->display, root, 0, 0, (unsigned int)width,
                                  (unsigned int)height, 0, depth, InputOutput, visual,
                                  CWColormap | CWBorderPixel | CWEventMask, &attributes);
@@ -225,17 +225,16 @@ bool wm_gles2_host_make_current(WmGles2Host *host) {
     return eglGetCurrentContext() == host->egl_context;
 }
 
-bool wm_gles2_host_preserve_back_buffer(WmGles2Host *host)
-{
-    if (!eglSurfaceAttrib(host->egl_display, host->egl_surface,
-                          EGL_SWAP_BEHAVIOR, EGL_BUFFER_PRESERVED)) {
+bool wm_gles2_host_preserve_back_buffer(WmGles2Host *host) {
+    if (!eglSurfaceAttrib(host->egl_display, host->egl_surface, EGL_SWAP_BEHAVIOR,
+                          EGL_BUFFER_PRESERVED)) {
         eglGetError();
         return false;
     }
     EGLint behavior = EGL_BUFFER_DESTROYED;
-    return eglQuerySurface(host->egl_display, host->egl_surface,
-                            EGL_SWAP_BEHAVIOR, &behavior) &&
-        behavior == EGL_BUFFER_PRESERVED;
+    return eglQuerySurface(host->egl_display, host->egl_surface, EGL_SWAP_BEHAVIOR,
+                           &behavior) &&
+           behavior == EGL_BUFFER_PRESERVED;
 }
 
 void wm_gles2_host_destroy(WmGles2Host *host) {
@@ -362,8 +361,8 @@ bool wm_gles2_host_poll(WmGles2Host *host, WmEvent *event) {
                     symbol == XK_Caps_Lock) {
                     event->type = WM_EVENT_KEY_MODIFIERS;
                     event->key = symbol == XK_Caps_Lock
-                        ? (pressed ? WM_KEY_CAPS_LOCK : WM_KEY_UNKNOWN)
-                        : WM_KEY_SHIFT;
+                                     ? (pressed ? WM_KEY_CAPS_LOCK : WM_KEY_UNKNOWN)
+                                     : WM_KEY_SHIFT;
                     event->shift_down = (native_event.xkey.state & ShiftMask) != 0;
                     event->caps_lock_on = (native_event.xkey.state & LockMask) != 0;
                     if (symbol == XK_Caps_Lock && pressed)
@@ -372,7 +371,8 @@ bool wm_gles2_host_poll(WmGles2Host *host, WmEvent *event) {
                         event->shift_down = pressed;
                     return true;
                 }
-                if (!pressed) break;
+                if (!pressed)
+                    break;
                 event->type = WM_EVENT_KEY_DOWN;
                 event->key = wm_lookup_key(&native_event.xkey);
                 event->shift_down = (native_event.xkey.state & ShiftMask) != 0;
@@ -409,7 +409,8 @@ void wm_gles2_host_surface_size(WmGles2Host *host, int *width, int *height) {
 }
 
 bool wm_gles2_host_present(WmGles2Host *host) {
-    if (eglSwapBuffers(host->egl_display, host->egl_surface)) return true;
+    if (eglSwapBuffers(host->egl_display, host->egl_surface))
+        return true;
     if (!host->swap_failure_reported) {
         wm_report_egl_error("frame presentation");
         host->swap_failure_reported = true;

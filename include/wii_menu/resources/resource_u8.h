@@ -18,8 +18,8 @@ typedef struct WmU8Archive {
     size_t count;
 } WmU8Archive;
 
-bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive,
-                 char *error, size_t error_size);
+bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive, char *error,
+                 size_t error_size);
 const WmU8Entry *wm_u8_find(const WmU8Archive *archive, const char *path);
 void wm_u8_free(WmU8Archive *archive);
 

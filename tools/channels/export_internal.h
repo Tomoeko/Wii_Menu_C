@@ -10,19 +10,16 @@
 
 enum { WM_PATH_CAP = 4096, WM_MAX_CONTENT = 64 * 1024 * 1024 };
 
-static inline uint16_t wm_be16(const uint8_t *bytes)
-{
+static inline uint16_t wm_be16(const uint8_t *bytes) {
     return (uint16_t)(((uint16_t)bytes[0] << 8) | bytes[1]);
 }
 
-static inline uint32_t wm_be32(const uint8_t *bytes)
-{
+static inline uint32_t wm_be32(const uint8_t *bytes) {
     return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
            ((uint32_t)bytes[2] << 8) | bytes[3];
 }
 
-static inline bool wm_fits(size_t size, size_t offset, size_t length)
-{
+static inline bool wm_fits(size_t size, size_t offset, size_t length) {
     return offset <= size && length <= size - offset;
 }
 
@@ -79,8 +76,7 @@ bool wm_export_channel_audio(const WmU8Entry *entry, const char *output,
 bool wm_export_resource(const WmU8Entry *entry, const char *output,
                         const char *channel_id, const char *kind,
                         const char *source_file, WmLayoutPath **layout_paths,
-                        size_t *layout_count,
-                        char default_layout[WM_PATH_CAP], unsigned *texture_count,
-                        unsigned *animation_count);
+                        size_t *layout_count, char default_layout[WM_PATH_CAP],
+                        unsigned *texture_count, unsigned *animation_count);
 
 #endif

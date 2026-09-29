@@ -22,7 +22,8 @@ typedef struct GifBits {
 } GifBits;
 
 static bool take(GifReader *reader, size_t count, const uint8_t **value) {
-    if (count > reader->size - reader->offset) return false;
+    if (count > reader->size - reader->offset)
+        return false;
     *value = reader->data + reader->offset;
     reader->offset += count;
     return true;
@@ -30,7 +31,8 @@ static bool take(GifReader *reader, size_t count, const uint8_t **value) {
 
 static bool byte(GifReader *reader, uint8_t *value) {
     const uint8_t *source;
-    if (!take(reader, 1, &source)) return false;
+    if (!take(reader, 1, &source))
+        return false;
     *value = source[0];
     return true;
 }
@@ -43,20 +45,23 @@ static bool skip_blocks(GifReader *reader) {
     for (;;) {
         uint8_t length;
         const uint8_t *ignored;
-        if (!byte(reader, &length)) return false;
-        if (!length) return true;
-        if (!take(reader, length, &ignored)) return false;
+        if (!byte(reader, &length))
+            return false;
+        if (!length)
+            return true;
+        if (!take(reader, length, &ignored))
+            return false;
     }
 }
 
-static bool collect_blocks(GifReader *reader, uint8_t **bytes,
-                           size_t *length) {
+static bool collect_blocks(GifReader *reader, uint8_t **bytes, size_t *length) {
     uint8_t *output = NULL;
     size_t used = 0;
     for (;;) {
         uint8_t block_size;
         const uint8_t *block;
-        if (!byte(reader, &block_size)) break;
+        if (!byte(reader, &block_size))
+            break;
         if (!block_size) {
             *bytes = output;
             *length = used;
@@ -66,7 +71,8 @@ static bool collect_blocks(GifReader *reader, uint8_t **bytes,
             used > (size_t)GIF_MAX_COMPRESSED_BYTES - (size_t)block_size)
             break;
         uint8_t *grown = realloc(output, used + block_size);
-        if (!grown) break;
+        if (!grown)
+            break;
         output = grown;
         memcpy(output + used, block, block_size);
         used += block_size;
@@ -76,22 +82,22 @@ static bool collect_blocks(GifReader *reader, uint8_t **bytes,
 }
 
 static bool read_code(GifBits *bits, unsigned width, unsigned *code) {
-    if (width > 12 || bits->bit > bits->size * 8 ||
-        width > bits->size * 8 - bits->bit) return false;
+    if (width > 12 || bits->bit > bits->size * 8 || width > bits->size * 8 - bits->bit)
+        return false;
     unsigned result = 0;
     for (unsigned index = 0; index < width; index++) {
         size_t position = bits->bit++;
-        result |= (unsigned)((bits->data[position / 8] >>
-                              (position % 8)) & 1u) << index;
+        result |= (unsigned)((bits->data[position / 8] >> (position % 8)) & 1u)
+                  << index;
     }
     *code = result;
     return true;
 }
 
 static bool decode_indices(const uint8_t *compressed, size_t size,
-                           unsigned minimum_width, uint8_t *indices,
-                           size_t count) {
-    if (minimum_width < 2 || minimum_width > 8) return false;
+                           unsigned minimum_width, uint8_t *indices, size_t count) {
+    if (minimum_width < 2 || minimum_width > 8)
+        return false;
     unsigned prefix[GIF_DICTIONARY_SIZE] = {0};
     uint8_t suffix[GIF_DICTIONARY_SIZE] = {0};
     uint8_t stack[GIF_DICTIONARY_SIZE];
@@ -118,7 +124,8 @@ static bool decode_indices(const uint8_t *compressed, size_t size,
             break;
         }
         if (previous < 0) {
-            if (code >= clear || produced >= count) return false;
+            if (code >= clear || produced >= count)
+                return false;
             first = (uint8_t)code;
             indices[produced++] = first;
             previous = (int)code;
@@ -142,24 +149,27 @@ static bool decode_indices(const uint8_t *compressed, size_t size,
             return false;
         first = (uint8_t)code;
         stack[stacked++] = first;
-        if (stacked > count - produced) return false;
-        while (stacked) indices[produced++] = stack[--stacked];
+        if (stacked > count - produced)
+            return false;
+        while (stacked)
+            indices[produced++] = stack[--stacked];
 
         if (available < GIF_DICTIONARY_SIZE) {
             prefix[available] = (unsigned)previous;
             suffix[available] = first;
             available++;
-            if (available == (1u << width) && width < 12) width++;
+            if (available == (1u << width) && width < 12)
+                width++;
         }
         previous = (int)original;
     }
     return ended && produced == count;
 }
 
-static bool image_pixels(const uint8_t *indices, unsigned left,
-                         unsigned top, unsigned width, unsigned height,
-                         bool interlaced, const uint8_t *palette,
-                         unsigned colors, int transparent, WmImage *image) {
+static bool image_pixels(const uint8_t *indices, unsigned left, unsigned top,
+                         unsigned width, unsigned height, bool interlaced,
+                         const uint8_t *palette, unsigned colors, int transparent,
+                         WmImage *image) {
     static const unsigned starts[4] = {0, 4, 2, 1};
     static const unsigned steps[4] = {8, 8, 4, 2};
     unsigned source_row = 0;
@@ -170,14 +180,13 @@ static bool image_pixels(const uint8_t *indices, unsigned left,
         for (unsigned y = first_row; y < height; y += step) {
             for (unsigned x = 0; x < width; x++) {
                 unsigned index = indices[(size_t)source_row * width + x];
-                if (index >= colors) return false;
-                size_t output = ((size_t)(top + y) * image->width +
-                                 left + x) * 4;
+                if (index >= colors)
+                    return false;
+                size_t output = ((size_t)(top + y) * image->width + left + x) * 4;
                 image->pixels[output] = palette[index * 3];
                 image->pixels[output + 1] = palette[index * 3 + 1];
                 image->pixels[output + 2] = palette[index * 3 + 2];
-                image->pixels[output + 3] = index == (unsigned)transparent
-                    ? 0 : 255;
+                image->pixels[output + 3] = index == (unsigned)transparent ? 0 : 255;
             }
             source_row++;
         }
@@ -186,31 +195,33 @@ static bool image_pixels(const uint8_t *indices, unsigned left,
 }
 
 bool wm_settings_gif_decode(const uint8_t *data, size_t size, WmImage *image) {
-    if (!data || !image) return false;
+    if (!data || !image)
+        return false;
     memset(image, 0, sizeof(*image));
     GifReader reader = {.data = data, .size = size};
     const uint8_t *header;
     if (!take(&reader, 13, &header) ||
-        (memcmp(header, "GIF87a", 6) != 0 &&
-         memcmp(header, "GIF89a", 6) != 0)) return false;
+        (memcmp(header, "GIF87a", 6) != 0 && memcmp(header, "GIF89a", 6) != 0))
+        return false;
     unsigned canvas_width = little_u16(header + 6);
     unsigned canvas_height = little_u16(header + 8);
-    if (!canvas_width || !canvas_height ||
-        canvas_width > GIF_MAX_DIMENSION ||
-        canvas_height > GIF_MAX_DIMENSION) return false;
-    unsigned global_colors = header[10] & 0x80u
-        ? 1u << ((header[10] & 7u) + 1u) : 0;
+    if (!canvas_width || !canvas_height || canvas_width > GIF_MAX_DIMENSION ||
+        canvas_height > GIF_MAX_DIMENSION)
+        return false;
+    unsigned global_colors = header[10] & 0x80u ? 1u << ((header[10] & 7u) + 1u) : 0;
     const uint8_t *global_palette = NULL;
-    if (global_colors &&
-        !take(&reader, global_colors * 3, &global_palette)) return false;
+    if (global_colors && !take(&reader, global_colors * 3, &global_palette))
+        return false;
     int transparent = -1;
 
     for (;;) {
         uint8_t marker;
-        if (!byte(&reader, &marker) || marker == 0x3b) return false;
+        if (!byte(&reader, &marker) || marker == 0x3b)
+            return false;
         if (marker == 0x21) {
             uint8_t kind;
-            if (!byte(&reader, &kind)) return false;
+            if (!byte(&reader, &kind))
+                return false;
             if (kind == 0xf9) {
                 const uint8_t *control;
                 uint8_t terminator;
@@ -223,55 +234,61 @@ bool wm_settings_gif_decode(const uint8_t *data, size_t size, WmImage *image) {
             }
             continue;
         }
-        if (marker != 0x2c) return false;
+        if (marker != 0x2c)
+            return false;
         const uint8_t *descriptor;
-        if (!take(&reader, 9, &descriptor)) return false;
+        if (!take(&reader, 9, &descriptor))
+            return false;
         unsigned left = little_u16(descriptor);
         unsigned top = little_u16(descriptor + 2);
         unsigned width = little_u16(descriptor + 4);
         unsigned height = little_u16(descriptor + 6);
         if (!width || !height || left > canvas_width - width ||
             top > canvas_height - height || width > canvas_width ||
-            height > canvas_height) return false;
-        unsigned local_colors = descriptor[8] & 0x80u
-            ? 1u << ((descriptor[8] & 7u) + 1u) : 0;
+            height > canvas_height)
+            return false;
+        unsigned local_colors =
+            descriptor[8] & 0x80u ? 1u << ((descriptor[8] & 7u) + 1u) : 0;
         const uint8_t *palette = global_palette;
         unsigned colors = global_colors;
         if (local_colors) {
-            if (!take(&reader, local_colors * 3, &palette)) return false;
+            if (!take(&reader, local_colors * 3, &palette))
+                return false;
             colors = local_colors;
         }
-        if (!palette) return false;
+        if (!palette)
+            return false;
         uint8_t minimum_width;
         uint8_t *compressed = NULL;
         size_t compressed_size = 0;
         bool valid = byte(&reader, &minimum_width) &&
                      collect_blocks(&reader, &compressed, &compressed_size);
-        if (!valid) return false;
+        if (!valid)
+            return false;
         size_t count = (size_t)width * height;
         uint8_t *indices = malloc(count);
         if (!indices) {
             free(compressed);
             return false;
         }
-        valid = decode_indices(compressed, compressed_size, minimum_width,
-                               indices, count);
+        valid =
+            decode_indices(compressed, compressed_size, minimum_width, indices, count);
         free(compressed);
         if (valid) {
             image->width = canvas_width;
             image->height = canvas_height;
             image->pixels = calloc((size_t)canvas_width * canvas_height, 4);
-            valid = image->pixels && image_pixels(
-                indices, left, top, width, height,
-                (descriptor[8] & 0x40u) != 0,
-                palette, colors, transparent, image);
+            valid = image->pixels && image_pixels(indices, left, top, width, height,
+                                                  (descriptor[8] & 0x40u) != 0, palette,
+                                                  colors, transparent, image);
         }
         /* This exporter accepts one static frame and its trailer. A truncated
          * stream must not silently become a valid local texture. */
         valid = valid && reader.offset + 1 == reader.size &&
                 reader.data[reader.offset] == 0x3b;
         free(indices);
-        if (!valid) wm_image_free(image);
+        if (!valid)
+            wm_image_free(image);
         return valid;
     }
 }

@@ -12,13 +12,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-enum {
-    TEST_FONT_SIZE = 153,
-    FINF = 16,
-    TGLP = 48,
-    CWDH = 112,
-    CMAP = 131
-};
+enum { TEST_FONT_SIZE = 153, FINF = 16, TGLP = 48, CWDH = 112, CMAP = 131 };
 
 struct WmPlatform {
     unsigned uploads;
@@ -104,8 +98,8 @@ void wm_platform_destroy_texture(WmPlatform *platform, uint32_t texture) {
     platform->destructions++;
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4], uint32_t texture) {
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
+                               uint32_t texture) {
     assert(platform && vertices && texture >= 101);
     if (platform->draws == 0) {
         memcpy(platform->first_vertices, vertices, sizeof(platform->first_vertices));
@@ -116,8 +110,7 @@ void wm_platform_draw_vertices(WmPlatform *platform,
     platform->draws++;
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
     assert(false);
@@ -138,7 +131,8 @@ static void write_fixture_font(const char *path) {
 
 int main(void) {
     const char *temporary = getenv("TMPDIR");
-    if (!temporary || !temporary[0]) temporary = "/tmp";
+    if (!temporary || !temporary[0])
+        temporary = "/tmp";
     char root[1024];
     int length = snprintf(root, sizeof(root), "%s/wm-font-test-XXXXXX", temporary);
     assert(length > 0 && (size_t)length < sizeof(root));
@@ -161,60 +155,54 @@ int main(void) {
     assert(fonts);
     char error[128];
     WmLayout *layout = wm_layout_load_json("tests/fixtures/layout_text_fixture.json",
-                                            error, sizeof(error));
+                                           error, sizeof(error));
     assert(layout);
     wm_font_cache_begin_frame(fonts);
-    wm_layout_present_with_fonts(&platform, NULL, fonts, layout, false,
-                                  WM_LAYOUT_LOCAL, NULL);
+    wm_layout_present_with_fonts(&platform, NULL, fonts, layout, false, WM_LAYOUT_LOCAL,
+                                 NULL);
     assert(platform.draws == 4 && platform.uploads == 1);
     assert(platform.last_texture == 101);
-    assert(near(platform.first_vertices[0].color.r,
-                (12.0f / 255) * (128.0f / 255)));
-    assert(near(platform.first_vertices[0].color.g,
-                (34.0f / 255) * (64.0f / 255)));
+    assert(near(platform.first_vertices[0].color.r, (12.0f / 255) * (128.0f / 255)));
+    assert(near(platform.first_vertices[0].color.g, (34.0f / 255) * (64.0f / 255)));
     assert(near(platform.first_vertices[0].color.a,
                 (78.0f / 255) * (128.0f / 255) * (200.0f / 255)));
-    assert(near(platform.first_vertices[2].color.r,
-                (90.0f / 255) * (128.0f / 255)));
+    assert(near(platform.first_vertices[2].color.r, (90.0f / 255) * (128.0f / 255)));
     assert(wm_font_cache_stats(fonts).cached_layouts == 1);
     assert(wm_font_cache_stats(fonts).resident_sheets == 1);
 
     wm_font_cache_begin_frame(fonts);
-    wm_layout_present_with_fonts(&platform, NULL, fonts, layout, false,
-                                  WM_LAYOUT_LOCAL, NULL);
+    wm_layout_present_with_fonts(&platform, NULL, fonts, layout, false, WM_LAYOUT_LOCAL,
+                                 NULL);
     assert(platform.draws == 8 && platform.uploads == 1);
     assert(wm_font_cache_stats(fonts).cached_layouts == 1);
     assert(wm_layout_pose(layout, NULL, 0));
-    assert(wm_layout_set_pose_text(layout, "Label", "A\xc3\xa9" "A"));
+    assert(wm_layout_set_pose_text(layout, "Label",
+                                   "A\xc3\xa9"
+                                   "A"));
     WmLayoutTextColorRange highlight = {
-        .first_byte = 1,
-        .end_byte = 3,
-        .rgba = {255, 50, 50, 255}
-    };
+        .first_byte = 1, .end_byte = 3, .rgba = {255, 50, 50, 255}};
     assert(wm_layout_set_pose_text_colors(layout, "Label", &highlight, 1));
-    wm_layout_present_with_fonts(&platform, NULL, fonts, layout, false,
-                                  WM_LAYOUT_LOCAL, NULL);
+    wm_layout_present_with_fonts(&platform, NULL, fonts, layout, false, WM_LAYOUT_LOCAL,
+                                 NULL);
     assert(platform.draws == 11);
     assert(near(platform.drawn_red[8], (12.0f / 255) * (128.0f / 255)));
     assert(near(platform.drawn_red[9], 128.0f / 255));
     assert(near(platform.drawn_red[10], (12.0f / 255) * (128.0f / 255)));
     assert(wm_layout_pose(layout, NULL, 0));
     assert(wm_layout_set_pose_text(layout, "Label", "AA"));
-    wm_layout_present_with_fonts(&platform, NULL, fonts, layout, false,
-                                  WM_LAYOUT_LOCAL, NULL);
+    wm_layout_present_with_fonts(&platform, NULL, fonts, layout, false, WM_LAYOUT_LOCAL,
+                                 NULL);
     assert(platform.draws == 13);
     assert(near(platform.drawn_red[12], (12.0f / 255) * (128.0f / 255)));
     WmCachedFont *face = wm_font_cache_resolve(fonts, "Second.brfnt");
     assert(face && wm_cached_font_resource(face));
-    WmFontPane pane = {
-        .size = {120, 40},
-        .origin = 4,
-        .text_position = 8,
-        .font_size = {24, 28},
-        .char_space = 1.5f,
-        .line_space = 2.5f,
-        .no_wrap = true
-    };
+    WmFontPane pane = {.size = {120, 40},
+                       .origin = 4,
+                       .text_position = 8,
+                       .font_size = {24, 28},
+                       .char_space = 1.5f,
+                       .line_space = 2.5f,
+                       .no_wrap = true};
     const char *value = "A\xc3\xa9\xf0\x9f\x98\x80\nB";
     const WmFontTextLayout *cached = wm_font_cache_layout(face, value, &pane);
     pane.top_color[0] = 222;

@@ -7,36 +7,30 @@
 #include <string.h>
 
 /* Bounds and JSON writing are shared by BRLAN and BRLYT exporters. */
-uint16_t wm_be16(const uint8_t *bytes)
-{
+uint16_t wm_be16(const uint8_t *bytes) {
     return (uint16_t)(((uint16_t)bytes[0] << 8) | bytes[1]);
 }
 
-int16_t wm_signed_be16(const uint8_t *bytes)
-{
+int16_t wm_signed_be16(const uint8_t *bytes) {
     return (int16_t)wm_be16(bytes);
 }
 
-uint32_t wm_be32(const uint8_t *bytes)
-{
+uint32_t wm_be32(const uint8_t *bytes) {
     return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
            ((uint32_t)bytes[2] << 8) | bytes[3];
 }
 
-bool wm_range(size_t size, size_t offset, size_t length)
-{
+bool wm_range(size_t size, size_t offset, size_t length) {
     return offset <= size && length <= size - offset;
 }
 
-void wm_set_error(char *error, size_t error_size, const char *message)
-{
+void wm_set_error(char *error, size_t error_size, const char *message) {
     if (error != NULL && error_size != 0) {
         snprintf(error, error_size, "%s", message);
     }
 }
 
-bool wm_float(const uint8_t *bytes, size_t size, size_t offset, float *value)
-{
+bool wm_float(const uint8_t *bytes, size_t size, size_t offset, float *value) {
     if (!wm_range(size, offset, 4)) {
         return false;
     }
@@ -45,8 +39,7 @@ bool wm_float(const uint8_t *bytes, size_t size, size_t offset, float *value)
     return isfinite(*value);
 }
 
-static bool wm_writer_reserve(WmJsonWriter *writer, size_t additional)
-{
+static bool wm_writer_reserve(WmJsonWriter *writer, size_t additional) {
     if (writer->failed || additional > WM_RESOURCE_MAX_JSON - writer->length) {
         writer->failed = true;
         return false;
@@ -73,8 +66,7 @@ static bool wm_writer_reserve(WmJsonWriter *writer, size_t additional)
     return true;
 }
 
-void wm_writer_bytes(WmJsonWriter *writer, const char *text, size_t length)
-{
+void wm_writer_bytes(WmJsonWriter *writer, const char *text, size_t length) {
     if (!wm_writer_reserve(writer, length)) {
         return;
     }
@@ -83,13 +75,11 @@ void wm_writer_bytes(WmJsonWriter *writer, const char *text, size_t length)
     writer->text[writer->length] = '\0';
 }
 
-void wm_writer_text(WmJsonWriter *writer, const char *text)
-{
+void wm_writer_text(WmJsonWriter *writer, const char *text) {
     wm_writer_bytes(writer, text, strlen(text));
 }
 
-void wm_writer_format(WmJsonWriter *writer, const char *format, ...)
-{
+void wm_writer_format(WmJsonWriter *writer, const char *format, ...) {
     if (writer->failed) {
         return;
     }
@@ -104,22 +94,20 @@ void wm_writer_format(WmJsonWriter *writer, const char *format, ...)
         va_end(args);
         return;
     }
-    vsnprintf(writer->text + writer->length,
-              writer->capacity - writer->length, format, args);
+    vsnprintf(writer->text + writer->length, writer->capacity - writer->length, format,
+              args);
     writer->length += (size_t)needed;
     va_end(args);
 }
 
-void wm_writer_indent(WmJsonWriter *writer, unsigned depth)
-{
+void wm_writer_indent(WmJsonWriter *writer, unsigned depth) {
     wm_writer_text(writer, "\n");
     for (unsigned index = 0; index < depth; index++) {
         wm_writer_text(writer, "  ");
     }
 }
 
-static bool wm_valid_utf8(const uint8_t *bytes, size_t length)
-{
+static bool wm_valid_utf8(const uint8_t *bytes, size_t length) {
     size_t index = 0;
     while (index < length) {
         uint8_t first = bytes[index];
@@ -164,9 +152,7 @@ static bool wm_valid_utf8(const uint8_t *bytes, size_t length)
     return true;
 }
 
-void wm_writer_string(WmJsonWriter *writer,
-                             const uint8_t *bytes, size_t length)
-{
+void wm_writer_string(WmJsonWriter *writer, const uint8_t *bytes, size_t length) {
     if (!wm_valid_utf8(bytes, length)) {
         writer->failed = true;
         return;
@@ -187,8 +173,7 @@ void wm_writer_string(WmJsonWriter *writer,
 }
 
 bool wm_fixed_string(const uint8_t *bytes, size_t size, size_t offset,
-                            size_t field_size, const uint8_t **value, size_t *length)
-{
+                     size_t field_size, const uint8_t **value, size_t *length) {
     if (!wm_range(size, offset, field_size)) {
         return false;
     }
@@ -201,9 +186,8 @@ bool wm_fixed_string(const uint8_t *bytes, size_t size, size_t offset,
     return true;
 }
 
-bool wm_cstring(const uint8_t *bytes, size_t size, size_t offset,
-                       const uint8_t **value, size_t *length)
-{
+bool wm_cstring(const uint8_t *bytes, size_t size, size_t offset, const uint8_t **value,
+                size_t *length) {
     if (offset >= size) {
         return false;
     }
@@ -219,10 +203,8 @@ bool wm_cstring(const uint8_t *bytes, size_t size, size_t offset,
     return true;
 }
 
-bool wm_read_sections(const uint8_t *data, size_t size,
-                             const char signature[4], WmSection *sections,
-                             size_t *section_count)
-{
+bool wm_read_sections(const uint8_t *data, size_t size, const char signature[4],
+                      WmSection *sections, size_t *section_count) {
     if (data == NULL || size < 16 || memcmp(data, signature, 4) != 0 ||
         data[4] != 0xfe || data[5] != 0xff) {
         return false;
@@ -230,8 +212,7 @@ bool wm_read_sections(const uint8_t *data, size_t size,
     size_t file_size = wm_be32(data + 8);
     size_t cursor = wm_be16(data + 12);
     size_t count = wm_be16(data + 14);
-    if (file_size > size || cursor > file_size ||
-        count > WM_RESOURCE_MAX_SECTIONS) {
+    if (file_size > size || cursor > file_size || count > WM_RESOURCE_MAX_SECTIONS) {
         return false;
     }
     for (size_t index = 0; index < count; index++) {
@@ -252,8 +233,7 @@ bool wm_read_sections(const uint8_t *data, size_t size,
     return true;
 }
 
-void wm_writer_float(WmJsonWriter *writer, float value)
-{
+void wm_writer_float(WmJsonWriter *writer, float value) {
     if (!isfinite(value)) {
         writer->failed = true;
         return;
@@ -273,8 +253,7 @@ void wm_writer_float(WmJsonWriter *writer, float value)
     wm_writer_bytes(writer, number, (size_t)length);
 }
 
-void wm_normalize_commas(WmJsonWriter *writer)
-{
+void wm_normalize_commas(WmJsonWriter *writer) {
     /* Keep generated objects readable when a field is appended conditionally. */
     for (size_t index = 0; index < writer->length; index++) {
         if (writer->text[index] != '\n') {
@@ -285,17 +264,15 @@ void wm_normalize_commas(WmJsonWriter *writer)
             comma++;
         }
         if (comma < writer->length && writer->text[comma] == ',') {
-            memmove(writer->text + index + 1,
-                    writer->text + index, comma - index);
+            memmove(writer->text + index + 1, writer->text + index, comma - index);
             writer->text[index] = ',';
             index = comma;
         }
     }
 }
 
-bool wm_writer_floats(WmJsonWriter *writer, const uint8_t *bytes,
-                             size_t size, size_t offset, size_t count)
-{
+bool wm_writer_floats(WmJsonWriter *writer, const uint8_t *bytes, size_t size,
+                      size_t offset, size_t count) {
     if (count > (size - (offset <= size ? offset : size)) / 4 || offset > size) {
         return false;
     }
@@ -314,9 +291,8 @@ bool wm_writer_floats(WmJsonWriter *writer, const uint8_t *bytes,
     return !writer->failed;
 }
 
-bool wm_writer_bytes_array(WmJsonWriter *writer, const uint8_t *bytes,
-                                  size_t size, size_t offset, size_t count)
-{
+bool wm_writer_bytes_array(WmJsonWriter *writer, const uint8_t *bytes, size_t size,
+                           size_t offset, size_t count) {
     if (!wm_range(size, offset, count)) {
         return false;
     }

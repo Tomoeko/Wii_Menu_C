@@ -25,10 +25,8 @@ typedef enum WmBoardEraseOutcome {
     WM_ERASE_OUTCOME_ACCEPT
 } WmBoardEraseOutcome;
 
-WmBoardErase *wm_board_erase_create(WmPlatform *platform,
-                                     const char *assets_directory,
-                                     WmTextureCache *textures,
-                                     WmFontCache *fonts);
+WmBoardErase *wm_board_erase_create(WmPlatform *platform, const char *assets_directory,
+                                    WmTextureCache *textures, WmFontCache *fonts);
 void wm_board_erase_destroy(WmBoardErase *erase);
 void wm_board_erase_reset(WmBoardErase *erase);
 bool wm_board_erase_open(WmBoardErase *erase);
@@ -38,8 +36,7 @@ WmBoardEraseOutcome wm_board_erase_take_outcome(WmBoardErase *erase);
 void wm_board_erase_draw(WmBoardErase *erase);
 WmBoardEraseControl wm_board_erase_hit(WmBoardErase *erase, int x, int y);
 void wm_board_erase_hover(WmBoardErase *erase, WmBoardEraseControl control);
-bool wm_board_erase_activate(WmBoardErase *erase,
-                              WmBoardEraseControl control);
+bool wm_board_erase_activate(WmBoardErase *erase, WmBoardEraseControl control);
 bool wm_board_erase_back(WmBoardErase *erase);
 
 #endif

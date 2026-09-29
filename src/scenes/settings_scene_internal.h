@@ -168,8 +168,7 @@ bool settings_scene_activate_category(WmSettingsScene *scene,
 float wm_settings_focus_opacity(const WmSettingsScene *scene,
                                 WmSettingsControl control);
 float wm_settings_page_opacity(const WmSettingsScene *scene);
-void settings_scene_advance_nickname_keyboard(WmSettingsScene *scene,
-                                               float frames);
+void settings_scene_advance_nickname_keyboard(WmSettingsScene *scene, float frames);
 bool settings_scene_open_nickname_keyboard(WmSettingsScene *scene);
 void settings_scene_draw_nickname_keyboard(WmSettingsScene *scene);
 float settings_scene_nickname_caret_x(const WmSettingsScene *scene);

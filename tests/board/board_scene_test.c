@@ -36,8 +36,7 @@ void wm_platform_end(WmPlatform *platform) {
     assert(false);
 }
 
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad) {
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
@@ -52,25 +51,24 @@ void wm_platform_draw_quad(WmPlatform *platform, const WmQuad *quad) {
     (void)quad;
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
     (void)texture;
-    if (!capture_text_draws) return;
+    if (!capture_text_draws)
+        return;
     captured_text_quads++;
-    if (vertices[0].color.r > 0.55f &&
-        vertices[0].color.r < 0.85f) captured_light_text_quads++;
+    if (vertices[0].color.r > 0.55f && vertices[0].color.r < 0.85f)
+        captured_light_text_quads++;
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     assert(width > 0 && height > 0 && rgba);
     return next_texture_handle++;
@@ -100,7 +98,8 @@ static void test_date_arithmetic(void) {
 static void test_badge(void) {
     WmBoardMemo memos[120] = {0};
     WmBoardDate today = {2026, 9, 25};
-    for (size_t index = 0; index < 120; index++) memos[index].date = today;
+    for (size_t index = 0; index < 120; index++)
+        memos[index].date = today;
     memos[0].date.day = 24;
     assert(wm_board_badge_count(memos, 120, today) == 99);
     assert(wm_board_badge_count(memos, 1, today) == 0);
@@ -112,8 +111,8 @@ static WmFontCache *test_fonts;
 static WmBoardScene *load_board(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char path[4096];
-    int length = snprintf(path, sizeof(path),
-                          "%s/layouts/board/my_IplTop_c.json", assets);
+    int length =
+        snprintf(path, sizeof(path), "%s/layouts/board/my_IplTop_c.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     FILE *check = fopen(path, "rb");
     if (!check) {
@@ -122,12 +121,11 @@ static WmBoardScene *load_board(int argc, char **argv) {
     }
     fclose(check);
     if (!test_fonts) {
-        test_fonts = wm_font_cache_create((WmPlatform *)1, assets,
-                                           1024u * 1024u);
+        test_fonts = wm_font_cache_create((WmPlatform *)1, assets, 1024u * 1024u);
         assert(test_fonts);
     }
-    WmBoardScene *board = wm_board_scene_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1, test_fonts);
+    WmBoardScene *board =
+        wm_board_scene_create((WmPlatform *)1, assets, (WmTextureCache *)1, test_fonts);
     assert(board);
     return board;
 }
@@ -135,7 +133,8 @@ static WmBoardScene *load_board(int argc, char **argv) {
 static void settle_initial_memos(WmBoardScene *board) {
     wm_board_scene_advance(board, 110.0f);
     WmBoardSoundEvent event;
-    while (wm_board_scene_take_sound_event(board, &event)) {}
+    while (wm_board_scene_take_sound_event(board, &event)) {
+    }
 }
 
 static void test_home_badge_midnight_refresh(int argc, char **argv) {
@@ -144,19 +143,15 @@ static void test_home_badge_midnight_refresh(int argc, char **argv) {
     const WmBoardDate previous_day = {2026, 9, 24};
     const WmBoardDate current_day = {2026, 9, 25};
     const WmBoardMemo memos[] = {
-        {
-            .id = "previous-day", .text = "Yesterday",
-            .date = {2026, 9, 24}, .read = true
-        },
-        {
-            .id = "current-unread", .text = "Today",
-            .date = {2026, 9, 25}
-        },
-        {
-            .id = "current-read", .text = "Read today",
-            .date = {2026, 9, 25}, .read = true
-        }
-    };
+        {.id = "previous-day",
+         .text = "Yesterday",
+         .date = {2026, 9, 24},
+         .read = true},
+        {.id = "current-unread", .text = "Today", .date = {2026, 9, 25}},
+        {.id = "current-read",
+         .text = "Read today",
+         .date = {2026, 9, 25},
+         .read = true}};
     assert(wm_board_scene_set_memos(board, memos, 3));
     assert(wm_board_scene_refresh_today(board, previous_day));
     assert(wm_board_scene_today_count(board) == 1);
@@ -171,12 +166,11 @@ static void test_home_badge_midnight_refresh(int argc, char **argv) {
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
     assert(wm_board_scene_phase(board) == WM_BOARD_READY);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_NEXT, SIZE_MAX}));
+    assert(
+        wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_NEXT, SIZE_MAX}));
     wm_board_scene_advance(board, 20.0f);
     WmBoardDate selected = wm_board_scene_date(board);
-    assert(selected.year == 2026 && selected.month == 9 &&
-           selected.day == 26);
+    assert(selected.year == 2026 && selected.month == 9 && selected.day == 26);
     assert(!wm_board_scene_refresh_today(board, previous_day));
     assert(wm_board_scene_today_count(board) == 2);
     assert(wm_board_scene_today_unread_count(board) == 1);
@@ -194,14 +188,12 @@ static void test_state(WmBoardScene *board) {
     char ids[11][8];
     for (size_t index = 0; index < 11; index++) {
         snprintf(ids[index], sizeof(ids[index]), "memo-%zu", index);
-        memos[index] = (WmBoardMemo){
-            .id = ids[index],
-            .text = "Example memo",
-            .date = {2026, 9, 25},
-            .has_position = true,
-            .x = (float)index * 8.0f,
-            .y = 53.0f
-        };
+        memos[index] = (WmBoardMemo){.id = ids[index],
+                                     .text = "Example memo",
+                                     .date = {2026, 9, 25},
+                                     .has_position = true,
+                                     .x = (float)index * 8.0f,
+                                     .y = 53.0f};
     }
     assert(wm_board_scene_set_memos(board, memos, 11));
     wm_board_scene_set_grid_page(board, 2);
@@ -227,31 +219,26 @@ static void test_state(WmBoardScene *board) {
     wm_board_scene_advance(board, 20.0f);
     assert(wm_board_scene_phase(board) == WM_BOARD_READY);
     settle_initial_memos(board);
-    assert(wm_board_scene_hit(board, 582, 380).control ==
-           WM_BOARD_CONTROL_BACK);
-    assert(wm_board_scene_hit(board, 55, 380).control ==
-           WM_BOARD_CONTROL_CALENDAR);
-    assert(wm_board_scene_hit(board, 112, 380).control ==
-           WM_BOARD_CONTROL_CREATE);
-    assert(wm_board_scene_hit(board, 20, 175).control ==
-           WM_BOARD_CONTROL_PREVIOUS);
-    assert(wm_board_scene_hit(board, 615, 175).control ==
-           WM_BOARD_CONTROL_NEXT);
+    assert(wm_board_scene_hit(board, 582, 380).control == WM_BOARD_CONTROL_BACK);
+    assert(wm_board_scene_hit(board, 55, 380).control == WM_BOARD_CONTROL_CALENDAR);
+    assert(wm_board_scene_hit(board, 112, 380).control == WM_BOARD_CONTROL_CREATE);
+    assert(wm_board_scene_hit(board, 20, 175).control == WM_BOARD_CONTROL_PREVIOUS);
+    assert(wm_board_scene_hit(board, 615, 175).control == WM_BOARD_CONTROL_NEXT);
 
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
     assert(wm_board_scene_phase(board) == WM_BOARD_MEMO_PAGE);
     assert(!wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+                                    (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
     wm_board_scene_advance(board, 15.0f);
     assert(wm_board_scene_memo_page(board) == 1);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_NEXT, SIZE_MAX}));
+    assert(
+        wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_NEXT, SIZE_MAX}));
     wm_board_scene_advance(board, 15.0f);
     assert(wm_board_scene_memo_page(board) == 0);
 
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_NEXT, SIZE_MAX}));
+    assert(
+        wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_NEXT, SIZE_MAX}));
     wm_board_scene_advance(board, 20.0f);
     WmBoardDate date = wm_board_scene_date(board);
     assert(date.year == 2026 && date.month == 9 && date.day == 26);
@@ -259,14 +246,13 @@ static void test_state(WmBoardScene *board) {
     assert(wm_board_scene_today_count(board) == 11);
 
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_CALENDAR, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_CALENDAR, SIZE_MAX}));
     assert(wm_board_scene_child(board) == WM_BOARD_CHILD_CALENDAR);
     wm_board_scene_advance(board, 50.0f);
     assert(wm_board_scene_back(board));
     wm_board_scene_advance(board, 50.0f);
     assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
-    assert(wm_board_scene_take_action(board, NULL) ==
-           WM_BOARD_ACTION_NONE);
+    assert(wm_board_scene_take_action(board, NULL) == WM_BOARD_ACTION_NONE);
     assert(wm_board_scene_back(board));
     assert(wm_board_scene_grid_overlay(board, &grid_frame));
     assert(fabsf(grid_frame - 100.0f) < 0.001f);
@@ -280,23 +266,21 @@ static void test_state(WmBoardScene *board) {
     wm_board_scene_advance(board, 14.0f);
     assert(wm_board_scene_sd_button_frame(board, &sd_frame));
     assert(sd_frame == 0.0f);
-    assert(wm_board_scene_take_action(board, NULL) ==
-           WM_BOARD_ACTION_NONE);
+    assert(wm_board_scene_take_action(board, NULL) == WM_BOARD_ACTION_NONE);
     wm_board_scene_advance(board, 1.0f);
     assert(wm_board_scene_phase(board) == WM_BOARD_CLOSED);
-    assert(wm_board_scene_take_action(board, NULL) ==
-           WM_BOARD_ACTION_EXITED);
+    assert(wm_board_scene_take_action(board, NULL) == WM_BOARD_ACTION_EXITED);
 
     assert(wm_board_scene_open(board, (WmBoardDate){2026, 9, 25}));
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
     assert(wm_board_scene_child(board) == WM_BOARD_CHILD_COMPOSE);
     assert(!wm_board_scene_compose_editor_active(board));
     wm_board_scene_advance(board, 39.0f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_MEMO, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_MEMO, SIZE_MAX}));
     wm_board_scene_advance(board, 26.0f);
     assert(wm_board_scene_insert_text(board, "A local memo"));
     assert(!wm_board_scene_compose_editor_active(board));
@@ -305,8 +289,8 @@ static void test_state(WmBoardScene *board) {
     assert(wm_board_scene_finish_edit(board));
     assert(!wm_board_scene_compose_editor_active(board));
     wm_board_scene_advance(board, 30.0f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_POST, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_POST, SIZE_MAX}));
     wm_board_scene_advance(board, 20.0f);
     wm_board_scene_advance(board, 51.0f);
     size_t posted_index = SIZE_MAX;
@@ -327,9 +311,9 @@ static void test_calendar(int argc, char **argv) {
         (WmPlatform *)1, assets, (WmTextureCache *)1, (WmFontCache *)1);
     assert(calendar);
     assert(wm_board_calendar_open(calendar, (WmBoardDate){2026, 9, 25},
-                                   (WmBoardDate){2026, 9, 25}));
-    assert(!wm_board_calendar_activate(calendar,
-        (WmBoardCalendarHit){WM_CALENDAR_CONTROL_PREVIOUS, 0}));
+                                  (WmBoardDate){2026, 9, 25}));
+    assert(!wm_board_calendar_activate(
+        calendar, (WmBoardCalendarHit){WM_CALENDAR_CONTROL_PREVIOUS, 0}));
     wm_board_calendar_advance(calendar, 39.0f);
     assert(wm_board_calendar_hit(calendar, 182, 91).control ==
            WM_CALENDAR_CONTROL_NONE);
@@ -339,10 +323,10 @@ static void test_calendar(int argc, char **argv) {
      * pixels. This edge hit catches an omitted IPL root scale. */
     WmBoardCalendarHit edge = wm_board_calendar_hit(calendar, 182, 91);
     assert(edge.control == WM_CALENDAR_CONTROL_DAY && edge.day_index == 0);
-    assert(!wm_board_calendar_activate(calendar,
-        (WmBoardCalendarHit){WM_CALENDAR_CONTROL_BACK, 0}));
-    assert(!wm_board_calendar_activate(calendar,
-        (WmBoardCalendarHit){WM_CALENDAR_CONTROL_PREVIOUS, 0}));
+    assert(!wm_board_calendar_activate(
+        calendar, (WmBoardCalendarHit){WM_CALENDAR_CONTROL_BACK, 0}));
+    assert(!wm_board_calendar_activate(
+        calendar, (WmBoardCalendarHit){WM_CALENDAR_CONTROL_PREVIOUS, 0}));
     assert(!wm_board_calendar_back(calendar));
     wm_board_calendar_hover(calendar, edge);
     WmBoardCalendarDayPresentation early_day;
@@ -354,18 +338,18 @@ static void test_calendar(int argc, char **argv) {
     wm_board_calendar_advance(calendar, 9.0f);
     edge = wm_board_calendar_hit(calendar, 182, 91);
     assert(edge.control == WM_CALENDAR_CONTROL_DAY && edge.day_index == 0);
-    assert(wm_board_calendar_activate(calendar,
-        (WmBoardCalendarHit){WM_CALENDAR_CONTROL_PREVIOUS, 0}));
+    assert(wm_board_calendar_activate(
+        calendar, (WmBoardCalendarHit){WM_CALENDAR_CONTROL_PREVIOUS, 0}));
     wm_board_calendar_advance(calendar, 30.0f);
     WmBoardDate month = wm_board_calendar_month(calendar);
     assert(month.year == 2026 && month.month == 8);
-    assert(wm_board_calendar_activate(calendar,
-        (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NEXT, 0}));
+    assert(wm_board_calendar_activate(
+        calendar, (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NEXT, 0}));
     wm_board_calendar_advance(calendar, 30.0f);
     month = wm_board_calendar_month(calendar);
     assert(month.year == 2026 && month.month == 9);
-    assert(wm_board_calendar_activate(calendar,
-        (WmBoardCalendarHit){WM_CALENDAR_CONTROL_DAY, 2}));
+    assert(wm_board_calendar_activate(
+        calendar, (WmBoardCalendarHit){WM_CALENDAR_CONTROL_DAY, 2}));
     wm_board_calendar_advance(calendar, 30.0f);
     assert(wm_board_calendar_phase(calendar) == WM_CALENDAR_EXIT);
     wm_board_calendar_advance(calendar, 50.0f);
@@ -373,14 +357,13 @@ static void test_calendar(int argc, char **argv) {
     assert(wm_board_calendar_take_outcome(calendar, &selected) ==
            WM_CALENDAR_OUTCOME_SELECTED);
     assert(selected.year == 2026 && selected.month == 9 && selected.day == 1);
-    assert(wm_board_calendar_take_outcome(calendar, NULL) ==
-           WM_CALENDAR_OUTCOME_NONE);
+    assert(wm_board_calendar_take_outcome(calendar, NULL) == WM_CALENDAR_OUTCOME_NONE);
     wm_board_calendar_reset(calendar);
     assert(wm_board_calendar_open(calendar, (WmBoardDate){2026, 9, 25},
-                                   (WmBoardDate){2026, 9, 25}));
+                                  (WmBoardDate){2026, 9, 25}));
     wm_board_calendar_advance(calendar, 40.0f);
-    assert(wm_board_calendar_activate(calendar,
-        (WmBoardCalendarHit){WM_CALENDAR_CONTROL_DAY, 0}));
+    assert(wm_board_calendar_activate(
+        calendar, (WmBoardCalendarHit){WM_CALENDAR_CONTROL_DAY, 0}));
     assert(wm_board_calendar_phase(calendar) == WM_CALENDAR_SELECT);
     wm_board_calendar_destroy(calendar);
 }
@@ -391,21 +374,19 @@ static void test_calendar_hover_order(int argc, char **argv) {
         (WmPlatform *)1, assets, (WmTextureCache *)1, (WmFontCache *)1);
     assert(calendar);
     assert(wm_board_calendar_open(calendar, (WmBoardDate){2026, 9, 25},
-                                   (WmBoardDate){2026, 9, 25}));
+                                  (WmBoardDate){2026, 9, 25}));
     wm_board_calendar_advance(calendar, 50.0f);
 
     /* The WAD scales N_CalDay_r but leaves sibling B_Cal hit bounds fixed.
      * Capture the presentation order and authored focus frames directly. */
     WmBoardCalendarDayPresentation day;
-    wm_board_calendar_hover(calendar,
-                            (WmBoardCalendarHit){WM_CALENDAR_CONTROL_DAY, 2});
+    wm_board_calendar_hover(calendar, (WmBoardCalendarHit){WM_CALENDAR_CONTROL_DAY, 2});
     assert(wm_board_calendar_day_presentation(calendar, 34, &day));
     assert(day.day_index == 2 && day.focus_frame == 0.0f);
     wm_board_calendar_advance(calendar, 3.0f);
     assert(wm_board_calendar_day_presentation(calendar, 34, &day));
     assert(day.day_index == 2 && day.focus_frame == 3.0f);
-    wm_board_calendar_hover(calendar,
-                            (WmBoardCalendarHit){WM_CALENDAR_CONTROL_DAY, 3});
+    wm_board_calendar_hover(calendar, (WmBoardCalendarHit){WM_CALENDAR_CONTROL_DAY, 3});
     assert(wm_board_calendar_day_presentation(calendar, 33, &day));
     assert(day.day_index == 2 && day.focus_frame == 3.0f);
     assert(wm_board_calendar_day_presentation(calendar, 34, &day));
@@ -428,8 +409,7 @@ static void test_calendar_hover_order(int argc, char **argv) {
     assert(wm_board_calendar_day_presentation(calendar, 33, &day));
     assert(day.day_index == 2 && day.focus_frame == 18.0f);
 
-    wm_board_calendar_hover(calendar,
-                            (WmBoardCalendarHit){WM_CALENDAR_CONTROL_DAY, 4});
+    wm_board_calendar_hover(calendar, (WmBoardCalendarHit){WM_CALENDAR_CONTROL_DAY, 4});
     wm_board_calendar_advance(calendar, 2.0f);
     wm_board_calendar_hover(calendar,
                             (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NONE, 0});
@@ -437,8 +417,7 @@ static void test_calendar_hover_order(int argc, char **argv) {
     assert(wm_board_calendar_day_presentation(calendar, 34, &day));
     assert(day.day_index == 4 && day.focus_frame == 10.0f);
     wm_board_calendar_advance(calendar, 3.0f);
-    wm_board_calendar_hover(calendar,
-                            (WmBoardCalendarHit){WM_CALENDAR_CONTROL_DAY, 4});
+    wm_board_calendar_hover(calendar, (WmBoardCalendarHit){WM_CALENDAR_CONTROL_DAY, 4});
     wm_board_calendar_advance(calendar, 5.0f);
     assert(wm_board_calendar_day_presentation(calendar, 34, &day));
     assert(day.day_index == 4 && day.focus_frame == 0.0f);
@@ -446,8 +425,8 @@ static void test_calendar_hover_order(int argc, char **argv) {
     assert(wm_board_calendar_day_presentation(calendar, 34, &day));
     assert(day.day_index == 4 && day.focus_frame == 6.0f);
 
-    assert(wm_board_calendar_activate(calendar,
-        (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NEXT, 0}));
+    assert(wm_board_calendar_activate(
+        calendar, (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NEXT, 0}));
     assert(!wm_board_calendar_day_presentation(calendar, 34, &day));
     wm_board_calendar_advance(calendar, 30.0f);
     assert(wm_board_calendar_day_presentation(calendar, 34, &day));
@@ -461,21 +440,17 @@ static void test_calendar_same_tile_motion(int argc, char **argv) {
         (WmPlatform *)1, assets, (WmTextureCache *)1, (WmFontCache *)1);
     assert(calendar);
     assert(wm_board_calendar_open(calendar, (WmBoardDate){2026, 9, 25},
-                                   (WmBoardDate){2026, 9, 25}));
+                                  (WmBoardDate){2026, 9, 25}));
     wm_board_calendar_advance(calendar, 50.0f);
 
     /* WAD B_Cal remains fixed while N_CalDay_r grows. A small motion across
      * the middle of September 14 must keep date-15 focused continuously. */
-    static const int points[][2] = {
-        {208, 195}, {212, 195}, {216, 195},
-        {216, 200}, {212, 200}, {208, 200}
-    };
-    for (unsigned step = 0; step < sizeof(points) / sizeof(points[0]);
-         step++) {
-        WmBoardCalendarHit hit = wm_board_calendar_hit(
-            calendar, points[step][0], points[step][1]);
-        assert(hit.control == WM_CALENDAR_CONTROL_DAY &&
-               hit.day_index == 15);
+    static const int points[][2] = {{208, 195}, {212, 195}, {216, 195},
+                                    {216, 200}, {212, 200}, {208, 200}};
+    for (unsigned step = 0; step < sizeof(points) / sizeof(points[0]); step++) {
+        WmBoardCalendarHit hit =
+            wm_board_calendar_hit(calendar, points[step][0], points[step][1]);
+        assert(hit.control == WM_CALENDAR_CONTROL_DAY && hit.day_index == 15);
         wm_board_calendar_hover(calendar, hit);
         wm_board_calendar_advance(calendar, 1.0f);
         WmBoardCalendarDayPresentation day;
@@ -491,15 +466,15 @@ static void test_calendar_hover_boundary_stability(int argc, char **argv) {
         (WmPlatform *)1, assets, (WmTextureCache *)1, (WmFontCache *)1);
     assert(calendar);
     assert(wm_board_calendar_open(calendar, (WmBoardDate){2026, 9, 25},
-                                   (WmBoardDate){2026, 9, 25}));
+                                  (WmBoardDate){2026, 9, 25}));
     wm_board_calendar_advance(calendar, 50.0f);
     unsigned tested = 0;
     unsigned unstable = 0;
     for (int y = 170; y <= 225; y += 3) {
         for (int x = 175; x <= 245; x += 3) {
             WmBoardCalendarHit initial = wm_board_calendar_hit(calendar, x, y);
-            if (initial.control != WM_CALENDAR_CONTROL_DAY ||
-                initial.day_index != 15) continue;
+            if (initial.control != WM_CALENDAR_CONTROL_DAY || initial.day_index != 15)
+                continue;
             tested++;
             wm_board_calendar_hover(calendar, initial);
             for (unsigned frame = 0; frame < 8; frame++) {
@@ -508,16 +483,17 @@ static void test_calendar_hover_boundary_stability(int argc, char **argv) {
                 if (next.control != initial.control ||
                     next.day_index != initial.day_index) {
                     if (unstable < 8) {
-                        fprintf(stderr, "Calendar hover changed at (%d,%d), "
-                                "frame %u: %d/%u\n", x, y, frame + 1,
-                                next.control, next.day_index);
+                        fprintf(stderr,
+                                "Calendar hover changed at (%d,%d), "
+                                "frame %u: %d/%u\n",
+                                x, y, frame + 1, next.control, next.day_index);
                     }
                     unstable++;
                     break;
                 }
             }
             wm_board_calendar_hover(calendar,
-                (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NONE, 0});
+                                    (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NONE, 0});
             wm_board_calendar_advance(calendar, 16.0f);
         }
     }
@@ -535,30 +511,27 @@ static void test_calendar_hover_boundary_stability(int argc, char **argv) {
         }
     }
     assert(last_hit > 0);
-    WmBoardCalendarHit day = wm_board_calendar_hit(calendar,
-                                                    last_hit - 2, 195);
+    WmBoardCalendarHit day = wm_board_calendar_hit(calendar, last_hit - 2, 195);
     assert(day.control == WM_CALENDAR_CONTROL_DAY && day.day_index == 15);
     wm_board_calendar_hover(calendar, day);
     for (int x = last_hit - 1; x <= last_hit + 3; x++) {
         wm_board_calendar_advance(calendar, 1.0f);
         WmBoardCalendarHit retained = wm_board_calendar_hit(calendar, x, 195);
-        assert(retained.control == WM_CALENDAR_CONTROL_DAY &&
-               retained.day_index == 15);
+        assert(retained.control == WM_CALENDAR_CONTROL_DAY && retained.day_index == 15);
         wm_board_calendar_hover(calendar, retained);
     }
-    WmBoardCalendarHit outside = wm_board_calendar_hit(calendar,
-                                                        last_hit + 4, 195);
-    assert(outside.control != WM_CALENDAR_CONTROL_DAY ||
-           outside.day_index != 15);
+    WmBoardCalendarHit outside = wm_board_calendar_hit(calendar, last_hit + 4, 195);
+    assert(outside.control != WM_CALENDAR_CONTROL_DAY || outside.day_index != 15);
 
     wm_board_calendar_hover(calendar,
-        (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NONE, 0});
+                            (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NONE, 0});
     wm_board_calendar_advance(calendar, 16.0f);
     int first_row = 1000;
     for (int y = 150; y < 250; y++) {
         WmBoardCalendarHit hit = wm_board_calendar_hit(calendar, 212, y);
         if (hit.control == WM_CALENDAR_CONTROL_DAY && hit.day_index == 15 &&
-            y < first_row) first_row = y;
+            y < first_row)
+            first_row = y;
     }
     assert(first_row < 250);
     day = wm_board_calendar_hit(calendar, 212, first_row + 2);
@@ -567,20 +540,18 @@ static void test_calendar_hover_boundary_stability(int argc, char **argv) {
     for (int y = first_row + 1; y >= first_row - 3; y--) {
         wm_board_calendar_advance(calendar, 1.0f);
         WmBoardCalendarHit retained = wm_board_calendar_hit(calendar, 212, y);
-        assert(retained.control == WM_CALENDAR_CONTROL_DAY &&
-               retained.day_index == 15);
+        assert(retained.control == WM_CALENDAR_CONTROL_DAY && retained.day_index == 15);
         wm_board_calendar_hover(calendar, retained);
     }
     outside = wm_board_calendar_hit(calendar, 212, first_row - 4);
-    assert(outside.control != WM_CALENDAR_CONTROL_DAY ||
-           outside.day_index != 15);
+    assert(outside.control != WM_CALENDAR_CONTROL_DAY || outside.day_index != 15);
     wm_board_calendar_destroy(calendar);
 }
 
 static void test_compose(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
-    WmBoardCompose *compose = wm_board_compose_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1, test_fonts);
+    WmBoardCompose *compose = wm_board_compose_create((WmPlatform *)1, assets,
+                                                      (WmTextureCache *)1, test_fonts);
     assert(compose);
     assert(wm_board_compose_open(compose));
     assert(!wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_MEMO));
@@ -601,55 +572,45 @@ static void test_compose(int argc, char **argv) {
     wm_board_compose_advance(compose, 20.0f);
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_SEND);
     wm_board_compose_advance(compose, 51.0f);
-    assert(wm_board_compose_take_outcome(compose) ==
-           WM_COMPOSE_OUTCOME_POSTED);
+    assert(wm_board_compose_take_outcome(compose) == WM_COMPOSE_OUTCOME_POSTED);
     assert(strcmp(wm_board_compose_text(compose), "Hell") == 0);
     wm_board_compose_advance(compose, 21.0f);
-    assert(wm_board_compose_take_outcome(compose) ==
-           WM_COMPOSE_OUTCOME_CLOSED);
+    assert(wm_board_compose_take_outcome(compose) == WM_COMPOSE_OUTCOME_CLOSED);
     wm_board_compose_destroy(compose);
 }
 
 static void test_compose_network_dialog(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
     assert(textures);
-    WmBoardCompose *compose = wm_board_compose_create(
-        (WmPlatform *)1, assets, textures, test_fonts);
+    WmBoardCompose *compose =
+        wm_board_compose_create((WmPlatform *)1, assets, textures, test_fonts);
     assert(compose && wm_board_compose_open(compose));
     wm_board_compose_advance(compose, 39.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_LETTER));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_DECIDE") == 0);
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_INFO_WINDOW") == 0);
-    assert(!wm_board_compose_activate(compose,
-        WM_COMPOSE_CONTROL_NETWORK_QUIT));
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_DECIDE") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_INFO_WINDOW") == 0);
+    assert(!wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_NETWORK_QUIT));
     wm_board_compose_advance(compose, 24.0f);
-    assert(!wm_board_compose_activate(compose,
-        WM_COMPOSE_CONTROL_NETWORK_SETTINGS));
+    assert(!wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_NETWORK_SETTINGS));
     wm_board_compose_advance(compose, 1.0f);
     wm_board_compose_draw(compose);
 
     char path[4096];
     int length = snprintf(path, sizeof(path),
-        "%s/layouts/dlgWdw/my_DialogWindow_a2.json", assets);
+                          "%s/layouts/dlgWdw/my_DialogWindow_a2.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     char error[160] = {0};
     WmLayout *dialog = wm_layout_load_json(path, error, sizeof(error));
     assert(dialog);
     WmLayoutClip entry = {
-        .animation = "my_DialogWindow_a2_DialogIn",
-        .group = "G_InOut", .frame = 25.0f
-    };
+        .animation = "my_DialogWindow_a2_DialogIn", .group = "G_InOut", .frame = 25.0f};
     assert(wm_layout_pose(dialog, &entry, 1));
     WmSourceRect quit;
     WmSourceRect settings;
-    assert(wm_source_pane_rect(dialog, "B_BtnA", true,
-        WM_LAYOUT_IPL, NULL, &quit));
-    assert(wm_source_pane_rect(dialog, "B_BtnB", true,
-        WM_LAYOUT_IPL, NULL, &settings));
+    assert(wm_source_pane_rect(dialog, "B_BtnA", true, WM_LAYOUT_IPL, NULL, &quit));
+    assert(wm_source_pane_rect(dialog, "B_BtnB", true, WM_LAYOUT_IPL, NULL, &settings));
     int quit_x = (int)(quit.x + quit.width * 0.5f);
     int quit_y = (int)(quit.y + quit.height * 0.5f);
     int settings_x = (int)(settings.x + settings.width * 0.5f);
@@ -659,39 +620,29 @@ static void test_compose_network_dialog(int argc, char **argv) {
     assert(wm_board_compose_hit(compose, settings_x, settings_y) ==
            WM_COMPOSE_CONTROL_NETWORK_SETTINGS);
     wm_board_compose_hover(compose, WM_COMPOSE_CONTROL_NETWORK_QUIT);
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_BT_TARGETTING") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_BT_TARGETTING") ==
+           0);
     wm_board_compose_hover(compose, WM_COMPOSE_CONTROL_NETWORK_QUIT);
     assert(!wm_board_compose_take_key_cue(compose));
-    assert(wm_board_compose_activate(compose,
-        WM_COMPOSE_CONTROL_NETWORK_QUIT));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CANCEL") == 0);
+    assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_NETWORK_QUIT));
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CANCEL") == 0);
     wm_board_compose_advance(compose, 41.0f);
-    assert(!wm_board_compose_activate(compose,
-        WM_COMPOSE_CONTROL_NETWORK_SETTINGS));
+    assert(!wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_NETWORK_SETTINGS));
     wm_board_compose_advance(compose, 1.0f);
-    assert(wm_board_compose_take_outcome(compose) ==
-           WM_COMPOSE_OUTCOME_NONE);
+    assert(wm_board_compose_take_outcome(compose) == WM_COMPOSE_OUTCOME_NONE);
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_SELECTOR);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_LETTER));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_DECIDE") == 0);
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_INFO_WINDOW") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_DECIDE") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_INFO_WINDOW") == 0);
     wm_board_compose_advance(compose, 25.0f);
     wm_board_compose_draw(compose);
     assert(wm_board_compose_hit(compose, settings_x, settings_y) ==
            WM_COMPOSE_CONTROL_NETWORK_SETTINGS);
-    assert(wm_board_compose_activate(compose,
-        WM_COMPOSE_CONTROL_NETWORK_SETTINGS));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_DECIDE") == 0);
+    assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_NETWORK_SETTINGS));
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_DECIDE") == 0);
     wm_board_compose_advance(compose, 42.0f);
-    assert(wm_board_compose_take_outcome(compose) ==
-           WM_COMPOSE_OUTCOME_OPEN_SETTINGS);
-    assert(wm_board_compose_take_outcome(compose) ==
-           WM_COMPOSE_OUTCOME_NONE);
+    assert(wm_board_compose_take_outcome(compose) == WM_COMPOSE_OUTCOME_OPEN_SETTINGS);
+    assert(wm_board_compose_take_outcome(compose) == WM_COMPOSE_OUTCOME_NONE);
     wm_layout_destroy(dialog);
     wm_board_compose_destroy(compose);
     wm_texture_cache_destroy(textures);
@@ -704,17 +655,16 @@ static void test_board_network_settings_action(int argc, char **argv) {
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
     wm_board_scene_advance(board, 39.0f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_LETTER, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_LETTER, SIZE_MAX}));
     assert(wm_board_scene_take_action(board, NULL) == WM_BOARD_ACTION_NONE);
     wm_board_scene_advance(board, 25.0f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_NETWORK_SETTINGS, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_NETWORK_SETTINGS, SIZE_MAX}));
     wm_board_scene_advance(board, 42.0f);
-    assert(wm_board_scene_take_action(board, NULL) ==
-           WM_BOARD_ACTION_OPEN_SETTINGS);
+    assert(wm_board_scene_take_action(board, NULL) == WM_BOARD_ACTION_OPEN_SETTINGS);
     assert(wm_board_scene_take_action(board, NULL) == WM_BOARD_ACTION_NONE);
     wm_board_scene_destroy(board);
 }
@@ -722,42 +672,35 @@ static void test_board_network_settings_action(int argc, char **argv) {
 static void test_compose_mii_notice(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char path[4096];
-    int length = snprintf(path, sizeof(path),
-                          "%s/layouts/sofkeybd/my_Memo_a.json", assets);
+    int length =
+        snprintf(path, sizeof(path), "%s/layouts/sofkeybd/my_Memo_a.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     char error[160] = {0};
     WmLayout *layout = wm_layout_load_json(path, error, sizeof(error));
     assert(layout);
-    WmLayoutClip entry = {
-        .animation = "my_Memo_a_MailIn", .frame = 16.0f
-    };
+    WmLayoutClip entry = {.animation = "my_Memo_a_MailIn", .frame = 16.0f};
     assert(wm_layout_pose(layout, &entry, 1));
     WmSourceRect icon;
-    assert(wm_source_pane_rect(layout, "B_Nigaoe", true, WM_LAYOUT_IPL,
-                               NULL, &icon));
+    assert(wm_source_pane_rect(layout, "B_Nigaoe", true, WM_LAYOUT_IPL, NULL, &icon));
 
-    WmBoardCompose *compose = wm_board_compose_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1, test_fonts);
+    WmBoardCompose *compose = wm_board_compose_create((WmPlatform *)1, assets,
+                                                      (WmTextureCache *)1, test_fonts);
     assert(compose && wm_board_compose_open(compose));
     wm_board_compose_advance(compose, 39.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_MEMO));
     wm_board_compose_advance(compose, 26.0f);
     int x = (int)(icon.x + icon.width * 0.5f);
     int y = (int)(icon.y + icon.height * 0.5f);
-    assert(wm_board_compose_hit(compose, x, y) ==
-           WM_COMPOSE_CONTROL_MII);
+    assert(wm_board_compose_hit(compose, x, y) == WM_COMPOSE_CONTROL_MII);
     wm_board_compose_hover(compose, WM_COMPOSE_CONTROL_MII);
     wm_board_compose_advance(compose, 3.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_MII));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_INFO_WINDOW") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_INFO_WINDOW") == 0);
     wm_board_compose_advance(compose, 25.0f);
-    assert(wm_board_compose_activate(compose,
-                                    WM_COMPOSE_CONTROL_ADDRESS_DIALOG_OK));
+    assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_ADDRESS_DIALOG_OK));
     wm_board_compose_advance(compose, 38.0f);
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_MEMO);
-    assert(wm_board_compose_hit(compose, x, y) ==
-           WM_COMPOSE_CONTROL_MII);
+    assert(wm_board_compose_hit(compose, x, y) == WM_COMPOSE_CONTROL_MII);
     wm_board_compose_destroy(compose);
     wm_layout_destroy(layout);
 }
@@ -766,8 +709,7 @@ static void test_compose_software_keyboard(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char path[4096];
     int length = snprintf(path, sizeof(path),
-                          "%s/layouts/sofkeybd/fs_VK_ascii_keytop_a.json",
-                          assets);
+                          "%s/layouts/sofkeybd/fs_VK_ascii_keytop_a.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     char error[160] = {0};
     WmLayout *keytop = wm_layout_load_json(path, error, sizeof(error));
@@ -775,93 +717,84 @@ static void test_compose_software_keyboard(int argc, char **argv) {
     WmSourceRect q;
     WmSourceRect shift;
     WmSourceRect space;
-    assert(wm_source_pane_rect(keytop, "B_key_11", true, WM_LAYOUT_IPL,
-                                NULL, &q));
-    assert(wm_source_pane_rect(keytop, "B_key_SHIFT", true, WM_LAYOUT_IPL,
-                                NULL, &shift));
-    assert(wm_source_pane_rect(keytop, "B_key_SPACE", true, WM_LAYOUT_IPL,
-                                NULL, &space));
+    assert(wm_source_pane_rect(keytop, "B_key_11", true, WM_LAYOUT_IPL, NULL, &q));
+    assert(
+        wm_source_pane_rect(keytop, "B_key_SHIFT", true, WM_LAYOUT_IPL, NULL, &shift));
+    assert(
+        wm_source_pane_rect(keytop, "B_key_SPACE", true, WM_LAYOUT_IPL, NULL, &space));
     wm_layout_destroy(keytop);
 
-    length = snprintf(path, sizeof(path),
-                      "%s/layouts/sofkeybd/fs_VK_toolbar_a.json", assets);
+    length = snprintf(path, sizeof(path), "%s/layouts/sofkeybd/fs_VK_toolbar_a.json",
+                      assets);
     assert(length > 0 && length < (int)sizeof(path));
     WmLayout *toolbar = wm_layout_load_json(path, error, sizeof(error));
     assert(toolbar);
     WmSourceRect ok;
     WmSourceRect back;
-    assert(wm_source_pane_rect(toolbar, "B_BT_confirm", true, WM_LAYOUT_IPL,
-                                NULL, &ok));
-    assert(wm_source_pane_rect(toolbar, "B_BT_cancel", true, WM_LAYOUT_IPL,
-                                NULL, &back));
+    assert(
+        wm_source_pane_rect(toolbar, "B_BT_confirm", true, WM_LAYOUT_IPL, NULL, &ok));
+    assert(
+        wm_source_pane_rect(toolbar, "B_BT_cancel", true, WM_LAYOUT_IPL, NULL, &back));
     wm_layout_destroy(toolbar);
 
-    WmBoardCompose *compose = wm_board_compose_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1, test_fonts);
+    WmBoardCompose *compose = wm_board_compose_create((WmPlatform *)1, assets,
+                                                      (WmTextureCache *)1, test_fonts);
     assert(compose);
     assert(wm_board_compose_open(compose));
     wm_board_compose_advance(compose, 39.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_MEMO));
     wm_board_compose_advance(compose, 26.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_EDIT));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_SK_OPEN") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_SK_OPEN") == 0);
     assert(wm_board_compose_take_key_cue(compose) == NULL);
     wm_board_compose_advance(compose, 29.0f);
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_ENTER_EDIT);
     assert(wm_board_compose_hit(compose, (int)(q.x + q.width * 0.5f),
-                                 (int)(q.y + q.height * 0.5f)) ==
+                                (int)(q.y + q.height * 0.5f)) ==
            WM_COMPOSE_CONTROL_NONE);
     wm_board_compose_advance(compose, 1.0f);
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_EDIT);
     WmBoardComposeScrollState empty_scroll;
     assert(wm_board_compose_scroll_state(compose, &empty_scroll));
-    assert(!empty_scroll.up_target_visible &&
-           !empty_scroll.down_target_visible);
+    assert(!empty_scroll.up_target_visible && !empty_scroll.down_target_visible);
 
-    WmBoardComposeControl q_control = (WmBoardComposeControl)(
-        WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_CHARACTER_FIRST - 1 + 11);
-    WmBoardComposeControl shift_control = (WmBoardComposeControl)(
-        WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_SHIFT - 1);
-    WmBoardComposeControl space_control = (WmBoardComposeControl)(
-        WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_SPACE - 1);
-    WmBoardComposeControl delete_control = (WmBoardComposeControl)(
-        WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_DELETE - 1);
-    WmBoardComposeControl ok_control = (WmBoardComposeControl)(
-        WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_OK - 1);
+    WmBoardComposeControl q_control =
+        (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST +
+                                WM_KEYBOARD_CHARACTER_FIRST - 1 + 11);
+    WmBoardComposeControl shift_control =
+        (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_SHIFT - 1);
+    WmBoardComposeControl space_control =
+        (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_SPACE - 1);
+    WmBoardComposeControl delete_control =
+        (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_DELETE - 1);
+    WmBoardComposeControl ok_control =
+        (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_OK - 1);
     assert(wm_board_compose_hit(compose, (int)(q.x + q.width * 0.5f),
-                                 (int)(q.y + q.height * 0.5f)) == q_control);
+                                (int)(q.y + q.height * 0.5f)) == q_control);
     assert(wm_board_compose_activate(compose, q_control));
     assert(strcmp(wm_board_compose_text(compose), "q") == 0);
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CHAR_INPUT") == 0);
-    assert(wm_board_compose_hit(compose,
-        (int)(shift.x + shift.width * 0.5f),
-        (int)(shift.y + shift.height * 0.5f)) == shift_control);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CHAR_INPUT") == 0);
+    assert(wm_board_compose_hit(compose, (int)(shift.x + shift.width * 0.5f),
+                                (int)(shift.y + shift.height * 0.5f)) == shift_control);
     assert(wm_board_compose_activate(compose, shift_control));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_SK_SWITCHING_02") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_SK_SWITCHING_02") ==
+           0);
     assert(wm_board_compose_activate(compose, q_control));
     assert(strcmp(wm_board_compose_text(compose), "qQ") == 0);
     assert(wm_board_compose_activate(compose, q_control));
     assert(strcmp(wm_board_compose_text(compose), "qQq") == 0);
-    assert(wm_board_compose_hit(compose,
-        (int)(space.x + space.width * 0.5f),
-        (int)(space.y + space.height * 0.5f)) == space_control);
+    assert(wm_board_compose_hit(compose, (int)(space.x + space.width * 0.5f),
+                                (int)(space.y + space.height * 0.5f)) == space_control);
     assert(wm_board_compose_activate(compose, space_control));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CHAR_DECIDE") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CHAR_DECIDE") == 0);
     assert(wm_board_compose_activate(compose, delete_control));
     assert(strcmp(wm_board_compose_text(compose), "qQq") == 0);
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CHAR_DELETE") == 0);
-    assert(wm_board_compose_hit(compose,
-        (int)(ok.x + ok.width * 0.5f),
-        (int)(ok.y + ok.height * 0.5f)) == ok_control);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CHAR_DELETE") == 0);
+    assert(wm_board_compose_hit(compose, (int)(ok.x + ok.width * 0.5f),
+                                (int)(ok.y + ok.height * 0.5f)) == ok_control);
     assert(wm_board_compose_activate(compose, ok_control));
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_LEAVE_EDIT);
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CHAR_DECIDE") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CHAR_DECIDE") == 0);
     assert(wm_board_compose_take_key_cue(compose) == NULL);
     wm_board_compose_advance(compose, 15.0f);
     WmBoardComposeScrollState scroll;
@@ -871,17 +804,14 @@ static void test_compose_software_keyboard(int argc, char **argv) {
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_MEMO);
     assert(strcmp(wm_board_compose_text(compose), "qQq") == 0);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_EDIT));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_SK_OPEN") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_SK_OPEN") == 0);
     wm_board_compose_advance(compose, 30.0f);
-    WmBoardComposeControl back_control = (WmBoardComposeControl)(
-        WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_BACK - 1);
-    assert(wm_board_compose_hit(compose,
-        (int)(back.x + back.width * 0.5f),
-        (int)(back.y + back.height * 0.5f)) == back_control);
+    WmBoardComposeControl back_control =
+        (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_BACK - 1);
+    assert(wm_board_compose_hit(compose, (int)(back.x + back.width * 0.5f),
+                                (int)(back.y + back.height * 0.5f)) == back_control);
     assert(wm_board_compose_activate(compose, back_control));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CHAR_DECIDE") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CHAR_DECIDE") == 0);
     assert(wm_board_compose_take_key_cue(compose) == NULL);
     wm_board_compose_advance(compose, 30.0f);
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_MEMO);
@@ -890,8 +820,8 @@ static void test_compose_software_keyboard(int argc, char **argv) {
 }
 
 static WmBoardCompose *editing_compose(const char *assets) {
-    WmBoardCompose *compose = wm_board_compose_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1, test_fonts);
+    WmBoardCompose *compose = wm_board_compose_create((WmPlatform *)1, assets,
+                                                      (WmTextureCache *)1, test_fonts);
     assert(compose);
     assert(wm_board_compose_open(compose));
     wm_board_compose_advance(compose, 39.0f);
@@ -906,8 +836,8 @@ static WmBoardCompose *editing_compose(const char *assets) {
 
 static void test_compose_physical_arrows(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
-    WmBoardCompose *compose = wm_board_compose_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1, test_fonts);
+    WmBoardCompose *compose = wm_board_compose_create((WmPlatform *)1, assets,
+                                                      (WmTextureCache *)1, test_fonts);
     assert(compose);
     assert(wm_board_compose_open(compose));
     wm_board_compose_advance(compose, 39.0f);
@@ -937,7 +867,8 @@ static void test_compose_physical_arrows(int argc, char **argv) {
     wm_board_compose_advance(compose, 26.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_EDIT));
     wm_board_compose_advance(compose, 30.0f);
-    assert(wm_board_compose_insert_text(compose, "A\xc3\xa9" "B"));
+    assert(wm_board_compose_insert_text(compose, "A\xc3\xa9"
+                                                 "B"));
     assert(wm_board_compose_caret(compose) == 4);
     assert(wm_board_compose_move_caret(compose, WM_KEY_LEFT));
     assert(wm_board_compose_caret(compose) == 3);
@@ -957,65 +888,62 @@ static void test_compose_phone_keyboard(int argc, char **argv) {
     char path[4096];
     char error[160] = {0};
     int length = snprintf(path, sizeof(path),
-                          "%s/layouts/sofkeybd/fs_VK_cellPhone_a.json",
-                          assets);
+                          "%s/layouts/sofkeybd/fs_VK_cellPhone_a.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     WmLayout *phone = wm_layout_load_json(path, error, sizeof(error));
     assert(phone);
     WmSourceRect key_one;
     WmSourceRect mode_lowercase;
-    assert(wm_source_pane_rect(phone, "B_CPkey_01", true, WM_LAYOUT_IPL,
-                               NULL, &key_one));
-    assert(wm_source_pane_rect(phone, "B_ChngTag_01", true,
-                               WM_LAYOUT_IPL, NULL, &mode_lowercase));
+    assert(
+        wm_source_pane_rect(phone, "B_CPkey_01", true, WM_LAYOUT_IPL, NULL, &key_one));
+    assert(wm_source_pane_rect(phone, "B_ChngTag_01", true, WM_LAYOUT_IPL, NULL,
+                               &mode_lowercase));
     wm_layout_destroy(phone);
 
-    length = snprintf(path, sizeof(path),
-                      "%s/layouts/sofkeybd/fs_VK_toolbar_a.json", assets);
+    length = snprintf(path, sizeof(path), "%s/layouts/sofkeybd/fs_VK_toolbar_a.json",
+                      assets);
     assert(length > 0 && length < (int)sizeof(path));
     WmLayout *toolbar = wm_layout_load_json(path, error, sizeof(error));
     assert(toolbar);
     WmSourceRect phone_tab;
     WmSourceRect qwerty_tab;
-    assert(wm_source_pane_rect(toolbar, "B_kyChng_CP", true,
-                               WM_LAYOUT_IPL, NULL, &phone_tab));
-    assert(wm_source_pane_rect(toolbar, "B_kyChng_QWERTY", true,
-                               WM_LAYOUT_IPL, NULL, &qwerty_tab));
+    assert(wm_source_pane_rect(toolbar, "B_kyChng_CP", true, WM_LAYOUT_IPL, NULL,
+                               &phone_tab));
+    assert(wm_source_pane_rect(toolbar, "B_kyChng_QWERTY", true, WM_LAYOUT_IPL, NULL,
+                               &qwerty_tab));
     wm_layout_destroy(toolbar);
 
-    WmBoardCompose *compose = wm_board_compose_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1, test_fonts);
+    WmBoardCompose *compose = wm_board_compose_create((WmPlatform *)1, assets,
+                                                      (WmTextureCache *)1, test_fonts);
     assert(compose);
     assert(wm_board_compose_open(compose));
     wm_board_compose_advance(compose, 39.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_MEMO));
     wm_board_compose_advance(compose, 26.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_EDIT));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_SK_OPEN") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_SK_OPEN") == 0);
     wm_board_compose_advance(compose, 30.0f);
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_EDIT);
 
     WmBoardComposeControl phone_control = compose_key(WM_KEYBOARD_PHONE);
     WmBoardComposeControl qwerty_control = compose_key(WM_KEYBOARD_QWERTY);
-    WmBoardComposeControl phone_one = (WmBoardComposeControl)(
-        compose_key(WM_KEYBOARD_PHONE_FIRST) + 1);
+    WmBoardComposeControl phone_one =
+        (WmBoardComposeControl)(compose_key(WM_KEYBOARD_PHONE_FIRST) + 1);
     WmBoardComposeControl phone_two = (WmBoardComposeControl)(phone_one + 1);
-    WmBoardComposeControl lower_mode = (WmBoardComposeControl)(
-        compose_key(WM_KEYBOARD_PHONE_MODE_FIRST) + 1);
-    WmBoardComposeControl upper_mode = (WmBoardComposeControl)(
-        compose_key(WM_KEYBOARD_PHONE_MODE_FIRST) + 2);
-    WmBoardComposeControl number_mode = (WmBoardComposeControl)(
-        compose_key(WM_KEYBOARD_PHONE_MODE_FIRST) + 3);
-    assert(wm_board_compose_hit(compose,
-        (int)(phone_tab.x + phone_tab.width * 0.5f),
-        (int)(phone_tab.y + phone_tab.height * 0.5f)) == phone_control);
+    WmBoardComposeControl lower_mode =
+        (WmBoardComposeControl)(compose_key(WM_KEYBOARD_PHONE_MODE_FIRST) + 1);
+    WmBoardComposeControl upper_mode =
+        (WmBoardComposeControl)(compose_key(WM_KEYBOARD_PHONE_MODE_FIRST) + 2);
+    WmBoardComposeControl number_mode =
+        (WmBoardComposeControl)(compose_key(WM_KEYBOARD_PHONE_MODE_FIRST) + 3);
+    assert(wm_board_compose_hit(compose, (int)(phone_tab.x + phone_tab.width * 0.5f),
+                                (int)(phone_tab.y + phone_tab.height * 0.5f)) ==
+           phone_control);
     assert(wm_board_compose_activate(compose, phone_control));
     assert(strcmp(wm_board_compose_take_key_cue(compose),
                   "WIPL_SE_SK_SWITCH_TO_KETAI") == 0);
-    assert(wm_board_compose_hit(compose,
-        (int)(key_one.x + key_one.width * 0.5f),
-        (int)(key_one.y + key_one.height * 0.5f)) == phone_one);
+    assert(wm_board_compose_hit(compose, (int)(key_one.x + key_one.width * 0.5f),
+                                (int)(key_one.y + key_one.height * 0.5f)) == phone_one);
     wm_board_compose_hover(compose, phone_one);
     assert(wm_board_compose_activate(compose, phone_one));
     assert(strcmp(wm_board_compose_text(compose), "A") == 0);
@@ -1031,12 +959,12 @@ static void test_compose_phone_keyboard(int argc, char **argv) {
     assert(wm_board_compose_activate(compose, phone_one));
     assert(strcmp(wm_board_compose_text(compose), "Aaa") == 0);
 
-    assert(wm_board_compose_hit(compose,
-        (int)(mode_lowercase.x + mode_lowercase.width * 0.5f),
-        (int)(mode_lowercase.y + mode_lowercase.height * 0.5f)) == lower_mode);
+    assert(wm_board_compose_hit(
+               compose, (int)(mode_lowercase.x + mode_lowercase.width * 0.5f),
+               (int)(mode_lowercase.y + mode_lowercase.height * 0.5f)) == lower_mode);
     assert(wm_board_compose_activate(compose, lower_mode));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_SK_SWITCHING_02") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_SK_SWITCHING_02") ==
+           0);
     assert(wm_board_compose_activate(compose, phone_two));
     assert(strcmp(wm_board_compose_text(compose), "Aaad") == 0);
     assert(wm_board_compose_activate(compose, phone_two));
@@ -1048,68 +976,56 @@ static void test_compose_phone_keyboard(int argc, char **argv) {
     assert(wm_board_compose_activate(compose, phone_one));
     assert(wm_board_compose_activate_secondary(compose, phone_one));
     assert(strcmp(wm_board_compose_text(compose), "AaaeA22") == 0);
-    assert(!wm_board_compose_hold_control(compose,
-                                          compose_key(WM_KEYBOARD_SPACE)));
+    assert(!wm_board_compose_hold_control(compose, compose_key(WM_KEYBOARD_SPACE)));
     assert(strcmp(wm_board_compose_text(compose), "AaaeA22") == 0);
-    assert(wm_board_compose_hit(compose,
-        (int)(qwerty_tab.x + qwerty_tab.width * 0.5f),
-        (int)(qwerty_tab.y + qwerty_tab.height * 0.5f)) == qwerty_control);
+    assert(wm_board_compose_hit(compose, (int)(qwerty_tab.x + qwerty_tab.width * 0.5f),
+                                (int)(qwerty_tab.y + qwerty_tab.height * 0.5f)) ==
+           qwerty_control);
     assert(wm_board_compose_activate(compose, qwerty_control));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_SK_SWITCHING_01") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_SK_SWITCHING_01") ==
+           0);
     assert(!wm_board_compose_activate_secondary(compose, phone_one));
     wm_board_compose_destroy(compose);
 }
 
 static void test_compose_held_keytops(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
-    WmBoardComposeControl deletion = (WmBoardComposeControl)(
-        WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_DELETE - 1);
-    WmBoardComposeControl space = (WmBoardComposeControl)(
-        WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_SPACE - 1);
-    WmBoardComposeControl letter = (WmBoardComposeControl)(
-        WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_CHARACTER_FIRST - 1);
+    WmBoardComposeControl deletion =
+        (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_DELETE - 1);
+    WmBoardComposeControl space =
+        (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_SPACE - 1);
+    WmBoardComposeControl letter =
+        (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST +
+                                WM_KEYBOARD_CHARACTER_FIRST - 1);
     WmBoardCompose *compose = editing_compose(assets);
 
     assert(!wm_board_compose_hold_control(compose, letter));
-    assert(strcmp(wm_board_compose_text(compose),
-                  "abcdefghijklmnop") == 0);
+    assert(strcmp(wm_board_compose_text(compose), "abcdefghijklmnop") == 0);
     wm_board_compose_hover(compose, deletion);
     assert(wm_board_compose_hold_control(compose, deletion));
-    assert(strcmp(wm_board_compose_text(compose),
-                  "abcdefghijklmno") == 0);
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CHAR_DELETE") == 0);
+    assert(strcmp(wm_board_compose_text(compose), "abcdefghijklmno") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CHAR_DELETE") == 0);
     wm_board_compose_advance(compose, 35.75f);
-    assert(strcmp(wm_board_compose_text(compose),
-                  "abcdefghijklmno") == 0);
+    assert(strcmp(wm_board_compose_text(compose), "abcdefghijklmno") == 0);
     wm_board_compose_advance(compose, 0.25f);
-    assert(strcmp(wm_board_compose_text(compose),
-                  "abcdefghijklmn") == 0);
+    assert(strcmp(wm_board_compose_text(compose), "abcdefghijklmn") == 0);
     wm_board_compose_advance(compose, 8.0f);
-    assert(strcmp(wm_board_compose_text(compose),
-                  "abcdefghijklmn") == 0);
+    assert(strcmp(wm_board_compose_text(compose), "abcdefghijklmn") == 0);
     wm_board_compose_advance(compose, 1.0f);
-    assert(strcmp(wm_board_compose_text(compose),
-                  "abcdefghijklm") == 0);
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CHAR_DELETE") == 0);
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CHAR_DELETE") == 0);
+    assert(strcmp(wm_board_compose_text(compose), "abcdefghijklm") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CHAR_DELETE") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CHAR_DELETE") == 0);
     wm_board_compose_hover(compose, WM_COMPOSE_CONTROL_NONE);
     wm_board_compose_advance(compose, 100.0f);
-    assert(strcmp(wm_board_compose_text(compose),
-                  "abcdefghijklm") == 0);
+    assert(strcmp(wm_board_compose_text(compose), "abcdefghijklm") == 0);
 
     wm_board_compose_hover(compose, space);
     assert(wm_board_compose_hold_control(compose, space));
     wm_board_compose_advance(compose, 45.0f);
-    assert(strcmp(wm_board_compose_text(compose),
-                  "abcdefghijklm   ") == 0);
+    assert(strcmp(wm_board_compose_text(compose), "abcdefghijklm   ") == 0);
     wm_board_compose_release_control(compose);
     wm_board_compose_advance(compose, 100.0f);
-    assert(strcmp(wm_board_compose_text(compose),
-                  "abcdefghijklm   ") == 0);
+    assert(strcmp(wm_board_compose_text(compose), "abcdefghijklm   ") == 0);
     wm_board_compose_destroy(compose);
 
     WmBoardCompose *split = editing_compose(assets);
@@ -1122,8 +1038,7 @@ static void test_compose_held_keytops(int argc, char **argv) {
     }
     wm_board_compose_advance(bulk, 100.0f);
     assert(strcmp(wm_board_compose_text(split), "abcdefg") == 0);
-    assert(strcmp(wm_board_compose_text(split),
-                  wm_board_compose_text(bulk)) == 0);
+    assert(strcmp(wm_board_compose_text(split), wm_board_compose_text(bulk)) == 0);
     wm_board_compose_destroy(split);
     wm_board_compose_destroy(bulk);
 }
@@ -1131,8 +1046,8 @@ static void test_compose_held_keytops(int argc, char **argv) {
 static void test_memo_caret_layout(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char path[4096];
-    int length = snprintf(path, sizeof(path),
-                          "%s/layouts/sofkeybd/my_Memo_a.json", assets);
+    int length =
+        snprintf(path, sizeof(path), "%s/layouts/sofkeybd/my_Memo_a.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     char error[160] = {0};
     WmLayout *memo = wm_layout_load_json(path, error, sizeof(error));
@@ -1141,8 +1056,7 @@ static void test_memo_caret_layout(int argc, char **argv) {
     const char *font_name = NULL;
     assert(wm_layout_pane_font(memo, "T_Letter", &pane, &font_name));
     if (!test_fonts) {
-        test_fonts = wm_font_cache_create((WmPlatform *)1, assets,
-                                           1024u * 1024u);
+        test_fonts = wm_font_cache_create((WmPlatform *)1, assets, 1024u * 1024u);
         assert(test_fonts);
     }
     WmCachedFont *face = wm_font_cache_resolve(test_fonts, font_name);
@@ -1155,8 +1069,8 @@ static void test_memo_caret_layout(int argc, char **argv) {
     assert(wm_font_text_layout_caret(layout, 1, &first_x, &first_y));
     assert(wm_font_text_layout_caret(layout, 2, &second_x, &second_y));
     float size[2] = {pane.font_size[0], pane.font_size[1]};
-    float expected_advance = wm_font_text_width(font, "i", size, 0.0f) +
-                             pane.char_space;
+    float expected_advance =
+        wm_font_text_width(font, "i", size, 0.0f) + pane.char_space;
     assert(fabsf(second_x - first_x - expected_advance) < 0.01f);
     assert(fabsf(second_y - first_y) < 0.01f);
 
@@ -1168,14 +1082,12 @@ static void test_memo_caret_layout(int argc, char **argv) {
     layout = wm_font_cache_layout(face, "W\n", &pane);
     assert(layout && wm_font_text_layout_line_count(layout) == 2);
     float newline_x, newline_y, next_x, next_y;
-    assert(wm_font_text_layout_caret(layout, 1,
-                                      &newline_x, &newline_y));
+    assert(wm_font_text_layout_caret(layout, 1, &newline_x, &newline_y));
     assert(wm_font_text_layout_caret(layout, 2, &next_x, &next_y));
     assert(fabsf(next_x - empty_x) < 0.01f);
     assert(next_y < newline_y);
 
-    pane.size[0] = wm_font_text_width(font, "W", size,
-                                       pane.char_space) + 0.1f;
+    pane.size[0] = wm_font_text_width(font, "W", size, pane.char_space) + 0.1f;
     pane.no_wrap = false;
     layout = wm_font_cache_layout(face, "WW", &pane);
     assert(layout && wm_font_text_layout_line_count(layout) == 2);
@@ -1191,128 +1103,117 @@ static void test_compose_symbol_pages(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char path[4096];
     int length = snprintf(path, sizeof(path),
-                          "%s/layouts/sofkeybd/fs_signWindow_a.json",
-                          assets);
+                          "%s/layouts/sofkeybd/fs_signWindow_a.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     char error[160] = {0};
     WmLayout *symbols = wm_layout_load_json(path, error, sizeof(error));
     assert(symbols);
     WmSourceRect first, previous, next, close;
-    assert(wm_source_pane_rect(symbols, "B_SGNkey_00", true, WM_LAYOUT_IPL,
-                                NULL, &first));
-    assert(wm_source_pane_rect(symbols, "B_SGNkey_prev", true, WM_LAYOUT_IPL,
-                                NULL, &previous));
-    assert(wm_source_pane_rect(symbols, "B_SGNkey_next", true, WM_LAYOUT_IPL,
-                                NULL, &next));
-    assert(wm_source_pane_rect(symbols, "B_SGNkey_close", true, WM_LAYOUT_IPL,
-                                NULL, &close));
+    assert(
+        wm_source_pane_rect(symbols, "B_SGNkey_00", true, WM_LAYOUT_IPL, NULL, &first));
+    assert(wm_source_pane_rect(symbols, "B_SGNkey_prev", true, WM_LAYOUT_IPL, NULL,
+                               &previous));
+    assert(wm_source_pane_rect(symbols, "B_SGNkey_next", true, WM_LAYOUT_IPL, NULL,
+                               &next));
+    assert(wm_source_pane_rect(symbols, "B_SGNkey_close", true, WM_LAYOUT_IPL, NULL,
+                               &close));
     /* The native arrow bindings borrow both pane and material tracks from
      * Close. A pane-only rebind misses the pushed color animation. */
-    WmLayoutClip arrow = {
-        .animation = "fs_signWindow_a_SGN_Pushed",
-        .frame = 3.0f,
-        .target_name = "P_SGNkey_close",
-        .rebind_name = "P_SGNkey_prev"
-    };
+    WmLayoutClip arrow = {.animation = "fs_signWindow_a_SGN_Pushed",
+                          .frame = 3.0f,
+                          .target_name = "P_SGNkey_close",
+                          .rebind_name = "P_SGNkey_prev"};
     assert(wm_layout_pose(symbols, &arrow, 1));
     WmLayoutPaneState previous_state;
-    assert(wm_layout_pane_state(symbols, "P_SGNkey_prev",
-                                 &previous_state));
+    assert(wm_layout_pane_state(symbols, "P_SGNkey_prev", &previous_state));
     assert(previous_state.scale[0] > 0.95f);
     bool material_found = false;
-    for (size_t index = 0; index < wm_layout_material_count(symbols);
-         index++) {
+    for (size_t index = 0; index < wm_layout_material_count(symbols); index++) {
         WmLayoutMaterialInfo material;
         uint8_t wraps[4][2];
         assert(wm_layout_material_info(symbols, index, &material, wraps));
-        if (strcmp(material.name, "P_SGNkey_prev") != 0) continue;
-        assert(fabsf(material.registers[1][2] - 128.0f / 255.0f) <
-               0.01f);
+        if (strcmp(material.name, "P_SGNkey_prev") != 0)
+            continue;
+        assert(fabsf(material.registers[1][2] - 128.0f / 255.0f) < 0.01f);
         material_found = true;
     }
     assert(material_found);
-    WmLayoutClip settled = {
-        .animation = "fs_signWindow_a_SGN_FADE-IN",
-        .frame = 18.0f
-    };
+    WmLayoutClip settled = {.animation = "fs_signWindow_a_SGN_FADE-IN", .frame = 18.0f};
     assert(wm_layout_pose(symbols, &settled, 1));
-    assert(wm_source_pane_rect(symbols, "B_SGNkey_00", true, WM_LAYOUT_IPL,
-                                NULL, &first));
-    assert(wm_source_pane_rect(symbols, "B_SGNkey_prev", true, WM_LAYOUT_IPL,
-                                NULL, &previous));
-    assert(wm_source_pane_rect(symbols, "B_SGNkey_next", true, WM_LAYOUT_IPL,
-                                NULL, &next));
-    assert(wm_source_pane_rect(symbols, "B_SGNkey_close", true, WM_LAYOUT_IPL,
-                                NULL, &close));
+    assert(
+        wm_source_pane_rect(symbols, "B_SGNkey_00", true, WM_LAYOUT_IPL, NULL, &first));
+    assert(wm_source_pane_rect(symbols, "B_SGNkey_prev", true, WM_LAYOUT_IPL, NULL,
+                               &previous));
+    assert(wm_source_pane_rect(symbols, "B_SGNkey_next", true, WM_LAYOUT_IPL, NULL,
+                               &next));
+    assert(wm_source_pane_rect(symbols, "B_SGNkey_close", true, WM_LAYOUT_IPL, NULL,
+                               &close));
     wm_layout_destroy(symbols);
 
     length = snprintf(path, sizeof(path),
-                      "%s/layouts/sofkeybd/fs_VK_ascii_keytop_a.json",
-                      assets);
+                      "%s/layouts/sofkeybd/fs_VK_ascii_keytop_a.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     WmLayout *keytop = wm_layout_load_json(path, error, sizeof(error));
     assert(keytop);
     WmSourceRect more;
-    assert(wm_source_pane_rect(keytop, "B_USEU_Chng_sign", true,
-                                WM_LAYOUT_IPL, NULL, &more));
+    assert(wm_source_pane_rect(keytop, "B_USEU_Chng_sign", true, WM_LAYOUT_IPL, NULL,
+                               &more));
     wm_layout_destroy(keytop);
 
-    WmBoardCompose *compose = wm_board_compose_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1, test_fonts);
+    WmBoardCompose *compose = wm_board_compose_create((WmPlatform *)1, assets,
+                                                      (WmTextureCache *)1, test_fonts);
     assert(compose);
     assert(wm_board_compose_open(compose));
     wm_board_compose_advance(compose, 39.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_MEMO));
     wm_board_compose_advance(compose, 26.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_EDIT));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_SK_OPEN") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_SK_OPEN") == 0);
     wm_board_compose_advance(compose, 30.0f);
 
-    WmBoardComposeControl more_control = (WmBoardComposeControl)(
-        WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_MORE - 1);
-    WmBoardComposeControl symbol_control = (WmBoardComposeControl)(
-        WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_SYMBOL_FIRST - 1);
-    WmBoardComposeControl previous_control = (WmBoardComposeControl)(
-        WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_SYMBOL_PREV - 1);
-    WmBoardComposeControl next_control = (WmBoardComposeControl)(
-        WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_SYMBOL_NEXT - 1);
-    WmBoardComposeControl close_control = (WmBoardComposeControl)(
-        WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_SYMBOL_CLOSE - 1);
-    assert(wm_board_compose_hit(compose,
-        (int)(more.x + more.width * 0.5f),
-        (int)(more.y + more.height * 0.5f)) == more_control);
+    WmBoardComposeControl more_control =
+        (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_MORE - 1);
+    WmBoardComposeControl symbol_control =
+        (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST +
+                                WM_KEYBOARD_SYMBOL_FIRST - 1);
+    WmBoardComposeControl previous_control =
+        (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_SYMBOL_PREV -
+                                1);
+    WmBoardComposeControl next_control =
+        (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_SYMBOL_NEXT -
+                                1);
+    WmBoardComposeControl close_control =
+        (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST +
+                                WM_KEYBOARD_SYMBOL_CLOSE - 1);
+    assert(wm_board_compose_hit(compose, (int)(more.x + more.width * 0.5f),
+                                (int)(more.y + more.height * 0.5f)) == more_control);
     assert(wm_board_compose_activate(compose, more_control));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_SYMBOL_PAGE_OPEN") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_SYMBOL_PAGE_OPEN") ==
+           0);
     assert(!wm_board_compose_insert_text(compose, "x"));
     wm_board_compose_advance(compose, 17.0f);
-    assert(wm_board_compose_hit(compose,
-        (int)(first.x + first.width * 0.5f),
-        (int)(first.y + first.height * 0.5f)) ==
+    assert(wm_board_compose_hit(compose, (int)(first.x + first.width * 0.5f),
+                                (int)(first.y + first.height * 0.5f)) ==
            WM_COMPOSE_CONTROL_NONE);
     wm_board_compose_advance(compose, 1.0f);
-    assert(wm_board_compose_hit(compose,
-        (int)(first.x + first.width * 0.5f),
-        (int)(first.y + first.height * 0.5f)) == symbol_control);
+    assert(wm_board_compose_hit(compose, (int)(first.x + first.width * 0.5f),
+                                (int)(first.y + first.height * 0.5f)) ==
+           symbol_control);
     assert(wm_board_compose_activate(compose, symbol_control));
     assert(strcmp(wm_board_compose_text(compose), ".") == 0);
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CHAR_INPUT") == 0);
-    assert(wm_board_compose_hit(compose,
-        (int)(next.x + next.width * 0.5f),
-        (int)(next.y + next.height * 0.5f)) == next_control);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CHAR_INPUT") == 0);
+    assert(wm_board_compose_hit(compose, (int)(next.x + next.width * 0.5f),
+                                (int)(next.y + next.height * 0.5f)) == next_control);
     assert(wm_board_compose_activate(compose, next_control));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WSD_SELECT") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WSD_SELECT") == 0);
     wm_board_compose_advance(compose, 19.0f);
     assert(!wm_board_compose_activate(compose, symbol_control));
     wm_board_compose_advance(compose, 1.0f);
     assert(wm_board_compose_activate(compose, symbol_control));
     assert(strcmp(wm_board_compose_text(compose), ".[") == 0);
-    assert(wm_board_compose_hit(compose,
-        (int)(previous.x + previous.width * 0.5f),
-        (int)(previous.y + previous.height * 0.5f)) == previous_control);
+    assert(wm_board_compose_hit(compose, (int)(previous.x + previous.width * 0.5f),
+                                (int)(previous.y + previous.height * 0.5f)) ==
+           previous_control);
     assert(wm_board_compose_activate(compose, previous_control));
     wm_board_compose_advance(compose, 20.0f);
     assert(wm_board_compose_activate(compose, symbol_control));
@@ -1321,27 +1222,23 @@ static void test_compose_symbol_pages(int argc, char **argv) {
     wm_board_compose_advance(compose, 20.0f);
     assert(wm_board_compose_activate(compose, symbol_control));
     assert(strcmp(wm_board_compose_text(compose), ".[.ΐ") == 0);
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CHAR_INPUT") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CHAR_INPUT") == 0);
     assert(wm_board_compose_backspace(compose) == false);
     assert(wm_board_compose_activate(compose, next_control));
     wm_board_compose_advance(compose, 20.0f);
     assert(wm_board_compose_activate(compose, symbol_control));
     assert(strcmp(wm_board_compose_text(compose), ".[.ΐ.") == 0);
-    assert(wm_board_compose_hit(compose,
-        (int)(close.x + close.width * 0.5f),
-        (int)(close.y + close.height * 0.5f)) == close_control);
+    assert(wm_board_compose_hit(compose, (int)(close.x + close.width * 0.5f),
+                                (int)(close.y + close.height * 0.5f)) == close_control);
     assert(wm_board_compose_activate(compose, close_control));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CHAR_DECIDE") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CHAR_DECIDE") == 0);
     wm_board_compose_advance(compose, 13.0f);
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_EDIT);
     assert(wm_board_compose_backspace(compose));
     assert(wm_board_compose_backspace(compose));
     assert(strcmp(wm_board_compose_text(compose), ".[.") == 0);
-    assert(wm_board_compose_hit(compose,
-        (int)(more.x + more.width * 0.5f),
-        (int)(more.y + more.height * 0.5f)) == more_control);
+    assert(wm_board_compose_hit(compose, (int)(more.x + more.width * 0.5f),
+                                (int)(more.y + more.height * 0.5f)) == more_control);
     assert(wm_board_compose_activate(compose, more_control));
     wm_board_compose_advance(compose, 18.0f);
     assert(wm_board_compose_back(compose));
@@ -1350,8 +1247,8 @@ static void test_compose_symbol_pages(int argc, char **argv) {
     wm_board_compose_advance(compose, 13.0f);
     assert(wm_board_compose_back(compose));
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_LEAVE_EDIT);
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_SK_CANCEL_CLOSE") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_SK_CANCEL_CLOSE") ==
+           0);
     assert(wm_board_compose_take_key_cue(compose) == NULL);
     wm_board_compose_destroy(compose);
 }
@@ -1359,8 +1256,8 @@ static void test_compose_symbol_pages(int argc, char **argv) {
 static void test_compose_memo_scroll_transitions(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char path[4096];
-    int length = snprintf(path, sizeof(path),
-                          "%s/layouts/sofkeybd/my_Memo_a.json", assets);
+    int length =
+        snprintf(path, sizeof(path), "%s/layouts/sofkeybd/my_Memo_a.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     char error[160];
     WmLayout *body = wm_layout_load_json(path, error, sizeof(error));
@@ -1370,18 +1267,16 @@ static void test_compose_memo_scroll_transitions(int argc, char **argv) {
     assert(wm_layout_animation_info(body, "my_Memo_a_Fade_IN", &fade_in));
     assert(wm_layout_animation_info(body, "my_Memo_a_Fade_OUT", &fade_out));
     assert(fade_in.frames == 11.0f && fade_out.frames == 10.0f);
-    WmLayoutClip mail_in = {
-        .animation = "my_Memo_a_MailIn", .frame = 16.0f
-    };
+    WmLayoutClip mail_in = {.animation = "my_Memo_a_MailIn", .frame = 16.0f};
     assert(wm_layout_pose(body, &mail_in, 1));
     WmSourceRect display_down;
     WmSourceRect editor_up;
-    assert(wm_source_pane_rect(body, "B_ArwL", true, WM_LAYOUT_IPL,
-                                NULL, &display_down));
-    assert(wm_source_pane_rect(body, "B_txtScrll_UP", true, WM_LAYOUT_IPL,
-                                NULL, &editor_up));
-    WmBoardCompose *compose = wm_board_compose_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1, test_fonts);
+    assert(
+        wm_source_pane_rect(body, "B_ArwL", true, WM_LAYOUT_IPL, NULL, &display_down));
+    assert(wm_source_pane_rect(body, "B_txtScrll_UP", true, WM_LAYOUT_IPL, NULL,
+                               &editor_up));
+    WmBoardCompose *compose = wm_board_compose_create((WmPlatform *)1, assets,
+                                                      (WmTextureCache *)1, test_fonts);
     assert(compose);
     assert(wm_board_compose_open(compose));
     wm_board_compose_advance(compose, 39.0f);
@@ -1390,12 +1285,11 @@ static void test_compose_memo_scroll_transitions(int argc, char **argv) {
 
     WmBoardComposeScrollState scroll;
     assert(wm_board_compose_scroll_state(compose, &scroll));
-    assert(!scroll.editing && !scroll.up_target_visible &&
-           scroll.down_target_visible);
+    assert(!scroll.editing && !scroll.up_target_visible && scroll.down_target_visible);
     assert(fabsf(scroll.maximum - 68.0f) < 0.01f);
     assert(wm_board_compose_hit(compose,
-        (int)(display_down.x + display_down.width * 0.5f),
-        (int)(display_down.y + display_down.height * 0.5f)) ==
+                                (int)(display_down.x + display_down.width * 0.5f),
+                                (int)(display_down.y + display_down.height * 0.5f)) ==
            WM_COMPOSE_CONTROL_SCROLL_DOWN);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_SCROLL_DOWN));
     wm_board_compose_advance(compose, 15.0f);
@@ -1419,8 +1313,7 @@ static void test_compose_memo_scroll_transitions(int argc, char **argv) {
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_EDIT);
     assert(wm_board_compose_scroll_state(compose, &scroll));
     assert(fabsf(scroll.offset) < 0.01f);
-    assert(wm_board_compose_insert_text(
-        compose, "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL"));
+    assert(wm_board_compose_insert_text(compose, "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL"));
     assert(wm_board_compose_scroll_state(compose, &scroll));
     assert(fabsf(scroll.maximum - 420.0f) < 0.01f);
     assert(scroll.editor_opacity == 1.0f);
@@ -1428,9 +1321,8 @@ static void test_compose_memo_scroll_transitions(int argc, char **argv) {
     assert(wm_board_compose_scroll_state(compose, &scroll));
     assert(fabsf(scroll.offset - 420.0f) < 0.01f);
     assert(scroll.up_target_visible && !scroll.down_target_visible);
-    assert(wm_board_compose_hit(compose,
-        (int)(editor_up.x + editor_up.width * 0.5f),
-        (int)(editor_up.y + editor_up.height * 0.5f)) ==
+    assert(wm_board_compose_hit(compose, (int)(editor_up.x + editor_up.width * 0.5f),
+                                (int)(editor_up.y + editor_up.height * 0.5f)) ==
            WM_COMPOSE_CONTROL_SCROLL_UP);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_SCROLL_UP));
     assert(!wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_SCROLL_UP));
@@ -1466,13 +1358,13 @@ static void test_board_arrow_return_from_create(int argc, char **argv) {
     float settled_left = 0.0f;
     float settled_right = 0.0f;
     float y = 0.0f;
-    assert(wm_board_scene_footer_button_anchor(
-        board, WM_BOARD_CONTROL_PREVIOUS, &settled_left, &y));
-    assert(wm_board_scene_footer_button_anchor(
-        board, WM_BOARD_CONTROL_NEXT, &settled_right, &y));
+    assert(wm_board_scene_footer_button_anchor(board, WM_BOARD_CONTROL_PREVIOUS,
+                                               &settled_left, &y));
+    assert(wm_board_scene_footer_button_anchor(board, WM_BOARD_CONTROL_NEXT,
+                                               &settled_right, &y));
 
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
     wm_board_scene_advance(board, 39.0f);
     assert(wm_board_scene_back(board));
     wm_board_scene_advance(board, 46.0f);
@@ -1481,12 +1373,13 @@ static void test_board_arrow_return_from_create(int argc, char **argv) {
     float left[3];
     float right[3];
     for (size_t sample = 0; sample < 3; sample++) {
-        if (sample) wm_board_scene_advance(board, 5.0f);
+        if (sample)
+            wm_board_scene_advance(board, 5.0f);
         (void)wm_board_scene_hit(board, 320, 200);
-        assert(wm_board_scene_footer_button_anchor(
-            board, WM_BOARD_CONTROL_PREVIOUS, &left[sample], &y));
-        assert(wm_board_scene_footer_button_anchor(
-            board, WM_BOARD_CONTROL_NEXT, &right[sample], &y));
+        assert(wm_board_scene_footer_button_anchor(board, WM_BOARD_CONTROL_PREVIOUS,
+                                                   &left[sample], &y));
+        assert(wm_board_scene_footer_button_anchor(board, WM_BOARD_CONTROL_NEXT,
+                                                   &right[sample], &y));
     }
     /* Source my_IplTop_e 10150–10160 moves the arrows 200 world units
      * inward; neither side should jump directly to its settled location. */
@@ -1504,26 +1397,23 @@ static void test_child_return_retires_footer_focus(int argc, char **argv) {
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
 
-    const WmBoardControl children[] = {
-        WM_BOARD_CONTROL_CALENDAR, WM_BOARD_CONTROL_CREATE
-    };
-    for (size_t index = 0; index < sizeof(children) / sizeof(children[0]);
-         index++) {
+    const WmBoardControl children[] = {WM_BOARD_CONTROL_CALENDAR,
+                                       WM_BOARD_CONTROL_CREATE};
+    for (size_t index = 0; index < sizeof(children) / sizeof(children[0]); index++) {
         WmBoardControl control = children[index];
         float neutral_scale = 0.0f;
         (void)wm_board_scene_hit(board, 320, 200);
-        assert(wm_board_scene_footer_button_visual_scale(
-            board, control, &neutral_scale));
+        assert(
+            wm_board_scene_footer_button_visual_scale(board, control, &neutral_scale));
         wm_board_scene_hover(board, (WmBoardHit){control, SIZE_MAX});
         wm_board_scene_advance(board, 6.0f);
         float focused_scale = 0.0f;
         (void)wm_board_scene_hit(board, 320, 200);
-        assert(wm_board_scene_footer_button_visual_scale(
-            board, control, &focused_scale));
+        assert(
+            wm_board_scene_footer_button_visual_scale(board, control, &focused_scale));
         assert(focused_scale > neutral_scale + 0.05f);
 
-        assert(wm_board_scene_activate(board,
-                                       (WmBoardHit){control, SIZE_MAX}));
+        assert(wm_board_scene_activate(board, (WmBoardHit){control, SIZE_MAX}));
         wm_board_scene_advance(board, 50.0f);
         assert(wm_board_scene_back(board));
         wm_board_scene_advance(board, 50.0f);
@@ -1533,8 +1423,8 @@ static void test_child_return_retires_footer_focus(int argc, char **argv) {
          * return at its enlarged frame-6 scale. */
         float returned_scale = 0.0f;
         (void)wm_board_scene_hit(board, 320, 200);
-        assert(wm_board_scene_footer_button_visual_scale(
-            board, control, &returned_scale));
+        assert(
+            wm_board_scene_footer_button_visual_scale(board, control, &returned_scale));
         assert(fabsf(returned_scale - neutral_scale) < 0.001f);
     }
     wm_board_scene_destroy(board);
@@ -1542,8 +1432,8 @@ static void test_child_return_retires_footer_focus(int argc, char **argv) {
 
 static void test_erase_dialog(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
-    WmBoardErase *erase = wm_board_erase_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1, (WmFontCache *)1);
+    WmBoardErase *erase = wm_board_erase_create((WmPlatform *)1, assets,
+                                                (WmTextureCache *)1, (WmFontCache *)1);
     assert(erase);
     assert(wm_board_erase_open(erase));
     assert(wm_board_erase_phase(erase) == WM_ERASE_ENTER);
@@ -1562,24 +1452,20 @@ static void test_erase_dialog(int argc, char **argv) {
 static void test_memo_erase(int argc, char **argv) {
     WmBoardScene *board = load_board(argc, argv);
     assert(board);
-    WmBoardMemo memo = {
-        .id = "erase-test",
-        .text = "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL",
-        .date = {2026, 9, 25},
-        .has_position = true,
-        .y = 53.0f
-    };
+    WmBoardMemo memo = {.id = "erase-test",
+                        .text = "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL",
+                        .date = {2026, 9, 25},
+                        .has_position = true,
+                        .y = 53.0f};
     assert(wm_board_scene_set_memos(board, &memo, 1));
     assert(wm_board_scene_open(board, memo.date));
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
     assert(wm_board_scene_today_unread_count(board) == 1);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
+    assert(wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
     assert(wm_board_scene_today_unread_count(board) == 0);
     size_t read_index = SIZE_MAX;
-    assert(wm_board_scene_take_action(board, &read_index) ==
-           WM_BOARD_ACTION_MEMO_READ);
+    assert(wm_board_scene_take_action(board, &read_index) == WM_BOARD_ACTION_MEMO_READ);
     assert(read_index == 0);
     wm_board_scene_advance(board, 26.0f);
     assert(wm_board_scene_phase(board) == WM_BOARD_MEMO_READ);
@@ -1588,53 +1474,50 @@ static void test_memo_erase(int argc, char **argv) {
     float trash_neutral_scale = 0.0f;
     float trash_focused_scale = 0.0f;
     wm_board_scene_hit(board, 0, 0);
-    assert(wm_board_scene_footer_button_visual_scale(
-        board, WM_BOARD_CONTROL_MEMO_TRASH, &trash_neutral_scale));
-    wm_board_scene_hover(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO_TRASH, SIZE_MAX});
+    assert(wm_board_scene_footer_button_visual_scale(board, WM_BOARD_CONTROL_MEMO_TRASH,
+                                                     &trash_neutral_scale));
+    wm_board_scene_hover(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO_TRASH, SIZE_MAX});
     wm_board_scene_advance(board, 6.0f);
     wm_board_scene_hit(board, 0, 0);
-    assert(wm_board_scene_footer_button_visual_scale(
-        board, WM_BOARD_CONTROL_MEMO_TRASH, &trash_focused_scale));
+    assert(wm_board_scene_footer_button_visual_scale(board, WM_BOARD_CONTROL_MEMO_TRASH,
+                                                     &trash_focused_scale));
     assert(trash_focused_scale > trash_neutral_scale + 0.02f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO_TRASH, 0}));
+    assert(
+        wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO_TRASH, 0}));
     assert(wm_board_scene_phase(board) == WM_BOARD_MEMO_TRASH_SELECT);
     assert(wm_board_scene_reader_arrow_target_visible(
         board, WM_BOARD_CONTROL_MEMO_SCROLL_DOWN));
     assert(wm_board_scene_take_action(board, NULL) == WM_BOARD_ACTION_NONE);
     wm_board_scene_advance(board, 33.0f);
     assert(wm_board_scene_child(board) == WM_BOARD_CHILD_ERASE);
-    assert(strcmp(wm_board_scene_take_reader_cue(board),
-                  "WIPL_SE_INFO_WINDOW") == 0);
+    assert(strcmp(wm_board_scene_take_reader_cue(board), "WIPL_SE_INFO_WINDOW") == 0);
     assert(wm_board_scene_take_reader_cue(board) == NULL);
     wm_board_scene_advance(board, 26.0f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_ERASE_QUIT, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_ERASE_QUIT, SIZE_MAX}));
     wm_board_scene_advance(board, 47.0f);
     assert(wm_board_scene_phase(board) == WM_BOARD_MEMO_TRASH_CANCEL);
     wm_board_scene_advance(board, 13.0f);
     assert(wm_board_scene_phase(board) == WM_BOARD_MEMO_READ);
     float trash_returned_scale = 0.0f;
     wm_board_scene_hit(board, 0, 0);
-    assert(wm_board_scene_footer_button_visual_scale(
-        board, WM_BOARD_CONTROL_MEMO_TRASH, &trash_returned_scale));
+    assert(wm_board_scene_footer_button_visual_scale(board, WM_BOARD_CONTROL_MEMO_TRASH,
+                                                     &trash_returned_scale));
     assert(fabsf(trash_returned_scale - trash_neutral_scale) < 0.01f);
     assert(wm_board_scene_reader_arrow_target_visible(
         board, WM_BOARD_CONTROL_MEMO_SCROLL_DOWN));
     assert(wm_board_scene_memo_count(board) == 1);
     assert(wm_board_scene_take_action(board, NULL) == WM_BOARD_ACTION_NONE);
 
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO_TRASH, 0}));
+    assert(
+        wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO_TRASH, 0}));
     wm_board_scene_advance(board, 59.0f);
     assert(wm_board_scene_child(board) == WM_BOARD_CHILD_ERASE);
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_ERASE_OK, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_ERASE_OK, SIZE_MAX}));
     wm_board_scene_advance(board, 47.0f);
     assert(wm_board_scene_phase(board) == WM_BOARD_MEMO_ERASE_CLOSE);
-    assert(strcmp(wm_board_scene_take_reader_cue(board),
-                  "WIPL_SE_BOARD_DUMP") == 0);
+    assert(strcmp(wm_board_scene_take_reader_cue(board), "WIPL_SE_BOARD_DUMP") == 0);
     assert(wm_board_scene_take_reader_cue(board) == NULL);
     assert(!wm_board_scene_reader_arrow_target_visible(
         board, WM_BOARD_CONTROL_MEMO_SCROLL_DOWN));
@@ -1652,23 +1535,21 @@ static void test_memo_erase(int argc, char **argv) {
 
 static void test_reader_text_draw(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures);
-    WmFontCache *draw_fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmFontCache *draw_fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(draw_fonts);
-    WmBoardScene *board = wm_board_scene_create(
-        (WmPlatform *)1, assets, textures, draw_fonts);
+    WmBoardScene *board =
+        wm_board_scene_create((WmPlatform *)1, assets, textures, draw_fonts);
     assert(board);
-    const WmBoardMemo memo = {
-        .id = "reader-text",
-        .text = "A posted memo",
-        .date = {2026, 9, 25},
-        .has_position = true,
-        .x = 0.0f,
-        .y = 53.0f
-    };
+    const WmBoardMemo memo = {.id = "reader-text",
+                              .text = "A posted memo",
+                              .date = {2026, 9, 25},
+                              .has_position = true,
+                              .x = 0.0f,
+                              .y = 53.0f};
     assert(wm_board_scene_set_memos(board, &memo, 1));
     assert(wm_board_scene_open(board, memo.date));
     wm_board_scene_advance(board, 40.0f);
@@ -1677,20 +1558,19 @@ static void test_reader_text_draw(int argc, char **argv) {
     float right_ready = 0.0f;
     float unused_y = 0.0f;
     wm_board_scene_draw_footer(board);
-    assert(wm_board_scene_footer_button_anchor(
-        board, WM_BOARD_CONTROL_PREVIOUS, &left_ready, &unused_y));
-    assert(wm_board_scene_footer_button_anchor(
-        board, WM_BOARD_CONTROL_NEXT, &right_ready, &unused_y));
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
+    assert(wm_board_scene_footer_button_anchor(board, WM_BOARD_CONTROL_PREVIOUS,
+                                               &left_ready, &unused_y));
+    assert(wm_board_scene_footer_button_anchor(board, WM_BOARD_CONTROL_NEXT,
+                                               &right_ready, &unused_y));
+    assert(wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
     wm_board_scene_advance(board, 10.0f);
     float left_hidden = 0.0f;
     float right_hidden = 0.0f;
     wm_board_scene_draw_footer(board);
-    assert(wm_board_scene_footer_button_anchor(
-        board, WM_BOARD_CONTROL_PREVIOUS, &left_hidden, &unused_y));
-    assert(wm_board_scene_footer_button_anchor(
-        board, WM_BOARD_CONTROL_NEXT, &right_hidden, &unused_y));
+    assert(wm_board_scene_footer_button_anchor(board, WM_BOARD_CONTROL_PREVIOUS,
+                                               &left_hidden, &unused_y));
+    assert(wm_board_scene_footer_button_anchor(board, WM_BOARD_CONTROL_NEXT,
+                                               &right_hidden, &unused_y));
     assert(fabsf(left_hidden - left_ready + 200.0f) < 0.01f);
     assert(fabsf(right_hidden - right_ready - 200.0f) < 0.01f);
     wm_board_scene_advance(board, 16.0f);
@@ -1711,24 +1591,22 @@ static void test_reader_text_draw(int argc, char **argv) {
     size_t neutral_footer_glyphs = captured_text_quads;
     assert(neutral_footer_glyphs >= 4);
     float back_neutral_scale = 0.0f;
-    assert(wm_board_scene_footer_button_visual_scale(
-        board, WM_BOARD_CONTROL_MEMO_BACK, &back_neutral_scale));
-    wm_board_scene_hover(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO_BACK, SIZE_MAX});
+    assert(wm_board_scene_footer_button_visual_scale(board, WM_BOARD_CONTROL_MEMO_BACK,
+                                                     &back_neutral_scale));
+    wm_board_scene_hover(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO_BACK, SIZE_MAX});
     wm_board_scene_advance(board, 6.0f);
     captured_text_quads = 0;
     capture_text_draws = true;
     wm_board_scene_draw_footer(board);
     capture_text_draws = false;
     float back_focused_scale = 0.0f;
-    assert(wm_board_scene_footer_button_visual_scale(
-        board, WM_BOARD_CONTROL_MEMO_BACK, &back_focused_scale));
+    assert(wm_board_scene_footer_button_visual_scale(board, WM_BOARD_CONTROL_MEMO_BACK,
+                                                     &back_focused_scale));
     assert(back_focused_scale > back_neutral_scale + 0.05f);
     float trash_neutral_scale = 0.0f;
-    assert(wm_board_scene_footer_button_visual_scale(
-        board, WM_BOARD_CONTROL_MEMO_TRASH, &trash_neutral_scale));
-    wm_board_scene_hover(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO_TRASH, SIZE_MAX});
+    assert(wm_board_scene_footer_button_visual_scale(board, WM_BOARD_CONTROL_MEMO_TRASH,
+                                                     &trash_neutral_scale));
+    wm_board_scene_hover(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO_TRASH, SIZE_MAX});
     wm_board_scene_advance(board, 6.0f);
     captured_text_quads = 0;
     capture_text_draws = true;
@@ -1736,8 +1614,8 @@ static void test_reader_text_draw(int argc, char **argv) {
     capture_text_draws = false;
     assert(captured_text_quads >= neutral_footer_glyphs + 5);
     float trash_focused_scale = 0.0f;
-    assert(wm_board_scene_footer_button_visual_scale(
-        board, WM_BOARD_CONTROL_MEMO_TRASH, &trash_focused_scale));
+    assert(wm_board_scene_footer_button_visual_scale(board, WM_BOARD_CONTROL_MEMO_TRASH,
+                                                     &trash_focused_scale));
     assert(trash_focused_scale > trash_neutral_scale + 0.02f);
     assert(wm_board_scene_back(board));
     wm_board_scene_advance(board, 20.0f);
@@ -1745,10 +1623,10 @@ static void test_reader_text_draw(int argc, char **argv) {
     wm_board_scene_draw_footer(board);
     float left_returning = 0.0f;
     float right_returning = 0.0f;
-    assert(wm_board_scene_footer_button_anchor(
-        board, WM_BOARD_CONTROL_PREVIOUS, &left_returning, &unused_y));
-    assert(wm_board_scene_footer_button_anchor(
-        board, WM_BOARD_CONTROL_NEXT, &right_returning, &unused_y));
+    assert(wm_board_scene_footer_button_anchor(board, WM_BOARD_CONTROL_PREVIOUS,
+                                               &left_returning, &unused_y));
+    assert(wm_board_scene_footer_button_anchor(board, WM_BOARD_CONTROL_NEXT,
+                                               &right_returning, &unused_y));
     assert(fabsf(left_returning - left_ready) < 0.01f);
     assert(fabsf(right_returning - right_ready) < 0.01f);
     wm_board_scene_destroy(board);
@@ -1772,16 +1650,14 @@ static void test_board_store(int argc, char **argv) {
     char error[160];
     assert(wm_board_store_load(path, loaded, error, sizeof(error)) ==
            WM_BOARD_STORE_MISSING);
-    WmBoardMemo input = {
-        .id = "memo-\xE2\x98\x83",
-        .text = "Line \"one\"\nLine two \\ end",
-        .date = {2026, 9, 25},
-        .created_at_ms = INT64_C(1790345678901),
-        .x = 31.125f,
-        .y = -14.5f,
-        .has_position = true,
-        .read = true
-    };
+    WmBoardMemo input = {.id = "memo-\xE2\x98\x83",
+                         .text = "Line \"one\"\nLine two \\ end",
+                         .date = {2026, 9, 25},
+                         .created_at_ms = INT64_C(1790345678901),
+                         .x = 31.125f,
+                         .y = -14.5f,
+                         .has_position = true,
+                         .read = true};
     assert(wm_board_scene_set_memos(board, &input, 1));
     assert(wm_board_store_save(path, board, error, sizeof(error)));
     assert(wm_board_store_load(path, loaded, error, sizeof(error)) ==
@@ -1791,8 +1667,7 @@ static void test_board_store(int argc, char **argv) {
     assert(wm_board_scene_get_memo(loaded, 0, &actual));
     assert(strcmp(actual.id, input.id) == 0);
     assert(strcmp(actual.text, input.text) == 0);
-    assert(actual.date.year == 2026 && actual.date.month == 9 &&
-           actual.date.day == 25);
+    assert(actual.date.year == 2026 && actual.date.month == 9 && actual.date.day == 25);
     assert(actual.created_at_ms == input.created_at_ms);
     assert(fabsf(actual.x - input.x) < 0.0001f);
     assert(fabsf(actual.y - input.y) < 0.0001f);
@@ -1811,8 +1686,7 @@ static void test_board_store(int argc, char **argv) {
 
     FILE *file = fopen(path, "wb");
     assert(file);
-    assert(fputs("{\"schemaVersion\":1,\"memos\":[{\"id\":\"bad\"}]}",
-                 file) >= 0);
+    assert(fputs("{\"schemaVersion\":1,\"memos\":[{\"id\":\"bad\"}]}", file) >= 0);
     assert(fclose(file) == 0);
     assert(wm_board_store_load(path, loaded, error, sizeof(error)) ==
            WM_BOARD_STORE_ERROR);
@@ -1839,8 +1713,7 @@ static void test_board_store(int argc, char **argv) {
     assert(wm_board_scene_get_memo(loaded, 1, &actual));
     assert(strcmp(actual.id, "old-second") == 0 && actual.created_at_ms == 0);
     assert(wm_board_store_save(path, loaded, error, sizeof(error)));
-    assert(wm_board_store_load(path, board, error, sizeof(error)) ==
-           WM_BOARD_STORE_OK);
+    assert(wm_board_store_load(path, board, error, sizeof(error)) == WM_BOARD_STORE_OK);
     assert(wm_board_scene_get_memo(board, 0, &actual));
     assert(actual.created_at_ms == 0);
 
@@ -1871,28 +1744,26 @@ static void test_board_store(int argc, char **argv) {
 static void test_calendar_marker_material(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char path[4096];
-    int length = snprintf(path, sizeof(path),
-                          "%s/layouts/calendar/my_IplTop_f.json", assets);
+    int length =
+        snprintf(path, sizeof(path), "%s/layouts/calendar/my_IplTop_f.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     char error[160];
     WmLayout *layout = wm_layout_load_json(path, error, sizeof(error));
     assert(layout);
-    WmLayoutClip marker = {
-        .animation = "my_IplTop_f",
-        .target_name = "Info_a",
-        .frame = 0.0f,
-        .loop_override = 0
-    };
+    WmLayoutClip marker = {.animation = "my_IplTop_f",
+                           .target_name = "Info_a",
+                           .frame = 0.0f,
+                           .loop_override = 0};
     bool found = false;
     for (int frame = 0; frame <= 1; frame++) {
         marker.frame = (float)frame;
         assert(wm_layout_pose(layout, &marker, 1));
-        for (size_t index = 0; index < wm_layout_material_count(layout);
-             index++) {
+        for (size_t index = 0; index < wm_layout_material_count(layout); index++) {
             WmLayoutMaterialInfo info;
             uint8_t wraps[4][2];
             assert(wm_layout_material_info(layout, index, &info, wraps));
-            if (strcmp(info.name, "Info_a") != 0) continue;
+            if (strcmp(info.name, "Info_a") != 0)
+                continue;
             found = true;
             assert(fabsf(info.registers[1][3] - (float)frame) < 0.001f);
         }
@@ -1904,14 +1775,12 @@ static void test_calendar_marker_material(int argc, char **argv) {
 static void test_memo_drag(int argc, char **argv) {
     WmBoardScene *board = load_board(argc, argv);
     assert(board);
-    WmBoardMemo memo = {
-        .id = "drag-test",
-        .text = "Drag this card",
-        .date = {2026, 9, 25},
-        .x = 0.0f,
-        .y = 53.0f,
-        .has_position = true
-    };
+    WmBoardMemo memo = {.id = "drag-test",
+                        .text = "Drag this card",
+                        .date = {2026, 9, 25},
+                        .x = 0.0f,
+                        .y = 53.0f,
+                        .has_position = true};
     assert(wm_board_scene_set_memos(board, &memo, 1));
     assert(wm_board_scene_open(board, memo.date));
     wm_board_scene_advance(board, 40.0f);
@@ -1921,12 +1790,10 @@ static void test_memo_drag(int argc, char **argv) {
     WmBoardHit card = {WM_BOARD_CONTROL_MEMO, 0};
     assert(wm_board_scene_pointer_down(board, card, 320, 200));
     assert(wm_board_scene_dragging(board));
-    assert(wm_board_scene_hit(board, 320, 200).control ==
-           WM_BOARD_CONTROL_NONE);
+    assert(wm_board_scene_hit(board, 320, 200).control == WM_BOARD_CONTROL_NONE);
     assert(!wm_board_scene_activate(board, card));
     float pan = 2.0f;
-    assert(wm_board_scene_take_drag_cue(board, &pan) ==
-           WM_BOARD_DRAG_CUE_HOLD);
+    assert(wm_board_scene_take_drag_cue(board, &pan) == WM_BOARD_DRAG_CUE_HOLD);
     assert(fabsf(pan) < 0.001f);
     float gain = -1.0f;
     float pitch = -1.0f;
@@ -1962,14 +1829,11 @@ static void test_memo_drag(int argc, char **argv) {
     assert(wm_board_scene_pointer_up(board, 384, 180));
     assert(!wm_board_scene_dragging(board));
     assert(!wm_board_scene_drag_mix(board, &gain, &pan, &pitch));
-    assert(wm_board_scene_take_drag_cue(board, &pan) ==
-           WM_BOARD_DRAG_CUE_RELEASE);
+    assert(wm_board_scene_take_drag_cue(board, &pan) == WM_BOARD_DRAG_CUE_RELEASE);
     assert(fabsf(pan - delta_x / 304.0f) < 0.001f);
-    assert(wm_board_scene_take_drag_cue(board, NULL) ==
-           WM_BOARD_DRAG_CUE_NONE);
+    assert(wm_board_scene_take_drag_cue(board, NULL) == WM_BOARD_DRAG_CUE_NONE);
     size_t changed = SIZE_MAX;
-    assert(wm_board_scene_take_action(board, &changed) ==
-           WM_BOARD_ACTION_MEMO_MOVED);
+    assert(wm_board_scene_take_action(board, &changed) == WM_BOARD_ACTION_MEMO_MOVED);
     assert(changed == 0);
     WmBoardMemo moved;
     assert(wm_board_scene_get_memo(board, 0, &moved));
@@ -1985,10 +1849,9 @@ static void test_memo_drag(int argc, char **argv) {
     assert(wm_board_scene_get_memo(board, 0, &moved));
     assert(fabsf(moved.x - 230.0f) < 0.001f);
     assert(fabsf(moved.y - 180.0f) < 0.001f);
-    assert(wm_board_scene_take_action(board, NULL) ==
-           WM_BOARD_ACTION_MEMO_MOVED);
-    while (wm_board_scene_take_drag_cue(board, NULL) !=
-           WM_BOARD_DRAG_CUE_NONE) {}
+    assert(wm_board_scene_take_action(board, NULL) == WM_BOARD_ACTION_MEMO_MOVED);
+    while (wm_board_scene_take_drag_cue(board, NULL) != WM_BOARD_DRAG_CUE_NONE) {
+    }
 
     assert(wm_board_scene_pointer_down(board, card, 320, 200));
     assert(wm_board_scene_pointer_move(board, 300, 220));
@@ -1997,10 +1860,9 @@ static void test_memo_drag(int argc, char **argv) {
     assert(wm_board_scene_get_memo(board, 0, &moved));
     assert(fabsf(moved.x - (230.0f - 19.0f)) < 0.001f);
     assert(fabsf(moved.y - 160.0f) < 0.001f);
-    assert(wm_board_scene_take_action(board, NULL) ==
-           WM_BOARD_ACTION_MEMO_MOVED);
-    while (wm_board_scene_take_drag_cue(board, NULL) !=
-           WM_BOARD_DRAG_CUE_NONE) {}
+    assert(wm_board_scene_take_action(board, NULL) == WM_BOARD_ACTION_MEMO_MOVED);
+    while (wm_board_scene_take_drag_cue(board, NULL) != WM_BOARD_DRAG_CUE_NONE) {
+    }
 
     assert(wm_board_scene_pointer_down(board, card, 320, 200));
     assert(wm_board_scene_pointer_move(board, 100, 300));
@@ -2011,22 +1873,26 @@ static void test_memo_drag(int argc, char **argv) {
     assert(fabsf(moved.x - 211.0f) < 0.001f);
     assert(fabsf(moved.y - 160.0f) < 0.001f);
     assert(wm_board_scene_take_action(board, NULL) == WM_BOARD_ACTION_NONE);
-    assert(wm_board_scene_take_drag_cue(board, NULL) ==
-           WM_BOARD_DRAG_CUE_HOLD);
-    assert(wm_board_scene_take_drag_cue(board, NULL) ==
-           WM_BOARD_DRAG_CUE_RELEASE);
+    assert(wm_board_scene_take_drag_cue(board, NULL) == WM_BOARD_DRAG_CUE_HOLD);
+    assert(wm_board_scene_take_drag_cue(board, NULL) == WM_BOARD_DRAG_CUE_RELEASE);
     wm_board_scene_destroy(board);
 }
 
 static void test_memo_card_order(int argc, char **argv) {
     WmBoardScene *board = load_board(argc, argv);
     assert(board);
-    WmBoardMemo memos[2] = {
-        {.id = "lower", .text = "Lower", .date = {2026, 9, 25},
-         .has_position = true, .x = 0.0f, .y = 53.0f},
-        {.id = "upper", .text = "Upper", .date = {2026, 9, 25},
-         .has_position = true, .x = 0.0f, .y = 53.0f}
-    };
+    WmBoardMemo memos[2] = {{.id = "lower",
+                             .text = "Lower",
+                             .date = {2026, 9, 25},
+                             .has_position = true,
+                             .x = 0.0f,
+                             .y = 53.0f},
+                            {.id = "upper",
+                             .text = "Upper",
+                             .date = {2026, 9, 25},
+                             .has_position = true,
+                             .x = 0.0f,
+                             .y = 53.0f}};
     assert(wm_board_scene_set_memos(board, memos, 2));
     assert(wm_board_scene_open(board, memos[0].date));
     wm_board_scene_advance(board, 40.0f);
@@ -2042,40 +1908,34 @@ static void test_memo_card_order(int argc, char **argv) {
 static void test_memo_reader_scroll_and_reset(int argc, char **argv) {
     WmBoardScene *board = load_board(argc, argv);
     assert(board);
-    WmBoardMemo memo = {
-        .id = "reader-test",
-        .text = "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL",
-        .date = {2026, 9, 25},
-        .has_position = true,
-        .y = 53.0f
-    };
+    WmBoardMemo memo = {.id = "reader-test",
+                        .text = "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL",
+                        .date = {2026, 9, 25},
+                        .has_position = true,
+                        .y = 53.0f};
     assert(wm_board_scene_set_memos(board, &memo, 1));
     assert(wm_board_scene_open(board, memo.date));
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
+    assert(wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
     wm_board_scene_advance(board, 26.0f);
     assert(wm_board_scene_phase(board) == WM_BOARD_MEMO_READ);
-    assert(fabsf(wm_board_scene_reader_scroll_limit(board) - 416.0f) <
-           0.01f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO_SCROLL_DOWN, SIZE_MAX}));
+    assert(fabsf(wm_board_scene_reader_scroll_limit(board) - 416.0f) < 0.01f);
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_MEMO_SCROLL_DOWN, SIZE_MAX}));
     wm_board_scene_advance(board, 1.0f);
     assert(fabsf(wm_board_scene_reader_scroll_offset(board)) < 0.001f);
     wm_board_scene_advance(board, 10.0f);
-    assert(fabsf(wm_board_scene_reader_scroll_offset(board) - 150.0f) <
-           0.001f);
+    assert(fabsf(wm_board_scene_reader_scroll_offset(board) - 150.0f) < 0.001f);
     assert(wm_board_scene_reader_scroll_sound_active(board));
-    assert(!wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO_SCROLL_UP, SIZE_MAX}));
+    assert(!wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_MEMO_SCROLL_UP, SIZE_MAX}));
     wm_board_scene_advance(board, 10.0f);
-    assert(fabsf(wm_board_scene_reader_scroll_offset(board) - 300.0f) <
-           0.001f);
+    assert(fabsf(wm_board_scene_reader_scroll_offset(board) - 300.0f) < 0.001f);
     wm_board_scene_advance(board, 1.0f);
     assert(!wm_board_scene_reader_scroll_sound_active(board));
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO_SCROLL_UP, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_MEMO_SCROLL_UP, SIZE_MAX}));
     wm_board_scene_advance(board, 21.0f);
     assert(fabsf(wm_board_scene_reader_scroll_offset(board)) < 0.001f);
 
@@ -2089,7 +1949,7 @@ static void test_memo_reader_scroll_and_reset(int argc, char **argv) {
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_CALENDAR, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_CALENDAR, SIZE_MAX}));
     assert(wm_board_scene_child(board) == WM_BOARD_CHILD_CALENDAR);
     wm_board_scene_reset(board);
     assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
@@ -2097,18 +1957,17 @@ static void test_memo_reader_scroll_and_reset(int argc, char **argv) {
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
     assert(wm_board_scene_child(board) == WM_BOARD_CHILD_COMPOSE);
     wm_board_scene_reset(board);
     assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
     assert(wm_board_scene_open(board, memo.date));
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
+    assert(wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
     wm_board_scene_advance(board, 26.0f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO_TRASH, 0}));
+    assert(
+        wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO_TRASH, 0}));
     wm_board_scene_advance(board, 33.0f);
     assert(wm_board_scene_child(board) == WM_BOARD_CHILD_ERASE);
     wm_board_scene_reset(board);
@@ -2120,24 +1979,21 @@ static void test_memo_reader_scroll_and_reset(int argc, char **argv) {
 static void test_reader_arrow_exit_timing(int argc, char **argv) {
     WmBoardScene *board = load_board(argc, argv);
     assert(board);
-    WmBoardMemo memo = {
-        .id = "arrow-exit-test",
-        .text = "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL",
-        .date = {2026, 9, 25},
-        .has_position = true,
-        .y = 53.0f
-    };
+    WmBoardMemo memo = {.id = "arrow-exit-test",
+                        .text = "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL",
+                        .date = {2026, 9, 25},
+                        .has_position = true,
+                        .y = 53.0f};
     assert(wm_board_scene_set_memos(board, &memo, 1));
     assert(wm_board_scene_open(board, memo.date));
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
+    assert(wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
     wm_board_scene_advance(board, 26.0f);
     assert(wm_board_scene_reader_arrow_target_visible(
         board, WM_BOARD_CONTROL_MEMO_SCROLL_DOWN));
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO_SCROLL_DOWN, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_MEMO_SCROLL_DOWN, SIZE_MAX}));
     wm_board_scene_advance(board, 11.0f);
     assert(wm_board_scene_reader_scroll_sound_active(board));
 
@@ -2159,8 +2015,7 @@ static void test_reader_arrow_exit_timing(int argc, char **argv) {
     wm_board_scene_destroy(board);
 }
 
-static bool find_board_control_point(WmBoardScene *board,
-                                     WmBoardControl control,
+static bool find_board_control_point(WmBoardScene *board, WmBoardControl control,
                                      int *x, int *y) {
     for (int row = 0; row < 480; row += 8) {
         for (int column = 0; column < 832; column += 8) {
@@ -2176,73 +2031,69 @@ static bool find_board_control_point(WmBoardScene *board,
 
 static void test_reader_back_hover_retired(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
-    WmBoardScene *board = wm_board_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmBoardScene *board =
+        wm_board_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(board);
-    const WmBoardMemo memo = {
-        .id = "reader-back-hover",
-        .text = "Posted memo",
-        .date = {2026, 9, 25},
-        .has_position = true,
-        .y = 53.0f
-    };
+    const WmBoardMemo memo = {.id = "reader-back-hover",
+                              .text = "Posted memo",
+                              .date = {2026, 9, 25},
+                              .has_position = true,
+                              .y = 53.0f};
     assert(wm_board_scene_set_memos(board, &memo, 1));
     assert(wm_board_scene_open(board, memo.date));
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
     int board_back_x = 0;
     int board_back_y = 0;
-    assert(find_board_control_point(board, WM_BOARD_CONTROL_BACK,
-                                    &board_back_x, &board_back_y));
+    assert(find_board_control_point(board, WM_BOARD_CONTROL_BACK, &board_back_x,
+                                    &board_back_y));
     (void)wm_board_scene_hit(board, 0, 0);
     float board_back_neutral = 0.0f;
-    assert(wm_board_scene_footer_button_visual_scale(
-        board, WM_BOARD_CONTROL_BACK, &board_back_neutral));
-    wm_board_scene_hover(board, wm_board_scene_hit(
-        board, board_back_x, board_back_y));
+    assert(wm_board_scene_footer_button_visual_scale(board, WM_BOARD_CONTROL_BACK,
+                                                     &board_back_neutral));
+    wm_board_scene_hover(board, wm_board_scene_hit(board, board_back_x, board_back_y));
     wm_board_scene_advance(board, 6.0f);
     (void)wm_board_scene_hit(board, 0, 0);
     float board_back_focused = 0.0f;
-    assert(wm_board_scene_footer_button_visual_scale(
-        board, WM_BOARD_CONTROL_BACK, &board_back_focused));
+    assert(wm_board_scene_footer_button_visual_scale(board, WM_BOARD_CONTROL_BACK,
+                                                     &board_back_focused));
     assert(board_back_focused > board_back_neutral + 0.05f);
     int memo_x = 0;
     int memo_y = 0;
-    assert(find_board_control_point(board, WM_BOARD_CONTROL_MEMO,
-                                    &memo_x, &memo_y));
+    assert(find_board_control_point(board, WM_BOARD_CONTROL_MEMO, &memo_x, &memo_y));
     WmBoardHit memo_hit = wm_board_scene_hit(board, memo_x, memo_y);
     /* Pointer down/up re-hit the click coordinate without synthesizing a
      * move event. The previous Board Back focus must not cross scenes. */
     assert(wm_board_scene_activate(board, memo_hit));
     wm_board_scene_draw_footer(board);
     float board_back_during_open = 0.0f;
-    assert(wm_board_scene_footer_button_visual_scale(
-        board, WM_BOARD_CONTROL_BACK, &board_back_during_open));
+    assert(wm_board_scene_footer_button_visual_scale(board, WM_BOARD_CONTROL_BACK,
+                                                     &board_back_during_open));
     assert(fabsf(board_back_during_open - board_back_neutral) < 0.001f);
     wm_board_scene_advance(board, 26.0f);
     int reader_back_x = 0;
     int reader_back_y = 0;
-    assert(find_board_control_point(board, WM_BOARD_CONTROL_MEMO_BACK,
-                                    &reader_back_x, &reader_back_y));
+    assert(find_board_control_point(board, WM_BOARD_CONTROL_MEMO_BACK, &reader_back_x,
+                                    &reader_back_y));
     (void)wm_board_scene_hit(board, 0, 0);
     float reader_back_neutral = 0.0f;
-    assert(wm_board_scene_footer_button_visual_scale(
-        board, WM_BOARD_CONTROL_MEMO_BACK, &reader_back_neutral));
-    wm_board_scene_hover(board, wm_board_scene_hit(
-        board, reader_back_x, reader_back_y));
+    assert(wm_board_scene_footer_button_visual_scale(board, WM_BOARD_CONTROL_MEMO_BACK,
+                                                     &reader_back_neutral));
+    wm_board_scene_hover(board,
+                         wm_board_scene_hit(board, reader_back_x, reader_back_y));
     wm_board_scene_advance(board, 6.0f);
     (void)wm_board_scene_hit(board, 0, 0);
     float reader_back_focused = 0.0f;
-    assert(wm_board_scene_footer_button_visual_scale(
-        board, WM_BOARD_CONTROL_MEMO_BACK, &reader_back_focused));
+    assert(wm_board_scene_footer_button_visual_scale(board, WM_BOARD_CONTROL_MEMO_BACK,
+                                                     &reader_back_focused));
     assert(reader_back_focused > reader_back_neutral + 0.05f);
-    assert(wm_board_scene_activate(board, wm_board_scene_hit(
-        board, reader_back_x, reader_back_y)));
+    assert(wm_board_scene_activate(
+        board, wm_board_scene_hit(board, reader_back_x, reader_back_y)));
     assert(wm_board_scene_phase(board) == WM_BOARD_MEMO_BACK_SELECT);
     assert(wm_board_scene_hit(board, reader_back_x, reader_back_y).control ==
            WM_BOARD_CONTROL_NONE);
@@ -2250,14 +2101,14 @@ static void test_reader_back_hover_retired(int argc, char **argv) {
     assert(wm_board_scene_phase(board) == WM_BOARD_MEMO_CLOSE);
     wm_board_scene_draw_footer(board);
     float board_back_early_close = 0.0f;
-    assert(wm_board_scene_footer_button_visual_scale(
-        board, WM_BOARD_CONTROL_BACK, &board_back_early_close));
+    assert(wm_board_scene_footer_button_visual_scale(board, WM_BOARD_CONTROL_BACK,
+                                                     &board_back_early_close));
     assert(fabsf(board_back_early_close - board_back_neutral) < 0.001f);
     wm_board_scene_advance(board, 13.0f);
     wm_board_scene_draw_footer(board);
     float board_back_mid_close = 0.0f;
-    assert(wm_board_scene_footer_button_visual_scale(
-        board, WM_BOARD_CONTROL_BACK, &board_back_mid_close));
+    assert(wm_board_scene_footer_button_visual_scale(board, WM_BOARD_CONTROL_BACK,
+                                                     &board_back_mid_close));
     assert(fabsf(board_back_mid_close - board_back_neutral) < 0.001f);
     wm_board_scene_advance(board, 13.0f);
     assert(wm_board_scene_phase(board) == WM_BOARD_READY);
@@ -2265,24 +2116,23 @@ static void test_reader_back_hover_retired(int argc, char **argv) {
            WM_BOARD_CONTROL_BACK);
     (void)wm_board_scene_hit(board, 0, 0);
     float board_back_returned = 0.0f;
-    assert(wm_board_scene_footer_button_visual_scale(
-        board, WM_BOARD_CONTROL_BACK, &board_back_returned));
+    assert(wm_board_scene_footer_button_visual_scale(board, WM_BOARD_CONTROL_BACK,
+                                                     &board_back_returned));
     assert(fabsf(board_back_returned - board_back_neutral) < 0.001f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
+    assert(wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
     wm_board_scene_advance(board, 26.0f);
     (void)wm_board_scene_hit(board, 0, 0);
     float reader_back_returned = 0.0f;
-    assert(wm_board_scene_footer_button_visual_scale(
-        board, WM_BOARD_CONTROL_MEMO_BACK, &reader_back_returned));
+    assert(wm_board_scene_footer_button_visual_scale(board, WM_BOARD_CONTROL_MEMO_BACK,
+                                                     &reader_back_returned));
     assert(fabsf(reader_back_returned - reader_back_neutral) < 0.001f);
     wm_board_scene_destroy(board);
     wm_font_cache_destroy(fonts);
     wm_texture_cache_destroy(textures);
 }
 
-static bool reader_arrow_center(WmBoardScene *board,
-                                WmBoardControl control, int *x, int *y) {
+static bool reader_arrow_center(WmBoardScene *board, WmBoardControl control, int *x,
+                                int *y) {
     int left = 640;
     int top = 480;
     int right = -1;
@@ -2291,13 +2141,18 @@ static bool reader_arrow_center(WmBoardScene *board,
         for (int column = 0; column < 640; column += 12) {
             if (wm_board_scene_hit(board, column, row).control != control)
                 continue;
-            if (column < left) left = column;
-            if (column > right) right = column;
-            if (row < top) top = row;
-            if (row > bottom) bottom = row;
+            if (column < left)
+                left = column;
+            if (column > right)
+                right = column;
+            if (row < top)
+                top = row;
+            if (row > bottom)
+                bottom = row;
         }
     }
-    if (right < left || bottom < top) return false;
+    if (right < left || bottom < top)
+        return false;
     *x = (left + right) / 2;
     *y = (top + bottom) / 2;
     return wm_board_scene_hit(board, *x, *y).control == control;
@@ -2306,19 +2161,16 @@ static bool reader_arrow_center(WmBoardScene *board,
 static void test_reader_arrow_hover_stability(int argc, char **argv) {
     WmBoardScene *board = load_board(argc, argv);
     assert(board);
-    const WmBoardMemo memo = {
-        .id = "reader-hover-test",
-        .text = "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL",
-        .date = {2026, 9, 25},
-        .has_position = true,
-        .y = 53.0f
-    };
+    const WmBoardMemo memo = {.id = "reader-hover-test",
+                              .text = "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL",
+                              .date = {2026, 9, 25},
+                              .has_position = true,
+                              .y = 53.0f};
     assert(wm_board_scene_set_memos(board, &memo, 1));
     assert(wm_board_scene_open(board, memo.date));
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
+    assert(wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO, 0}));
     wm_board_scene_advance(board, 26.0f);
     assert(wm_board_scene_phase(board) == WM_BOARD_MEMO_READ);
     /* The down arrow begins its authored appearance when reading unlocks. */
@@ -2326,8 +2178,7 @@ static void test_reader_arrow_hover_stability(int argc, char **argv) {
 
     int x = 0;
     int y = 0;
-    assert(reader_arrow_center(board, WM_BOARD_CONTROL_MEMO_SCROLL_DOWN,
-                               &x, &y));
+    assert(reader_arrow_center(board, WM_BOARD_CONTROL_MEMO_SCROLL_DOWN, &x, &y));
     for (unsigned frame = 0; frame < 16; frame++) {
         WmBoardHit hit = wm_board_scene_hit(board, x, y);
         assert(hit.control == WM_BOARD_CONTROL_MEMO_SCROLL_DOWN);
@@ -2337,21 +2188,19 @@ static void test_reader_arrow_hover_stability(int argc, char **argv) {
     assert(wm_board_scene_hit(board, x, y).control ==
            WM_BOARD_CONTROL_MEMO_SCROLL_DOWN);
 
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO_SCROLL_DOWN, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_MEMO_SCROLL_DOWN, SIZE_MAX}));
     wm_board_scene_advance(board, 21.0f);
     /* Scrolling exposes the up arrow, which also needs its appearance clip. */
     wm_board_scene_advance(board, 10.0f);
-    assert(reader_arrow_center(board, WM_BOARD_CONTROL_MEMO_SCROLL_UP,
-                               &x, &y));
+    assert(reader_arrow_center(board, WM_BOARD_CONTROL_MEMO_SCROLL_UP, &x, &y));
     for (unsigned frame = 0; frame < 16; frame++) {
         WmBoardHit hit = wm_board_scene_hit(board, x, y);
         assert(hit.control == WM_BOARD_CONTROL_MEMO_SCROLL_UP);
         wm_board_scene_hover(board, hit);
         wm_board_scene_advance(board, 1.0f);
     }
-    assert(wm_board_scene_hit(board, x, y).control ==
-           WM_BOARD_CONTROL_MEMO_SCROLL_UP);
+    assert(wm_board_scene_hit(board, x, y).control == WM_BOARD_CONTROL_MEMO_SCROLL_UP);
     wm_board_scene_destroy(board);
 }
 
@@ -2363,9 +2212,7 @@ static void test_page_arrow_focus_during_turns(int argc, char **argv) {
     const WmBoardDate today = {2026, 9, 26};
     for (size_t index = 0; index < 11; index++) {
         snprintf(ids[index], sizeof(ids[index]), "arrow-memo-%zu", index);
-        memos[index] = (WmBoardMemo){
-            .id = ids[index], .text = "Memo", .date = today
-        };
+        memos[index] = (WmBoardMemo){.id = ids[index], .text = "Memo", .date = today};
     }
     assert(wm_board_scene_set_memos(board, memos, 11));
     assert(wm_board_scene_open(board, today));
@@ -2381,8 +2228,7 @@ static void test_page_arrow_focus_during_turns(int argc, char **argv) {
         assert(held.control == WM_BOARD_CONTROL_PREVIOUS);
         wm_board_scene_hover(board, held);
         assert(!wm_board_scene_activate(board, held));
-        assert(wm_board_scene_hit(board, 582, 380).control ==
-               WM_BOARD_CONTROL_NONE);
+        assert(wm_board_scene_hit(board, 582, 380).control == WM_BOARD_CONTROL_NONE);
         wm_board_scene_advance(board, 1.0f);
     }
     assert(wm_board_scene_phase(board) == WM_BOARD_READY);
@@ -2416,17 +2262,15 @@ static void test_return_to_today(int argc, char **argv) {
     const struct {
         WmBoardControl arrow;
         WmBoardDate selected;
-    } cases[] = {
-        {WM_BOARD_CONTROL_NEXT, {2026, 9, 3}},
-        {WM_BOARD_CONTROL_PREVIOUS, {2026, 8, 30}}
-    };
+    } cases[] = {{WM_BOARD_CONTROL_NEXT, {2026, 9, 3}},
+                 {WM_BOARD_CONTROL_PREVIOUS, {2026, 8, 30}}};
     for (size_t index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
         assert(wm_board_scene_open(board, today));
         wm_board_scene_advance(board, 40.0f);
         settle_initial_memos(board);
         for (int day = 0; day < 2; day++) {
             assert(wm_board_scene_activate(board,
-                (WmBoardHit){cases[index].arrow, SIZE_MAX}));
+                                           (WmBoardHit){cases[index].arrow, SIZE_MAX}));
             wm_board_scene_advance(board, 20.0f);
         }
         WmBoardDate date = wm_board_scene_date(board);
@@ -2447,16 +2291,17 @@ static void test_return_to_today(int argc, char **argv) {
         date = wm_board_scene_date(board);
         assert(date.year == today.year && date.month == today.month &&
                date.day == today.day);
-        assert(wm_board_scene_take_action(board, NULL) ==
-               WM_BOARD_ACTION_EXITED);
+        assert(wm_board_scene_take_action(board, NULL) == WM_BOARD_ACTION_EXITED);
     }
     wm_board_scene_destroy(board);
 }
 
-static const WmBoardMemoPresentation *find_presented_memo(
-    const WmBoardMemoPresentation *cards, size_t count, size_t memo_index) {
+static const WmBoardMemoPresentation *
+find_presented_memo(const WmBoardMemoPresentation *cards, size_t count,
+                    size_t memo_index) {
     for (size_t index = 0; index < count; index++) {
-        if (cards[index].memo_index == memo_index) return &cards[index];
+        if (cards[index].memo_index == memo_index)
+            return &cards[index];
     }
     return NULL;
 }
@@ -2471,46 +2316,39 @@ static void test_parked_memos(int argc, char **argv) {
     char ids[12][12];
     for (size_t index = 0; index < 12; index++) {
         snprintf(ids[index], sizeof(ids[index]), "parked-%zu", index);
-        memos[index] = (WmBoardMemo){
-            .id = ids[index],
-            .text = "Memo",
-            .date = index == 0 ? yesterday : today,
-            .has_position = true,
-            .x = index % 2 ? -220.0f : 220.0f,
-            .y = index % 2 ? -65.0f : 175.0f
-        };
+        memos[index] = (WmBoardMemo){.id = ids[index],
+                                     .text = "Memo",
+                                     .date = index == 0 ? yesterday : today,
+                                     .has_position = true,
+                                     .x = index % 2 ? -220.0f : 220.0f,
+                                     .y = index % 2 ? -65.0f : 175.0f};
     }
     assert(wm_board_scene_set_memos(board, memos, 12));
     WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
-    size_t count = wm_board_scene_parked_memo_presentation(board, today,
-                                                             cards);
+    size_t count = wm_board_scene_parked_memo_presentation(board, today, cards);
     assert(count == 10);
     for (size_t index = 0; index < count; index++) {
         assert(cards[index].memo_index == index + 1);
         assert(cards[index].paste_frame == 10.0f);
         assert(cards[index].next_page_frame == -1.0f);
         assert(!cards[index].entering);
-        assert(fabsf(cards[index].x -
-                     memos[index + 1].x * 832.0f / 608.0f) < 0.01f);
+        assert(fabsf(cards[index].x - memos[index + 1].x * 832.0f / 608.0f) < 0.01f);
         assert(cards[index].y == memos[index + 1].y);
     }
-    assert(wm_board_scene_parked_memo_presentation(board, yesterday,
-                                                    cards) == 1);
+    assert(wm_board_scene_parked_memo_presentation(board, yesterday, cards) == 1);
     assert(cards[0].memo_index == 0);
     assert(wm_board_scene_open(board, today));
-    assert(wm_board_scene_parked_memo_presentation(board, today,
-                                                    cards) == 0);
+    assert(wm_board_scene_parked_memo_presentation(board, today, cards) == 0);
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
     wm_board_scene_advance(board, 20.0f);
     assert(wm_board_scene_back(board));
     wm_board_scene_advance(board, 40.0f);
     assert(wm_board_scene_phase(board) == WM_BOARD_CLOSED);
     count = wm_board_scene_parked_memo_presentation(board, today, cards);
-    assert(count == 10 && cards[0].memo_index == 1 &&
-           cards[9].memo_index == 10);
+    assert(count == 10 && cards[0].memo_index == 1 && cards[9].memo_index == 10);
     wm_board_scene_reset(board);
     count = wm_board_scene_parked_memo_presentation(board, today, cards);
     assert(count == 10 && cards[0].memo_index == 1);
@@ -2529,12 +2367,11 @@ static void test_memo_creation_order(int argc, char **argv) {
             .id = ids[index],
             .text = "Timestamped Memo",
             .date = date,
-            .created_at_ms = index < 2 ? 0 :
-                INT64_C(1790294400000) + (int64_t)index * 1000,
+            .created_at_ms =
+                index < 2 ? 0 : INT64_C(1790294400000) + (int64_t)index * 1000,
             .has_position = true,
             .x = (float)index,
-            .y = 53.0f
-        };
+            .y = 53.0f};
     }
     memos[3].created_at_ms = memos[2].created_at_ms;
     assert(wm_board_scene_set_memos(board, memos, 12));
@@ -2543,8 +2380,7 @@ static void test_memo_creation_order(int argc, char **argv) {
     assert(strcmp(actual.id, "ordered-0") == 0);
 
     WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
-    size_t count = wm_board_scene_parked_memo_presentation(board, date,
-                                                             cards);
+    size_t count = wm_board_scene_parked_memo_presentation(board, date, cards);
     assert(count == 10);
     for (size_t position = 0; position < 8; position++) {
         assert(cards[position].memo_index == 11 - position);
@@ -2561,20 +2397,17 @@ static void test_memo_creation_order(int argc, char **argv) {
         assert(cards[position].memo_index == expected);
     }
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
     count = wm_board_scene_memo_presentation(board, cards);
     assert(count == 10);
     wm_board_scene_advance(board, 15.0f);
     count = wm_board_scene_memo_presentation(board, cards);
-    assert(count == 1 && cards[0].memo_index == 0 &&
-           cards[0].paste_frame == 0.0f);
+    assert(count == 1 && cards[0].memo_index == 0 && cards[0].paste_frame == 0.0f);
     wm_board_scene_advance(board, 5.0f);
     count = wm_board_scene_memo_presentation(board, cards);
-    assert(count == 2 && cards[0].memo_index == 0 &&
-           cards[1].memo_index == 1);
+    assert(count == 2 && cards[0].memo_index == 0 && cards[1].memo_index == 1);
     assert(cards[0].paste_frame == 5.0f && cards[1].paste_frame == 0.0f);
-    assert(cards[0].next_page_frame == -1.0f &&
-           cards[1].next_page_frame == -1.0f);
+    assert(cards[0].next_page_frame == -1.0f && cards[1].next_page_frame == -1.0f);
     wm_board_scene_destroy(board);
 }
 
@@ -2586,31 +2419,30 @@ static bool board_dates_equal(WmBoardDate left, WmBoardDate right) {
 static void select_board_calendar_date(WmBoardScene *board, WmBoardDate target) {
     WmBoardDate current = wm_board_scene_date(board);
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_CALENDAR, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_CALENDAR, SIZE_MAX}));
     wm_board_scene_advance(board, 50.0f);
-    int month_delta = (target.year - current.year) * 12 +
-                      target.month - current.month;
+    int month_delta = (target.year - current.year) * 12 + target.month - current.month;
     while (month_delta != 0) {
         bool previous = month_delta < 0;
-        assert(wm_board_scene_activate(board, (WmBoardHit){
-            previous ? WM_BOARD_CONTROL_CALENDAR_PREVIOUS :
-                       WM_BOARD_CONTROL_CALENDAR_NEXT, SIZE_MAX
-        }));
+        assert(wm_board_scene_activate(
+            board, (WmBoardHit){previous ? WM_BOARD_CONTROL_CALENDAR_PREVIOUS
+                                         : WM_BOARD_CONTROL_CALENDAR_NEXT,
+                                SIZE_MAX}));
         wm_board_scene_advance(board, 30.0f);
         month_delta += previous ? 1 : -1;
     }
-    struct tm first = {
-        .tm_year = target.year - 1900, .tm_mon = target.month - 1,
-        .tm_mday = 1, .tm_hour = 12, .tm_isdst = -1
-    };
+    struct tm first = {.tm_year = target.year - 1900,
+                       .tm_mon = target.month - 1,
+                       .tm_mday = 1,
+                       .tm_hour = 12,
+                       .tm_isdst = -1};
     assert(mktime(&first) != (time_t)-1);
     size_t cell = (size_t)first.tm_wday + (size_t)target.day - 1;
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_CALENDAR_DAY, cell}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_CALENDAR_DAY, cell}));
     WmBoardSoundEvent event;
     assert(wm_board_scene_take_sound_event(board, &event) &&
-           strcmp(event.cue, "dateSelect") == 0 &&
-           event.memo_index == SIZE_MAX);
+           strcmp(event.cue, "dateSelect") == 0 && event.memo_index == SIZE_MAX);
     assert(!wm_board_scene_take_sound_event(board, &event));
 }
 
@@ -2620,19 +2452,26 @@ static void test_calendar_date_transition(int argc, char **argv) {
     for (size_t index = 0; index < sizeof(targets) / sizeof(targets[0]); index++) {
         for (unsigned batched = 0; batched < 2; batched++) {
             WmBoardScene *board = load_board(argc, argv);
-            WmBoardMemo memos[2] = {
-                {.id = "current", .text = "Current", .date = current,
-                 .has_position = true, .x = -210.0f, .y = -60.0f},
-                {.id = "target", .text = "Target", .date = targets[index],
-                 .has_position = true, .x = 210.0f, .y = 170.0f}
-            };
+            WmBoardMemo memos[2] = {{.id = "current",
+                                     .text = "Current",
+                                     .date = current,
+                                     .has_position = true,
+                                     .x = -210.0f,
+                                     .y = -60.0f},
+                                    {.id = "target",
+                                     .text = "Target",
+                                     .date = targets[index],
+                                     .has_position = true,
+                                     .x = 210.0f,
+                                     .y = 170.0f}};
             bool equal = board_dates_equal(current, targets[index]);
             assert(board && wm_board_scene_set_memos(board, memos, equal ? 1 : 2));
             assert(wm_board_scene_open(board, current));
             wm_board_scene_advance(board, 40.0f);
             settle_initial_memos(board);
             select_board_calendar_date(board, targets[index]);
-            if (batched) wm_board_scene_advance(board, 85.0f);
+            if (batched)
+                wm_board_scene_advance(board, 85.0f);
             else {
                 wm_board_scene_advance(board, 30.0f);
                 wm_board_scene_advance(board, 50.0f);
@@ -2651,15 +2490,15 @@ static void test_calendar_date_transition(int argc, char **argv) {
                 assert(!wm_board_scene_take_sound_event(board, &event));
                 WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
                 size_t count = wm_board_scene_memo_presentation(board, cards);
-                const WmBoardMemoPresentation *incoming = find_presented_memo(
-                    cards, count, 1);
+                const WmBoardMemoPresentation *incoming =
+                    find_presented_memo(cards, count, 1);
                 assert(count == 2 && incoming && incoming->entering);
                 assert(incoming->paste_frame == (batched ? 5.0f : 0.0f) &&
                        incoming->pin_frame == (batched ? 5.0f : 0.0f));
                 if (!batched) {
                     float offset = index == 0 ? 832.0f : -832.0f;
                     assert(fabsf(incoming->x -
-                        (memos[1].x * 832.0f / 608.0f + offset)) < 0.01f);
+                                 (memos[1].x * 832.0f / 608.0f + offset)) < 0.01f);
                 }
                 wm_board_scene_advance(board, batched ? 15.0f : 20.0f);
             }
@@ -2683,11 +2522,13 @@ static void test_return_arrival_transition(int argc, char **argv) {
         char ids[11][16];
         for (size_t index = 0; index < 11; index++) {
             snprintf(ids[index], sizeof(ids[index]), "return-%zu", index);
-            memos[index] = (WmBoardMemo){
-                .id = ids[index], .text = "Memo",
-                .date = index < 10 ? today : selected[case_index],
-                .has_position = true, .x = (float)index * 10.0f, .y = 53.0f
-            };
+            memos[index] =
+                (WmBoardMemo){.id = ids[index],
+                              .text = "Memo",
+                              .date = index < 10 ? today : selected[case_index],
+                              .has_position = true,
+                              .x = (float)index * 10.0f,
+                              .y = 53.0f};
         }
         assert(board && wm_board_scene_set_memos(board, memos, 11));
         assert(wm_board_scene_open(board, today));
@@ -2696,24 +2537,25 @@ static void test_return_arrival_transition(int argc, char **argv) {
         select_board_calendar_date(board, selected[case_index]);
         wm_board_scene_advance(board, 100.0f);
         WmBoardSoundEvent event;
-        while (wm_board_scene_take_sound_event(board, &event)) {}
+        while (wm_board_scene_take_sound_event(board, &event)) {
+        }
         assert(wm_board_scene_back(board));
         assert(!wm_board_scene_take_sound_event(board, &event));
         for (unsigned frame = 0; frame <= 110; frame++) {
             WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
             bool parked = frame >= 40;
-            size_t count = parked
-                ? wm_board_scene_parked_memo_presentation(board, today, cards)
-                : wm_board_scene_memo_presentation(board, cards);
+            size_t count =
+                parked ? wm_board_scene_parked_memo_presentation(board, today, cards)
+                       : wm_board_scene_memo_presentation(board, cards);
             assert(count == (parked ? 10 : 11));
             for (size_t index = 0; index < 10; index++) {
-                const WmBoardMemoPresentation *incoming = find_presented_memo(
-                    cards, count, index);
+                const WmBoardMemoPresentation *incoming =
+                    find_presented_memo(cards, count, index);
                 assert(incoming && incoming->paste_frame == 10.0f &&
                        incoming->next_page_frame == -1.0f);
                 if (frame >= 20) {
-                    assert(fabsf(incoming->x -
-                                 memos[index].x * 832.0f / 608.0f) < 0.01f);
+                    assert(fabsf(incoming->x - memos[index].x * 832.0f / 608.0f) <
+                           0.01f);
                 }
             }
             assert(!wm_board_scene_take_sound_event(board, &event));
@@ -2724,8 +2566,10 @@ static void test_return_arrival_transition(int argc, char **argv) {
                        WM_BOARD_ACTION_EXITED);
             }
             if (frame < 110) {
-                if (parked) wm_board_scene_advance_parked(board, 1.0f);
-                else wm_board_scene_advance(board, 1.0f);
+                if (parked)
+                    wm_board_scene_advance_parked(board, 1.0f);
+                else
+                    wm_board_scene_advance(board, 1.0f);
             }
         }
         assert(wm_board_scene_open(board, today));
@@ -2745,8 +2589,7 @@ static void test_parked_arrival_batch_clock(int argc, char **argv) {
     for (size_t index = 0; index < 11; index++) {
         snprintf(ids[index], sizeof(ids[index]), "park-batch-%zu", index);
         memos[index] = (WmBoardMemo){
-            .id = ids[index], .text = "Memo", .date = index < 10 ? today : other
-        };
+            .id = ids[index], .text = "Memo", .date = index < 10 ? today : other};
     }
     float pin_frames[10] = {0};
     for (unsigned batched = 0; batched < 2; batched++) {
@@ -2758,7 +2601,8 @@ static void test_parked_arrival_batch_clock(int argc, char **argv) {
         select_board_calendar_date(board, other);
         wm_board_scene_advance(board, 100.0f);
         WmBoardSoundEvent event;
-        while (wm_board_scene_take_sound_event(board, &event)) {}
+        while (wm_board_scene_take_sound_event(board, &event)) {
+        }
         assert(wm_board_scene_back(board));
         if (batched) {
             wm_board_scene_advance(board, 40.0f);
@@ -2777,8 +2621,10 @@ static void test_parked_arrival_batch_clock(int argc, char **argv) {
             assert(cards[index].memo_index == index &&
                    cards[index].paste_frame == 10.0f &&
                    cards[index].next_page_frame == -1.0f);
-            if (batched) assert(cards[index].pin_frame == pin_frames[index]);
-            else pin_frames[index] = cards[index].pin_frame;
+            if (batched)
+                assert(cards[index].pin_frame == pin_frames[index]);
+            else
+                pin_frames[index] = cards[index].pin_frame;
         }
         wm_board_scene_destroy(board);
     }
@@ -2790,11 +2636,12 @@ static void test_today_memos_remain_present_on_home_entry(int argc, char **argv)
     char ids[10][16];
     for (size_t index = 0; index < 10; index++) {
         snprintf(ids[index], sizeof(ids[index]), "entry-%zu", index);
-        memos[index] = (WmBoardMemo){
-            .id = ids[index], .text = "Existing Memo", .date = today,
-            .has_position = true, .x = -180.0f + (float)index * 30.0f,
-            .y = 53.0f
-        };
+        memos[index] = (WmBoardMemo){.id = ids[index],
+                                     .text = "Existing Memo",
+                                     .date = today,
+                                     .has_position = true,
+                                     .x = -180.0f + (float)index * 30.0f,
+                                     .y = 53.0f};
     }
     for (unsigned batched = 0; batched < 2; batched++) {
         WmBoardScene *board = load_board(argc, argv);
@@ -2811,8 +2658,8 @@ static void test_today_memos_remain_present_on_home_entry(int argc, char **argv)
                 assert(cards[index].memo_index == index &&
                        cards[index].paste_frame == 10.0f &&
                        cards[index].next_page_frame == -1.0f);
-                assert(fabsf(cards[index].x -
-                             memos[index].x * 832.0f / 608.0f) < 0.01f);
+                assert(fabsf(cards[index].x - memos[index].x * 832.0f / 608.0f) <
+                       0.01f);
                 assert(cards[index].y == memos[index].y);
                 assert(cards[index].pin_frame == (float)frame);
             }
@@ -2833,10 +2680,12 @@ static void test_today_arrivals_stop_on_home_exit(int argc, char **argv) {
     char ids[20][16];
     for (size_t index = 0; index < 20; index++) {
         snprintf(ids[index], sizeof(ids[index]), "exit-%zu", index);
-        memos[index] = (WmBoardMemo){
-            .id = ids[index], .text = "Existing Memo", .date = today,
-            .has_position = true, .x = (float)index * 5.0f, .y = 53.0f
-        };
+        memos[index] = (WmBoardMemo){.id = ids[index],
+                                     .text = "Existing Memo",
+                                     .date = today,
+                                     .has_position = true,
+                                     .x = (float)index * 5.0f,
+                                     .y = 53.0f};
     }
     for (unsigned route = 0; route < 4; route++) {
         WmBoardScene *board = load_board(argc, argv);
@@ -2845,14 +2694,14 @@ static void test_today_arrivals_stop_on_home_exit(int argc, char **argv) {
         wm_board_scene_advance(board, 40.0f);
         WmBoardSoundEvent event;
         if (route == 0) {
-            assert(wm_board_scene_activate(board,
-                (WmBoardHit){WM_BOARD_CONTROL_NEXT, SIZE_MAX}));
+            assert(wm_board_scene_activate(
+                board, (WmBoardHit){WM_BOARD_CONTROL_NEXT, SIZE_MAX}));
             wm_board_scene_advance(board, 20.0f);
             assert(wm_board_scene_take_sound_event(board, &event) &&
                    strcmp(event.cue, "page") == 0);
             assert(!wm_board_scene_take_sound_event(board, &event));
-            assert(wm_board_scene_activate(board,
-                (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+            assert(wm_board_scene_activate(
+                board, (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
             assert(wm_board_scene_take_sound_event(board, &event) &&
                    strcmp(event.cue, "page") == 0);
         } else if (route == 1) {
@@ -2862,8 +2711,8 @@ static void test_today_arrivals_stop_on_home_exit(int argc, char **argv) {
             select_board_calendar_date(board, today);
             wm_board_scene_advance(board, 80.0f);
         } else {
-            assert(wm_board_scene_activate(board,
-                (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+            assert(wm_board_scene_activate(
+                board, (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
             wm_board_scene_advance(board, 15.0f);
             assert(wm_board_scene_take_sound_event(board, &event) &&
                    strcmp(event.cue, "WIPL_SE_MSG_HOUSE") == 0);
@@ -2885,16 +2734,17 @@ static void test_today_arrivals_stop_on_home_exit(int argc, char **argv) {
                        event.memo_index == first_index + frame / 5);
             }
             assert(!wm_board_scene_take_sound_event(board, &event));
-            if (frame < arrival_frames) wm_board_scene_advance(board, 1.0f);
+            if (frame < arrival_frames)
+                wm_board_scene_advance(board, 1.0f);
         }
         assert(wm_board_scene_phase(board) == WM_BOARD_READY);
         assert(wm_board_scene_back(board));
         for (unsigned frame = 0; frame <= 40; frame++) {
             WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
             bool parked = frame == 40;
-            size_t count = parked
-                ? wm_board_scene_parked_memo_presentation(board, today, cards)
-                : wm_board_scene_memo_presentation(board, cards);
+            size_t count =
+                parked ? wm_board_scene_parked_memo_presentation(board, today, cards)
+                       : wm_board_scene_memo_presentation(board, cards);
             assert(count == 10);
             for (size_t position = 0; position < count; position++) {
                 size_t expected = parked ? position : first_index + position;
@@ -2903,7 +2753,8 @@ static void test_today_arrivals_stop_on_home_exit(int argc, char **argv) {
                        cards[position].next_page_frame == -1.0f);
             }
             assert(!wm_board_scene_take_sound_event(board, &event));
-            if (frame < 40) wm_board_scene_advance(board, 1.0f);
+            if (frame < 40)
+                wm_board_scene_advance(board, 1.0f);
         }
         wm_board_scene_advance_parked(board, 60.0f);
         assert(!wm_board_scene_take_sound_event(board, &event));
@@ -2917,8 +2768,7 @@ static void test_initial_ordered_arrivals(int argc, char **argv) {
     const WmBoardMemo memos[] = {
         {.id = "newest", .text = "First", .date = day, .created_at_ms = 3},
         {.id = "oldest", .text = "Last", .date = day, .created_at_ms = 1},
-        {.id = "middle", .text = "Second", .date = day, .created_at_ms = 2}
-    };
+        {.id = "middle", .text = "Second", .date = day, .created_at_ms = 2}};
     const size_t order[] = {0, 2, 1};
     for (unsigned batched = 0; batched < 2; batched++) {
         WmBoardScene *board = load_board(argc, argv);
@@ -2929,13 +2779,15 @@ static void test_initial_ordered_arrivals(int argc, char **argv) {
         wm_board_scene_advance(board, 40.0f);
         WmBoardSoundEvent event;
         assert(!wm_board_scene_take_sound_event(board, &event));
-        assert(wm_board_scene_activate(board,
-            (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+        assert(wm_board_scene_activate(
+            board, (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
         assert(wm_board_scene_take_sound_event(board, &event) &&
                strcmp(event.cue, "page") == 0);
-        if (batched) wm_board_scene_advance(board, 10.0f);
-        else for (unsigned frame = 0; frame < 10; frame++)
-            wm_board_scene_advance(board, 1.0f);
+        if (batched)
+            wm_board_scene_advance(board, 10.0f);
+        else
+            for (unsigned frame = 0; frame < 10; frame++)
+                wm_board_scene_advance(board, 1.0f);
         size_t count = wm_board_scene_memo_presentation(board, cards);
         assert(count == 3);
         for (size_t index = 0; index < count; index++) {
@@ -2960,25 +2812,33 @@ static void test_initial_ordered_arrivals(int argc, char **argv) {
 static void test_memo_date_continuity(int argc, char **argv) {
     WmBoardScene *board = load_board(argc, argv);
     assert(board);
-    WmBoardMemo memos[3] = {
-        {.id = "before", .text = "Before", .date = {2026, 9, 24},
-         .has_position = true, .x = -220.0f, .y = 170.0f},
-        {.id = "today", .text = "Today", .date = {2026, 9, 25},
-         .has_position = true, .x = -210.0f, .y = -60.0f},
-        {.id = "after", .text = "After", .date = {2026, 9, 26},
-         .has_position = true, .x = 220.0f, .y = -60.0f}
-    };
+    WmBoardMemo memos[3] = {{.id = "before",
+                             .text = "Before",
+                             .date = {2026, 9, 24},
+                             .has_position = true,
+                             .x = -220.0f,
+                             .y = 170.0f},
+                            {.id = "today",
+                             .text = "Today",
+                             .date = {2026, 9, 25},
+                             .has_position = true,
+                             .x = -210.0f,
+                             .y = -60.0f},
+                            {.id = "after",
+                             .text = "After",
+                             .date = {2026, 9, 26},
+                             .has_position = true,
+                             .x = 220.0f,
+                             .y = -60.0f}};
     assert(wm_board_scene_set_memos(board, memos, 3));
     for (size_t case_index = 0; case_index < 2; case_index++) {
         size_t destination = case_index == 0 ? 2 : 0;
-        WmBoardControl control = case_index == 0
-                                     ? WM_BOARD_CONTROL_NEXT
-                                     : WM_BOARD_CONTROL_PREVIOUS;
+        WmBoardControl control =
+            case_index == 0 ? WM_BOARD_CONTROL_NEXT : WM_BOARD_CONTROL_PREVIOUS;
         assert(wm_board_scene_open(board, memos[1].date));
         wm_board_scene_advance(board, 40.0f);
         settle_initial_memos(board);
-        assert(wm_board_scene_activate(board,
-            (WmBoardHit){control, SIZE_MAX}));
+        assert(wm_board_scene_activate(board, (WmBoardHit){control, SIZE_MAX}));
         WmBoardSoundEvent event;
         assert(wm_board_scene_take_sound_event(board, &event));
         assert(strcmp(event.cue, "page") == 0 && event.memo_index == SIZE_MAX);
@@ -2990,32 +2850,29 @@ static void test_memo_date_continuity(int argc, char **argv) {
 
         WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
         size_t count = wm_board_scene_memo_presentation(board, cards);
-        const WmBoardMemoPresentation *entering = find_presented_memo(
-            cards, count, destination);
-        const WmBoardMemoPresentation *leaving = find_presented_memo(
-            cards, count, 1);
+        const WmBoardMemoPresentation *entering =
+            find_presented_memo(cards, count, destination);
+        const WmBoardMemoPresentation *leaving = find_presented_memo(cards, count, 1);
         assert(count == 2 && entering && leaving && entering->entering);
         assert(entering->paste_frame == 0.0f && leaving->paste_frame == 10.0f);
         float entering_start = entering->x;
         float leaving_start = leaving->x;
         float date_offset = case_index == 0 ? 832.0f : -832.0f;
         assert(fabsf(entering_start -
-                     (memos[destination].x * 832.0f / 608.0f +
-                      date_offset)) < 0.01f);
+                     (memos[destination].x * 832.0f / 608.0f + date_offset)) < 0.01f);
         wm_board_scene_advance(board, 5.0f);
         count = wm_board_scene_memo_presentation(board, cards);
         entering = find_presented_memo(cards, count, destination);
         leaving = find_presented_memo(cards, count, 1);
         assert(entering && leaving && entering->paste_frame == 5.0f);
-        assert(fabsf((entering->x - entering_start) -
-                     (leaving->x - leaving_start)) < 0.01f);
+        assert(fabsf((entering->x - entering_start) - (leaving->x - leaving_start)) <
+               0.01f);
         wm_board_scene_advance(board, 15.0f);
         assert(wm_board_scene_phase(board) == WM_BOARD_READY);
         count = wm_board_scene_memo_presentation(board, cards);
         assert(count == 1 && cards[0].memo_index == destination &&
                cards[0].paste_frame == 10.0f && !cards[0].entering);
-        assert(fabsf(cards[0].x -
-                     memos[destination].x * 832.0f / 608.0f) < 0.01f);
+        assert(fabsf(cards[0].x - memos[destination].x * 832.0f / 608.0f) < 0.01f);
         assert(!wm_board_scene_take_sound_event(board, &event));
 
         /* Today's cards return at their existing, settled size. */
@@ -3023,13 +2880,11 @@ static void test_memo_date_continuity(int argc, char **argv) {
         count = wm_board_scene_memo_presentation(board, cards);
         entering = find_presented_memo(cards, count, 1);
         assert(count == 2 && entering && entering->entering &&
-               entering->paste_frame == 10.0f &&
-               entering->next_page_frame == -1.0f);
+               entering->paste_frame == 10.0f && entering->next_page_frame == -1.0f);
         assert(!wm_board_scene_take_sound_event(board, &event));
         wm_board_scene_advance(board, 40.0f);
         assert(wm_board_scene_phase(board) == WM_BOARD_CLOSED);
-        assert(wm_board_scene_take_action(board, NULL) ==
-               WM_BOARD_ACTION_EXITED);
+        assert(wm_board_scene_take_action(board, NULL) == WM_BOARD_ACTION_EXITED);
     }
     wm_board_scene_destroy(board);
 }
@@ -3041,18 +2896,19 @@ static void test_memo_page_continuity(int argc, char **argv) {
     char ids[11][12];
     for (size_t index = 0; index < 11; index++) {
         snprintf(ids[index], sizeof(ids[index]), "page-%zu", index);
-        memos[index] = (WmBoardMemo){
-            .id = ids[index], .text = "Posted Memo",
-            .date = {2026, 9, 25}, .has_position = true,
-            .x = (float)index * 10.0f, .y = 53.0f
-        };
+        memos[index] = (WmBoardMemo){.id = ids[index],
+                                     .text = "Posted Memo",
+                                     .date = {2026, 9, 25},
+                                     .has_position = true,
+                                     .x = (float)index * 10.0f,
+                                     .y = 53.0f};
     }
     assert(wm_board_scene_set_memos(board, memos, 11));
     assert(wm_board_scene_open(board, memos[0].date));
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
     WmBoardSoundEvent event;
     assert(wm_board_scene_take_sound_event(board, &event));
     assert(strcmp(event.cue, "WIPL_SE_MSG_HOUSE") == 0 &&
@@ -3062,8 +2918,7 @@ static void test_memo_page_continuity(int argc, char **argv) {
     size_t count = wm_board_scene_memo_presentation(board, cards);
     assert(count == 10 && !find_presented_memo(cards, count, 10));
     for (size_t index = 0; index < 10; index++) {
-        assert(cards[index].memo_index == index &&
-               cards[index].paste_frame == 10.0f &&
+        assert(cards[index].memo_index == index && cards[index].paste_frame == 10.0f &&
                cards[index].next_page_frame == 0.0f);
     }
     wm_board_scene_advance(board, 7.5f);
@@ -3073,16 +2928,15 @@ static void test_memo_page_continuity(int argc, char **argv) {
     wm_board_scene_advance(board, 7.5f);
     assert(wm_board_scene_phase(board) == WM_BOARD_READY);
     count = wm_board_scene_memo_presentation(board, cards);
-    assert(count == 1 && cards[0].memo_index == 10 &&
-           cards[0].paste_frame == 0.0f && cards[0].next_page_frame < 0.0f);
+    assert(count == 1 && cards[0].memo_index == 10 && cards[0].paste_frame == 0.0f &&
+           cards[0].next_page_frame < 0.0f);
     assert(fabsf(cards[0].x - memos[10].x * 832.0f / 608.0f) < 0.01f);
     assert(wm_board_scene_take_sound_event(board, &event));
     assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 && event.memo_index == 10);
-    assert(!wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_MEMO, 10}));
+    assert(!wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO, 10}));
     wm_board_scene_advance(board, 11.0f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_NEXT, SIZE_MAX}));
+    assert(
+        wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_NEXT, SIZE_MAX}));
     assert(wm_board_scene_take_sound_event(board, &event));
     assert(strcmp(event.cue, "WIPL_SE_MSG_HOUSE") == 0 && event.pan < 0.0f);
     count = wm_board_scene_memo_presentation(board, cards);
@@ -3101,9 +2955,10 @@ static void test_memo_page_continuity(int argc, char **argv) {
                event.memo_index == position);
         assert(fabsf(event.pan - memos[position].x / 416.0f) < 0.001f);
         assert(!wm_board_scene_take_sound_event(board, &event));
-        assert(!wm_board_scene_pointer_down(board,
-            (WmBoardHit){WM_BOARD_CONTROL_MEMO, position}, 320, 228));
-        if (position < 9) wm_board_scene_advance(board, 5.0f);
+        assert(!wm_board_scene_pointer_down(
+            board, (WmBoardHit){WM_BOARD_CONTROL_MEMO, position}, 320, 228));
+        if (position < 9)
+            wm_board_scene_advance(board, 5.0f);
     }
     wm_board_scene_advance(board, 11.0f);
     count = wm_board_scene_memo_presentation(board, cards);
@@ -3122,20 +2977,21 @@ static void test_page_arrival_batch_clock(int argc, char **argv) {
     char ids[20][12];
     for (size_t index = 0; index < 20; index++) {
         snprintf(ids[index], sizeof(ids[index]), "batch-%zu", index);
-        memos[index] = (WmBoardMemo){
-            .id = ids[index], .text = "Memo", .date = {2026, 9, 25}
-        };
+        memos[index] =
+            (WmBoardMemo){.id = ids[index], .text = "Memo", .date = {2026, 9, 25}};
     }
     assert(wm_board_scene_set_memos(board, memos, 20));
     for (unsigned batched = 0; batched < 2; batched++) {
         assert(wm_board_scene_open(board, memos[0].date));
         wm_board_scene_advance(board, 40.0f);
         settle_initial_memos(board);
-        assert(wm_board_scene_activate(board,
-            (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
-        if (batched) wm_board_scene_advance(board, 55.0f);
-        else for (unsigned frame = 0; frame < 55; frame++)
-            wm_board_scene_advance(board, 1.0f);
+        assert(wm_board_scene_activate(
+            board, (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+        if (batched)
+            wm_board_scene_advance(board, 55.0f);
+        else
+            for (unsigned frame = 0; frame < 55; frame++)
+                wm_board_scene_advance(board, 1.0f);
         WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
         size_t count = wm_board_scene_memo_presentation(board, cards);
         assert(count == 9);
@@ -3157,7 +3013,8 @@ static void test_page_arrival_batch_clock(int argc, char **argv) {
         assert(wm_board_scene_back(board));
         wm_board_scene_advance(board, 40.0f);
         assert(wm_board_scene_take_action(board, NULL) == WM_BOARD_ACTION_EXITED);
-        while (wm_board_scene_take_sound_event(board, &event)) {}
+        while (wm_board_scene_take_sound_event(board, &event)) {
+        }
     }
     wm_board_scene_destroy(board);
 }
@@ -3168,9 +3025,7 @@ static void test_rapid_arrival_cue_chronology(int argc, char **argv) {
     for (size_t index = 0; index < 30; index++) {
         snprintf(ids[index], sizeof(ids[index]), "rapid-%zu", index);
         memos[index] = (WmBoardMemo){
-            .id = ids[index], .text = "Memo",
-            .date = {2026, 9, index < 20 ? 25 : 24}
-        };
+            .id = ids[index], .text = "Memo", .date = {2026, 9, index < 20 ? 25 : 24}};
     }
     for (unsigned batched = 0; batched < 2; batched++) {
         WmBoardScene *board = load_board(argc, argv);
@@ -3178,23 +3033,26 @@ static void test_rapid_arrival_cue_chronology(int argc, char **argv) {
         assert(wm_board_scene_open(board, memos[0].date));
         wm_board_scene_advance(board, 40.0f);
         settle_initial_memos(board);
-        assert(wm_board_scene_activate(board,
-            (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+        assert(wm_board_scene_activate(
+            board, (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
         wm_board_scene_advance(board, 15.0f);
         WmBoardSoundEvent event;
-        while (wm_board_scene_take_sound_event(board, &event)) {}
+        while (wm_board_scene_take_sound_event(board, &event)) {
+        }
         /* Replace the sheet during its first appearance. The outgoing card
          * finishes, but records never made visible do not emit hidden cues. */
-        assert(wm_board_scene_activate(board,
-            (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+        assert(wm_board_scene_activate(
+            board, (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
         assert(wm_board_scene_take_sound_event(board, &event) &&
                strcmp(event.cue, "page") == 0);
         assert(wm_board_scene_take_sound_event(board, &event) &&
                event.memo_index == 20);
         assert(!wm_board_scene_take_sound_event(board, &event));
-        if (batched) wm_board_scene_advance(board, 25.0f);
-        else for (unsigned frame = 0; frame < 25; frame++)
-            wm_board_scene_advance(board, 1.0f);
+        if (batched)
+            wm_board_scene_advance(board, 25.0f);
+        else
+            for (unsigned frame = 0; frame < 25; frame++)
+                wm_board_scene_advance(board, 1.0f);
         for (size_t index = 21; index <= 25; index++) {
             assert(wm_board_scene_take_sound_event(board, &event) &&
                    strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
@@ -3206,7 +3064,8 @@ static void test_rapid_arrival_cue_chronology(int argc, char **argv) {
         assert(count == 6);
         for (size_t index = 0; index < count; index++) {
             assert(cards[index].memo_index == 20 + index &&
-                   cards[index].paste_frame == fminf(10.0f, (float)(5 - index) * 5.0f) &&
+                   cards[index].paste_frame ==
+                       fminf(10.0f, (float)(5 - index) * 5.0f) &&
                    cards[index].pin_frame == (float)(5 - index) * 5.0f);
         }
         wm_board_scene_destroy(board);
@@ -3217,10 +3076,11 @@ static void test_rapid_arrival_cue_chronology(int argc, char **argv) {
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
     wm_board_scene_advance(board, 15.0f);
     WmBoardSoundEvent event;
-    while (wm_board_scene_take_sound_event(board, &event)) {}
+    while (wm_board_scene_take_sound_event(board, &event)) {
+    }
     assert(wm_board_scene_back(board));
     wm_board_scene_advance(board, 40.0f);
     wm_board_scene_advance_parked(board, 110.0f);
@@ -3234,17 +3094,17 @@ static void test_rapid_arrival_cue_chronology(int argc, char **argv) {
 
 static void prepare_memo_post(WmBoardScene *board, const char *text) {
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
     wm_board_scene_advance(board, 39.0f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_MEMO, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_MEMO, SIZE_MAX}));
     wm_board_scene_advance(board, 26.0f);
     assert(wm_board_scene_insert_text(board, text));
     wm_board_scene_advance(board, 30.0f);
     assert(wm_board_scene_finish_edit(board));
     wm_board_scene_advance(board, 30.0f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_POST, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_POST, SIZE_MAX}));
 }
 
 static void test_post_selected_date(int argc, char **argv) {
@@ -3254,10 +3114,10 @@ static void test_post_selected_date(int argc, char **argv) {
         WmBoardDate today = wm_board_scene_date(board);
         WmBoardDate selected;
         assert(wm_board_date_shift(today, offset, &selected));
-        WmBoardMemo previous = {
-            .id = "today-existing", .text = "Existing today", .date = today,
-            .read = true
-        };
+        WmBoardMemo previous = {.id = "today-existing",
+                                .text = "Existing today",
+                                .date = today,
+                                .read = true};
         assert(wm_board_scene_set_memos(board, &previous, 1));
         assert(wm_board_scene_open(board, today));
         wm_board_scene_advance(board, 40.0f);
@@ -3270,14 +3130,16 @@ static void test_post_selected_date(int argc, char **argv) {
         assert(wm_board_scene_today_count(board) == 1 &&
                wm_board_scene_today_unread_count(board) == 0);
         WmBoardSoundEvent event;
-        while (wm_board_scene_take_sound_event(board, &event)) {}
+        while (wm_board_scene_take_sound_event(board, &event)) {
+        }
         prepare_memo_post(board, "Posted on the selected date");
         time_t before = time(NULL);
         wm_board_scene_advance(board, 100.0f);
         time_t after = time(NULL);
         size_t posted_index = SIZE_MAX;
         assert(wm_board_scene_take_action(board, &posted_index) ==
-               WM_BOARD_ACTION_MEMO_POSTED && posted_index == 1);
+                   WM_BOARD_ACTION_MEMO_POSTED &&
+               posted_index == 1);
         WmBoardMemo posted;
         assert(wm_board_scene_get_memo(board, posted_index, &posted));
         assert(board_dates_equal(posted.date, selected) &&
@@ -3305,10 +3167,12 @@ static void test_only_new_memo_pastes(int argc, char **argv) {
     struct tm today;
     assert(now != (time_t)-1 && localtime_r(&now, &today));
     WmBoardMemo previous = {
-        .id = "existing", .text = "Existing Memo",
+        .id = "existing",
+        .text = "Existing Memo",
         .date = {today.tm_year + 1900, today.tm_mon + 1, today.tm_mday},
-        .has_position = true, .x = -210.0f, .y = -60.0f
-    };
+        .has_position = true,
+        .x = -210.0f,
+        .y = -60.0f};
     for (unsigned batched = 0; batched < 2; batched++) {
         WmBoardScene *board = load_board(argc, argv);
         assert(board && wm_board_scene_set_memos(board, &previous, 1));
@@ -3334,36 +3198,32 @@ static void test_only_new_memo_pastes(int argc, char **argv) {
             assert(!wm_board_scene_take_sound_event(board, &event));
             wm_board_scene_advance(board, 16.0f);
             count = wm_board_scene_memo_presentation(board, cards);
-            const WmBoardMemoPresentation *posted = find_presented_memo(
-                cards, count, 1);
-            assert(posted && posted->paste_frame == 0.0f &&
-                   posted->pin_frame == 0.0f);
-            assert(!wm_board_scene_pointer_down(board,
-                (WmBoardHit){WM_BOARD_CONTROL_MEMO, 1}, 320, 228));
+            const WmBoardMemoPresentation *posted =
+                find_presented_memo(cards, count, 1);
+            assert(posted && posted->paste_frame == 0.0f && posted->pin_frame == 0.0f);
+            assert(!wm_board_scene_pointer_down(
+                board, (WmBoardHit){WM_BOARD_CONTROL_MEMO, 1}, 320, 228));
             wm_board_scene_advance(board, 8.0f);
         }
         size_t posted_index = SIZE_MAX;
         assert(wm_board_scene_take_action(board, &posted_index) ==
-               WM_BOARD_ACTION_MEMO_POSTED && posted_index == 1);
+                   WM_BOARD_ACTION_MEMO_POSTED &&
+               posted_index == 1);
         assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
         size_t count = wm_board_scene_memo_presentation(board, cards);
         const WmBoardMemoPresentation *old = find_presented_memo(cards, count, 0);
-        const WmBoardMemoPresentation *posted = find_presented_memo(
-            cards, count, 1);
+        const WmBoardMemoPresentation *posted = find_presented_memo(cards, count, 1);
         assert(count == 2 && old && posted && old->paste_frame == 10.0f &&
                old->pin_frame == existing_pin_age + 225.0f &&
-               posted->paste_frame == 8.0f &&
-               posted->pin_frame == 8.0f);
+               posted->paste_frame == 8.0f && posted->pin_frame == 8.0f);
         assert(wm_board_scene_take_sound_event(board, &event));
-        assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
-               event.memo_index == 1);
+        assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 && event.memo_index == 1);
         WmBoardMemo saved;
         assert(wm_board_scene_get_memo(board, 1, &saved));
         assert(fabsf(event.pan - saved.x / 416.0f) < 0.001f);
         assert(!wm_board_scene_take_sound_event(board, &event));
         wm_board_scene_advance(board, 3.0f);
-        assert(wm_board_scene_activate(board,
-            (WmBoardHit){WM_BOARD_CONTROL_MEMO, 1}));
+        assert(wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO, 1}));
         assert(!wm_board_scene_take_sound_event(board, &event));
         wm_board_scene_destroy(board);
     }
@@ -3376,28 +3236,28 @@ static void test_address_editor_scene_route(int argc, char **argv) {
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
     wm_board_scene_advance(board, 39.0f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS, SIZE_MAX}));
     wm_board_scene_advance(board, 26.0f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_POST, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_POST, SIZE_MAX}));
     wm_board_scene_advance(board, 57.0f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS_WII, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS_WII, SIZE_MAX}));
     wm_board_scene_advance(board, 61.0f);
     assert(!wm_board_scene_address_editor_active(board));
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS_EDIT, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS_EDIT, SIZE_MAX}));
     assert(wm_board_scene_address_editor_active(board));
     assert(wm_board_scene_compose_editor_active(board));
     assert(wm_board_scene_insert_text(board, "8742285515623182"));
     assert(wm_board_scene_finish_edit(board));
     assert(!wm_board_scene_address_editor_active(board));
     assert(!wm_board_scene_compose_editor_active(board));
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS_EDIT, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS_EDIT, SIZE_MAX}));
     assert(wm_board_scene_address_editor_active(board));
     assert(wm_board_scene_back(board));
     assert(!wm_board_scene_address_editor_active(board));
@@ -3411,41 +3271,41 @@ static void test_address_contact_scene_route(int argc, char **argv) {
     FILE *file = fdopen(file_descriptor, "wb");
     assert(file);
     assert(fputs("[{\"kind\":\"email\",\"address\":\"local@example.test\","
-                 "\"nickname\":\"Local\"}]", file) >= 0);
+                 "\"nickname\":\"Local\"}]",
+                 file) >= 0);
     assert(fclose(file) == 0);
 
     WmBoardScene *board = load_board(argc, argv);
     assert(board);
     char error[160] = {0};
-    assert(wm_board_scene_load_contacts(board, contacts_path,
-                                         error, sizeof(error)) ==
+    assert(wm_board_scene_load_contacts(board, contacts_path, error, sizeof(error)) ==
            WM_BOARD_CONTACT_STORE_OK);
     assert(wm_board_scene_open(board, (WmBoardDate){2026, 9, 25}));
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
     wm_board_scene_advance(board, 39.0f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS, SIZE_MAX}));
     wm_board_scene_advance(board, 26.0f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS_NEXT, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS_NEXT, SIZE_MAX}));
     wm_board_scene_advance(board, 16.0f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS_ENTRY_FIRST, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS_ENTRY_FIRST, SIZE_MAX}));
     wm_board_scene_advance(board, 25.0f);
     assert(!wm_board_scene_address_editor_active(board));
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_NETWORK_QUIT, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_NETWORK_QUIT, SIZE_MAX}));
     wm_board_scene_advance(board, 42.0f);
     assert(wm_board_scene_take_action(board, NULL) == WM_BOARD_ACTION_NONE);
     /* Quit keeps the same numbered page and its registered entry available. */
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS_ENTRY_FIRST, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_ADDRESS_ENTRY_FIRST, SIZE_MAX}));
     wm_board_scene_advance(board, 25.0f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_NETWORK_SETTINGS, SIZE_MAX}));
+    assert(wm_board_scene_activate(
+        board, (WmBoardHit){WM_BOARD_CONTROL_COMPOSE_NETWORK_SETTINGS, SIZE_MAX}));
     wm_board_scene_advance(board, 42.0f);
     assert(wm_board_scene_take_action(board, NULL) ==
            WM_BOARD_ACTION_OPEN_CONNECT24_SETTINGS);
@@ -3472,18 +3332,24 @@ static void test_memo_pin_animation_choice(int argc, char **argv) {
     wm_board_scene_set_pin_clock(board, pin_clock_now, &clock);
     const WmBoardDate day = {2026, 9, 25};
     const WmBoardMemo memos[] = {
-        {.id = "recent", .text = "Recent", .date = day,
+        {.id = "recent",
+         .text = "Recent",
+         .date = day,
          .created_at_ms = clock.now_ms - INT64_C(21600000) + 1},
-        {.id = "old", .text = "Old", .date = day,
+        {.id = "old",
+         .text = "Old",
+         .date = day,
          .created_at_ms = clock.now_ms - INT64_C(21600000)},
-        {.id = "future", .text = "Future", .date = day,
+        {.id = "future",
+         .text = "Future",
+         .date = day,
          .created_at_ms = clock.now_ms + 1000},
-        {.id = "current", .text = "Current", .date = day,
+        {.id = "current",
+         .text = "Current",
+         .date = day,
          .created_at_ms = clock.now_ms},
-        {.id = "legacy", .text = "Legacy", .date = day}
-    };
-    assert(wm_board_scene_set_memos(board, memos,
-                                     sizeof(memos) / sizeof(memos[0])));
+        {.id = "legacy", .text = "Legacy", .date = day}};
+    assert(wm_board_scene_set_memos(board, memos, sizeof(memos) / sizeof(memos[0])));
     assert(wm_board_scene_open(board, day));
     WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
     size_t count = wm_board_scene_memo_presentation(board, cards);
@@ -3494,13 +3360,11 @@ static void test_memo_pin_animation_choice(int argc, char **argv) {
     settle_initial_memos(board);
     count = wm_board_scene_memo_presentation(board, cards);
     assert(count == 5 && clock.calls == 4);
-    const WmBoardPinKind expected[] = {
-        WM_BOARD_PIN_NEW, WM_BOARD_PIN_DEFAULT, WM_BOARD_PIN_NONE,
-        WM_BOARD_PIN_NONE, WM_BOARD_PIN_DEFAULT
-    };
+    const WmBoardPinKind expected[] = {WM_BOARD_PIN_NEW, WM_BOARD_PIN_DEFAULT,
+                                       WM_BOARD_PIN_NONE, WM_BOARD_PIN_NONE,
+                                       WM_BOARD_PIN_DEFAULT};
     for (size_t index = 0; index < count; index++) {
-        const WmBoardMemoPresentation *card =
-            find_presented_memo(cards, count, index);
+        const WmBoardMemoPresentation *card = find_presented_memo(cards, count, index);
         assert(card && card->pin_kind == expected[index]);
     }
 
@@ -3510,27 +3374,24 @@ static void test_memo_pin_animation_choice(int argc, char **argv) {
     count = wm_board_scene_memo_presentation(board, cards);
     assert(count == 5 && clock.calls == 4);
     for (size_t index = 0; index < count; index++) {
-        const WmBoardMemoPresentation *card =
-            find_presented_memo(cards, count, index);
+        const WmBoardMemoPresentation *card = find_presented_memo(cards, count, index);
         assert(card && card->pin_kind == expected[index]);
     }
     wm_board_scene_advance(board, 40.0f);
-    assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_NEXT, SIZE_MAX}));
+    assert(
+        wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_NEXT, SIZE_MAX}));
     wm_board_scene_advance(board, 20.0f);
     assert(wm_board_scene_activate(board,
-        (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
+                                   (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
     wm_board_scene_advance(board, 20.0f);
     wm_board_scene_advance(board, 110.0f);
     count = wm_board_scene_memo_presentation(board, cards);
     assert(count == 5 && clock.calls == 8);
-    const WmBoardPinKind after_return[] = {
-        WM_BOARD_PIN_DEFAULT, WM_BOARD_PIN_DEFAULT, WM_BOARD_PIN_NEW,
-        WM_BOARD_PIN_DEFAULT, WM_BOARD_PIN_DEFAULT
-    };
+    const WmBoardPinKind after_return[] = {WM_BOARD_PIN_DEFAULT, WM_BOARD_PIN_DEFAULT,
+                                           WM_BOARD_PIN_NEW, WM_BOARD_PIN_DEFAULT,
+                                           WM_BOARD_PIN_DEFAULT};
     for (size_t index = 0; index < count; index++) {
-        const WmBoardMemoPresentation *card =
-            find_presented_memo(cards, count, index);
+        const WmBoardMemoPresentation *card = find_presented_memo(cards, count, index);
         assert(card && card->pin_kind == after_return[index]);
     }
     wm_board_scene_destroy(board);
@@ -3541,8 +3402,7 @@ typedef struct PinAlpha {
     bool found;
 } PinAlpha;
 
-static bool capture_pin_alpha(void *context,
-                               const WmLayoutPaneView *pane) {
+static bool capture_pin_alpha(void *context, const WmLayoutPaneView *pane) {
     if (strcmp(pane->name, "Pin2") == 0) {
         PinAlpha *capture = context;
         capture->value = pane->alpha;
@@ -3554,43 +3414,38 @@ static bool capture_pin_alpha(void *context,
 static void test_pin_source_tracks(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char path[4096];
-    int length = snprintf(path, sizeof(path),
-                          "%s/layouts/board/LetterS_a.json", assets);
+    int length =
+        snprintf(path, sizeof(path), "%s/layouts/board/LetterS_a.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     char error[160] = {0};
     WmLayout *layout = wm_layout_load_json(path, error, sizeof(error));
     assert(layout);
     WmLayoutAnimationInfo new_animation;
     WmLayoutAnimationInfo default_animation;
-    assert(wm_layout_animation_info(layout, "LetterS_a_NewAnim",
-                                     &new_animation));
-    assert(wm_layout_animation_info(layout, "LetterS_a_DefAnim",
-                                     &default_animation));
+    assert(wm_layout_animation_info(layout, "LetterS_a_NewAnim", &new_animation));
+    assert(wm_layout_animation_info(layout, "LetterS_a_DefAnim", &default_animation));
     assert(new_animation.loop && new_animation.frames == 90.0f);
     assert(default_animation.loop && default_animation.frames == 4.0f);
     const WmLayoutClip paste = {
-        .animation = "LetterS_a_PasteLetter", .frame = 10.0f,
-        .loop_override = 0
-    };
-    const char *const names[] = {
-        NULL, "LetterS_a_NewAnim", "LetterS_a_DefAnim"
-    };
+        .animation = "LetterS_a_PasteLetter", .frame = 10.0f, .loop_override = 0};
+    const char *const names[] = {NULL, "LetterS_a_NewAnim", "LetterS_a_DefAnim"};
     const float expected[] = {0.0f, 1.0f, 0.0f};
     for (size_t index = 0; index < sizeof(names) / sizeof(names[0]); index++) {
         WmLayoutClip clips[2] = {paste};
         size_t count = 1;
         if (names[index]) {
-            clips[count++] = (WmLayoutClip){
-                .animation = names[index], .frame = 0.0f,
-                .group = "G_New", .loop_override = 1
-            };
+            clips[count++] = (WmLayoutClip){.animation = names[index],
+                                            .frame = 0.0f,
+                                            .group = "G_New",
+                                            .loop_override = 1};
         }
         assert(wm_layout_pose(layout, clips, count));
         PinAlpha capture = {0};
-        const WmLayoutDrawOptions draw = {
-            .wide = true, .mode = WM_LAYOUT_IPL, .alpha = 1.0f,
-            .on_pane = capture_pin_alpha, .context = &capture
-        };
+        const WmLayoutDrawOptions draw = {.wide = true,
+                                          .mode = WM_LAYOUT_IPL,
+                                          .alpha = 1.0f,
+                                          .on_pane = capture_pin_alpha,
+                                          .context = &capture};
         wm_layout_draw(layout, &draw);
         assert(capture.found);
         assert(fabsf(capture.value - expected[index]) < 0.0001f);
@@ -3602,7 +3457,8 @@ int main(int argc, char **argv) {
     test_date_arithmetic();
     test_badge();
     WmBoardScene *board = load_board(argc, argv);
-    if (!board) return 0;
+    if (!board)
+        return 0;
     test_home_badge_midnight_refresh(argc, argv);
     test_state(board);
     test_calendar(argc, argv);

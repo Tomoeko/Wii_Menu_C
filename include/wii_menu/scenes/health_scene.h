@@ -20,11 +20,9 @@ typedef enum WmHealthPhase {
 /* The local assets directory is produced from a user-supplied System Menu
  * WAD. locale selects a source Has_* / Push_* pair, defaulting to US_ENG. */
 WmHealthScene *wm_health_scene_create(WmPlatform *platform,
-                                        const char *assets_directory,
-                                        WmTextureCache *textures,
-                                        WmFontCache *fonts,
-                                        bool enabled,
-                                        const char *locale);
+                                      const char *assets_directory,
+                                      WmTextureCache *textures, WmFontCache *fonts,
+                                      bool enabled, const char *locale);
 void wm_health_scene_destroy(WmHealthScene *health);
 void wm_health_scene_reset(WmHealthScene *health, bool enabled);
 void wm_health_scene_advance(WmHealthScene *health, float frames);

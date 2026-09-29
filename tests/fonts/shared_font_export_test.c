@@ -90,7 +90,10 @@ static void make_font(uint8_t bytes[FONT_SIZE]) {
 
 static void make_archive(uint8_t bytes[ARCHIVE_SIZE]) {
     memset(bytes, 0, ARCHIVE_SIZE);
-    memcpy(bytes, "U\xaa" "8-", 4);
+    memcpy(bytes,
+           "U\xaa"
+           "8-",
+           4);
     be32(bytes + 4, 32);
     be32(bytes + 8, 59);
     be32(bytes + 12, 128);
@@ -130,18 +133,19 @@ static void check_alias(const char *directory, const char *name,
 
 int main(void) {
     const char *temporary = getenv("TMPDIR");
-    if (!temporary || !temporary[0]) temporary = "/tmp";
+    if (!temporary || !temporary[0])
+        temporary = "/tmp";
     char root[1024];
-    int length = snprintf(root, sizeof(root),
-                          "%s/wm-shared-font-test-XXXXXX", temporary);
+    int length =
+        snprintf(root, sizeof(root), "%s/wm-shared-font-test-XXXXXX", temporary);
     assert(length > 0 && (size_t)length < sizeof(root));
     assert(mkdtemp(root));
     uint8_t archive[ARCHIVE_SIZE];
     make_archive(archive);
     char error[160];
     archive[68 + 12 + 3] = 'x';
-    assert(!wm_shared_font_export(archive, sizeof(archive), root,
-                                   error, sizeof(error)));
+    assert(
+        !wm_shared_font_export(archive, sizeof(archive), root, error, sizeof(error)));
     assert(strstr(error, "wbf1") != NULL);
     make_archive(archive);
 
@@ -156,8 +160,8 @@ int main(void) {
     assert(outside_canonical);
     assert(symlink(outside_canonical, directory) == 0);
     free(outside_canonical);
-    assert(!wm_shared_font_export(archive, sizeof(archive), root,
-                                  error, sizeof(error)));
+    assert(
+        !wm_shared_font_export(archive, sizeof(archive), root, error, sizeof(error)));
     assert(unlink(directory) == 0);
     assert(rmdir(outside) == 0);
 
@@ -172,25 +176,24 @@ int main(void) {
     assert(root_canonical);
     assert(symlink(root_canonical, linked_root) == 0);
     free(root_canonical);
-    assert(!wm_shared_font_export(archive, sizeof(archive), linked_root,
-                                  error, sizeof(error)));
-    assert(!wm_shared_font_export(archive, sizeof(archive), linked_slash,
-                                  error, sizeof(error)));
-    assert(!wm_shared_font_export(archive, sizeof(archive), linked_dot,
-                                  error, sizeof(error)));
+    assert(!wm_shared_font_export(archive, sizeof(archive), linked_root, error,
+                                  sizeof(error)));
+    assert(!wm_shared_font_export(archive, sizeof(archive), linked_slash, error,
+                                  sizeof(error)));
+    assert(!wm_shared_font_export(archive, sizeof(archive), linked_dot, error,
+                                  sizeof(error)));
     assert(unlink(linked_root) == 0);
 
-    if (!wm_shared_font_export(archive, sizeof(archive), root,
-                               error, sizeof(error))) {
+    if (!wm_shared_font_export(archive, sizeof(archive), root, error, sizeof(error))) {
         fprintf(stderr, "valid fixture export failed: %s\n", error);
         return 1;
     }
-    static const char *const aliases[] = {
-        "wbf1.brfna", "RevoIpl_RodinNTLGPro_DB_32_I4.brfnt",
-        "WiiBitmapFontType1.brfnt", "wbf2.brfna",
-        "RevoIpl_UtrilloProGrecoStd_M_32_I4.brfnt",
-        "WiiBitmapFontType2.brfnt"
-    };
+    static const char *const aliases[] = {"wbf1.brfna",
+                                          "RevoIpl_RodinNTLGPro_DB_32_I4.brfnt",
+                                          "WiiBitmapFontType1.brfnt",
+                                          "wbf2.brfna",
+                                          "RevoIpl_UtrilloProGrecoStd_M_32_I4.brfnt",
+                                          "WiiBitmapFontType2.brfnt"};
     for (size_t index = 0; index < 6; index++) {
         check_alias(directory, aliases[index],
                     archive + 128 + (index >= 3 ? FONT_SIZE : 0));

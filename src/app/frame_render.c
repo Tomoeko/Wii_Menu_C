@@ -59,8 +59,7 @@ static void draw_home_underlay(const WmAppRenderer *renderer,
         if (renderer->resource_scene &&
             wm_board_scene_sd_button_frame(renderer->board_scene, &sd_frame)) {
             wm_resource_scene_draw_sd_button(renderer->resource_scene,
-                                             frame->home_underlay_elapsed,
-                                             sd_frame);
+                                             frame->home_underlay_elapsed, sd_frame);
         }
     } else if (renderer->options_scene && menu->screen == WM_SCREEN_SETTINGS) {
         if (frame->active_storage) {

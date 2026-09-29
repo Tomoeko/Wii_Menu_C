@@ -12,7 +12,8 @@ enum {
 };
 
 static void font_error(char *error, size_t capacity, const char *message) {
-    if (error && capacity) snprintf(error, capacity, "%s", message);
+    if (error && capacity)
+        snprintf(error, capacity, "%s", message);
 }
 
 static bool range_fits(size_t size, size_t offset, size_t length) {
@@ -29,8 +30,8 @@ static uint32_t be32(const uint8_t *bytes) {
 }
 
 static uint32_t le32(const uint8_t *bytes) {
-    return (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8) |
-           ((uint32_t)bytes[2] << 16) | ((uint32_t)bytes[3] << 24);
+    return (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8) | ((uint32_t)bytes[2] << 16) |
+           ((uint32_t)bytes[3] << 24);
 }
 
 static void write_be16(uint8_t *bytes, uint16_t value) {
@@ -47,26 +48,28 @@ static void write_be32(uint8_t *bytes, uint32_t value) {
 
 static bool seen_offset(const size_t *visited, size_t count, size_t offset) {
     for (size_t index = 0; index < count; index++) {
-        if (visited[index] == offset) return true;
+        if (visited[index] == offset)
+            return true;
     }
     return false;
 }
 
-static bool width_chain(WmFont *font, size_t start, bool fill,
-                        size_t *maximum) {
+static bool width_chain(WmFont *font, size_t start, bool fill, size_t *maximum) {
     size_t visited[WM_FONT_MAX_CHAINS];
     size_t count = 0;
     size_t position = start;
     while (position) {
         if (count == WM_FONT_MAX_CHAINS || seen_offset(visited, count, position) ||
-            !range_fits(font->size, position, 8)) return false;
+            !range_fits(font->size, position, 8))
+            return false;
         visited[count++] = position;
         const uint8_t *entry = font->data + position;
         size_t begin = be16(entry), end = be16(entry + 2);
         size_t next = be32(entry + 4);
-        if (end < begin || !range_fits(font->size, position + 8,
-                                       (end - begin + 1) * 3)) return false;
-        if (end > *maximum) *maximum = end;
+        if (end < begin || !range_fits(font->size, position + 8, (end - begin + 1) * 3))
+            return false;
+        if (end > *maximum)
+            *maximum = end;
         if (fill) {
             for (size_t index = begin; index <= end; index++) {
                 const uint8_t *record = entry + 8 + (index - begin) * 3;
@@ -88,31 +91,39 @@ static bool parse_character_maps(WmFont *font, size_t start) {
     size_t position = start;
     while (position) {
         if (count == WM_FONT_MAX_CHAINS || seen_offset(visited, count, position) ||
-            !range_fits(font->size, position, 12)) return false;
+            !range_fits(font->size, position, 12))
+            return false;
         visited[count++] = position;
         const uint8_t *entry = font->data + position;
         uint16_t begin = be16(entry), end = be16(entry + 2);
         uint16_t method = be16(entry + 4);
         size_t next = be32(entry + 8);
-        if (end < begin) return false;
+        if (end < begin)
+            return false;
         size_t range = (size_t)end - begin + 1;
         if (method == 0) {
-            if (!range_fits(font->size, position + 12, 2)) return false;
+            if (!range_fits(font->size, position + 12, 2))
+                return false;
             size_t first = be16(entry + 12);
-            if (first + range > 65536) return false;
+            if (first + range > 65536)
+                return false;
             for (size_t code = begin; code <= end; code++) {
                 font->characters[code] = (uint16_t)(first + code - begin);
             }
         } else if (method == 1) {
-            if (!range_fits(font->size, position + 12, range * 2)) return false;
+            if (!range_fits(font->size, position + 12, range * 2))
+                return false;
             for (size_t code = begin; code <= end; code++) {
                 uint16_t glyph = be16(entry + 12 + (code - begin) * 2);
-                if (glyph != UINT16_MAX) font->characters[code] = glyph;
+                if (glyph != UINT16_MAX)
+                    font->characters[code] = glyph;
             }
         } else if (method == 2) {
-            if (!range_fits(font->size, position + 12, 2)) return false;
+            if (!range_fits(font->size, position + 12, 2))
+                return false;
             size_t entries = be16(entry + 12);
-            if (!range_fits(font->size, position + 14, entries * 4)) return false;
+            if (!range_fits(font->size, position + 14, entries * 4))
+                return false;
             for (size_t index = 0; index < entries; index++) {
                 uint16_t code = be16(entry + 14 + index * 4);
                 uint16_t glyph = be16(entry + 16 + index * 4);
@@ -135,15 +146,18 @@ static bool parse_sheets(WmFont *font, size_t image_offset, uint16_t width,
         sheet->info.height = height;
         sheet->info.format = (uint16_t)(format & 0x7fffu);
         if (font->compressed) {
-            if (!range_fits(font->size, cursor, 4)) return false;
+            if (!range_fits(font->size, cursor, 4))
+                return false;
             size_t stored = be32(font->data + cursor);
             cursor += 4;
-            if (!stored || !range_fits(font->size, cursor, stored)) return false;
+            if (!stored || !range_fits(font->size, cursor, stored))
+                return false;
             sheet->offset = cursor;
             sheet->stored_size = stored;
             cursor += stored;
         } else {
-            if (!range_fits(font->size, cursor, font->sheet_size)) return false;
+            if (!range_fits(font->size, cursor, font->sheet_size))
+                return false;
             sheet->offset = cursor;
             sheet->stored_size = font->sheet_size;
             cursor += font->sheet_size;
@@ -152,20 +166,21 @@ static bool parse_sheets(WmFont *font, size_t image_offset, uint16_t width,
     return true;
 }
 
-WmFont *wm_font_decode(const uint8_t *data, size_t size,
-                       char *error, size_t error_capacity) {
+WmFont *wm_font_decode(const uint8_t *data, size_t size, char *error,
+                       size_t error_capacity) {
     font_error(error, error_capacity, "");
     if (!data || size < 16 || size > WM_FONT_MAX_FILE ||
         (memcmp(data, "RFNT", 4) != 0 && memcmp(data, "RFNA", 4) != 0) ||
         data[4] != 0xfe || data[5] != 0xff) {
-        font_error(error, error_capacity, "Expected bounded big-endian RFNT/RFNA font.");
+        font_error(error, error_capacity,
+                   "Expected bounded big-endian RFNT/RFNA font.");
         return NULL;
     }
     size_t declared = be32(data + 8);
     size_t offset = be16(data + 12);
     size_t section_count = be16(data + 14);
-    if (declared > size || offset < 16 || offset >= declared ||
-        section_count == 0 || section_count > 1024) {
+    if (declared > size || offset < 16 || offset >= declared || section_count == 0 ||
+        section_count > 1024) {
         font_error(error, error_capacity, "Invalid font section header.");
         return NULL;
     }
@@ -197,7 +212,8 @@ WmFont *wm_font_decode(const uint8_t *data, size_t size,
         return NULL;
     }
     font->data = malloc(declared);
-    if (!font->data) goto invalid;
+    if (!font->data)
+        goto invalid;
     memcpy(font->data, data, declared);
     font->size = declared;
     const uint8_t *info = font->data + finf;
@@ -216,7 +232,8 @@ WmFont *wm_font_decode(const uint8_t *data, size_t size,
         !range_fits(declared, map_offset, 12) ||
         memcmp(font->data + glyph_offset - 8, "TGLP", 4) != 0 ||
         memcmp(font->data + width_offset - 8, "CWDH", 4) != 0 ||
-        memcmp(font->data + map_offset - 8, "CMAP", 4) != 0) goto invalid;
+        memcmp(font->data + map_offset - 8, "CMAP", 4) != 0)
+        goto invalid;
     const uint8_t *glyph_info = font->data + glyph_offset;
     font->metrics.cell_width = glyph_info[0];
     font->metrics.cell_height = glyph_info[1];
@@ -232,33 +249,41 @@ WmFont *wm_font_decode(const uint8_t *data, size_t size,
     font->compressed = (format & 0x8000u) != 0;
     if (!font->metrics.width || !font->metrics.height || !font->sheet_size ||
         font->sheet_size > 16u * 1024u * 1024u || font->sheet_count == 0 ||
-        font->sheet_count > WM_FONT_MAX_SHEETS || !columns || !rows ||
-        !sheet_width || !sheet_height || sheet_width > 4096 || sheet_height > 4096 ||
+        font->sheet_count > WM_FONT_MAX_SHEETS || !columns || !rows || !sheet_width ||
+        !sheet_height || sheet_width > 4096 || sheet_height > 4096 ||
         (uint64_t)sheet_width * sheet_height * 4 > 64u * 1024u * 1024u ||
-        !range_fits(declared, image_offset, 1)) goto invalid;
+        !range_fits(declared, image_offset, 1))
+        goto invalid;
     font->sheets = calloc(font->sheet_count, sizeof(*font->sheets));
     font->characters = malloc(65536u * sizeof(*font->characters));
-    if (!font->sheets || !font->characters) goto invalid;
-    for (size_t code = 0; code < 65536; code++) font->characters[code] = UINT16_MAX;
-    if (!parse_sheets(font, image_offset, sheet_width, sheet_height, format)) goto invalid;
+    if (!font->sheets || !font->characters)
+        goto invalid;
+    for (size_t code = 0; code < 65536; code++)
+        font->characters[code] = UINT16_MAX;
+    if (!parse_sheets(font, image_offset, sheet_width, sheet_height, format))
+        goto invalid;
 
     size_t maximum = 0;
-    if (!width_chain(font, width_offset, false, &maximum)) goto invalid;
+    if (!width_chain(font, width_offset, false, &maximum))
+        goto invalid;
     font->glyph_count = maximum + 1;
     font->glyphs = calloc(font->glyph_count, sizeof(*font->glyphs));
     font->glyph_present = calloc(font->glyph_count, sizeof(*font->glyph_present));
     if (!font->glyphs || !font->glyph_present ||
         !width_chain(font, width_offset, true, &maximum) ||
-        !parse_character_maps(font, map_offset)) goto invalid;
+        !parse_character_maps(font, map_offset))
+        goto invalid;
     size_t cells_per_sheet = (size_t)columns * rows;
     for (size_t index = 0; index < font->glyph_count; index++) {
-        if (!font->glyph_present[index]) continue;
+        if (!font->glyph_present[index])
+            continue;
         size_t sheet = index / cells_per_sheet;
         size_t cell = index % cells_per_sheet;
         size_t x = (cell % columns) * ((size_t)font->metrics.cell_width + 1) + 1;
         size_t y = (cell / columns) * ((size_t)font->metrics.cell_height + 1) + 1;
         if (sheet >= font->sheet_count || x + font->glyphs[index].width > sheet_width ||
-            y + font->metrics.cell_height > sheet_height) goto invalid;
+            y + font->metrics.cell_height > sheet_height)
+            goto invalid;
         font->glyphs[index].sheet = (uint16_t)sheet;
         font->glyphs[index].x = (uint16_t)x;
         font->glyphs[index].y = (uint16_t)y;
@@ -273,7 +298,8 @@ invalid:
 }
 
 void wm_font_destroy(WmFont *font) {
-    if (!font) return;
+    if (!font)
+        return;
     free(font->data);
     free(font->sheets);
     free(font->glyphs);
@@ -295,50 +321,60 @@ const WmFontSheetInfo *wm_font_sheet_info(const WmFont *font, size_t sheet) {
 }
 
 const WmFontGlyph *wm_font_glyph(const WmFont *font, uint32_t codepoint) {
-    if (!font) return NULL;
+    if (!font)
+        return NULL;
     uint16_t index = codepoint < 65536 ? font->characters[codepoint] : UINT16_MAX;
     /* The exported phone-key marker uses a private-use codepoint. Accept
      * both the legacy marker and the U+2423 open box. */
-    if (index == UINT16_MAX &&
-        (codepoint == 0x23b5 || codepoint == 0x2423))
+    if (index == UINT16_MAX && (codepoint == 0x23b5 || codepoint == 0x2423))
         index = font->characters[0xe057];
-    if (index == UINT16_MAX) index = font->metrics.default_glyph;
+    if (index == UINT16_MAX)
+        index = font->metrics.default_glyph;
     return index < font->glyph_count && font->glyph_present[index]
-               ? &font->glyphs[index] : NULL;
+               ? &font->glyphs[index]
+               : NULL;
 }
 
-static bool decode_huffman(const uint8_t *stream, size_t size,
-                           uint8_t *output, size_t output_size) {
-    if (size < 5 || (stream[0] != 0x24 && stream[0] != 0x28)) return false;
+static bool decode_huffman(const uint8_t *stream, size_t size, uint8_t *output,
+                           size_t output_size) {
+    if (size < 5 || (stream[0] != 0x24 && stream[0] != 0x28))
+        return false;
     unsigned depth = stream[0] & 15u;
-    size_t declared = (size_t)stream[1] | ((size_t)stream[2] << 8) |
-                      ((size_t)stream[3] << 16);
+    size_t declared =
+        (size_t)stream[1] | ((size_t)stream[2] << 8) | ((size_t)stream[3] << 16);
     size_t table = 4;
     if (!declared) {
-        if (size < 9) return false;
+        if (size < 9)
+            return false;
         declared = le32(stream + 4);
         table = 8;
     }
-    if (declared != output_size) return false;
+    if (declared != output_size)
+        return false;
     size_t tree_end = table + ((size_t)stream[table] + 1) * 2;
-    if (tree_end > size || table + 1 >= tree_end) return false;
+    if (tree_end > size || table + 1 >= tree_end)
+        return false;
     size_t node = table + 1;
     size_t input = tree_end;
     size_t produced = 0;
     int lower_nibble = -1;
     while (produced < output_size) {
-        if (!range_fits(size, input, 4)) return false;
+        if (!range_fits(size, input, 4))
+            return false;
         uint32_t word = le32(stream + input);
         input += 4;
         for (int shift = 31; shift >= 0; shift--) {
             unsigned bit = (word >> shift) & 1u;
-            if (node >= tree_end) return false;
+            if (node >= tree_end)
+                return false;
             uint8_t descriptor = stream[node];
-            size_t next = (node & ~(size_t)1) +
-                          ((size_t)(descriptor & 63u) + 1) * 2 + bit;
-            if (next >= tree_end) return false;
+            size_t next =
+                (node & ~(size_t)1) + ((size_t)(descriptor & 63u) + 1) * 2 + bit;
+            if (next >= tree_end)
+                return false;
             node = next;
-            if ((descriptor & (0x80u >> bit)) == 0) continue;
+            if ((descriptor & (0x80u >> bit)) == 0)
+                continue;
             uint8_t symbol = stream[node];
             node = table + 1;
             if (depth == 8) {
@@ -350,7 +386,8 @@ static bool decode_huffman(const uint8_t *stream, size_t size,
                     (uint8_t)((unsigned)lower_nibble | ((symbol & 15u) << 4));
                 lower_nibble = -1;
             }
-            if (produced == output_size) return true;
+            if (produced == output_size)
+                return true;
         }
     }
     return true;
@@ -369,8 +406,8 @@ bool wm_font_decode_sheet(const WmFont *font, size_t sheet_index, WmImage *image
     const uint8_t *pixels = font->data + sheet->offset;
     if (font->compressed) {
         expanded = malloc(font->sheet_size);
-        if (!expanded || !decode_huffman(pixels, sheet->stored_size,
-                                         expanded, font->sheet_size)) {
+        if (!expanded ||
+            !decode_huffman(pixels, sheet->stored_size, expanded, font->sheet_size)) {
             free(expanded);
             font_error(error, error_capacity, "Invalid compressed font sheet.");
             return false;
@@ -402,10 +439,11 @@ bool wm_font_decode_sheet(const WmFont *font, size_t sheet_index, WmImage *image
     free(expanded);
 
     WmTpl decoded = {0};
-    bool success = wm_tpl_decode(wrapped, wrapped_size, &decoded,
-                                 error, error_capacity);
+    bool success =
+        wm_tpl_decode(wrapped, wrapped_size, &decoded, error, error_capacity);
     free(wrapped);
-    if (!success) return false;
+    if (!success)
+        return false;
     if (decoded.count != 1) {
         wm_tpl_free(&decoded);
         font_error(error, error_capacity, "Invalid font sheet image count.");

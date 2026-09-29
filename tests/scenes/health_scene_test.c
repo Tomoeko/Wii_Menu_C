@@ -8,21 +8,18 @@
 #include <string.h>
 
 /* State and resource-pose tests never submit GPU draws. */
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad) {
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
     assert(false);
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
     (void)vertices;
@@ -30,8 +27,8 @@ void wm_platform_draw_vertices(WmPlatform *platform,
     assert(false);
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     (void)width;
     (void)height;
@@ -63,8 +60,8 @@ static bool read_alpha(void *opaque, const WmLayoutPaneView *pane) {
 
 static float pane_alpha(const WmLayout *layout, const char *name) {
     AlphaLookup lookup = {.name = name};
-    wm_layout_visit_all_transforms(layout, true, WM_LAYOUT_IPL,
-                                    NULL, read_alpha, &lookup);
+    wm_layout_visit_all_transforms(layout, true, WM_LAYOUT_IPL, NULL, read_alpha,
+                                   &lookup);
     assert(lookup.found);
     return lookup.alpha;
 }
@@ -78,8 +75,8 @@ static bool visible(const WmLayout *layout, const char *name) {
 int main(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char path[4096];
-    int length = snprintf(path, sizeof(path),
-                          "%s/layouts/health/it_Has_a.json", assets);
+    int length =
+        snprintf(path, sizeof(path), "%s/layouts/health/it_Has_a.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     FILE *file = fopen(path, "rb");
     if (!file) {
@@ -89,8 +86,7 @@ int main(int argc, char **argv) {
     fclose(file);
 
     WmHealthScene *health = wm_health_scene_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1,
-        (WmFontCache *)1, true, NULL);
+        (WmPlatform *)1, assets, (WmTextureCache *)1, (WmFontCache *)1, true, NULL);
     assert(health);
     assert(wm_health_scene_active(health));
     assert(!wm_health_scene_ready(health));
@@ -115,23 +111,16 @@ int main(int argc, char **argv) {
     static const struct {
         float frame;
         float alpha;
-    } exit_samples[] = {
-        {0.0f, 255.0f},
-        {5.0f, 242.0139f},
-        {10.0f, 207.7778f},
-        {15.0f, 159.3750f},
-        {20.0f, 103.8889f},
-        {25.0f, 48.4028f},
-        {30.0f, 0.0f}
-    };
+    } exit_samples[] = {{0.0f, 255.0f},     {5.0f, 242.0139f},  {10.0f, 207.7778f},
+                        {15.0f, 159.3750f}, {20.0f, 103.8889f}, {25.0f, 48.4028f},
+                        {30.0f, 0.0f}};
     float previous_frame = 0.0f;
-    for (size_t index = 0;
-         index < sizeof(exit_samples) / sizeof(exit_samples[0]); index++) {
-        wm_health_scene_advance(health,
-                                exit_samples[index].frame - previous_frame);
+    for (size_t index = 0; index < sizeof(exit_samples) / sizeof(exit_samples[0]);
+         index++) {
+        wm_health_scene_advance(health, exit_samples[index].frame - previous_frame);
         assert(wm_health_scene_pose(health));
-        assert(fabsf(pane_alpha(layout, "N_All") -
-                     exit_samples[index].alpha / 255.0f) < 0.002f);
+        assert(fabsf(pane_alpha(layout, "N_All") - exit_samples[index].alpha / 255.0f) <
+               0.002f);
         previous_frame = exit_samples[index].frame;
     }
     assert(wm_health_scene_active(health));
@@ -144,8 +133,7 @@ int main(int argc, char **argv) {
     assert(wm_menu_entrance_alpha(0.0f) == 1.0f);
     assert(wm_menu_entrance_alpha(23.0f) == 1.0f);
     assert(wm_menu_entrance_alpha(24.0f) == 1.0f);
-    assert(fabsf(wm_menu_entrance_alpha(25.0f) -
-                 243.0f / 255.0f) < 0.001f);
+    assert(fabsf(wm_menu_entrance_alpha(25.0f) - 243.0f / 255.0f) < 0.001f);
     assert(wm_menu_entrance_alpha(44.0f) == 0.0f);
     assert(!wm_menu_entrance_complete(44.0f));
     assert(wm_menu_entrance_complete(45.0f));
@@ -162,9 +150,8 @@ int main(int argc, char **argv) {
     assert(!wm_health_scene_active(health));
     wm_health_scene_destroy(health);
 
-    health = wm_health_scene_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1,
-        (WmFontCache *)1, true, "US_FRA");
+    health = wm_health_scene_create((WmPlatform *)1, assets, (WmTextureCache *)1,
+                                    (WmFontCache *)1, true, "US_FRA");
     assert(health);
     assert(wm_health_scene_pose(health));
     layout = wm_health_scene_layout(health);

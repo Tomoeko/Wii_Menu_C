@@ -10,10 +10,24 @@
  * These are paths, not a copy of the complete font or a runtime file.
  * The command lists are intentionally one vector operation per line.
  */
-#define MOVE(x, y) {WM_CFF_MOVE, {0, 0}, {0, 0}, {x, y}}
-#define LINE(x, y) {WM_CFF_LINE, {0, 0}, {0, 0}, {x, y}}
-#define CUBIC(ax, ay, bx, by, x, y) \
-    {WM_CFF_CUBIC, {ax, ay}, {bx, by}, {x, y}}
+#define MOVE(x, y)                                                                     \
+    {                                                                                  \
+        WM_CFF_MOVE, {0, 0}, {0, 0}, {                                                 \
+            x, y                                                                       \
+        }                                                                              \
+    }
+#define LINE(x, y)                                                                     \
+    {                                                                                  \
+        WM_CFF_LINE, {0, 0}, {0, 0}, {                                                 \
+            x, y                                                                       \
+        }                                                                              \
+    }
+#define CUBIC(ax, ay, bx, by, x, y)                                                    \
+    {                                                                                  \
+        WM_CFF_CUBIC, {ax, ay}, {bx, by}, {                                            \
+            x, y                                                                       \
+        }                                                                              \
+    }
 #define COUNT(items) (sizeof(items) / sizeof((items)[0]))
 
 static const WmCffSegment glyph_period[] = {
@@ -62,31 +76,18 @@ static const WmCffSegment glyph_upper_o[] = {
 };
 
 static const WmCffSegment glyph_upper_p[] = {
-    MOVE(646, 526),
-    CUBIC(646, 675, 544, 780, 400, 780),
-    LINE(94, 780),
-    LINE(94, 0),
-    LINE(209, 0),
-    LINE(209, 272),
-    LINE(399, 272),
-    CUBIC(553, 272, 646, 377, 646, 526),
-    MOVE(532, 526),
-    CUBIC(532, 424, 460, 369, 374, 369),
-    LINE(207, 369),
-    LINE(207, 683),
-    LINE(372, 683),
-    CUBIC(463, 683, 532, 626, 532, 526),
+    MOVE(646, 526), CUBIC(646, 675, 544, 780, 400, 780),
+    LINE(94, 780),  LINE(94, 0),
+    LINE(209, 0),   LINE(209, 272),
+    LINE(399, 272), CUBIC(553, 272, 646, 377, 646, 526),
+    MOVE(532, 526), CUBIC(532, 424, 460, 369, 374, 369),
+    LINE(207, 369), LINE(207, 683),
+    LINE(372, 683), CUBIC(463, 683, 532, 626, 532, 526),
 };
 
 static const WmCffSegment glyph_upper_t[] = {
-    MOVE(597, 682),
-    LINE(597, 780),
-    LINE(18, 780),
-    LINE(18, 682),
-    LINE(249, 682),
-    LINE(249, 0),
-    LINE(366, 0),
-    LINE(366, 682),
+    MOVE(597, 682), LINE(597, 780), LINE(18, 780), LINE(18, 682),
+    LINE(249, 682), LINE(249, 0),   LINE(366, 0),  LINE(366, 682),
 };
 
 static const WmCffSegment glyph_upper_w[] = {
@@ -207,21 +208,11 @@ static const WmCffSegment glyph_lower_e[] = {
 };
 
 static const WmCffSegment glyph_lower_f[] = {
-    MOVE(326, 708),
-    LINE(307, 798),
-    CUBIC(139, 794, 99, 738, 99, 625),
-    LINE(99, 553),
-    LINE(21, 553),
-    LINE(21, 466),
-    LINE(99, 466),
-    LINE(99, 0),
-    LINE(208, 0),
-    LINE(208, 466),
-    LINE(308, 466),
-    LINE(308, 553),
-    LINE(204, 553),
-    LINE(204, 622),
-    CUBIC(204, 682, 216, 707, 326, 708),
+    MOVE(326, 708), LINE(307, 798), CUBIC(139, 794, 99, 738, 99, 625),
+    LINE(99, 553),  LINE(21, 553),  LINE(21, 466),
+    LINE(99, 466),  LINE(99, 0),    LINE(208, 0),
+    LINE(208, 466), LINE(308, 466), LINE(308, 553),
+    LINE(204, 553), LINE(204, 622), CUBIC(204, 682, 216, 707, 326, 708),
 };
 
 static const WmCffSegment glyph_lower_g[] = {
@@ -262,14 +253,8 @@ static const WmCffSegment glyph_lower_h[] = {
 };
 
 static const WmCffSegment glyph_lower_i[] = {
-    MOVE(190, 649),
-    LINE(190, 780),
-    LINE(74, 780),
-    LINE(74, 649),
-    MOVE(187, 0),
-    LINE(187, 553),
-    LINE(76, 553),
-    LINE(76, 0),
+    MOVE(190, 649), LINE(190, 780), LINE(74, 780), LINE(74, 649),
+    MOVE(187, 0),   LINE(187, 553), LINE(76, 553), LINE(76, 0),
 };
 
 static const WmCffSegment glyph_lower_l[] = {
@@ -380,20 +365,13 @@ static const WmCffSegment glyph_lower_s[] = {
 };
 
 static const WmCffSegment glyph_lower_t[] = {
-    MOVE(346, 81),
-    CUBIC(234, 81, 218, 87, 218, 165),
-    LINE(218, 466),
-    LINE(316, 466),
-    LINE(316, 553),
-    LINE(218, 553),
-    LINE(218, 727),
-    LINE(113, 727),
-    LINE(113, 553),
-    LINE(31, 553),
-    LINE(31, 466),
-    LINE(109, 466),
-    LINE(109, 145),
-    CUBIC(109, 22, 164, -12, 323, -12),
+    MOVE(346, 81),  CUBIC(234, 81, 218, 87, 218, 165),
+    LINE(218, 466), LINE(316, 466),
+    LINE(316, 553), LINE(218, 553),
+    LINE(218, 727), LINE(113, 727),
+    LINE(113, 553), LINE(31, 553),
+    LINE(31, 466),  LINE(109, 466),
+    LINE(109, 145), CUBIC(109, 22, 164, -12, 323, -12),
 };
 
 static const WmCffSegment glyph_lower_u[] = {
@@ -464,17 +442,16 @@ static const VectorGlyphRecord GLYPHS[] = {
     {'y', 555, glyph_lower_y, COUNT(glyph_lower_y)},
 };
 
-bool wm_corruption_vector_raster(unsigned char character,
-                                  unsigned pixel_size,
-                                  WmOutlineBitmap *bitmap) {
-    if (!bitmap) return false;
+bool wm_corruption_vector_raster(unsigned char character, unsigned pixel_size,
+                                 WmOutlineBitmap *bitmap) {
+    if (!bitmap)
+        return false;
     for (size_t index = 0; index < COUNT(GLYPHS); index++) {
         const VectorGlyphRecord *glyph = &GLYPHS[index];
-        if (glyph->character != character) continue;
-        return wm_outline_raster_vector(glyph->segments,
-                                        glyph->segment_count, 1000,
-                                        pixel_size, glyph->advance_units,
-                                        bitmap);
+        if (glyph->character != character)
+            continue;
+        return wm_outline_raster_vector(glyph->segments, glyph->segment_count, 1000,
+                                        pixel_size, glyph->advance_units, bitmap);
     }
     return false;
 }

@@ -13,13 +13,10 @@ typedef struct WmCorruptionOutline {
     bool use_font_weight;
 } WmCorruptionOutline;
 
-bool wm_corruption_outline_create(WmCorruptionOutline *outline,
-                                  WmPlatform *platform,
-                                  const char *assets_root,
-                                  const char *message);
+bool wm_corruption_outline_create(WmCorruptionOutline *outline, WmPlatform *platform,
+                                  const char *assets_root, const char *message);
 void wm_corruption_outline_draw(const WmCorruptionOutline *outline,
                                 WmPlatform *platform);
-void wm_corruption_outline_destroy(WmCorruptionOutline *outline,
-                                   WmPlatform *platform);
+void wm_corruption_outline_destroy(WmCorruptionOutline *outline, WmPlatform *platform);
 
 #endif

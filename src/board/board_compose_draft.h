@@ -33,9 +33,9 @@ bool board_compose_draft_has_nonspace(const BoardComposeDraft *draft);
 bool board_compose_draft_insert(BoardComposeDraft *draft, const char *utf8,
                                 size_t bytes);
 bool board_compose_draft_replace_before_caret(BoardComposeDraft *draft,
-                                               size_t prefix_bytes,
-                                               const char *replacement,
-                                               size_t replacement_bytes);
+                                              size_t prefix_bytes,
+                                              const char *replacement,
+                                              size_t replacement_bytes);
 bool board_compose_draft_backspace(BoardComposeDraft *draft);
 /* Phone multitap changes the last ASCII keytop byte without moving the caret. */
 bool board_compose_draft_replace_last_byte(BoardComposeDraft *draft, char byte);

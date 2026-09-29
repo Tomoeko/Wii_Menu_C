@@ -17,10 +17,9 @@
 
 /* English ipl_common.bmg message 12 in the prepared System Menu WAD. The
  * identical fallback is necessary when that BMG is itself missing or corrupt. */
-static const char CORRUPTION_MESSAGE[] =
-    "The system files are corrupted. \n"
-    "Please refer to the Wii Operations Manual\n"
-    "for help troubleshooting.";
+static const char CORRUPTION_MESSAGE[] = "The system files are corrupted. \n"
+                                         "Please refer to the Wii Operations Manual\n"
+                                         "for help troubleshooting.";
 
 typedef struct ScreenFont {
     WmPlatform *platform;
@@ -59,13 +58,11 @@ static const BitmapGlyph EMERGENCY_GLYPHS[] = {
     {'t', {0x08, 0x08, 0x1c, 0x08, 0x08, 0x09, 0x06}},
     {'u', {0x00, 0x11, 0x11, 0x11, 0x11, 0x13, 0x0d}},
     {'y', {0x00, 0x11, 0x11, 0x11, 0x0f, 0x01, 0x0e}},
-    {'.', {0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x06}}
-};
+    {'.', {0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x06}}};
 
 static const BitmapGlyph *emergency_glyph(char character) {
     for (size_t index = 0;
-         index < sizeof(EMERGENCY_GLYPHS) / sizeof(EMERGENCY_GLYPHS[0]);
-         index++) {
+         index < sizeof(EMERGENCY_GLYPHS) / sizeof(EMERGENCY_GLYPHS[0]); index++) {
         if (EMERGENCY_GLYPHS[index].character == character)
             return &EMERGENCY_GLYPHS[index];
     }
@@ -75,27 +72,32 @@ static const BitmapGlyph *emergency_glyph(char character) {
 static uint32_t create_emergency_text(WmPlatform *platform, const char *message) {
     enum { WIDTH = 640, HEIGHT = 112, SCALE = 2, ADVANCE = 6 };
     uint8_t *pixels = calloc((size_t)WIDTH * HEIGHT, 4);
-    if (!pixels) return 0;
+    if (!pixels)
+        return 0;
     const char *line = message;
     for (int row = 0; row < 3 && *line; row++) {
         const char *end = strchr(line, '\n');
         size_t length = end ? (size_t)(end - line) : strlen(line);
-        if (length > 48) length = 48;
+        if (length > 48)
+            length = 48;
         int left = (WIDTH - (int)length * ADVANCE * SCALE) / 2;
         for (size_t column = 0; column < length; column++) {
             const BitmapGlyph *glyph = emergency_glyph(line[column]);
-            if (!glyph) continue;
+            if (!glyph)
+                continue;
             for (int y = 0; y < 7; y++) {
                 for (int x = 0; x < 5; x++) {
-                    if (!(glyph->rows[y] & (uint8_t)(1u << (4 - x)))) continue;
+                    if (!(glyph->rows[y] & (uint8_t)(1u << (4 - x))))
+                        continue;
                     for (int dy = 0; dy < SCALE; dy++) {
                         for (int dx = 0; dx < SCALE; dx++) {
-                            int pixel_x = left + ((int)column * ADVANCE + x) * SCALE + dx;
+                            int pixel_x =
+                                left + ((int)column * ADVANCE + x) * SCALE + dx;
                             int pixel_y = row * 34 + y * SCALE + dy;
                             if (pixel_x < 0 || pixel_x >= WIDTH || pixel_y >= HEIGHT)
                                 continue;
-                            size_t offset = ((size_t)pixel_y * WIDTH +
-                                             (size_t)pixel_x) * 4;
+                            size_t offset =
+                                ((size_t)pixel_y * WIDTH + (size_t)pixel_x) * 4;
                             pixels[offset] = 204;
                             pixels[offset + 1] = 204;
                             pixels[offset + 2] = 204;
@@ -119,7 +121,8 @@ static bool font_sheet(void *context, size_t sheet, uint32_t *texture) {
 
 static void font_quad(void *context, const WmFontQuad *quad) {
     ScreenFont *font = context;
-    if (!quad || !quad->texture) return;
+    if (!quad || !quad->texture)
+        return;
     WmDrawVertex vertices[4];
     for (int index = 0; index < 4; index++) {
         vertices[index] = (WmDrawVertex){
@@ -127,13 +130,8 @@ static void font_quad(void *context, const WmFontQuad *quad) {
             .y = WM_FRAME_HEIGHT * 0.5f - quad->vertices[index].position[1],
             .u = quad->vertices[index].uv[0],
             .v = quad->vertices[index].uv[1],
-            .color = {
-                quad->vertices[index].color[0],
-                quad->vertices[index].color[1],
-                quad->vertices[index].color[2],
-                quad->vertices[index].color[3]
-            }
-        };
+            .color = {quad->vertices[index].color[0], quad->vertices[index].color[1],
+                      quad->vertices[index].color[2], quad->vertices[index].color[3]}};
     }
     wm_platform_draw_vertices(font->platform, vertices, quad->texture);
 }
@@ -145,28 +143,28 @@ static void draw_wad_text(ScreenFont *screen_font, const char *message) {
     const float text_height = 26.4f;
     const WmFont *font = wm_cached_font_resource(screen_font->face);
     const WmFontMetrics *metrics = wm_font_metrics(font);
-    if (!metrics || !metrics->height) return;
+    if (!metrics || !metrics->height)
+        return;
     const char *line = message;
     for (int row = 0; row < 3 && *line; row++) {
         const char *end = strchr(line, '\n');
         size_t length = end ? (size_t)(end - line) : strlen(line);
         char buffer[256];
-        if (length >= sizeof(buffer)) length = sizeof(buffer) - 1;
+        if (length >= sizeof(buffer))
+            length = sizeof(buffer) - 1;
         memcpy(buffer, line, length);
         buffer[length] = '\0';
         WmFontDrawOptions options = {
             .x = 0.0f,
             .y = WM_FRAME_HEIGHT * 0.5f - (188.0f + 28.0f * row),
-            .size = {text_width * metrics->width / metrics->height,
-                     text_height},
+            .size = {text_width * metrics->width / metrics->height, text_height},
             .alpha = 1.0f,
             .top_color = {204, 204, 204, 255},
             .bottom_color = {204, 204, 204, 255},
             .align = WM_FONT_ALIGN_CENTER,
             .sheet_provider = font_sheet,
             .on_quad = font_quad,
-            .context = screen_font
-        };
+            .context = screen_font};
         wm_font_emit_line(font, buffer, &options);
         line = end ? end + 1 : line + strlen(line);
     }
@@ -175,34 +173,41 @@ static void draw_wad_text(ScreenFont *screen_font, const char *message) {
 int wm_app_show_corruption_screen(const char *assets_root) {
     WmPlatform *platform = wm_platform_create("Wii Menu in C", 960, 540);
     if (!platform) {
-        fprintf(stderr, "Could not show the corruption screen: graphics backend failed.\n");
+        fprintf(stderr,
+                "Could not show the corruption screen: graphics backend failed.\n");
         return 1;
     }
     char error[160];
     WmBmg *messages = assets_root
-        ? wm_bmg_load_assets(assets_root, "eng", error, sizeof(error)) : NULL;
+                          ? wm_bmg_load_assets(assets_root, "eng", error, sizeof(error))
+                          : NULL;
     const char *message = wm_bmg_text(messages, 12);
     if (!message || strcmp(message, CORRUPTION_MESSAGE) != 0)
         message = CORRUPTION_MESSAGE;
 
     WmCorruptionOutline outline = {0};
-    bool has_outline = wm_corruption_outline_create(
-        &outline, platform, assets_root, message);
-    WmFontCache *fonts = assets_root && !has_outline
-        ? wm_font_cache_create(platform, assets_root, 4u * 1024u * 1024u) : NULL;
+    bool has_outline =
+        wm_corruption_outline_create(&outline, platform, assets_root, message);
+    WmFontCache *fonts =
+        assets_root && !has_outline
+            ? wm_font_cache_create(platform, assets_root, 4u * 1024u * 1024u)
+            : NULL;
     ScreenFont screen_font = {
         .platform = platform,
-        .face = wm_font_cache_resolve(
-            fonts, "RevoIpl_RodinNTLGPro_DB_32_I4.brfnt")
-    };
-    uint32_t fallback = has_outline || screen_font.face
-        ? 0 : create_emergency_text(platform, message);
+        .face = wm_font_cache_resolve(fonts, "RevoIpl_RodinNTLGPro_DB_32_I4.brfnt")};
+    uint32_t fallback =
+        has_outline || screen_font.face ? 0 : create_emergency_text(platform, message);
     /* The emergency bitmap uses the same centered message width as the WAD font. */
-    const WmQuad fallback_quad = {
-        .x = 120.0f, .y = 170.0f, .width = 400.0f, .height = 112.0f,
-        .u0 = 0.0f, .v0 = 0.0f, .u1 = 1.0f, .v1 = 1.0f,
-        .color = {1.0f, 1.0f, 1.0f, 1.0f}, .texture = fallback
-    };
+    const WmQuad fallback_quad = {.x = 120.0f,
+                                  .y = 170.0f,
+                                  .width = 400.0f,
+                                  .height = 112.0f,
+                                  .u0 = 0.0f,
+                                  .v0 = 0.0f,
+                                  .u1 = 1.0f,
+                                  .v1 = 1.0f,
+                                  .color = {1.0f, 1.0f, 1.0f, 1.0f},
+                                  .texture = fallback};
     bool running = true;
     while (running) {
         WmEvent event;
@@ -212,7 +217,8 @@ int wm_app_show_corruption_screen(const char *assets_root) {
                 running = false;
             }
         }
-        if (!running) break;
+        if (!running)
+            break;
         wm_platform_begin(platform, (WmColor){0.0f, 0.0f, 0.0f, 1.0f});
         if (has_outline) {
             wm_corruption_outline_draw(&outline, platform);
@@ -226,7 +232,8 @@ int wm_app_show_corruption_screen(const char *assets_root) {
         struct timespec pause = {.tv_sec = 0, .tv_nsec = 16000000};
         nanosleep(&pause, NULL);
     }
-    if (fallback) wm_platform_destroy_texture(platform, fallback);
+    if (fallback)
+        wm_platform_destroy_texture(platform, fallback);
     wm_font_cache_destroy(fonts);
     wm_corruption_outline_destroy(&outline, platform);
     wm_bmg_destroy(messages);

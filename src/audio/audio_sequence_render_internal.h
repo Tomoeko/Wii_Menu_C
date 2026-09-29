@@ -103,11 +103,9 @@ typedef struct SequenceReverb {
 /* The scheduler owns event order and voice lifetime. This module owns
  * per-sample voice output and the optional auxiliary return delay network. */
 void wm_sequence_voice_render(SequencePlayer *player, SequenceVoice *voice);
-bool wm_sequence_reverb_initialize(SequenceReverb *reverb,
-                                   const SequenceTables *tables,
+bool wm_sequence_reverb_initialize(SequenceReverb *reverb, const SequenceTables *tables,
                                    bool enabled);
 void wm_sequence_reverb_free(SequenceReverb *reverb);
-void wm_sequence_reverb_apply(SequenceReverb *reverb,
-                              SequencePlayer *player);
+void wm_sequence_reverb_apply(SequenceReverb *reverb, SequencePlayer *player);
 
 #endif

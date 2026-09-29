@@ -35,25 +35,21 @@ void wm_platform_draw_quad(WmPlatform *platform, const WmQuad *quad) {
     (void)quad;
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
     (void)vertices;
     (void)texture;
 }
 
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad) {
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
-    if (quad->texture_count > 0 &&
-        quad->textures[0] == balloon_texture &&
+    if (quad->texture_count > 0 && quad->textures[0] == balloon_texture &&
         quad->vertices[0].color.a > 0.01f) {
         balloon_quads++;
         balloon_alpha = fmaxf(balloon_alpha, quad->vertices[0].color.a);
@@ -67,8 +63,8 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
     }
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     assert(width > 0 && height > 0 && rgba);
     return next_texture++;
@@ -92,9 +88,8 @@ void wm_platform_destroy_texture(WmPlatform *platform, uint32_t texture) {
     (void)texture;
 }
 
-static void sample(WmResourceScene *grid, WmBoardScene *board,
-                   WmBoardControl control, float seconds,
-                   bool visible, bool cue) {
+static void sample(WmResourceScene *grid, WmBoardScene *board, WmBoardControl control,
+                   float seconds, bool visible, bool cue) {
     balloon_quads = 0;
     balloon_left = INFINITY;
     balloon_right = -INFINITY;
@@ -102,29 +97,28 @@ static void sample(WmResourceScene *grid, WmBoardScene *board,
     balloon_bottom = -INFINITY;
     balloon_alpha = 0.0f;
     wm_board_scene_draw_footer(board);
-    wm_resource_scene_draw_board_balloons(grid, board,
-        (WmBoardHit){control, 0}, seconds);
+    wm_resource_scene_draw_board_balloons(grid, board, (WmBoardHit){control, 0},
+                                          seconds);
     assert((balloon_quads > 0) == visible);
     assert(wm_resource_scene_take_balloon_sound(grid) == cue);
 }
 
 static void expect_position(WmBoardScene *board, WmBoardControl control) {
     float anchor_x, anchor_y;
-    assert(wm_board_scene_footer_button_anchor(
-        board, control, &anchor_x, &anchor_y));
+    assert(wm_board_scene_footer_button_anchor(board, control, &anchor_x, &anchor_y));
     float width = (balloon_right - balloon_left) * 832.0f / 640.0f;
     float x = fmaxf(-416.0f + 120.0f + width * 0.5f,
-                    fminf(416.0f - 120.0f - width * 0.5f,
-                          anchor_x));
+                    fminf(416.0f - 120.0f - width * 0.5f, anchor_x));
     float expected_x = 320.0f + x * 640.0f / 608.0f;
     float expected_y = 228.0f - (anchor_y + 50.0f);
     if (fabsf((balloon_left + balloon_right) * 0.5f - expected_x) >= 2.0f ||
         fabsf((balloon_top + balloon_bottom) * 0.5f - expected_y) >= 2.0f)
-        fprintf(stderr, "Board balloon %d: observed %.2f, %.2f; expected %.2f, %.2f; anchor %.2f, %.2f; window %.2f; alpha %.2f\n",
+        fprintf(stderr,
+                "Board balloon %d: observed %.2f, %.2f; expected %.2f, %.2f; anchor "
+                "%.2f, %.2f; window %.2f; alpha %.2f\n",
                 control, (balloon_left + balloon_right) * 0.5f,
-                (balloon_top + balloon_bottom) * 0.5f,
-                expected_x, expected_y, anchor_x, anchor_y, width,
-                balloon_alpha);
+                (balloon_top + balloon_bottom) * 0.5f, expected_x, expected_y, anchor_x,
+                anchor_y, width, balloon_alpha);
     assert(fabsf((balloon_left + balloon_right) * 0.5f - expected_x) < 2.0f);
     assert(fabsf((balloon_top + balloon_bottom) * 0.5f - expected_y) < 2.0f);
 }
@@ -138,17 +132,15 @@ int main(int argc, char **argv) {
         puts("Board balloon comparison skipped: prepared assets unavailable.");
         return 0;
     }
-    WmTextureCache *textures = wm_texture_cache_create(
-        platform, assets, 128u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        platform, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create(platform, assets, 128u * 1024u * 1024u);
+    WmFontCache *fonts = wm_font_cache_create(platform, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
-    assert(wm_texture_cache_resolve(textures,
-        "textures/balloon/my_Balloon_a.png", &balloon_texture));
-    WmResourceScene *grid = wm_resource_scene_create(
-        platform, assets, &menu, textures, fonts);
-    WmBoardScene *board = wm_board_scene_create(
-        platform, assets, textures, fonts);
+    assert(wm_texture_cache_resolve(textures, "textures/balloon/my_Balloon_a.png",
+                                    &balloon_texture));
+    WmResourceScene *grid =
+        wm_resource_scene_create(platform, assets, &menu, textures, fonts);
+    WmBoardScene *board = wm_board_scene_create(platform, assets, textures, fonts);
     assert(grid && board);
     assert(wm_board_scene_open(board, (WmBoardDate){2024, 5, 1}));
     wm_board_scene_advance(board, 40.0f);

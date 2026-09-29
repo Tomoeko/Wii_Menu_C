@@ -34,8 +34,7 @@ int main(void) {
     assert(native.width == 960 && native.height == 540);
     x = 17;
     y = 19;
-    assert(!wm_viewport_map_pointer_unbounded((WmViewport){0}, 100, 100,
-                                               &x, &y));
+    assert(!wm_viewport_map_pointer_unbounded((WmViewport){0}, 100, 100, &x, &y));
     assert(x == 17 && y == 19);
     return 0;
 }

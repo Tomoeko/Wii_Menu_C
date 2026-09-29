@@ -5,9 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-enum {
-    WM_SEQUENCE_RATE = 32000
-};
+enum { WM_SEQUENCE_RATE = 32000 };
 
 typedef struct SequenceTables {
     float attack[128];

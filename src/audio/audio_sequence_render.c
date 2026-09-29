@@ -4,9 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void update_envelope(SequenceVoice *voice,
-                            const SequenceTables *tables)
-{
+static void update_envelope(SequenceVoice *voice, const SequenceTables *tables) {
     const uint8_t *envelope = voice->envelope;
     if (voice->envelope_state == 0) {
         for (size_t millisecond = 0; millisecond < 3; millisecond++) {
@@ -27,94 +25,95 @@ static void update_envelope(SequenceVoice *voice,
     }
 }
 
-static float envelope_gain(const SequenceVoice *voice,
-                           const SequenceTables *tables)
-{
-    bool instant = voice->envelope_state == 0 &&
-                   tables->attack[voice->envelope[0]] == 0;
+static float envelope_gain(const SequenceVoice *voice, const SequenceTables *tables) {
+    bool instant =
+        voice->envelope_state == 0 && tables->attack[voice->envelope[0]] == 0;
     float decibels = instant ? 0 : voice->envelope_level / 10.0f;
-    if (decibels < -90.4f) decibels = -90.4f;
-    if (decibels > 6.0f) decibels = 6.0f;
+    if (decibels < -90.4f)
+        decibels = -90.4f;
+    if (decibels > 6.0f)
+        decibels = 6.0f;
     int index = 904 + (int)(decibels * 10.0f);
-    if (index < 0) index = 0;
-    if (index > 964) index = 964;
+    if (index < 0)
+        index = 0;
+    if (index > 964)
+        index = 964;
     return tables->decibels[index];
 }
 
-static int volume_coefficient(float gain)
-{
-    if (gain < 0) gain = 0;
-    if (gain > 1) gain = 1;
+static int volume_coefficient(float gain) {
+    if (gain < 0)
+        gain = 0;
+    if (gain > 1)
+        gain = 1;
     return (int)truncf(gain * 32767.0f);
 }
 
-static int send_coefficient(float gain)
-{
-    if (gain < 0) gain = 0;
+static int send_coefficient(float gain) {
+    if (gain < 0)
+        gain = 0;
     float scaled = truncf(gain * 32768.0f);
-    if (scaled > 65535.0f) return 65535;
+    if (scaled > 65535.0f)
+        return 65535;
     return (int)scaled;
 }
 
-static int multiply_pcm_volume(double sample, int coefficient)
-{
+static int multiply_pcm_volume(double sample, int coefficient) {
     return (int)floor(sample * coefficient / 32768.0);
 }
 
-void wm_sequence_voice_render(SequencePlayer *player, SequenceVoice *voice)
-{
-    if (player->elapsed_ticks > 0 &&
-        player->elapsed_ticks - 1 >= voice->release_tick) {
+void wm_sequence_voice_render(SequencePlayer *player, SequenceVoice *voice) {
+    if (player->elapsed_ticks > 0 && player->elapsed_ticks - 1 >= voice->release_tick) {
         voice->envelope_state = 3;
     }
     const SequenceTrack *track = &player->tracks[voice->track];
     float volume = (float)track->volume / 127.0f;
     float volume2 = (float)track->volume2 / 127.0f;
     float main_volume = (float)player->main_volume / 127.0f;
-    float gain = voice->initial_gain * volume * volume *
-                 volume2 * volume2 * main_volume * main_volume *
-                 player->gain;
-    float initial_gain = voice->has_previous_gain
-                             ? voice->previous_gain : gain;
-    int initial = volume_coefficient(initial_gain *
-                                     envelope_gain(voice, player->tables));
+    float gain = voice->initial_gain * volume * volume * volume2 * volume2 *
+                 main_volume * main_volume * player->gain;
+    float initial_gain = voice->has_previous_gain ? voice->previous_gain : gain;
+    int initial =
+        volume_coefficient(initial_gain * envelope_gain(voice, player->tables));
     update_envelope(voice, player->tables);
-    int target = volume_coefficient(gain *
-                                    envelope_gain(voice, player->tables));
+    int target = volume_coefficient(gain * envelope_gain(voice, player->tables));
     int delta = (target - initial) / WM_SEQUENCE_BLOCK;
     voice->previous_gain = gain;
     voice->has_previous_gain = true;
 
-    float pan = ((float)voice->instrument->pan - 64.0f +
-                 (float)track->pan - 64.0f) / 63.0f;
-    if (pan < -1) pan = -1;
-    if (pan > 1) pan = 1;
+    float pan =
+        ((float)voice->instrument->pan - 64.0f + (float)track->pan - 64.0f) / 63.0f;
+    if (pan < -1)
+        pan = -1;
+    if (pan > 1)
+        pan = 1;
     int pan_index = (int)floorf((pan + 1.0f) * 128.0f + 0.5f);
-    if (pan_index < 0) pan_index = 0;
-    if (pan_index > 256) pan_index = 256;
+    if (pan_index < 0)
+        pan_index = 0;
+    if (pan_index > 256)
+        pan_index = 256;
     float main_send = (float)track->main_send / 127.0f;
     float aux_send = (float)track->aux_a / 127.0f;
-    int main_left = send_coefficient(player->tables->pan[pan_index] *
-                                     main_send);
-    int main_right = send_coefficient(player->tables->pan[256 - pan_index] *
-                                      main_send);
+    int main_left = send_coefficient(player->tables->pan[pan_index] * main_send);
+    int main_right = send_coefficient(player->tables->pan[256 - pan_index] * main_send);
     int aux_left = send_coefficient(player->tables->pan[pan_index] * aux_send);
-    int aux_right = send_coefficient(player->tables->pan[256 - pan_index] *
-                                     aux_send);
+    int aux_right = send_coefficient(player->tables->pan[256 - pan_index] * aux_send);
     const WmAudioPcm *wave = voice->wave;
     for (size_t frame = 0; frame < WM_SEQUENCE_BLOCK; frame++) {
-        if (voice->position >= wave->frame_count) break;
+        if (voice->position >= wave->frame_count)
+            break;
         size_t low = (size_t)voice->position;
         size_t next = low + 1 < wave->frame_count ? low + 1 : low;
         double fraction = voice->position - (double)low;
         double source_left = wave->samples[low * wave->channels] +
-            (wave->samples[next * wave->channels] -
-             wave->samples[low * wave->channels]) * fraction;
+                             (wave->samples[next * wave->channels] -
+                              wave->samples[low * wave->channels]) *
+                                 fraction;
         double source_right;
         if (wave->channels == 2) {
-            source_right = wave->samples[low * 2 + 1] +
-                (wave->samples[next * 2 + 1] -
-                 wave->samples[low * 2 + 1]) * fraction;
+            source_right =
+                wave->samples[low * 2 + 1] +
+                (wave->samples[next * 2 + 1] - wave->samples[low * 2 + 1]) * fraction;
         } else {
             source_right = source_left;
         }
@@ -133,15 +132,13 @@ void wm_sequence_voice_render(SequencePlayer *player, SequenceVoice *voice)
     }
 }
 
-static bool allocate_delay(DelayLine *line, uint32_t length)
-{
+static bool allocate_delay(DelayLine *line, uint32_t length) {
     line->samples = calloc(length, sizeof(*line->samples));
     line->length = length;
     return line->samples != NULL;
 }
 
-void wm_sequence_reverb_free(SequenceReverb *reverb)
-{
+void wm_sequence_reverb_free(SequenceReverb *reverb) {
     for (size_t channel = 0; channel < 2; channel++) {
         ReverbChannel *state = &reverb->channels[channel];
         for (size_t index = 0; index < 3; index++) {
@@ -155,34 +152,34 @@ void wm_sequence_reverb_free(SequenceReverb *reverb)
     memset(reverb, 0, sizeof(*reverb));
 }
 
-bool wm_sequence_reverb_initialize(SequenceReverb *reverb,
-                              const SequenceTables *tables,
-                              bool enabled)
-{
+bool wm_sequence_reverb_initialize(SequenceReverb *reverb, const SequenceTables *tables,
+                                   bool enabled) {
     memset(reverb, 0, sizeof(*reverb));
     reverb->enabled = enabled;
-    if (!enabled) return true;
+    if (!enabled)
+        return true;
     const float *preset = tables->reverb_preset;
     reverb->coloration = preset[2];
     reverb->low_pass = fminf(0.95f, 1.0f - preset[3]);
     reverb->output_gain = 0.6f * preset[5];
     float denominator = preset[1] * WM_SEQUENCE_RATE;
     for (size_t index = 0; index < 3; index++) {
-        reverb->comb_gain[index] = powf(10.0f,
-            (float)tables->reverb_frames[index] * -3.0f / denominator);
+        reverb->comb_gain[index] =
+            powf(10.0f, (float)tables->reverb_frames[index] * -3.0f / denominator);
     }
     for (size_t channel = 0; channel < 2; channel++) {
         ReverbChannel *state = &reverb->channels[channel];
         for (size_t index = 0; index < 3; index++) {
-            if (!allocate_delay(&state->comb[index],
-                                tables->reverb_frames[index])) goto failed;
+            if (!allocate_delay(&state->comb[index], tables->reverb_frames[index]))
+                goto failed;
         }
         for (size_t index = 0; index < 2; index++) {
             if (!allocate_delay(&state->all_pass[index],
-                                tables->reverb_frames[3 + index])) goto failed;
+                                tables->reverb_frames[3 + index]))
+                goto failed;
         }
-        if (!allocate_delay(&state->final,
-                            tables->reverb_frames[5 + channel])) goto failed;
+        if (!allocate_delay(&state->final, tables->reverb_frames[5 + channel]))
+            goto failed;
     }
     return true;
 
@@ -191,8 +188,7 @@ failed:
     return false;
 }
 
-static float all_pass(DelayLine *line, float input, float coefficient)
-{
+static float all_pass(DelayLine *line, float input, float coefficient) {
     float delayed = line->samples[line->position];
     float value = input + delayed * coefficient;
     line->samples[line->position] = value;
@@ -200,33 +196,28 @@ static float all_pass(DelayLine *line, float input, float coefficient)
     return delayed - value * coefficient;
 }
 
-static float process_reverb(SequenceReverb *reverb, uint8_t channel,
-                            float input)
-{
+static float process_reverb(SequenceReverb *reverb, uint8_t channel, float input) {
     ReverbChannel *state = &reverb->channels[channel];
     float value = 0;
     for (size_t index = 0; index < 3; index++) {
         DelayLine *line = &state->comb[index];
         float delayed = line->samples[line->position];
         value += delayed;
-        line->samples[line->position] = input + delayed *
-                                        reverb->comb_gain[index];
+        line->samples[line->position] = input + delayed * reverb->comb_gain[index];
         line->position = (line->position + 1) % line->length;
     }
     for (size_t index = 0; index < 2; index++) {
-        value = all_pass(&state->all_pass[index], value,
-                         reverb->coloration);
+        value = all_pass(&state->all_pass[index], value, reverb->coloration);
     }
-    value = (1.0f - reverb->low_pass) * value +
-            reverb->low_pass * state->last;
+    value = (1.0f - reverb->low_pass) * value + reverb->low_pass * state->last;
     state->last = value;
     value = all_pass(&state->final, value, reverb->coloration);
     return truncf(value * reverb->output_gain * 32768.0f) / 32768.0f;
 }
 
-void wm_sequence_reverb_apply(SequenceReverb *reverb, SequencePlayer *player)
-{
-    if (!reverb->enabled) return;
+void wm_sequence_reverb_apply(SequenceReverb *reverb, SequencePlayer *player) {
+    if (!reverb->enabled)
+        return;
     for (size_t frame = 0; frame < WM_SEQUENCE_BLOCK; frame++) {
         size_t position = reverb->aux_return_position;
         player->block_left[frame] += reverb->aux_return[0][position];
@@ -235,7 +226,6 @@ void wm_sequence_reverb_apply(SequenceReverb *reverb, SequencePlayer *player)
             process_reverb(reverb, 0, player->aux_left[frame]);
         reverb->aux_return[1][position] =
             process_reverb(reverb, 1, player->aux_right[frame]);
-        reverb->aux_return_position =
-            (position + 1) % (WM_SEQUENCE_BLOCK * 2);
+        reverb->aux_return_position = (position + 1) % (WM_SEQUENCE_BLOCK * 2);
     }
 }

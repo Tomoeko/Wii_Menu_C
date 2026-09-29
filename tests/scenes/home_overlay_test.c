@@ -11,77 +11,63 @@ typedef struct CueLog {
     size_t remote_changes;
 } CueLog;
 
-static void record_cue(void *context, const char *symbol)
-{
+static void record_cue(void *context, const char *symbol) {
     CueLog *log = context;
     assert(log->count < 32);
-    snprintf(log->symbols[log->count++], sizeof(log->symbols[0]), "%s",
-             symbol);
+    snprintf(log->symbols[log->count++], sizeof(log->symbols[0]), "%s", symbol);
 }
 
-static void record_remote(void *context, const WmHomeRemoteState *state)
-{
+static void record_remote(void *context, const WmHomeRemoteState *state) {
     CueLog *log = context;
     assert(state->volume >= 0.0f && state->volume <= 1.0f);
     log->remote_changes++;
 }
 
 /* This test traverses source curves but never submits GPU draws. */
-void wm_platform_begin(WmPlatform *platform, WmColor clear_color)
-{
+void wm_platform_begin(WmPlatform *platform, WmColor clear_color) {
     (void)platform;
     (void)clear_color;
     assert(false);
 }
 
-void wm_platform_end(WmPlatform *platform)
-{
+void wm_platform_end(WmPlatform *platform) {
     (void)platform;
     assert(false);
 }
 
-void wm_platform_set_clip(WmPlatform *platform, const WmClipRect *rect)
-{
+void wm_platform_set_clip(WmPlatform *platform, const WmClipRect *rect) {
     (void)platform;
     (void)rect;
     assert(false);
 }
 
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad)
-{
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
 
-void wm_platform_draw_quad(WmPlatform *platform, const WmQuad *quad)
-{
+void wm_platform_draw_quad(WmPlatform *platform, const WmQuad *quad) {
     (void)platform;
     (void)quad;
     assert(false);
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
-                               uint32_t texture)
-{
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
+                               uint32_t texture) {
     (void)platform;
     (void)vertices;
     (void)texture;
     assert(false);
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad)
-{
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
     assert(false);
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba)
-{
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     (void)width;
     (void)height;
@@ -90,30 +76,27 @@ uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
     return 0;
 }
 
-void wm_platform_destroy_texture(WmPlatform *platform, uint32_t texture)
-{
+void wm_platform_destroy_texture(WmPlatform *platform, uint32_t texture) {
     (void)platform;
     (void)texture;
     assert(false);
 }
 
-static bool ends_with(const CueLog *log, const char *symbol)
-{
+static bool ends_with(const CueLog *log, const char *symbol) {
     return log->count && strcmp(log->symbols[log->count - 1], symbol) == 0;
 }
 
-static bool control_has_hit_area(WmHomeOverlay *home, WmHomeControl wanted)
-{
+static bool control_has_hit_area(WmHomeOverlay *home, WmHomeControl wanted) {
     for (int y = 0; y < WM_FRAME_HEIGHT; y += 8) {
         for (int x = 0; x < WM_FRAME_WIDTH; x += 8) {
-            if (wm_home_overlay_hit(home, x, y) == wanted) return true;
+            if (wm_home_overlay_hit(home, x, y) == wanted)
+                return true;
         }
     }
     return false;
 }
 
-static void test_close(WmHomeOverlay *home, CueLog *log)
-{
+static void test_close(WmHomeOverlay *home, CueLog *log) {
     assert(wm_home_overlay_open(home));
     assert(!wm_home_overlay_ready(home));
     assert(wm_home_overlay_advance(home, 20.0f) == 0.0f);
@@ -136,8 +119,7 @@ static void test_close(WmHomeOverlay *home, CueLog *log)
     assert(wm_home_overlay_take_outcome(home) == WM_HOME_OUTCOME_NONE);
 }
 
-static void test_options_and_return(WmHomeOverlay *home, CueLog *log)
-{
+static void test_options_and_return(WmHomeOverlay *home, CueLog *log) {
     assert(wm_home_overlay_open(home));
     wm_home_overlay_advance(home, 21.0f);
     assert(wm_home_overlay_activate(home, WM_HOME_CONTROL_OPTIONS));
@@ -178,22 +160,17 @@ static void test_options_and_return(WmHomeOverlay *home, CueLog *log)
     wm_home_overlay_advance(home, 20.0f);
     assert(wm_home_overlay_phase(home) == WM_HOME_RETURN_FADE);
     wm_home_overlay_advance(home, 15.0f);
-    assert(fabsf(wm_home_overlay_fade_alpha(home) - 127.0f / 255.0f) <
-           0.0001f);
+    assert(fabsf(wm_home_overlay_fade_alpha(home) - 127.0f / 255.0f) < 0.0001f);
     wm_home_overlay_advance(home, 15.0f);
-    assert(wm_home_overlay_take_outcome(home) ==
-           WM_HOME_OUTCOME_RETURN_MENU);
+    assert(wm_home_overlay_take_outcome(home) == WM_HOME_OUTCOME_RETURN_MENU);
 }
 
-static void test_reconnect(WmHomeOverlay *home, CueLog *log)
-{
-    WmHomeReconnectFixture fixture = {
-        .mode = WM_HOME_RECONNECT_MANUAL,
-        .players = {1, 2},
-        .player_count = 2,
-        .delay_frames = 180.0f,
-        .interval_frames = 24.0f
-    };
+static void test_reconnect(WmHomeOverlay *home, CueLog *log) {
+    WmHomeReconnectFixture fixture = {.mode = WM_HOME_RECONNECT_MANUAL,
+                                      .players = {1, 2},
+                                      .player_count = 2,
+                                      .delay_frames = 180.0f,
+                                      .interval_frames = 24.0f};
     assert(wm_home_overlay_set_reconnect_fixture(home, &fixture));
     assert(wm_home_overlay_open(home));
     wm_home_overlay_advance(home, 21.0f);
@@ -219,15 +196,12 @@ static void test_reconnect(WmHomeOverlay *home, CueLog *log)
     wm_home_overlay_reset(home);
 }
 
-static void test_automatic_reconnect(WmHomeOverlay *home, CueLog *log)
-{
-    WmHomeReconnectFixture fixture = {
-        .mode = WM_HOME_RECONNECT_AUTOMATIC,
-        .players = {3, 1, 4, 2},
-        .player_count = 4,
-        .delay_frames = 1.0f,
-        .interval_frames = 0.0f
-    };
+static void test_automatic_reconnect(WmHomeOverlay *home, CueLog *log) {
+    WmHomeReconnectFixture fixture = {.mode = WM_HOME_RECONNECT_AUTOMATIC,
+                                      .players = {3, 1, 4, 2},
+                                      .player_count = 4,
+                                      .delay_frames = 1.0f,
+                                      .interval_frames = 0.0f};
     assert(wm_home_overlay_set_reconnect_fixture(home, &fixture));
     assert(wm_home_overlay_open(home));
     wm_home_overlay_advance(home, 21.0f);
@@ -239,14 +213,10 @@ static void test_automatic_reconnect(WmHomeOverlay *home, CueLog *log)
     size_t before_speakers = log->count;
     wm_home_overlay_advance(home, 24.0f);
     assert(log->count == before_speakers + 4);
-    assert(strcmp(log->symbols[before_speakers],
-                  "HOME_SPEAKER_CONNECT3") == 0);
-    assert(strcmp(log->symbols[before_speakers + 1],
-                  "HOME_SPEAKER_CONNECT1") == 0);
-    assert(strcmp(log->symbols[before_speakers + 2],
-                  "HOME_SPEAKER_CONNECT4") == 0);
-    assert(strcmp(log->symbols[before_speakers + 3],
-                  "HOME_SPEAKER_CONNECT2") == 0);
+    assert(strcmp(log->symbols[before_speakers], "HOME_SPEAKER_CONNECT3") == 0);
+    assert(strcmp(log->symbols[before_speakers + 1], "HOME_SPEAKER_CONNECT1") == 0);
+    assert(strcmp(log->symbols[before_speakers + 2], "HOME_SPEAKER_CONNECT4") == 0);
+    assert(strcmp(log->symbols[before_speakers + 3], "HOME_SPEAKER_CONNECT2") == 0);
     wm_home_overlay_advance(home, 6.0f + 19.0f);
     assert(wm_home_overlay_ready(home));
     WmHomeRemoteState remote = wm_home_overlay_remote_state(home);
@@ -256,25 +226,21 @@ static void test_automatic_reconnect(WmHomeOverlay *home, CueLog *log)
     wm_home_overlay_reset(home);
 }
 
-static void test_reconnect_timeout(WmHomeOverlay *home, CueLog *log)
-{
-    WmHomeReconnectFixture fixture = {
-        .mode = WM_HOME_RECONNECT_TIMEOUT,
-        .players = {1},
-        .player_count = 1,
-        .delay_frames = 180.0f,
-        .interval_frames = 24.0f,
-        .start_failures = 1,
-        .stop_failures = 1
-    };
+static void test_reconnect_timeout(WmHomeOverlay *home, CueLog *log) {
+    WmHomeReconnectFixture fixture = {.mode = WM_HOME_RECONNECT_TIMEOUT,
+                                      .players = {1},
+                                      .player_count = 1,
+                                      .delay_frames = 180.0f,
+                                      .interval_frames = 24.0f,
+                                      .start_failures = 1,
+                                      .stop_failures = 1};
     assert(wm_home_overlay_set_reconnect_fixture(home, &fixture));
     assert(wm_home_overlay_open(home));
     wm_home_overlay_advance(home, 21.0f);
     assert(wm_home_overlay_activate(home, WM_HOME_CONTROL_OPTIONS));
     wm_home_overlay_advance(home, 41.0f);
     assert(wm_home_overlay_activate(home, WM_HOME_CONTROL_RECONNECT));
-    wm_home_overlay_advance(home, 15.0f + 119.0f + 6.0f + 3601.0f +
-                                  6.0f + 19.0f);
+    wm_home_overlay_advance(home, 15.0f + 119.0f + 6.0f + 3601.0f + 6.0f + 19.0f);
     assert(wm_home_overlay_ready(home));
     assert(ends_with(log, "HOMESE_END_CONNECT_WINDOW"));
     WmHomeRemoteState remote = wm_home_overlay_remote_state(home);
@@ -284,8 +250,7 @@ static void test_reconnect_timeout(WmHomeOverlay *home, CueLog *log)
     wm_home_overlay_reset(home);
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char source[4096];
     int length = snprintf(source, sizeof(source),
@@ -298,9 +263,9 @@ int main(int argc, char **argv)
     }
     fclose(check);
     CueLog log = {0};
-    WmHomeOverlay *home = wm_home_overlay_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1,
-        (WmFontCache *)1, record_cue, record_remote, &log);
+    WmHomeOverlay *home =
+        wm_home_overlay_create((WmPlatform *)1, assets, (WmTextureCache *)1,
+                               (WmFontCache *)1, record_cue, record_remote, &log);
     assert(home);
     test_close(home, &log);
     memset(&log, 0, sizeof(log));
@@ -308,25 +273,22 @@ int main(int argc, char **argv)
     wm_home_overlay_destroy(home);
 
     memset(&log, 0, sizeof(log));
-    home = wm_home_overlay_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1,
-        (WmFontCache *)1, record_cue, record_remote, &log);
+    home = wm_home_overlay_create((WmPlatform *)1, assets, (WmTextureCache *)1,
+                                  (WmFontCache *)1, record_cue, record_remote, &log);
     assert(home);
     test_reconnect(home, &log);
     wm_home_overlay_destroy(home);
 
     memset(&log, 0, sizeof(log));
-    home = wm_home_overlay_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1,
-        (WmFontCache *)1, record_cue, record_remote, &log);
+    home = wm_home_overlay_create((WmPlatform *)1, assets, (WmTextureCache *)1,
+                                  (WmFontCache *)1, record_cue, record_remote, &log);
     assert(home);
     test_automatic_reconnect(home, &log);
     wm_home_overlay_destroy(home);
 
     memset(&log, 0, sizeof(log));
-    home = wm_home_overlay_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1,
-        (WmFontCache *)1, record_cue, record_remote, &log);
+    home = wm_home_overlay_create((WmPlatform *)1, assets, (WmTextureCache *)1,
+                                  (WmFontCache *)1, record_cue, record_remote, &log);
     assert(home);
     test_reconnect_timeout(home, &log);
     wm_home_overlay_destroy(home);

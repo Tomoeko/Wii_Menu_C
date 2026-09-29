@@ -8,8 +8,11 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-enum { WM_SD_PAGE_COUNT = 20, WM_SD_SLOTS_PER_PAGE = 12,
-       WM_SD_SLOT_COUNT = WM_SD_PAGE_COUNT * WM_SD_SLOTS_PER_PAGE };
+enum {
+    WM_SD_PAGE_COUNT = 20,
+    WM_SD_SLOTS_PER_PAGE = 12,
+    WM_SD_SLOT_COUNT = WM_SD_PAGE_COUNT * WM_SD_SLOTS_PER_PAGE
+};
 
 typedef struct WmSdScene WmSdScene;
 
@@ -76,23 +79,21 @@ typedef const char *(*WmSdMessageProvider)(void *context, unsigned message_id);
 
 /* The caller owns the graphics platform and caches. The scene owns parsed
  * layouts and all remembered channel mappings. */
-WmSdScene *wm_sd_scene_create(WmPlatform *platform,
-                               const char *assets_directory,
-                               WmTextureCache *textures,
-                               WmFontCache *fonts);
+WmSdScene *wm_sd_scene_create(WmPlatform *platform, const char *assets_directory,
+                              WmTextureCache *textures, WmFontCache *fonts);
 void wm_sd_scene_destroy(WmSdScene *scene);
-bool wm_sd_scene_set_channels(WmSdScene *scene,
-                               const WmSdChannel *channels, size_t count);
+bool wm_sd_scene_set_channels(WmSdScene *scene, const WmSdChannel *channels,
+                              size_t count);
 const char *wm_sd_scene_channel_id(const WmSdScene *scene, unsigned slot);
 void wm_sd_scene_set_messages(WmSdScene *scene, WmSdMessageProvider provider,
-                               void *context);
+                              void *context);
 void wm_sd_scene_set_card_ready(WmSdScene *scene, bool ready);
 
 /* Open at the shared scene fader's black handoff. `revealing` in advance
  * stays true until that fader has finished opening; the first-visit guide
  * begins after it. The caller persists page and help_seen when they change. */
 bool wm_sd_scene_open(WmSdScene *scene, unsigned page, bool help_seen,
-                       WmSdMediaStatus media_status);
+                      WmSdMediaStatus media_status);
 /* Close transient SD animations/dialogs/events on menu restart while keeping
  * channel mappings and the last page/help preference for a later reopen. */
 void wm_sd_scene_reset(WmSdScene *scene);

@@ -180,9 +180,10 @@ void wm_app_board_pointer_leave(WmAppBoardInput *input, WmBoardScene *board,
 
 bool wm_app_board_compose_key(WmBoardScene *board, WmAudio *audio, WmKey key) {
     bool editor_active = wm_board_scene_compose_editor_active(board);
-    if ((key == WM_KEY_LEFT || key == WM_KEY_RIGHT ||
-         key == WM_KEY_UP || key == WM_KEY_DOWN) &&
-        wm_board_scene_move_memo_caret(board, key)) return true;
+    if ((key == WM_KEY_LEFT || key == WM_KEY_RIGHT || key == WM_KEY_UP ||
+         key == WM_KEY_DOWN) &&
+        wm_board_scene_move_memo_caret(board, key))
+        return true;
     if (key == WM_KEY_BACKSPACE && wm_board_scene_backspace(board)) {
         wm_audio_play(audio, "WIPL_SE_CHAR_DELETE");
         return true;

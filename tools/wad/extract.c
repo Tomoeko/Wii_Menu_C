@@ -67,24 +67,20 @@ typedef struct WmOptions {
     bool verify_only;
 } WmOptions;
 
-static uint16_t read_be16(const uint8_t *bytes)
-{
+static uint16_t read_be16(const uint8_t *bytes) {
     return (uint16_t)(((uint16_t)bytes[0] << 8) | bytes[1]);
 }
 
-static uint32_t read_be32(const uint8_t *bytes)
-{
+static uint32_t read_be32(const uint8_t *bytes) {
     return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
            ((uint32_t)bytes[2] << 8) | bytes[3];
 }
 
-static uint64_t read_be64(const uint8_t *bytes)
-{
+static uint64_t read_be64(const uint8_t *bytes) {
     return ((uint64_t)read_be32(bytes) << 32) | read_be32(bytes + 4);
 }
 
-static bool aligned_size(size_t size, size_t alignment, size_t *aligned)
-{
+static bool aligned_size(size_t size, size_t alignment, size_t *aligned) {
     if (size > SIZE_MAX - (alignment - 1)) {
         return false;
     }
@@ -92,21 +88,18 @@ static bool aligned_size(size_t size, size_t alignment, size_t *aligned)
     return true;
 }
 
-static bool slice_fits(size_t offset, size_t length, size_t total)
-{
+static bool slice_fits(size_t offset, size_t length, size_t total) {
     return offset <= total && length <= total - offset;
 }
 
-static void wipe(void *memory, size_t length)
-{
+static void wipe(void *memory, size_t length) {
     volatile uint8_t *bytes = memory;
     while (length--) {
         *bytes++ = 0;
     }
 }
 
-static bool read_file(const char *path, uint8_t **bytes, size_t *size)
-{
+static bool read_file(const char *path, uint8_t **bytes, size_t *size) {
     struct stat information;
     int file = open(path, O_RDONLY);
     if (file < 0) {
@@ -146,8 +139,7 @@ static bool read_file(const char *path, uint8_t **bytes, size_t *size)
     return true;
 }
 
-static int hexadecimal_digit(uint8_t character)
-{
+static int hexadecimal_digit(uint8_t character) {
     if (character >= '0' && character <= '9') {
         return character - '0';
     }
@@ -160,8 +152,7 @@ static int hexadecimal_digit(uint8_t character)
     return -1;
 }
 
-static bool read_common_key(const char *path, uint8_t key[16])
-{
+static bool read_common_key(const char *path, uint8_t key[16]) {
     struct stat information;
     if (stat(path, &information) != 0 || information.st_size < 0 ||
         information.st_size > 256) {
@@ -212,8 +203,7 @@ static bool read_common_key(const char *path, uint8_t key[16])
 }
 
 static bool signed_body(const WmWad *wad, WmSection section, const char *label,
-                        size_t *body_offset)
-{
+                        size_t *body_offset) {
     if (section.size < 4) {
         fprintf(stderr, "Truncated %s signature.\n", label);
         return false;
@@ -221,9 +211,15 @@ static bool signed_body(const WmWad *wad, WmSection section, const char *label,
     uint32_t signature = read_be32(wad->bytes + section.offset);
     size_t signature_size;
     switch (signature) {
-        case 0x10000: signature_size = 0x240; break;
-        case 0x10001: signature_size = 0x140; break;
-        case 0x10002: signature_size = 0x80; break;
+        case 0x10000:
+            signature_size = 0x240;
+            break;
+        case 0x10001:
+            signature_size = 0x140;
+            break;
+        case 0x10002:
+            signature_size = 0x80;
+            break;
         default:
             fprintf(stderr, "Unsupported %s signature type.\n", label);
             return false;
@@ -236,8 +232,7 @@ static bool signed_body(const WmWad *wad, WmSection section, const char *label,
     return true;
 }
 
-static bool parse_wad(WmWad *wad)
-{
+static bool parse_wad(WmWad *wad) {
     if (wad->size < 32) {
         fputs("Truncated WAD header.\n", stderr);
         return false;
@@ -257,12 +252,11 @@ static bool parse_wad(WmWad *wad)
     for (int section = 0; section < WM_SECTION_COUNT; ++section) {
         size_t size = read_be32(wad->bytes + 8 + section * 4);
         size_t stride;
-        if (!slice_fits(offset, size, wad->size) ||
-            !aligned_size(size, 64, &stride)) {
+        if (!slice_fits(offset, size, wad->size) || !aligned_size(size, 64, &stride)) {
             fputs("Truncated or oversized WAD section.\n", stderr);
             return false;
         }
-        wad->sections[section] = (WmSection){ offset, size };
+        wad->sections[section] = (WmSection){offset, size};
         if (offset > SIZE_MAX - stride) {
             return false;
         }
@@ -275,8 +269,8 @@ static bool parse_wad(WmWad *wad)
     }
     size_t ticket_length = wad->sections[WM_TICKET].offset +
                            wad->sections[WM_TICKET].size - wad->ticket_body;
-    size_t tmd_length = wad->sections[WM_TMD].offset +
-                        wad->sections[WM_TMD].size - wad->tmd_body;
+    size_t tmd_length =
+        wad->sections[WM_TMD].offset + wad->sections[WM_TMD].size - wad->tmd_body;
     if (ticket_length < 0xb2 || tmd_length < 0xa4) {
         fputs("Truncated ticket or TMD header.\n", stderr);
         return false;
@@ -343,8 +337,7 @@ static bool parse_wad(WmWad *wad)
 }
 
 static bool decrypt_and_verify(WmWad *wad, const uint8_t common_key[16],
-                               unsigned expected_index)
-{
+                               unsigned expected_index) {
     if (wad->key_index != expected_index) {
         fprintf(stderr, "Ticket requires common-key index %u.\n", wad->key_index);
         return false;
@@ -352,7 +345,7 @@ static bool decrypt_and_verify(WmWad *wad, const uint8_t common_key[16],
 
     const uint8_t *ticket = wad->bytes + wad->ticket_body;
     uint8_t title_key[16];
-    uint8_t title_vector[16] = { 0 };
+    uint8_t title_vector[16] = {0};
     memcpy(title_key, ticket + 0x7f, sizeof(title_key));
     memcpy(title_vector, wad->title_id, sizeof(wad->title_id));
     WmAes128 aes;
@@ -363,7 +356,7 @@ static bool decrypt_and_verify(WmWad *wad, const uint8_t common_key[16],
     wm_aes128_init(&aes, title_key);
     for (uint16_t index = 0; index < wad->content_count; ++index) {
         WmContent *content = wad->contents + index;
-        uint8_t vector[16] = { 0 };
+        uint8_t vector[16] = {0};
         vector[0] = (uint8_t)(content->index >> 8);
         vector[1] = (uint8_t)content->index;
         uint8_t *payload = wad->bytes + content->encrypted_offset;
@@ -387,32 +380,31 @@ static bool decrypt_and_verify(WmWad *wad, const uint8_t common_key[16],
 }
 
 static bool resolve_common_key(const WmWad *wad, const WmOptions *options,
-                                uint8_t key[16], unsigned *expected_index)
-{
-    *expected_index = options->key_index_explicit
-        ? options->expected_key_index : wad->key_index;
+                               uint8_t key[16], unsigned *expected_index) {
+    *expected_index =
+        options->key_index_explicit ? options->expected_key_index : wad->key_index;
     if (wad->key_index != *expected_index) {
         fprintf(stderr, "Ticket requires common-key index %u.\n", wad->key_index);
         return false;
     }
-    if (options->key_path) return read_common_key(options->key_path, key);
-    if (wm_wad_retail_common_key(*expected_index, key)) return true;
+    if (options->key_path)
+        return read_common_key(options->key_path, key);
+    if (wm_wad_retail_common_key(*expected_index, key))
+        return true;
     fprintf(stderr,
-        "No built-in retail common key for index %u; supply "
-        "--common-key-file and --common-key-index for this input.\n",
-        *expected_index);
+            "No built-in retail common key for index %u; supply "
+            "--common-key-file and --common-key-index for this input.\n",
+            *expected_index);
     return false;
 }
 
 static bool path_format(char path[WM_PATH_SIZE], const char *directory,
-                        const char *filename)
-{
+                        const char *filename) {
     int length = snprintf(path, WM_PATH_SIZE, "%s/%s", directory, filename);
     return length > 0 && length < WM_PATH_SIZE;
 }
 
-static bool ensure_directory(const char *path)
-{
+static bool ensure_directory(const char *path) {
     struct stat information;
     if (lstat(path, &information) == 0) {
         if (!S_ISDIR(information.st_mode)) {
@@ -428,8 +420,7 @@ static bool ensure_directory(const char *path)
     return true;
 }
 
-static bool write_private_file(const char *path, const uint8_t *bytes, size_t length)
-{
+static bool write_private_file(const char *path, const uint8_t *bytes, size_t length) {
     int file = open(path, O_WRONLY | O_CREAT | O_EXCL, 0600);
     if (file < 0) {
         return false;
@@ -458,8 +449,7 @@ static bool write_private_file(const char *path, const uint8_t *bytes, size_t le
     return true;
 }
 
-static void remove_files_in_directory(const char *directory)
-{
+static void remove_files_in_directory(const char *directory) {
     DIR *entries = opendir(directory);
     if (!entries) {
         return;
@@ -478,14 +468,13 @@ static void remove_files_in_directory(const char *directory)
     rmdir(directory);
 }
 
-static void remove_stage(const char *stage)
-{
+static void remove_stage(const char *stage) {
     char content_directory[WM_PATH_SIZE];
     if (path_format(content_directory, stage, "content")) {
         remove_files_in_directory(content_directory);
     }
     char path[WM_PATH_SIZE];
-    const char *names[] = { "ticket.bin", "title.tmd", "import.json" };
+    const char *names[] = {"ticket.bin", "title.tmd", "import.json"};
     for (size_t index = 0; index < sizeof(names) / sizeof(names[0]); ++index) {
         if (path_format(path, stage, names[index])) {
             unlink(path);
@@ -494,15 +483,13 @@ static void remove_stage(const char *stage)
     rmdir(stage);
 }
 
-static void print_hex(FILE *output, const uint8_t *bytes, size_t length)
-{
+static void print_hex(FILE *output, const uint8_t *bytes, size_t length) {
     for (size_t index = 0; index < length; ++index) {
         fprintf(output, "%02x", bytes[index]);
     }
 }
 
-static bool write_manifest(const WmWad *wad, const char *stage)
-{
+static bool write_manifest(const WmWad *wad, const char *stage) {
     char path[WM_PATH_SIZE];
     if (!path_format(path, stage, "import.json")) {
         return false;
@@ -520,8 +507,8 @@ static bool write_manifest(const WmWad *wad, const char *stage)
 
     fputs("{\n  \"titleId\": \"", output);
     print_hex(output, wad->title_id, sizeof(wad->title_id));
-    fprintf(output, "\",\n  \"version\": %u,\n  \"bootIndex\": %u,\n",
-            wad->version, wad->boot_index);
+    fprintf(output, "\",\n  \"version\": %u,\n  \"bootIndex\": %u,\n", wad->version,
+            wad->boot_index);
     fprintf(output, "  \"commonKeyIndex\": %u,\n  \"contents\": [\n", wad->key_index);
     for (uint16_t index = 0; index < wad->content_count; ++index) {
         const WmContent *content = wad->contents + index;
@@ -533,7 +520,8 @@ static bool write_manifest(const WmWad *wad, const char *stage)
         fputs(index + 1 == wad->content_count ? "\" }\n" : "\" },\n", output);
     }
     fputs("  ],\n  \"integrity\": \"Every decrypted content matches its TMD "
-          "SHA-1; signatures are not verified.\"\n}\n", output);
+          "SHA-1; signatures are not verified.\"\n}\n",
+          output);
     bool successful = fflush(output) == 0 && fsync(descriptor) == 0;
     if (fclose(output) != 0) {
         successful = false;
@@ -544,8 +532,7 @@ static bool write_manifest(const WmWad *wad, const char *stage)
     return successful;
 }
 
-static bool extract_contents(const WmWad *wad)
-{
+static bool extract_contents(const WmWad *wad) {
     if (!ensure_directory(".local") || !ensure_directory(".local/wad")) {
         return false;
     }
@@ -594,15 +581,14 @@ static bool extract_contents(const WmWad *wad)
     }
     if (successful) {
         successful = path_format(path, content_directory, "title.tmd") &&
-                     write_private_file(path,
-                                        wad->bytes + wad->sections[WM_TMD].offset,
+                     write_private_file(path, wad->bytes + wad->sections[WM_TMD].offset,
                                         wad->sections[WM_TMD].size);
     }
     if (successful) {
-        successful = path_format(path, stage, "ticket.bin") &&
-                     write_private_file(path,
-                                        wad->bytes + wad->sections[WM_TICKET].offset,
-                                        wad->sections[WM_TICKET].size);
+        successful =
+            path_format(path, stage, "ticket.bin") &&
+            write_private_file(path, wad->bytes + wad->sections[WM_TICKET].offset,
+                               wad->sections[WM_TICKET].size);
     }
     if (successful) {
         successful = write_manifest(wad, stage);
@@ -611,7 +597,8 @@ static bool extract_contents(const WmWad *wad)
         successful = rename(stage, destination) == 0;
     }
     if (!successful) {
-        fputs("Failed to write validated contents; staging data was removed.\n", stderr);
+        fputs("Failed to write validated contents; staging data was removed.\n",
+              stderr);
         remove_stage(stage);
         return false;
     }
@@ -621,8 +608,7 @@ static bool extract_contents(const WmWad *wad)
     return true;
 }
 
-static void usage(FILE *output)
-{
+static void usage(FILE *output) {
     fputs("Usage: wad_extract --wad FILE [--common-key-file FILE] "
           "[--common-key-index N] [--verify-only]\n"
           "Retail ticket indices 0 and 1 select their built-in common key.\n"
@@ -630,8 +616,7 @@ static void usage(FILE *output)
           output);
 }
 
-static bool parse_options(int argument_count, char **arguments, WmOptions *options)
-{
+static bool parse_options(int argument_count, char **arguments, WmOptions *options) {
     *options = (WmOptions){0};
     for (int index = 1; index < argument_count; ++index) {
         if (strcmp(arguments[index], "--wad") == 0 && index + 1 < argument_count) {
@@ -667,20 +652,18 @@ static bool parse_options(int argument_count, char **arguments, WmOptions *optio
     return true;
 }
 
-int main(int argument_count, char **arguments)
-{
+int main(int argument_count, char **arguments) {
     WmOptions options;
     if (!parse_options(argument_count, arguments, &options)) {
         return 2;
     }
 
-    WmWad wad = { 0 };
-    uint8_t common_key[16] = { 0 };
+    WmWad wad = {0};
+    uint8_t common_key[16] = {0};
     unsigned expected_index = 0;
     bool successful = read_file(options.wad_path, &wad.bytes, &wad.size) &&
                       parse_wad(&wad) &&
-                      resolve_common_key(&wad, &options, common_key,
-                                          &expected_index) &&
+                      resolve_common_key(&wad, &options, common_key, &expected_index) &&
                       decrypt_and_verify(&wad, common_key, expected_index);
     wipe(common_key, sizeof(common_key));
     if (successful && options.verify_only) {

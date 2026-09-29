@@ -14,35 +14,32 @@ void wm_layout_present(WmPlatform *platform, WmTextureCache *textures,
                        const WmLayout *layout, bool wide, WmLayoutMode mode,
                        const float parent_matrix[12]);
 void wm_layout_present_filtered(WmPlatform *platform, WmTextureCache *textures,
-                                const WmLayout *layout, bool wide,
-                                WmLayoutMode mode, const float parent_matrix[12],
+                                const WmLayout *layout, bool wide, WmLayoutMode mode,
+                                const float parent_matrix[12],
                                 WmLayoutPaneCallback filter, void *filter_context);
 
 /* Optional font cache renders txt1 panes in traversal order with the same
  * decoded BRFNT glyphs on both backends. A NULL cache skips text. */
-void wm_layout_present_with_fonts(WmPlatform *platform,
-                                  WmTextureCache *textures, WmFontCache *fonts,
-                                  const WmLayout *layout, bool wide,
-                                  WmLayoutMode mode,
-                                  const float parent_matrix[12]);
+void wm_layout_present_with_fonts(WmPlatform *platform, WmTextureCache *textures,
+                                  WmFontCache *fonts, const WmLayout *layout, bool wide,
+                                  WmLayoutMode mode, const float parent_matrix[12]);
 /* Applies opacity to the complete layout, including panes whose source flags
  * do not inherit their parent's alpha. */
-void wm_layout_present_with_fonts_opacity(
-    WmPlatform *platform, WmTextureCache *textures, WmFontCache *fonts,
-    const WmLayout *layout, bool wide, WmLayoutMode mode,
-    const float parent_matrix[12], float opacity);
+void wm_layout_present_with_fonts_opacity(WmPlatform *platform,
+                                          WmTextureCache *textures, WmFontCache *fonts,
+                                          const WmLayout *layout, bool wide,
+                                          WmLayoutMode mode,
+                                          const float parent_matrix[12], float opacity);
 /* Suppress individual pane drawing while retaining traversal of descendants.
  * A caller can redraw text under a clip without repainting its parent window. */
 typedef bool (*WmLayoutDrawPredicate)(void *context, const char *pane_name);
 void wm_layout_present_with_fonts_opacity_masked(
     WmPlatform *platform, WmTextureCache *textures, WmFontCache *fonts,
-    const WmLayout *layout, bool wide, WmLayoutMode mode,
-    const float parent_matrix[12], float opacity,
-    WmLayoutDrawPredicate predicate, void *predicate_context);
+    const WmLayout *layout, bool wide, WmLayoutMode mode, const float parent_matrix[12],
+    float opacity, WmLayoutDrawPredicate predicate, void *predicate_context);
 void wm_layout_present_filtered_with_fonts(
     WmPlatform *platform, WmTextureCache *textures, WmFontCache *fonts,
-    const WmLayout *layout, bool wide, WmLayoutMode mode,
-    const float parent_matrix[12], WmLayoutPaneCallback filter,
-    void *filter_context);
+    const WmLayout *layout, bool wide, WmLayoutMode mode, const float parent_matrix[12],
+    WmLayoutPaneCallback filter, void *filter_context);
 
 #endif

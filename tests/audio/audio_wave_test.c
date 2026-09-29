@@ -11,21 +11,16 @@
 #include <sys/resource.h>
 #include <unistd.h>
 
-int main(void)
-{
-    int16_t samples[] = {
-        0, 32767, -32768, 1250, -1250, 200,
-        100, -100, 1234, -1234, 0, 0
-    };
-    WmAudioPcm source = {
-        .samples = samples,
-        .sample_rate = 32000,
-        .frame_count = 6,
-        .loop_start = 2,
-        .loop_end = 5,
-        .channels = 2,
-        .looping = true
-    };
+int main(void) {
+    int16_t samples[] = {0,   32767, -32768, 1250,  -1250, 200,
+                         100, -100,  1234,   -1234, 0,     0};
+    WmAudioPcm source = {.samples = samples,
+                         .sample_rate = 32000,
+                         .frame_count = 6,
+                         .loop_start = 2,
+                         .loop_end = 5,
+                         .channels = 2,
+                         .looping = true};
     char path[] = "wm-audio-wave-XXXXXX";
     int descriptor = mkstemp(path);
     assert(descriptor >= 0);
@@ -68,7 +63,6 @@ int main(void)
 
     uint8_t truncated[32] = {0};
     WmRsar archive;
-    assert(!wm_rsar_open(truncated, sizeof(truncated), &archive,
-                         error, sizeof(error)));
+    assert(!wm_rsar_open(truncated, sizeof(truncated), &archive, error, sizeof(error)));
     return 0;
 }

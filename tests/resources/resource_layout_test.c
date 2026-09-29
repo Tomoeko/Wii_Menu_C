@@ -6,29 +6,25 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void write_be16(uint8_t *bytes, uint16_t value)
-{
+static void write_be16(uint8_t *bytes, uint16_t value) {
     bytes[0] = (uint8_t)(value >> 8);
     bytes[1] = (uint8_t)value;
 }
 
-static void write_be32(uint8_t *bytes, uint32_t value)
-{
+static void write_be32(uint8_t *bytes, uint32_t value) {
     bytes[0] = (uint8_t)(value >> 24);
     bytes[1] = (uint8_t)(value >> 16);
     bytes[2] = (uint8_t)(value >> 8);
     bytes[3] = (uint8_t)value;
 }
 
-static void write_float(uint8_t *bytes, float value)
-{
+static void write_float(uint8_t *bytes, float value) {
     uint32_t bits;
     memcpy(&bits, &value, sizeof(bits));
     write_be32(bytes, bits);
 }
 
-static void make_layout(uint8_t bytes[112])
-{
+static void make_layout(uint8_t bytes[112]) {
     memset(bytes, 0, 112);
     memcpy(bytes, "RLYT", 4);
     bytes[4] = 0xfe;
@@ -55,8 +51,7 @@ static void make_layout(uint8_t bytes[112])
     write_float(bytes + 36 + 72, 456.0f);
 }
 
-static void make_animation(uint8_t bytes[100])
-{
+static void make_animation(uint8_t bytes[100]) {
     memset(bytes, 0, 100);
     memcpy(bytes, "RLAN", 4);
     bytes[4] = 0xfe;
@@ -94,8 +89,7 @@ static void make_animation(uint8_t bytes[100])
     write_be16(track + 16, 257);
 }
 
-int main(void)
-{
+int main(void) {
     uint8_t layout[112];
     uint8_t animation[100];
     make_layout(layout);
@@ -104,41 +98,42 @@ int main(void)
     char error[160] = {0};
     char *json = NULL;
     size_t json_size = 0;
-    assert(wm_brlan_to_json(animation, sizeof(animation),
-                            &json, &json_size, error, sizeof(error)));
+    assert(wm_brlan_to_json(animation, sizeof(animation), &json, &json_size, error,
+                            sizeof(error)));
     assert(json_size != 0 && strstr(json, "\"curveType\": 1") != NULL);
     assert(strstr(json, "\"value\": 257") != NULL);
     free(json);
 
     WmResourceAnimation clip = {"Focus", animation, sizeof(animation)};
-    assert(wm_brlyt_to_json(layout, sizeof(layout), "Menu", "chanSel",
-                             NULL, 0, &clip, 1,
-                             &json, &json_size, error, sizeof(error)));
+    assert(wm_brlyt_to_json(layout, sizeof(layout), "Menu", "chanSel", NULL, 0, &clip,
+                            1, &json, &json_size, error, sizeof(error)));
     assert(strstr(json, "\"width\": 608") != NULL);
     assert(strstr(json, "\"name\": \"RootPane\"") != NULL);
     assert(strstr(json, "\"Focus\": {") != NULL);
     free(json);
 
     WmResourceTexture texture = {
-        "Icon.tpl", "textures/chanSel/Icon.png", 32, 32, 6,
-        "layout/common/chanSel.ash/arc/timg/Icon.tpl"
-    };
-    assert(wm_brlyt_to_json_with_source(
-        layout, sizeof(layout), "Menu", "chanSel",
-        "layout/common/chanSel.ash/arc/blyt/Menu.brlyt",
-        &texture, 1, NULL, 0,
-        &json, &json_size, error, sizeof(error)));
-    assert(strstr(json, "\"source\": \"layout/common/chanSel.ash/arc/blyt/Menu.brlyt\"") != NULL);
-    assert(strstr(json, "\"source\": \"layout/common/chanSel.ash/arc/timg/Icon.tpl\"") != NULL);
+        "Icon.tpl", "textures/chanSel/Icon.png",
+        32,         32,
+        6,          "layout/common/chanSel.ash/arc/timg/Icon.tpl"};
+    assert(wm_brlyt_to_json_with_source(layout, sizeof(layout), "Menu", "chanSel",
+                                        "layout/common/chanSel.ash/arc/blyt/Menu.brlyt",
+                                        &texture, 1, NULL, 0, &json, &json_size, error,
+                                        sizeof(error)));
+    assert(
+        strstr(json, "\"source\": \"layout/common/chanSel.ash/arc/blyt/Menu.brlyt\"") !=
+        NULL);
+    assert(
+        strstr(json, "\"source\": \"layout/common/chanSel.ash/arc/timg/Icon.tpl\"") !=
+        NULL);
     free(json);
 
     write_be32(layout + 40, 1024);
-    assert(!wm_brlyt_to_json(layout, sizeof(layout), "Menu", "chanSel",
-                              NULL, 0, NULL, 0,
-                              &json, &json_size, error, sizeof(error)));
+    assert(!wm_brlyt_to_json(layout, sizeof(layout), "Menu", "chanSel", NULL, 0, NULL,
+                             0, &json, &json_size, error, sizeof(error)));
     write_be32(animation + 16 + 20, 1000);
-    assert(!wm_brlan_to_json(animation, sizeof(animation),
-                             &json, &json_size, error, sizeof(error)));
+    assert(!wm_brlan_to_json(animation, sizeof(animation), &json, &json_size, error,
+                             sizeof(error)));
     puts("Resource layout tests passed.");
     return 0;
 }

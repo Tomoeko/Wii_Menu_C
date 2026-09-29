@@ -14,7 +14,6 @@ typedef struct WmMaterialBlend {
 
 /* Resolve the GX blend factors once, before either backend changes GPU state.
  * An unsupported factor rejects the draw on both backends. */
-bool wm_material_blend_resolve(const WmMaterialQuad *quad,
-                               WmMaterialBlend *blend);
+bool wm_material_blend_resolve(const WmMaterialQuad *quad, WmMaterialBlend *blend);
 
 #endif

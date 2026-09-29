@@ -75,9 +75,8 @@ typedef struct WmOptionsSnapshot {
  * caches remain caller-owned. Assets are exported locally from the USA 4.3
  * System Menu WAD, never bundled with the program. */
 WmOptionsScene *wm_options_scene_create(WmPlatform *platform,
-                                         const char *assets_directory,
-                                         WmTextureCache *textures,
-                                         WmFontCache *fonts);
+                                        const char *assets_directory,
+                                        WmTextureCache *textures, WmFontCache *fonts);
 void wm_options_scene_destroy(WmOptionsScene *scene);
 
 bool wm_options_scene_open(WmOptionsScene *scene);
@@ -97,11 +96,11 @@ bool wm_options_scene_update_question(const WmOptionsScene *scene);
 /* Return the source cue for a successful click, sampled before activation
  * changes the current Settings page. */
 const char *wm_options_scene_click_cue(const WmOptionsScene *scene,
-                                        WmOptionsControl control);
+                                       WmOptionsControl control);
 /* Visible Settings arrows use the Settings targeting cue. Other buttons
  * retain their targeting cue, including Settings confirmation buttons. */
 const char *wm_options_scene_hover_cue(const WmOptionsScene *scene,
-                                        WmOptionsControl control);
+                                       WmOptionsControl control);
 WmOptionsAction wm_options_scene_take_action(WmOptionsScene *scene);
 /* A category event identifies the selected source index item (1–12). The
  * category's full Opera page has not yet been ported into C. */
@@ -112,12 +111,10 @@ unsigned wm_options_scene_take_settings_category(WmOptionsScene *scene);
 bool wm_options_scene_back(WmOptionsScene *scene);
 WmOptionsControl wm_options_scene_hit(WmOptionsScene *scene, int x, int y);
 bool wm_options_scene_hover(WmOptionsScene *scene, WmOptionsControl control);
-bool wm_options_scene_activate(WmOptionsScene *scene,
-                                WmOptionsControl control);
+bool wm_options_scene_activate(WmOptionsScene *scene, WmOptionsControl control);
 /* Forward source Settings date/time arrow holds to its native scene. A true
  * result applies the first step on down; the caller skips click on up. */
-bool wm_options_scene_pointer_down(WmOptionsScene *scene,
-                                    WmOptionsControl control);
+bool wm_options_scene_pointer_down(WmOptionsScene *scene, WmOptionsControl control);
 void wm_options_scene_pointer_up(WmOptionsScene *scene);
 /* Console Nickname is a Settings text field. Consume typed keys while its
  * software keyboard is active so menu shortcuts do not interrupt the edit. */
@@ -125,13 +122,12 @@ bool wm_options_scene_text_editing(const WmOptionsScene *scene);
 bool wm_options_scene_type_ascii(WmOptionsScene *scene, char character);
 bool wm_options_scene_backspace(WmOptionsScene *scene);
 bool wm_options_scene_nickname_keyboard_visible(const WmOptionsScene *scene);
-void wm_options_scene_keyboard_modifiers(WmOptionsScene *scene,
-                                          bool shift_down, bool caps_lock_on);
+void wm_options_scene_keyboard_modifiers(WmOptionsScene *scene, bool shift_down,
+                                         bool caps_lock_on);
 bool wm_options_scene_place_nickname_caret(WmOptionsScene *scene, int x);
-WmBoardKeyboardControl wm_options_scene_keyboard_hit(WmOptionsScene *scene,
-                                                     int x, int y);
-bool wm_options_scene_keyboard_place_caret(WmOptionsScene *scene,
-                                            int x, int y);
+WmBoardKeyboardControl wm_options_scene_keyboard_hit(WmOptionsScene *scene, int x,
+                                                     int y);
+bool wm_options_scene_keyboard_place_caret(WmOptionsScene *scene, int x, int y);
 void wm_options_scene_keyboard_hover(WmOptionsScene *scene,
                                      WmBoardKeyboardControl control);
 const char *wm_options_scene_keyboard_activate(WmOptionsScene *scene,

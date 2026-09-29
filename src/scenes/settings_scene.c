@@ -8,16 +8,13 @@
 #include <string.h>
 #include <time.h>
 
-const unsigned wm_settings_country_page_start[10] = {
-    0, 4, 9, 14, 19, 24, 29, 34, 39, 44
-};
+const unsigned wm_settings_country_page_start[10] = {0,  4,  9,  14, 19,
+                                                     24, 29, 34, 39, 44};
 
-static float settings_source_x(const WmSettingsScene *scene,
-                               float frame_x) {
-    return scene->wide
-        ? frame_x * ((float)SETTINGS_WIDE_WIDTH / WM_FRAME_WIDTH) -
-          SETTINGS_SIDE_WIDTH + 16.0f
-        : frame_x;
+static float settings_source_x(const WmSettingsScene *scene, float frame_x) {
+    return scene->wide ? frame_x * ((float)SETTINGS_WIDE_WIDTH / WM_FRAME_WIDTH) -
+                             SETTINGS_SIDE_WIDTH + 16.0f
+                       : frame_x;
 }
 
 static void clear_hover_presentation(WmSettingsScene *scene) {
@@ -50,8 +47,7 @@ static SettingsPageSnapshot page_snapshot(const WmSettingsScene *scene) {
         .phase_frame = scene->phase_frame,
         .page_frame = scene->page_frame,
         .nickname_keyboard_phase = scene->nickname_keyboard_phase,
-        .nickname_caret = scene->nickname_caret
-    };
+        .nickname_caret = scene->nickname_caret};
     memcpy(snapshot.edit_nickname, scene->edit_nickname,
            sizeof(snapshot.edit_nickname));
     return snapshot;
@@ -65,12 +61,11 @@ static void start_page_crossfade(WmSettingsScene *scene,
 }
 
 static bool within(int x, int y, int left, int top, int width, int height) {
-    return x >= left && x < left + width &&
-           y >= top && y < top + height;
+    return x >= left && x < left + width && y >= top && y < top + height;
 }
 
 void settings_scene_reset_local_values(WmSettingsScene *scene) {
-    scene->sound_choice = 1; /* Stereo */
+    scene->sound_choice = 1;    /* Stereo */
     scene->language_choice = 0; /* English */
     scene->sensor_position = 0;
     scene->screen_position = 16;
@@ -93,8 +88,7 @@ void settings_scene_reset_local_values(WmSettingsScene *scene) {
     struct tm *clock_time = localtime(&now);
     if (clock_time) {
         int year = clock_time->tm_year + 1900;
-        scene->year = (unsigned)(year < 2000 ? 0 : year > 2035 ? 35
-                                                       : year - 2000);
+        scene->year = (unsigned)(year < 2000 ? 0 : year > 2035 ? 35 : year - 2000);
         scene->month = (unsigned)(clock_time->tm_mon + 1);
         scene->day = (unsigned)clock_time->tm_mday;
         scene->hour = (unsigned)clock_time->tm_hour;
@@ -113,8 +107,8 @@ void settings_scene_reset_local_values(WmSettingsScene *scene) {
 }
 
 WmSettingsControl wm_settings_index_hit(unsigned page, int x, int y) {
-    if (page < 1 || page > SETTINGS_INDEX_PAGES ||
-        x < 0 || y < 0 || x >= WM_FRAME_WIDTH || y >= WM_FRAME_HEIGHT)
+    if (page < 1 || page > SETTINGS_INDEX_PAGES || x < 0 || y < 0 ||
+        x >= WM_FRAME_WIDTH || y >= WM_FRAME_HEIGHT)
         return WM_SETTINGS_CONTROL_NONE;
 
     /* The original documents are 608 pixels wide and centered by Setting's
@@ -124,8 +118,7 @@ WmSettingsControl wm_settings_index_hit(unsigned page, int x, int y) {
         return WM_SETTINGS_CONTROL_BACK;
     if (page > 1 && within(local_x, y, 22, 180, 72, 72))
         return WM_SETTINGS_CONTROL_PREVIOUS;
-    if (page < SETTINGS_INDEX_PAGES &&
-        within(local_x, y, 514, 180, 72, 72))
+    if (page < SETTINGS_INDEX_PAGES && within(local_x, y, 514, 180, 72, 72))
         return WM_SETTINGS_CONTROL_NEXT;
     for (int index = 0; index < SETTINGS_ITEMS_PER_PAGE; index++) {
         if (within(local_x, y, 104, 78 + index * 72, 400, 60))
@@ -138,8 +131,7 @@ static bool implemented_category(unsigned category) {
     return category >= SETTINGS_NICKNAME && category <= SETTINGS_FORMAT;
 }
 
-static WmSettingsControl choice_at(int local_x, int y,
-                                   int first_y, int count) {
+static WmSettingsControl choice_at(int local_x, int y, int first_y, int count) {
     for (int index = 0; index < count; index++) {
         if (within(local_x, y, 107, first_y + index * 96, 394, 70))
             return (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 + index);
@@ -147,8 +139,7 @@ static WmSettingsControl choice_at(int local_x, int y,
     return WM_SETTINGS_CONTROL_NONE;
 }
 
-static WmSettingsControl category_hit(const WmSettingsScene *scene,
-                                      int x, int y) {
+static WmSettingsControl category_hit(const WmSettingsScene *scene, int x, int y) {
     if (x < 16 || y < 0 || x >= 624 || y >= WM_FRAME_HEIGHT)
         return WM_SETTINGS_CONTROL_NONE;
     int local_x = x - 16;
@@ -156,52 +147,44 @@ static WmSettingsControl category_hit(const WmSettingsScene *scene,
         within(x, y, SETTINGS_NICKNAME_FIELD_X, SETTINGS_NICKNAME_FIELD_Y,
                SETTINGS_NICKNAME_FIELD_WIDTH, SETTINGS_NICKNAME_FIELD_HEIGHT))
         return WM_SETTINGS_CONTROL_NICKNAME_FIELD;
-    bool sensitivity_meter = scene->active_category == 6 &&
-                             scene->detail == 2 &&
+    bool sensitivity_meter = scene->active_category == 6 && scene->detail == 2 &&
                              !scene->sensitivity_instructions;
     /* The meter has no footer; its instruction line accepts a pointer click
      * in place of the Wii Remote A press. */
     if (sensitivity_meter && within(local_x, y, 24, 344, 560, 95))
         return WM_SETTINGS_CONTROL_NEXT;
-    if (within(local_x, y, 28, 371, 272, 72) &&
-        !sensitivity_meter &&
+    if (within(local_x, y, 28, 371, 272, 72) && !sensitivity_meter &&
         !(scene->active_category == SETTINGS_INTERNET &&
           (scene->detail == INTERNET_WIRED_PROMPT ||
            scene->detail == INTERNET_ACCESS_POINT_SEARCH ||
            scene->detail == INTERNET_NO_ACCESS_POINT)) &&
         !(scene->active_category == SETTINGS_FORMAT && scene->detail == 3))
         return WM_SETTINGS_CONTROL_BACK;
-    bool choices = scene->active_category == 4 ||
-                   scene->active_category == 9 ||
-                   (scene->detail != 0 &&
-                    scene->active_category != SETTINGS_INTERNET) ||
-                   (scene->active_category == SETTINGS_INTERNET &&
-                    (scene->detail == 3 ||
-                     scene->detail == INTERNET_WIRED_PROMPT ||
-                     scene->detail == INTERNET_NO_ACCESS_POINT ||
-                     scene->detail == INTERNET_USB_INSTRUCTIONS ||
-                     scene->detail == INTERNET_USB_EXISTING_CONNECTOR)) ||
-                   scene->active_category == SETTINGS_NICKNAME ||
-                   scene->active_category == SETTINGS_PARENTAL ||
-                   scene->active_category == SETTINGS_COUNTRY ||
-                   scene->active_category == SETTINGS_UPDATE ||
-                   scene->active_category == SETTINGS_FORMAT;
-    if (choices && !sensitivity_meter &&
-        within(local_x, y, 308, 371, 272, 72))
+    bool choices =
+        scene->active_category == 4 || scene->active_category == 9 ||
+        (scene->detail != 0 && scene->active_category != SETTINGS_INTERNET) ||
+        (scene->active_category == SETTINGS_INTERNET &&
+         (scene->detail == 3 || scene->detail == INTERNET_WIRED_PROMPT ||
+          scene->detail == INTERNET_NO_ACCESS_POINT ||
+          scene->detail == INTERNET_USB_INSTRUCTIONS ||
+          scene->detail == INTERNET_USB_EXISTING_CONNECTOR)) ||
+        scene->active_category == SETTINGS_NICKNAME ||
+        scene->active_category == SETTINGS_PARENTAL ||
+        scene->active_category == SETTINGS_COUNTRY ||
+        scene->active_category == SETTINGS_UPDATE ||
+        scene->active_category == SETTINGS_FORMAT;
+    if (choices && !sensitivity_meter && within(local_x, y, 308, 371, 272, 72))
         return WM_SETTINGS_CONTROL_NEXT; /* Confirm or OK. */
 
     if (!scene->detail) {
         if (scene->active_category == 3) {
             for (int item = 0; item < 4; item++) {
                 if (within(local_x, y, 104, 78 + item * 72, 400, 60))
-                    return (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 +
-                                               item);
+                    return (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 + item);
             }
-        } else if (scene->active_category == 4 ||
-                   scene->active_category == 9) {
+        } else if (scene->active_category == 4 || scene->active_category == 9) {
             return choice_at(local_x, y, 85, 3);
-        } else if (scene->active_category == 2 ||
-                   scene->active_category == 6) {
+        } else if (scene->active_category == 2 || scene->active_category == 6) {
             return choice_at(local_x, y, 133, 2);
         } else if (scene->active_category == SETTINGS_INTERNET ||
                    scene->active_category == SETTINGS_CONNECT24) {
@@ -210,20 +193,16 @@ static WmSettingsControl category_hit(const WmSettingsScene *scene,
                 return choice_at(local_x, y, 85, 1);
             return choice_at(local_x, y, 85, 3);
         } else if (scene->active_category == SETTINGS_COUNTRY) {
-            if (scene->country_page > 0 &&
-                within(local_x, y, 528, 76, 72, 72))
+            if (scene->country_page > 0 && within(local_x, y, 528, 76, 72, 72))
                 return WM_SETTINGS_CONTROL_PREVIOUS;
-            if (scene->country_page < 9 &&
-                within(local_x, y, 528, 282, 72, 72))
+            if (scene->country_page < 9 && within(local_x, y, 528, 282, 72, 72))
                 return WM_SETTINGS_CONTROL_ITEM_6;
-            unsigned count = scene->country_page == 0 ||
-                             scene->country_page == 9 ? 4 : 5;
+            unsigned count =
+                scene->country_page == 0 || scene->country_page == 9 ? 4 : 5;
             int first_y = scene->country_page == 0 ? 132 : 76;
             for (unsigned item = 0; item < count; item++) {
-                if (within(local_x, y, 88, first_y + (int)item * 56,
-                           432, 56))
-                    return (WmSettingsControl)(
-                        WM_SETTINGS_CONTROL_ITEM_1 + item);
+                if (within(local_x, y, 88, first_y + (int)item * 56, 432, 56))
+                    return (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 + item);
             }
         }
         return WM_SETTINGS_CONTROL_NONE;
@@ -235,7 +214,8 @@ static WmSettingsControl category_hit(const WmSettingsScene *scene,
             return choice_at(local_x, y, 133, 2);
         if (scene->detail == INTERNET_WIRELESS_CHOICES) {
             WmSettingsControl full_row = choice_at(local_x, y, 85, 2);
-            if (full_row != WM_SETTINGS_CONTROL_NONE) return full_row;
+            if (full_row != WM_SETTINGS_CONTROL_NONE)
+                return full_row;
             if (within(local_x, y, 104, 274, 168, 76))
                 return WM_SETTINGS_CONTROL_ITEM_3;
             if (within(local_x, y, 339, 277, 168, 70))
@@ -254,16 +234,14 @@ static WmSettingsControl category_hit(const WmSettingsScene *scene,
         const int arrow_y[6] = {108, 253, 108, 253, 108, 253};
         for (unsigned index = 0; index < 6; index++) {
             if (within(local_x, y, arrow_x[index], arrow_y[index], 72, 72))
-                return (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 +
-                                           index);
+                return (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 + index);
         }
     } else if (scene->active_category == 2 && scene->detail == 2) {
         const int arrow_x[4] = {200, 200, 336, 336};
         const int arrow_y[4] = {108, 253, 108, 253};
         for (unsigned index = 0; index < 4; index++) {
             if (within(local_x, y, arrow_x[index], arrow_y[index], 64, 64))
-                return (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 +
-                                           index);
+                return (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 + index);
         }
     } else if (scene->active_category == 6 && scene->detail == 2) {
         if (scene->sensitivity_instructions)
@@ -289,13 +267,14 @@ static WmSettingsControl category_hit(const WmSettingsScene *scene,
 }
 
 WmSettingsScene *wm_settings_scene_create(WmPlatform *platform,
-                                           const char *assets_directory,
-                                           WmTextureCache *textures,
-                                           WmFontCache *fonts) {
-    if (!platform || !assets_directory || !assets_directory[0] ||
-        !textures || !fonts) return NULL;
+                                          const char *assets_directory,
+                                          WmTextureCache *textures,
+                                          WmFontCache *fonts) {
+    if (!platform || !assets_directory || !assets_directory[0] || !textures || !fonts)
+        return NULL;
     WmSettingsScene *scene = calloc(1, sizeof(*scene));
-    if (!scene) return NULL;
+    if (!scene)
+        return NULL;
     scene->platform = platform;
     scene->textures = textures;
     scene->fonts = fonts;
@@ -308,18 +287,17 @@ WmSettingsScene *wm_settings_scene_create(WmPlatform *platform,
     memcpy(scene->assets_directory, assets_directory, assets_length);
     scene->phase = WM_SETTINGS_CLOSED;
     settings_scene_reset_local_values(scene);
-    scene->scroll_layout = wm_layout_load_asset(
-        assets_directory, "layouts/setting/SceenChange_b.json",
-        "Wii Settings page transition");
+    scene->scroll_layout =
+        wm_layout_load_asset(assets_directory, "layouts/setting/SceenChange_b.json",
+                             "Wii Settings page transition");
     if (!scene->scroll_layout) {
         wm_settings_scene_destroy(scene);
         return NULL;
     }
     WmLayoutAnimationInfo left, right;
-    if (!wm_layout_animation_info(scene->scroll_layout,
-                                  "SceenChange_b_Left", &left) ||
-        !wm_layout_animation_info(scene->scroll_layout,
-                                  "SceenChange_b_Right", &right) ||
+    if (!wm_layout_animation_info(scene->scroll_layout, "SceenChange_b_Left", &left) ||
+        !wm_layout_animation_info(scene->scroll_layout, "SceenChange_b_Right",
+                                  &right) ||
         left.frames != 41.0f || right.frames != 41.0f) {
         wm_settings_scene_destroy(scene);
         return NULL;
@@ -333,7 +311,8 @@ WmSettingsScene *wm_settings_scene_create(WmPlatform *platform,
 }
 
 void wm_settings_scene_destroy(WmSettingsScene *scene) {
-    if (!scene) return;
+    if (!scene)
+        return;
     wm_board_keyboard_destroy(scene->nickname_keyboard);
     free(scene->assets_directory);
     wm_outline_font_destroy(scene->outline_font, scene->platform);
@@ -342,7 +321,8 @@ void wm_settings_scene_destroy(WmSettingsScene *scene) {
 }
 
 bool wm_settings_scene_open(WmSettingsScene *scene) {
-    if (!scene) return false;
+    if (!scene)
+        return false;
     scene->page = 1;
     scene->previous_page = 1;
     scene->phase = WM_SETTINGS_APPEAR;
@@ -369,7 +349,8 @@ bool wm_settings_scene_open(WmSettingsScene *scene) {
 }
 
 static bool open_direct_category(WmSettingsScene *scene, unsigned category) {
-    if (!wm_settings_scene_open(scene)) return false;
+    if (!wm_settings_scene_open(scene))
+        return false;
     scene->page = 2;
     scene->previous_page = 2;
     scene->active_category = category;
@@ -386,7 +367,8 @@ bool wm_settings_scene_open_connect24(WmSettingsScene *scene) {
 }
 
 void wm_settings_scene_reset(WmSettingsScene *scene) {
-    if (!scene) return;
+    if (!scene)
+        return;
     scene->page = 1;
     scene->previous_page = 1;
     scene->phase = WM_SETTINGS_CLOSED;
@@ -412,7 +394,8 @@ void wm_settings_scene_reset(WmSettingsScene *scene) {
 }
 
 void wm_settings_scene_advance(WmSettingsScene *scene, float frames) {
-    if (!scene || !isfinite(frames) || frames < 0.0f) return;
+    if (!scene || !isfinite(frames) || frames < 0.0f)
+        return;
     settings_scene_advance_nickname_keyboard(scene, frames);
     if (scene->phase == WM_SETTINGS_APPEAR) {
         scene->phase_frame += frames;
@@ -430,8 +413,8 @@ void wm_settings_scene_advance(WmSettingsScene *scene, float frames) {
     } else if (scene->phase == WM_SETTINGS_READY &&
                scene->held_control != WM_SETTINGS_CONTROL_NONE) {
         scene->hold_elapsed = fminf(scene->hold_elapsed + frames, 100000.0f);
-        for (unsigned repeats = 0; repeats < 128 &&
-             scene->hold_elapsed >= scene->next_repeat; repeats++) {
+        for (unsigned repeats = 0;
+             repeats < 128 && scene->hold_elapsed >= scene->next_repeat; repeats++) {
             if (!wm_settings_scene_activate(scene, scene->held_control)) {
                 scene->held_control = WM_SETTINGS_CONTROL_NONE;
                 break;
@@ -479,31 +462,34 @@ void wm_settings_scene_advance(WmSettingsScene *scene, float frames) {
 }
 
 bool wm_settings_scene_take_repeat_cue(WmSettingsScene *scene) {
-    if (!scene) return false;
+    if (!scene)
+        return false;
     bool pending = scene->repeat_cue_pending;
     scene->repeat_cue_pending = false;
     return pending;
 }
 
 WmSettingsSnapshot wm_settings_scene_snapshot(const WmSettingsScene *scene) {
-    if (!scene) return (WmSettingsSnapshot){.phase = WM_SETTINGS_CLOSED};
+    if (!scene)
+        return (WmSettingsSnapshot){.phase = WM_SETTINGS_CLOSED};
     WmSettingsSnapshot snapshot = {
         .page = scene->page,
         .category = scene->active_category,
         .detail = scene->detail,
         .selection = scene->selection,
-        .year = scene->detail == 1 && scene->active_category == 2
-            ? scene->edit_year : scene->year,
-        .month = scene->detail == 1 && scene->active_category == 2
-            ? scene->edit_month : scene->month,
-        .day = scene->detail == 1 && scene->active_category == 2
-            ? scene->edit_day : scene->day,
-        .hour = scene->detail == 2 && scene->active_category == 2
-            ? scene->edit_hour : scene->hour,
-        .minute = scene->detail == 2 && scene->active_category == 2
-            ? scene->edit_minute : scene->minute,
+        .year = scene->detail == 1 && scene->active_category == 2 ? scene->edit_year
+                                                                  : scene->year,
+        .month = scene->detail == 1 && scene->active_category == 2 ? scene->edit_month
+                                                                   : scene->month,
+        .day = scene->detail == 1 && scene->active_category == 2 ? scene->edit_day
+                                                                 : scene->day,
+        .hour = scene->detail == 2 && scene->active_category == 2 ? scene->edit_hour
+                                                                  : scene->hour,
+        .minute = scene->detail == 2 && scene->active_category == 2 ? scene->edit_minute
+                                                                    : scene->minute,
         .sensitivity = scene->detail == 2 && scene->active_category == 6
-            ? scene->edit_sensitivity : scene->sensitivity,
+                           ? scene->edit_sensitivity
+                           : scene->sensitivity,
         .parental_enabled = scene->parental_enabled,
         .connect24_enabled = scene->connect24_enabled,
         .standby_enabled = scene->standby_enabled,
@@ -512,17 +498,17 @@ WmSettingsSnapshot wm_settings_scene_snapshot(const WmSettingsScene *scene) {
         .connection_slot = scene->connection_slot,
         .country_page = scene->country_page,
         .country_choice = scene->active_category == SETTINGS_COUNTRY
-            ? scene->edit_country_choice : scene->country_choice,
+                              ? scene->edit_country_choice
+                              : scene->country_choice,
         .local_format_complete = scene->local_format_complete,
         .phase = scene->phase,
         .phase_frame = scene->phase_frame,
         .hover = scene->hover,
         .hover_opacity = wm_settings_focus_opacity(scene, scene->hover),
-        .page_opacity = wm_settings_page_opacity(scene)
-    };
+        .page_opacity = wm_settings_page_opacity(scene)};
     snprintf(snapshot.nickname, sizeof(snapshot.nickname), "%s",
-             scene->active_category == SETTINGS_NICKNAME
-                 ? scene->edit_nickname : scene->nickname);
+             scene->active_category == SETTINGS_NICKNAME ? scene->edit_nickname
+                                                         : scene->nickname);
     return snapshot;
 }
 
@@ -532,7 +518,8 @@ bool wm_settings_scene_update_question(const WmSettingsScene *scene) {
 }
 
 bool wm_settings_scene_back(WmSettingsScene *scene) {
-    if (!scene) return false;
+    if (!scene)
+        return false;
     if (wm_settings_scene_nickname_keyboard_visible(scene))
         return wm_settings_scene_keyboard_close(scene, false) != NULL;
     SettingsPageSnapshot before = page_snapshot(scene);
@@ -544,50 +531,50 @@ bool wm_settings_scene_back(WmSettingsScene *scene) {
 }
 
 bool wm_settings_scene_take_exit(WmSettingsScene *scene) {
-    if (!scene) return false;
+    if (!scene)
+        return false;
     bool exit_pending = scene->exit_pending;
     scene->exit_pending = false;
     return exit_pending;
 }
 
 unsigned wm_settings_scene_take_category(WmSettingsScene *scene) {
-    if (!scene) return 0;
+    if (!scene)
+        return 0;
     unsigned category = scene->pending_category;
     scene->pending_category = 0;
     return category;
 }
 
-WmSettingsControl wm_settings_scene_hit(const WmSettingsScene *scene,
-                                        int x, int y) {
-    if (!scene) return WM_SETTINGS_CONTROL_NONE;
+WmSettingsControl wm_settings_scene_hit(const WmSettingsScene *scene, int x, int y) {
+    if (!scene)
+        return WM_SETTINGS_CONTROL_NONE;
     if (wm_settings_scene_nickname_keyboard_visible(scene))
         return WM_SETTINGS_CONTROL_NONE;
     int source_x = (int)floorf(settings_source_x(scene, x + 0.5f));
-    return scene && scene->phase == WM_SETTINGS_READY &&
-           !scene->exit_pending
-        ? (scene->active_category
-            ? category_hit(scene, source_x, y)
-            : wm_settings_index_hit(scene->page, source_x, y))
-        : WM_SETTINGS_CONTROL_NONE;
+    return scene && scene->phase == WM_SETTINGS_READY && !scene->exit_pending
+               ? (scene->active_category
+                      ? category_hit(scene, source_x, y)
+                      : wm_settings_index_hit(scene->page, source_x, y))
+               : WM_SETTINGS_CONTROL_NONE;
 }
 
-bool wm_settings_scene_hover(WmSettingsScene *scene,
-                             WmSettingsControl control) {
-    if (!scene || scene->phase != WM_SETTINGS_READY ||
-        scene->exit_pending ||
+bool wm_settings_scene_hover(WmSettingsScene *scene, WmSettingsControl control) {
+    if (!scene || scene->phase != WM_SETTINGS_READY || scene->exit_pending ||
         wm_settings_scene_nickname_keyboard_visible(scene) ||
-        control > WM_SETTINGS_CONTROL_NICKNAME_FIELD ||
-        scene->hover == control) return false;
+        control > WM_SETTINGS_CONTROL_NICKNAME_FIELD || scene->hover == control)
+        return false;
     scene->hover = control;
     return true;
 }
 
-static bool activate_control(WmSettingsScene *scene,
-                             WmSettingsControl control) {
-    if (!scene || scene->phase != WM_SETTINGS_READY ||
-        scene->exit_pending || control <= WM_SETTINGS_CONTROL_NONE ||
-        control > WM_SETTINGS_CONTROL_NICKNAME_FIELD) return false;
-    if (wm_settings_scene_nickname_keyboard_visible(scene)) return false;
+static bool activate_control(WmSettingsScene *scene, WmSettingsControl control) {
+    if (!scene || scene->phase != WM_SETTINGS_READY || scene->exit_pending ||
+        control <= WM_SETTINGS_CONTROL_NONE ||
+        control > WM_SETTINGS_CONTROL_NICKNAME_FIELD)
+        return false;
+    if (wm_settings_scene_nickname_keyboard_visible(scene))
+        return false;
     if (control == WM_SETTINGS_CONTROL_NICKNAME_FIELD)
         return settings_scene_open_nickname_keyboard(scene);
     if (scene->active_category)
@@ -598,7 +585,8 @@ static bool activate_control(WmSettingsScene *scene,
         control == WM_SETTINGS_CONTROL_NEXT) {
         int direction = control == WM_SETTINGS_CONTROL_NEXT ? 1 : -1;
         int next = (int)scene->page + direction;
-        if (next < 1 || next > SETTINGS_INDEX_PAGES) return false;
+        if (next < 1 || next > SETTINGS_INDEX_PAGES)
+            return false;
         scene->previous_page = scene->page;
         scene->page = (unsigned)next;
         scene->direction = direction;
@@ -615,11 +603,11 @@ static bool activate_control(WmSettingsScene *scene,
     }
     scene->active_category = category;
     scene->detail = 0;
-    scene->selection = category == 4 ? scene->sound_choice
-                     : category == 9 ? scene->language_choice : 0;
+    scene->selection = category == 4   ? scene->sound_choice
+                       : category == 9 ? scene->language_choice
+                                       : 0;
     if (category == SETTINGS_NICKNAME) {
-        memcpy(scene->edit_nickname, scene->nickname,
-               sizeof(scene->edit_nickname));
+        memcpy(scene->edit_nickname, scene->nickname, sizeof(scene->edit_nickname));
         scene->nickname_caret = (unsigned)strlen(scene->edit_nickname);
     }
     if (category == SETTINGS_COUNTRY) {
@@ -634,9 +622,9 @@ static bool activate_control(WmSettingsScene *scene,
     return true;
 }
 
-bool wm_settings_scene_activate(WmSettingsScene *scene,
-                                WmSettingsControl control) {
-    if (!scene) return false;
+bool wm_settings_scene_activate(WmSettingsScene *scene, WmSettingsControl control) {
+    if (!scene)
+        return false;
     SettingsPageSnapshot before = page_snapshot(scene);
     bool activated = activate_control(scene, control);
     /* Changing Language selects its localized settings page. */
@@ -653,18 +641,17 @@ bool wm_settings_scene_activate(WmSettingsScene *scene,
     return activated;
 }
 
-bool wm_settings_scene_pointer_down(WmSettingsScene *scene,
-                                    WmSettingsControl control) {
-    if (!scene || scene->phase != WM_SETTINGS_READY ||
-        scene->active_category != 2) return false;
-    bool date_arrow = scene->detail == 1 &&
-        control >= WM_SETTINGS_CONTROL_ITEM_1 &&
-        control <= WM_SETTINGS_CONTROL_ITEM_6;
-    bool time_arrow = scene->detail == 2 &&
-        control >= WM_SETTINGS_CONTROL_ITEM_1 &&
-        control <= WM_SETTINGS_CONTROL_ITEM_4;
-    if (!date_arrow && !time_arrow) return false;
-    if (!wm_settings_scene_activate(scene, control)) return false;
+bool wm_settings_scene_pointer_down(WmSettingsScene *scene, WmSettingsControl control) {
+    if (!scene || scene->phase != WM_SETTINGS_READY || scene->active_category != 2)
+        return false;
+    bool date_arrow = scene->detail == 1 && control >= WM_SETTINGS_CONTROL_ITEM_1 &&
+                      control <= WM_SETTINGS_CONTROL_ITEM_6;
+    bool time_arrow = scene->detail == 2 && control >= WM_SETTINGS_CONTROL_ITEM_1 &&
+                      control <= WM_SETTINGS_CONTROL_ITEM_4;
+    if (!date_arrow && !time_arrow)
+        return false;
+    if (!wm_settings_scene_activate(scene, control))
+        return false;
     scene->held_control = control;
     scene->repeat_cue_pending = false;
     scene->hold_elapsed = 0.0f;
@@ -673,22 +660,24 @@ bool wm_settings_scene_pointer_down(WmSettingsScene *scene,
 }
 
 void wm_settings_scene_pointer_up(WmSettingsScene *scene) {
-    if (!scene) return;
+    if (!scene)
+        return;
     scene->held_control = WM_SETTINGS_CONTROL_NONE;
     scene->hold_elapsed = 0.0f;
     scene->next_repeat = 0.0f;
 }
 
 bool wm_settings_scene_directional_control(const WmSettingsScene *scene,
-                                            WmSettingsControl control) {
-    if (!scene || scene->phase != WM_SETTINGS_READY) return false;
+                                           WmSettingsControl control) {
+    if (!scene || scene->phase != WM_SETTINGS_READY)
+        return false;
     if (scene->active_category == 0) {
         return (control == WM_SETTINGS_CONTROL_PREVIOUS && scene->page > 1) ||
                (control == WM_SETTINGS_CONTROL_NEXT && scene->page < 3);
     }
     if (scene->active_category == 2) {
-        WmSettingsControl last = scene->detail == 1
-            ? WM_SETTINGS_CONTROL_ITEM_6 : WM_SETTINGS_CONTROL_ITEM_4;
+        WmSettingsControl last = scene->detail == 1 ? WM_SETTINGS_CONTROL_ITEM_6
+                                                    : WM_SETTINGS_CONTROL_ITEM_4;
         return (scene->detail == 1 || scene->detail == 2) &&
                control >= WM_SETTINGS_CONTROL_ITEM_1 && control <= last;
     }
@@ -697,10 +686,8 @@ bool wm_settings_scene_directional_control(const WmSettingsScene *scene,
                control == WM_SETTINGS_CONTROL_ITEM_2;
     }
     if (scene->active_category == 10) {
-        return (control == WM_SETTINGS_CONTROL_PREVIOUS &&
-                scene->country_page > 0) ||
-               (control == WM_SETTINGS_CONTROL_ITEM_6 &&
-                scene->country_page < 9);
+        return (control == WM_SETTINGS_CONTROL_PREVIOUS && scene->country_page > 0) ||
+               (control == WM_SETTINGS_CONTROL_ITEM_6 && scene->country_page < 9);
     }
     return false;
 }

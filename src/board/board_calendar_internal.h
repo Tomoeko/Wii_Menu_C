@@ -12,9 +12,8 @@ typedef struct WmBoardCalendarDayPresentation {
 } WmBoardCalendarDayPresentation;
 
 /* Returns back-to-front day layers outside month scrolling. */
-bool wm_board_calendar_day_presentation(
-    const WmBoardCalendar *calendar, unsigned layer,
-    WmBoardCalendarDayPresentation *presentation);
+bool wm_board_calendar_day_presentation(const WmBoardCalendar *calendar, unsigned layer,
+                                        WmBoardCalendarDayPresentation *presentation);
 
 /* The controller owns dates, focus, and the three layouts. Presentation
  * borrows them; hit testing poses the same layouts used by drawing. */
@@ -67,8 +66,7 @@ struct WmBoardCalendar {
     WmBoardCalendarOutcome outcome;
 };
 
-static inline bool board_calendar_same_date(WmBoardDate first,
-                                            WmBoardDate second) {
+static inline bool board_calendar_same_date(WmBoardDate first, WmBoardDate second) {
     return first.year == second.year && first.month == second.month &&
            first.day == second.day;
 }

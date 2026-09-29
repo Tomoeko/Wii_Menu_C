@@ -29,14 +29,12 @@ void wm_platform_end(WmPlatform *platform) {
     assert(false);
 }
 
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad) {
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
@@ -55,8 +53,7 @@ void wm_platform_draw_quad(WmPlatform *platform, const WmQuad *quad) {
     drawn_quads[drawn_quad_count++] = *quad;
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
     if (!texture && vertices[0].color.r == 1.0f &&
@@ -71,17 +68,16 @@ static size_t black_nickname_carets(void) {
     size_t count = 0;
     for (size_t index = 0; index < drawn_quad_count; index++) {
         const WmQuad *quad = &drawn_quads[index];
-        if (!quad->texture && quad->y == 193.0f &&
-            quad->height == 50.0f && quad->width < 2.0f &&
-            quad->color.r == 0.0f && quad->color.g == 0.0f &&
+        if (!quad->texture && quad->y == 193.0f && quad->height == 50.0f &&
+            quad->width < 2.0f && quad->color.r == 0.0f && quad->color.g == 0.0f &&
             quad->color.b == 0.0f)
             count++;
     }
     return count;
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     (void)width;
     (void)height;
@@ -98,13 +94,11 @@ static void test_directional_controls(const char *assets) {
     WmSettingsScene *scene = wm_settings_scene_create(
         (WmPlatform *)1, assets, (WmTextureCache *)1, (WmFontCache *)1);
     assert(scene);
-    assert(!wm_settings_scene_directional_control(
-        scene, WM_SETTINGS_CONTROL_NEXT));
+    assert(!wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_NEXT));
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
     assert(wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_NEXT));
-    assert(!wm_settings_scene_directional_control(
-        scene, WM_SETTINGS_CONTROL_PREVIOUS));
+    assert(!wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_PREVIOUS));
     assert(!wm_settings_scene_directional_control(scene, WM_SETTINGS_CONTROL_ITEM_1));
 
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
@@ -147,8 +141,7 @@ static void test_directional_controls(const char *assets) {
 
 static void test_wide_projection(const char *assets) {
     WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1,
-        (WmFontCache *)1);
+        (WmPlatform *)1, assets, (WmTextureCache *)1, (WmFontCache *)1);
     assert(scene);
     WmSettingsProjection narrow = wm_settings_scene_projection(scene);
     assert(narrow.document_x == 16.0f);
@@ -160,44 +153,37 @@ static void test_wide_projection(const char *assets) {
     float side = 112.0f * 640.0f / 832.0f;
     assert(fabsf(wide.side_width - side) < 0.001f);
     assert(fabsf(wide.document_x - side) < 0.001f);
-    assert(fabsf(wide.document_width - 608.0f * 640.0f / 832.0f)
-           < 0.001f);
-    assert(fabsf(wide.document_x + wide.document_width + wide.side_width -
-                 640.0f) < 0.001f);
+    assert(fabsf(wide.document_width - 608.0f * 640.0f / 832.0f) < 0.001f);
+    assert(fabsf(wide.document_x + wide.document_width + wide.side_width - 640.0f) <
+           0.001f);
 
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
-    assert(wm_settings_scene_hit(scene, 80, 400) ==
-           WM_SETTINGS_CONTROL_NONE);
-    assert(wm_settings_scene_hit(scene, 135, 400) ==
-           WM_SETTINGS_CONTROL_BACK);
-    assert(wm_settings_scene_hit(scene, 510, 220) ==
-           WM_SETTINGS_CONTROL_NEXT);
-    assert(wm_settings_scene_hit(scene, 545, 105) ==
-           WM_SETTINGS_CONTROL_NONE);
+    assert(wm_settings_scene_hit(scene, 80, 400) == WM_SETTINGS_CONTROL_NONE);
+    assert(wm_settings_scene_hit(scene, 135, 400) == WM_SETTINGS_CONTROL_BACK);
+    assert(wm_settings_scene_hit(scene, 510, 220) == WM_SETTINGS_CONTROL_NEXT);
+    assert(wm_settings_scene_hit(scene, 545, 105) == WM_SETTINGS_CONTROL_NONE);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_3));
-    assert(wm_settings_scene_hit(scene, 201, 100) ==
-           WM_SETTINGS_CONTROL_ITEM_1);
+    assert(wm_settings_scene_hit(scene, 201, 100) == WM_SETTINGS_CONTROL_ITEM_1);
     wm_settings_scene_destroy(scene);
 }
 
 static void test_wide_render(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64 * 1024 * 1024);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16 * 1024 * 1024);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64 * 1024 * 1024);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16 * 1024 * 1024);
     assert(textures && fonts);
     uint32_t side_texture = 0;
-    if (!wm_texture_cache_resolve(
-            textures, "textures/settings_html/side-panel.png",
-            &side_texture)) {
+    if (!wm_texture_cache_resolve(textures, "textures/settings_html/side-panel.png",
+                                  &side_texture)) {
         puts("Wii Settings side-panel render test skipped: local export absent.");
         wm_font_cache_destroy(fonts);
         wm_texture_cache_destroy(textures);
         return;
     }
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     wm_settings_scene_set_wide(scene, true);
     assert(wm_settings_scene_open(scene));
@@ -214,7 +200,8 @@ static void test_wide_render(const char *assets) {
     unsigned side_count = 0;
     for (size_t index = 0; index < drawn_quad_count; index++) {
         const WmQuad *quad = &drawn_quads[index];
-        if (quad->texture != side_texture) continue;
+        if (quad->texture != side_texture)
+            continue;
         assert(side_count == 0);
         assert(quad->x == 0.0f && quad->y == 0.0f);
         assert(quad->width == WM_FRAME_WIDTH);
@@ -230,11 +217,9 @@ static void test_wide_render(const char *assets) {
     uint32_t standard_texture = 0;
     uint32_t wide_texture = 0;
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/widescreen-standard.png",
-        &standard_texture));
+        textures, "textures/settings_html/widescreen-standard.png", &standard_texture));
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/widescreen-wide.png",
-        &wide_texture));
+        textures, "textures/settings_html/widescreen-wide.png", &wide_texture));
     drawn_quad_count = 0;
     wm_texture_cache_begin_frame(textures);
     wm_font_cache_begin_frame(fonts);
@@ -243,34 +228,28 @@ static void test_wide_render(const char *assets) {
     for (size_t index = 0; index < drawn_quad_count; index++) {
         const WmQuad *quad = &drawn_quads[index];
         if (quad->texture == standard_texture) {
-            assert(fabsf(quad->x - (48.0f + 112.0f) * 640.0f /
-                         832.0f) < 0.001f);
+            assert(fabsf(quad->x - (48.0f + 112.0f) * 640.0f / 832.0f) < 0.001f);
             assert(quad->y == 146.0f && quad->height == 140.0f);
             choice_count++;
         } else if (quad->texture == wide_texture) {
-            assert(fabsf(quad->x - (296.0f + 112.0f) * 640.0f /
-                         832.0f) < 0.001f);
+            assert(fabsf(quad->x - (296.0f + 112.0f) * 640.0f / 832.0f) < 0.001f);
             assert(quad->y == 146.0f && quad->height == 140.0f);
             choice_count++;
         }
     }
     assert(choice_count == 2);
-    assert(wm_settings_scene_hit(scene, 160, 200) ==
-           WM_SETTINGS_CONTROL_ITEM_1);
-    assert(wm_settings_scene_hit(scene, 390, 200) ==
-           WM_SETTINGS_CONTROL_ITEM_2);
+    assert(wm_settings_scene_hit(scene, 160, 200) == WM_SETTINGS_CONTROL_ITEM_1);
+    assert(wm_settings_scene_hit(scene, 390, 200) == WM_SETTINGS_CONTROL_ITEM_2);
 
     assert(wm_settings_scene_back(scene));
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
     wm_settings_scene_advance(scene, 20.0f);
     uint32_t left_arrow_texture = 0;
     uint32_t right_arrow_texture = 0;
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/arrow-left.png",
-        &left_arrow_texture));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/arrow-right.png",
-        &right_arrow_texture));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/arrow-left.png",
+                                    &left_arrow_texture));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/arrow-right.png",
+                                    &right_arrow_texture));
     drawn_quad_count = 0;
     wm_texture_cache_begin_frame(textures);
     wm_font_cache_begin_frame(fonts);
@@ -279,22 +258,18 @@ static void test_wide_render(const char *assets) {
     for (size_t index = 0; index < drawn_quad_count; index++) {
         const WmQuad *quad = &drawn_quads[index];
         if (quad->texture == left_arrow_texture) {
-            assert(fabsf(quad->x - (160.0f + 112.0f) * 640.0f /
-                         832.0f) < 0.001f);
+            assert(fabsf(quad->x - (160.0f + 112.0f) * 640.0f / 832.0f) < 0.001f);
             assert(quad->y == 180.0f && quad->height == 72.0f);
             arrow_count++;
         } else if (quad->texture == right_arrow_texture) {
-            assert(fabsf(quad->x - (376.0f + 112.0f) * 640.0f /
-                         832.0f) < 0.001f);
+            assert(fabsf(quad->x - (376.0f + 112.0f) * 640.0f / 832.0f) < 0.001f);
             assert(quad->y == 180.0f && quad->height == 72.0f);
             arrow_count++;
         }
     }
     assert(arrow_count == 2);
-    assert(wm_settings_scene_hit(scene, 210, 200) ==
-           WM_SETTINGS_CONTROL_ITEM_1);
-    assert(wm_settings_scene_hit(scene, 380, 200) ==
-           WM_SETTINGS_CONTROL_ITEM_2);
+    assert(wm_settings_scene_hit(scene, 210, 200) == WM_SETTINGS_CONTROL_ITEM_1);
+    assert(wm_settings_scene_hit(scene, 380, 200) == WM_SETTINGS_CONTROL_ITEM_2);
 
     assert(wm_settings_scene_back(scene));
     assert(wm_settings_scene_back(scene));
@@ -303,12 +278,10 @@ static void test_wide_render(const char *assets) {
     wm_settings_scene_advance(scene, 20.0f);
     uint32_t up_texture = 0;
     uint32_t down_texture = 0;
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/arrow-up.png",
-        &up_texture));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/arrow-down.png",
-        &down_texture));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/arrow-up.png",
+                                    &up_texture));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/arrow-down.png",
+                                    &down_texture));
     drawn_quad_count = 0;
     wm_texture_cache_begin_frame(textures);
     wm_font_cache_begin_frame(fonts);
@@ -318,32 +291,28 @@ static void test_wide_render(const char *assets) {
         const WmQuad *quad = &drawn_quads[index];
         if (quad->texture != up_texture && quad->texture != down_texture)
             continue;
-        assert(fabsf(quad->width - 72.0f * 640.0f / 832.0f)
-               < 0.001f);
+        assert(fabsf(quad->width - 72.0f * 640.0f / 832.0f) < 0.001f);
         assert(quad->height == 72.0f);
         assert(quad->y == 108.0f || quad->y == 253.0f);
         date_arrows++;
     }
     assert(date_arrows == 6);
-    assert(wm_settings_scene_hit(scene, 398, 120) ==
-           WM_SETTINGS_CONTROL_ITEM_1);
-    assert(wm_settings_scene_hit(scene, 160, 120) ==
-           WM_SETTINGS_CONTROL_ITEM_3);
-    assert(wm_settings_scene_hit(scene, 266, 120) ==
-           WM_SETTINGS_CONTROL_ITEM_5);
+    assert(wm_settings_scene_hit(scene, 398, 120) == WM_SETTINGS_CONTROL_ITEM_1);
+    assert(wm_settings_scene_hit(scene, 160, 120) == WM_SETTINGS_CONTROL_ITEM_3);
+    assert(wm_settings_scene_hit(scene, 266, 120) == WM_SETTINGS_CONTROL_ITEM_5);
     wm_settings_scene_destroy(scene);
     wm_font_cache_destroy(fonts);
     wm_texture_cache_destroy(textures);
 }
 
 static void test_nickname_keyboard_caret_and_exit(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     wm_settings_scene_set_wide(scene, true);
     assert(wm_settings_scene_open(scene));
@@ -365,16 +334,14 @@ static void test_nickname_keyboard_caret_and_exit(const char *assets) {
             quad->height == SETTINGS_NICKNAME_FIELD_HEIGHT &&
             fabsf(quad->x - 200.0f * 640.0f / 832.0f) < 0.001f &&
             fabsf(quad->width - 432.0f * 640.0f / 832.0f) < 0.001f &&
-            quad->color.r == 1.0f && quad->color.g == 1.0f &&
-            quad->color.b == 1.0f)
+            quad->color.r == 1.0f && quad->color.g == 1.0f && quad->color.b == 1.0f)
             white_field = true;
     }
     assert(white_field);
     assert(black_nickname_carets() == 0 && red_caret_draws == 0);
 
     assert(wm_settings_scene_place_nickname_caret(scene, 160));
-    assert(wm_settings_scene_activate(scene,
-                                      WM_SETTINGS_CONTROL_NICKNAME_FIELD));
+    assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_NICKNAME_FIELD));
     drawn_quad_count = 0;
     red_caret_draws = 0;
     assert(wm_settings_scene_draw(scene));
@@ -387,18 +354,17 @@ static void test_nickname_keyboard_caret_and_exit(const char *assets) {
     assert(red_caret_draws == 1);
     float first_caret_x = red_caret_x;
     WmSourceRect keyboard_text;
-    assert(wm_source_pane_rect(scene->nickname_keyboard->text_box_big,
-                               "T_2l_TextBox", true, WM_LAYOUT_IPL,
-                               NULL, &keyboard_text));
+    assert(wm_source_pane_rect(scene->nickname_keyboard->text_box_big, "T_2l_TextBox",
+                               true, WM_LAYOUT_IPL, NULL, &keyboard_text));
     int text_y = (int)(keyboard_text.y + keyboard_text.height * 0.5f);
-    assert(wm_settings_scene_keyboard_place_caret(
-        scene, (int)keyboard_text.x + 8, text_y));
+    assert(wm_settings_scene_keyboard_place_caret(scene, (int)keyboard_text.x + 8,
+                                                  text_y));
     assert(scene->nickname_caret == 0);
     assert(wm_settings_scene_keyboard_place_caret(
         scene, (int)(keyboard_text.x + keyboard_text.width) - 8, text_y));
     assert(scene->nickname_caret == 3);
-    assert(wm_settings_scene_keyboard_place_caret(
-        scene, (int)keyboard_text.x + 8, text_y));
+    assert(wm_settings_scene_keyboard_place_caret(scene, (int)keyboard_text.x + 8,
+                                                  text_y));
     assert(wm_settings_scene_type_ascii(scene, 'A'));
     assert(strcmp(scene->nickname_keyboard_display, "AWii") == 0);
     assert(strcmp(wm_settings_scene_keyboard_close(scene, false),
@@ -416,8 +382,7 @@ static void test_nickname_keyboard_caret_and_exit(const char *assets) {
     assert(!wm_settings_scene_nickname_keyboard_visible(scene));
 
     assert(wm_settings_scene_place_nickname_caret(scene, 470));
-    assert(wm_settings_scene_activate(scene,
-                                      WM_SETTINGS_CONTROL_NICKNAME_FIELD));
+    assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_NICKNAME_FIELD));
     assert(wm_settings_scene_type_ascii(scene, 'X'));
     assert(strcmp(scene->nickname_keyboard_display, "WiiX") == 0);
     wm_settings_scene_advance(scene, 36.0f);
@@ -438,30 +403,32 @@ static void test_nickname_keyboard_caret_and_exit(const char *assets) {
 static size_t count_drawn_texture(uint32_t texture, WmQuad *first) {
     size_t count = 0;
     for (size_t index = 0; index < drawn_quad_count; index++) {
-        if (drawn_quads[index].texture != texture) continue;
-        if (first && count == 0) *first = drawn_quads[index];
+        if (drawn_quads[index].texture != texture)
+            continue;
+        if (first && count == 0)
+            *first = drawn_quads[index];
         count++;
     }
     return count;
 }
 
 static void test_initial_page_fades_as_one_raster(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t background = 0;
     uint32_t side_panel = 0;
     uint32_t title = 0;
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/background.png", &background));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/side-panel.png", &side_panel));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/title-tab.png", &title));
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/background.png",
+                                    &background));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/side-panel.png",
+                                    &side_panel));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/title-tab.png",
+                                    &title));
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     wm_settings_scene_set_wide(scene, true);
     assert(wm_settings_scene_open(scene));
@@ -489,21 +456,20 @@ static void test_initial_page_fades_as_one_raster(const char *assets) {
     wm_texture_cache_destroy(textures);
 }
 
-static void test_page_crossfade_keeps_background_continuous(
-    const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+static void test_page_crossfade_keeps_background_continuous(const char *assets) {
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t background = 0;
     uint32_t side_panel = 0;
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/background.png", &background));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/side-panel.png", &side_panel));
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/background.png",
+                                    &background));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/side-panel.png",
+                                    &side_panel));
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     wm_settings_scene_set_wide(scene, true);
     assert(wm_settings_scene_open(scene));
@@ -530,8 +496,7 @@ static void test_page_crossfade_keeps_background_continuous(
                 faded_backgrounds++;
         }
         if (!quad->texture && quad->x == 0.0f && quad->y == 0.0f &&
-            quad->width == WM_FRAME_WIDTH &&
-            quad->height == WM_FRAME_HEIGHT)
+            quad->width == WM_FRAME_WIDTH && quad->height == WM_FRAME_HEIGHT)
             black_shells++;
     }
     assert(faded_backgrounds == 1);
@@ -553,28 +518,25 @@ static size_t count_row_glyphs(float top, float bottom) {
     return count;
 }
 
-static size_t count_glyphs_in_box(float left, float right,
-                                  float top, float bottom) {
+static size_t count_glyphs_in_box(float left, float right, float top, float bottom) {
     size_t count = 0;
     for (size_t index = 0; index < drawn_quad_count; index++) {
         const WmQuad *quad = &drawn_quads[index];
-        if (quad->texture && quad->x >= left && quad->x < right &&
-            quad->y >= top && quad->y < bottom &&
-            quad->width < 50.0f && quad->height <= 30.0f)
+        if (quad->texture && quad->x >= left && quad->x < right && quad->y >= top &&
+            quad->y < bottom && quad->width < 50.0f && quad->height <= 30.0f)
             count++;
     }
     return count;
 }
 
-static void assert_adjust_arrow_images(uint32_t normal_texture,
-                                       uint32_t focus_texture,
-                                       float x, float normal_alpha,
-                                       float focus_alpha) {
+static void assert_adjust_arrow_images(uint32_t normal_texture, uint32_t focus_texture,
+                                       float x, float normal_alpha, float focus_alpha) {
     unsigned normal_count = 0;
     unsigned focus_count = 0;
     for (size_t index = 0; index < drawn_quad_count; index++) {
         const WmQuad *quad = &drawn_quads[index];
-        if (quad->x != x || quad->y != 108.0f) continue;
+        if (quad->x != x || quad->y != 108.0f)
+            continue;
         if (quad->texture == normal_texture) {
             assert(fabsf(quad->color.a - normal_alpha) < 0.001f);
             normal_count++;
@@ -588,20 +550,19 @@ static void assert_adjust_arrow_images(uint32_t normal_texture,
 }
 
 static void test_calendar_arrow_rollover(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64 * 1024 * 1024);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16 * 1024 * 1024);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64 * 1024 * 1024);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16 * 1024 * 1024);
     assert(textures && fonts);
     uint32_t normal = 0;
     uint32_t focused = 0;
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/arrow-up.png",
+                                    &normal));
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/arrow-up.png", &normal));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/arrow-up-focus.png",
-        &focused));
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+        textures, "textures/settings_html/arrow-up-focus.png", &focused));
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -640,17 +601,17 @@ static void test_calendar_arrow_rollover(const char *assets) {
 }
 
 static void test_country_source_art(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t row = 0;
     uint32_t focus = 0;
     uint32_t left = 0;
     uint32_t right = 0;
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/country-row.png", &row));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/country-row.png",
+                                    &row));
     assert(wm_texture_cache_resolve(
         textures, "textures/settings_html/country-row-focus.png", &focus));
     assert(wm_texture_cache_resolve(
@@ -658,8 +619,8 @@ static void test_country_source_art(const char *assets) {
     assert(wm_texture_cache_resolve(
         textures, "textures/settings_html/country-choice-right.png", &right));
 
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -723,8 +684,7 @@ static void test_country_source_art(const char *assets) {
     assert(selected_left.y == 128.0f);
 
     for (unsigned page = 9; page > 0; page--)
-        assert(wm_settings_scene_activate(
-            scene, WM_SETTINGS_CONTROL_PREVIOUS));
+        assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_PREVIOUS));
     wm_settings_scene_advance(scene, 20.0f);
     assert(wm_settings_scene_snapshot(scene).country_page == 0);
     drawn_quad_count = 0;
@@ -748,26 +708,24 @@ static void test_country_source_art(const char *assets) {
 }
 
 static void test_sensitivity_source_art(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64 * 1024 * 1024);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16 * 1024 * 1024);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64 * 1024 * 1024);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16 * 1024 * 1024);
     assert(textures && fonts);
-    const char *const names[] = {
-        "sensitivity-minus", "sensitivity-gauge", "sensitivity-plus",
-        "sensitivity-rank-3", "sensitivity-rank-4", "footer-button"
-    };
+    const char *const names[] = {"sensitivity-minus",  "sensitivity-gauge",
+                                 "sensitivity-plus",   "sensitivity-rank-3",
+                                 "sensitivity-rank-4", "footer-button"};
     uint32_t art[sizeof(names) / sizeof(names[0])] = {0};
-    for (size_t index = 0; index < sizeof(names) / sizeof(names[0]);
-         index++) {
+    for (size_t index = 0; index < sizeof(names) / sizeof(names[0]); index++) {
         char path[128];
-        int length = snprintf(path, sizeof(path),
-                              "textures/settings_html/%s.png", names[index]);
+        int length =
+            snprintf(path, sizeof(path), "textures/settings_html/%s.png", names[index]);
         assert(length > 0 && length < (int)sizeof(path));
         assert(wm_texture_cache_resolve(textures, path, &art[index]));
     }
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     wm_settings_scene_set_wide(scene, true);
     assert(wm_settings_scene_open(scene));
@@ -794,26 +752,20 @@ static void test_sensitivity_source_art(const char *assets) {
     for (size_t index = 0; index < 4; index++) {
         WmQuad quad = {0};
         assert(count_drawn_texture(art[index], &quad) == 1);
-        assert(fabsf(quad.x - (art_x[index] + 112.0f) * wide_scale)
-               < 0.001f);
+        assert(fabsf(quad.x - (art_x[index] + 112.0f) * wide_scale) < 0.001f);
         assert(quad.y == art_y[index]);
-        assert(fabsf(quad.width - art_width[index] * wide_scale)
-               < 0.001f);
+        assert(fabsf(quad.width - art_width[index] * wide_scale) < 0.001f);
         assert(quad.height == art_height[index]);
     }
     assert(count_drawn_texture(art[4], NULL) == 0);
     assert(count_drawn_texture(art[5], NULL) == 0);
     for (size_t index = 0; index < drawn_quad_count; index++) {
         const WmQuad *quad = &drawn_quads[index];
-        assert(!(quad->texture == 0 && quad->y >= 176.0f &&
-                 quad->y < 284.0f));
+        assert(!(quad->texture == 0 && quad->y >= 176.0f && quad->y < 284.0f));
     }
-    assert(wm_settings_scene_hit(scene, 167, 320) ==
-           WM_SETTINGS_CONTROL_ITEM_1);
-    assert(wm_settings_scene_hit(scene, 498, 320) ==
-           WM_SETTINGS_CONTROL_ITEM_2);
-    assert(wm_settings_scene_hit(scene, 167, 390) ==
-           WM_SETTINGS_CONTROL_NEXT);
+    assert(wm_settings_scene_hit(scene, 167, 320) == WM_SETTINGS_CONTROL_ITEM_1);
+    assert(wm_settings_scene_hit(scene, 498, 320) == WM_SETTINGS_CONTROL_ITEM_2);
+    assert(wm_settings_scene_hit(scene, 167, 390) == WM_SETTINGS_CONTROL_NEXT);
 
     wm_settings_scene_set_wide(scene, false);
     drawn_quad_count = 0;
@@ -824,10 +776,8 @@ static void test_sensitivity_source_art(const char *assets) {
     assert(count_drawn_texture(art[3], &narrow_rank) == 1);
     assert(narrow_rank.x == 292.0f && narrow_rank.y == 300.0f);
     assert(narrow_rank.width == 56.0f && narrow_rank.height == 56.0f);
-    assert(wm_settings_scene_hit(scene, 16 + 90, 320) ==
-           WM_SETTINGS_CONTROL_ITEM_1);
-    assert(wm_settings_scene_hit(scene, 16 + 518, 320) ==
-           WM_SETTINGS_CONTROL_ITEM_2);
+    assert(wm_settings_scene_hit(scene, 16 + 90, 320) == WM_SETTINGS_CONTROL_ITEM_1);
+    assert(wm_settings_scene_hit(scene, 16 + 518, 320) == WM_SETTINGS_CONTROL_ITEM_2);
 
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
     drawn_quad_count = 0;
@@ -836,8 +786,8 @@ static void test_sensitivity_source_art(const char *assets) {
     assert(wm_settings_scene_draw(scene));
     assert(count_drawn_texture(art[3], NULL) == 0);
     assert(count_drawn_texture(art[4], NULL) == 1);
-    assert(wm_settings_scene_activate(
-        scene, wm_settings_scene_hit(scene, 16 + 320, 390)));
+    assert(
+        wm_settings_scene_activate(scene, wm_settings_scene_hit(scene, 16 + 320, 390)));
     assert(wm_settings_scene_snapshot(scene).detail == 0);
     assert(wm_settings_scene_snapshot(scene).sensitivity == 4);
     wm_settings_scene_destroy(scene);
@@ -846,24 +796,22 @@ static void test_sensitivity_source_art(const char *assets) {
 }
 
 static void test_connection_settings_split_rows(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t split = 0;
     uint32_t generic = 0;
     uint32_t focus = 0;
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/connection-split-row.png",
-        &split));
+        textures, "textures/settings_html/connection-split-row.png", &split));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/large-row.png",
+                                    &generic));
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/large-row.png", &generic));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/large-row-focus.png",
-        &focus));
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+        textures, "textures/settings_html/large-row-focus.png", &focus));
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -894,10 +842,8 @@ static void test_connection_settings_split_rows(const char *assets) {
         assert(split_row);
         /* Each row shows Connection N at left and the unconfigured type
          * None at right. */
-        assert(count_glyphs_in_box(135.0f, 350.0f,
-                                   top + 25.0f, top + 65.0f) == 11);
-        assert(count_glyphs_in_box(370.0f, 505.0f,
-                                   top + 25.0f, top + 65.0f) == 4);
+        assert(count_glyphs_in_box(135.0f, 350.0f, top + 25.0f, top + 65.0f) == 11);
+        assert(count_glyphs_in_box(370.0f, 505.0f, top + 25.0f, top + 65.0f) == 4);
     }
     assert(wm_settings_scene_hover(scene, WM_SETTINGS_CONTROL_ITEM_2));
     wm_settings_scene_advance(scene, 10.0f);
@@ -917,18 +863,16 @@ static void test_connection_settings_split_rows(const char *assets) {
 }
 
 static void test_empty_connection_choice_page(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
-    const char *paths[5] = {
-        "textures/settings_html/tab-dark-gray.png",
-        "textures/settings_html/tab-middle-gray-nested.png",
-        "textures/settings_html/tab-gray-nested.png",
-        "textures/settings_html/title-tab.png",
-        "textures/settings_html/large-row.png"
-    };
+    const char *paths[5] = {"textures/settings_html/tab-dark-gray.png",
+                            "textures/settings_html/tab-middle-gray-nested.png",
+                            "textures/settings_html/tab-gray-nested.png",
+                            "textures/settings_html/title-tab.png",
+                            "textures/settings_html/large-row.png"};
     uint32_t art[5] = {0};
     for (unsigned index = 0; index < 5; index++)
         assert(wm_texture_cache_resolve(textures, paths[index], &art[index]));
@@ -938,8 +882,8 @@ static void test_empty_connection_choice_page(const char *assets) {
         textures, "textures/settings_html/large-row-focus.png", &focus));
     assert(wm_texture_cache_resolve(
         textures, "textures/settings_html/footer-button.png", &footer));
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -952,8 +896,7 @@ static void test_empty_connection_choice_page(const char *assets) {
 
     for (unsigned slot = 1; slot <= 3; slot++) {
         assert(wm_settings_scene_activate(
-            scene, (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 +
-                                       slot - 1)));
+            scene, (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 + slot - 1)));
         wm_settings_scene_advance(scene, 20.0f);
         WmSettingsSnapshot snapshot = wm_settings_scene_snapshot(scene);
         assert(snapshot.category == 7 && snapshot.detail == 4);
@@ -971,15 +914,13 @@ static void test_empty_connection_choice_page(const char *assets) {
             assert(quad.x == header_x[index]);
             assert(quad.y == (index == 3 ? 27.0f : 35.0f));
         }
-        assert(count_glyphs_in_box(140.0f, 330.0f,
-                                   30.0f, 65.0f) == 11);
+        assert(count_glyphs_in_box(140.0f, 330.0f, 30.0f, 65.0f) == 11);
         assert(count_drawn_texture(art[4], NULL) == 2);
         for (unsigned row = 0; row < 2; row++) {
             bool found = false;
             for (size_t index = 0; index < drawn_quad_count; index++) {
                 const WmQuad *quad = &drawn_quads[index];
-                if (quad->texture == art[4] &&
-                    quad->y == 128.0f + 96.0f * row) {
+                if (quad->texture == art[4] && quad->y == 128.0f + 96.0f * row) {
                     assert(quad->x == 120.0f && quad->width == 400.0f);
                     assert(quad->height == 80.0f);
                     found = true;
@@ -987,19 +928,13 @@ static void test_empty_connection_choice_page(const char *assets) {
             }
             assert(found);
         }
-        assert(count_glyphs_in_box(170.0f, 470.0f,
-                                   150.0f, 190.0f) == 18);
-        assert(count_glyphs_in_box(170.0f, 470.0f,
-                                   246.0f, 286.0f) == 15);
+        assert(count_glyphs_in_box(170.0f, 470.0f, 150.0f, 190.0f) == 18);
+        assert(count_glyphs_in_box(170.0f, 470.0f, 246.0f, 286.0f) == 15);
         assert(count_drawn_texture(footer, NULL) == 1);
-        assert(wm_settings_scene_hit(scene, 320, 165) ==
-               WM_SETTINGS_CONTROL_ITEM_1);
-        assert(wm_settings_scene_hit(scene, 320, 261) ==
-               WM_SETTINGS_CONTROL_ITEM_2);
-        assert(wm_settings_scene_hit(scene, 180, 405) ==
-               WM_SETTINGS_CONTROL_BACK);
-        assert(wm_settings_scene_hit(scene, 460, 405) ==
-               WM_SETTINGS_CONTROL_NONE);
+        assert(wm_settings_scene_hit(scene, 320, 165) == WM_SETTINGS_CONTROL_ITEM_1);
+        assert(wm_settings_scene_hit(scene, 320, 261) == WM_SETTINGS_CONTROL_ITEM_2);
+        assert(wm_settings_scene_hit(scene, 180, 405) == WM_SETTINGS_CONTROL_BACK);
+        assert(wm_settings_scene_hit(scene, 460, 405) == WM_SETTINGS_CONTROL_NONE);
 
         assert(wm_settings_scene_hover(scene, WM_SETTINGS_CONTROL_ITEM_1));
         wm_settings_scene_advance(scene, 10.0f);
@@ -1022,23 +957,21 @@ static void test_empty_connection_choice_page(const char *assets) {
 }
 
 static void test_initial_connection_mode_pages(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
-    const char *paths[5] = {
-        "textures/settings_html/large-row.png",
-        "textures/settings_html/small-row.png",
-        "textures/settings_html/small-row-focus.png",
-        "textures/settings_html/aoss-icon.png",
-        "textures/settings_html/footer-button.png"
-    };
+    const char *paths[5] = {"textures/settings_html/large-row.png",
+                            "textures/settings_html/small-row.png",
+                            "textures/settings_html/small-row-focus.png",
+                            "textures/settings_html/aoss-icon.png",
+                            "textures/settings_html/footer-button.png"};
     uint32_t art[5] = {0};
     for (unsigned index = 0; index < 5; index++)
         assert(wm_texture_cache_resolve(textures, paths[index], &art[index]));
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -1067,14 +1000,12 @@ static void test_initial_connection_mode_pages(const char *assets) {
         bool small_found = false;
         for (size_t index = 0; index < drawn_quad_count; index++) {
             const WmQuad *quad = &drawn_quads[index];
-            if (quad->texture == art[0] &&
-                quad->x == 120.0f && quad->y == 80.0f + 96.0f * row &&
-                quad->width == 400.0f && quad->height == 80.0f)
+            if (quad->texture == art[0] && quad->x == 120.0f &&
+                quad->y == 80.0f + 96.0f * row && quad->width == 400.0f &&
+                quad->height == 80.0f)
                 full_found = true;
-            if (quad->texture == art[1] &&
-                quad->x == (row == 0 ? 120.0f : 355.0f) &&
-                quad->y == 274.0f && quad->width == 168.0f &&
-                quad->height == 76.0f)
+            if (quad->texture == art[1] && quad->x == (row == 0 ? 120.0f : 355.0f) &&
+                quad->y == 274.0f && quad->width == 168.0f && quad->height == 76.0f)
                 small_found = true;
         }
         assert(full_found && small_found);
@@ -1086,20 +1017,13 @@ static void test_initial_connection_mode_pages(const char *assets) {
     WmQuad back_footer = {0};
     assert(count_drawn_texture(art[4], &back_footer) == 1);
     assert(back_footer.x == 44.0f && back_footer.y == 371.0f);
-    assert(count_glyphs_in_box(110.0f, 530.0f,
-                               90.0f, 155.0f) == 22);
-    assert(count_glyphs_in_box(340.0f, 530.0f,
-                               285.0f, 340.0f) == 11);
-    assert(wm_settings_scene_hit(scene, 320, 115) ==
-           WM_SETTINGS_CONTROL_ITEM_1);
-    assert(wm_settings_scene_hit(scene, 320, 210) ==
-           WM_SETTINGS_CONTROL_ITEM_2);
-    assert(wm_settings_scene_hit(scene, 200, 312) ==
-           WM_SETTINGS_CONTROL_ITEM_3);
-    assert(wm_settings_scene_hit(scene, 440, 312) ==
-           WM_SETTINGS_CONTROL_ITEM_4);
-    assert(wm_settings_scene_hit(scene, 180, 405) ==
-           WM_SETTINGS_CONTROL_BACK);
+    assert(count_glyphs_in_box(110.0f, 530.0f, 90.0f, 155.0f) == 22);
+    assert(count_glyphs_in_box(340.0f, 530.0f, 285.0f, 340.0f) == 11);
+    assert(wm_settings_scene_hit(scene, 320, 115) == WM_SETTINGS_CONTROL_ITEM_1);
+    assert(wm_settings_scene_hit(scene, 320, 210) == WM_SETTINGS_CONTROL_ITEM_2);
+    assert(wm_settings_scene_hit(scene, 200, 312) == WM_SETTINGS_CONTROL_ITEM_3);
+    assert(wm_settings_scene_hit(scene, 440, 312) == WM_SETTINGS_CONTROL_ITEM_4);
+    assert(wm_settings_scene_hit(scene, 180, 405) == WM_SETTINGS_CONTROL_BACK);
     assert(wm_settings_scene_hover(scene, WM_SETTINGS_CONTROL_ITEM_4));
     wm_settings_scene_advance(scene, 10.0f);
     drawn_quad_count = 0;
@@ -1125,12 +1049,9 @@ static void test_initial_connection_mode_pages(const char *assets) {
     WmQuad ok_footer = {0};
     assert(count_drawn_texture(art[4], &ok_footer) == 1);
     assert(ok_footer.x == 324.0f && ok_footer.y == 371.0f);
-    assert(count_glyphs_in_box(170.0f, 470.0f,
-                               200.0f, 240.0f) >= 20);
-    assert(wm_settings_scene_hit(scene, 180, 405) ==
-           WM_SETTINGS_CONTROL_NONE);
-    assert(wm_settings_scene_hit(scene, 460, 405) ==
-           WM_SETTINGS_CONTROL_NEXT);
+    assert(count_glyphs_in_box(170.0f, 470.0f, 200.0f, 240.0f) >= 20);
+    assert(wm_settings_scene_hit(scene, 180, 405) == WM_SETTINGS_CONTROL_NONE);
+    assert(wm_settings_scene_hit(scene, 460, 405) == WM_SETTINGS_CONTROL_NEXT);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_NEXT));
     assert(wm_settings_scene_snapshot(scene).detail == 4);
     assert(wm_settings_scene_snapshot(scene).connection_slot == 2);
@@ -1141,19 +1062,19 @@ static void test_initial_connection_mode_pages(const char *assets) {
 }
 
 static void test_offline_access_point_search(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t footer = 0;
     uint32_t title = 0;
     assert(wm_texture_cache_resolve(
         textures, "textures/settings_html/footer-button.png", &footer));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/title-tab.png", &title));
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/title-tab.png",
+                                    &title));
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -1174,12 +1095,9 @@ static void test_offline_access_point_search(const char *assets) {
     assert(count_drawn_texture(title, &title_quad) == 1);
     assert(title_quad.x == 136.0f && title_quad.y == 27.0f);
     assert(count_drawn_texture(footer, NULL) == 0);
-    assert(count_glyphs_in_box(100.0f, 540.0f,
-                               195.0f, 240.0f) >= 25);
-    assert(wm_settings_scene_hit(scene, 180, 405) ==
-           WM_SETTINGS_CONTROL_NONE);
-    assert(wm_settings_scene_hit(scene, 460, 405) ==
-           WM_SETTINGS_CONTROL_NONE);
+    assert(count_glyphs_in_box(100.0f, 540.0f, 195.0f, 240.0f) >= 25);
+    assert(wm_settings_scene_hit(scene, 180, 405) == WM_SETTINGS_CONTROL_NONE);
+    assert(wm_settings_scene_hit(scene, 460, 405) == WM_SETTINGS_CONTROL_NONE);
 
     /* After 60 frames, the local search reports no access point; it does
      * not run a host network scan. */
@@ -1195,12 +1113,9 @@ static void test_offline_access_point_search(const char *assets) {
     WmQuad ok_footer = {0};
     assert(count_drawn_texture(footer, &ok_footer) == 1);
     assert(ok_footer.x == 324.0f && ok_footer.y == 371.0f);
-    assert(count_glyphs_in_box(100.0f, 540.0f,
-                               195.0f, 240.0f) >= 20);
-    assert(wm_settings_scene_hit(scene, 180, 405) ==
-           WM_SETTINGS_CONTROL_NONE);
-    assert(wm_settings_scene_hit(scene, 460, 405) ==
-           WM_SETTINGS_CONTROL_NEXT);
+    assert(count_glyphs_in_box(100.0f, 540.0f, 195.0f, 240.0f) >= 20);
+    assert(wm_settings_scene_hit(scene, 180, 405) == WM_SETTINGS_CONTROL_NONE);
+    assert(wm_settings_scene_hit(scene, 460, 405) == WM_SETTINGS_CONTROL_NEXT);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_NEXT));
     assert(wm_settings_scene_snapshot(scene).detail == 5);
     assert(wm_settings_scene_snapshot(scene).connection_slot == 1);
@@ -1214,10 +1129,10 @@ static void test_offline_access_point_search(const char *assets) {
 }
 
 static void test_offline_usb_connector_pages(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t footer = 0;
     uint32_t focus = 0;
@@ -1226,10 +1141,10 @@ static void test_offline_usb_connector_pages(const char *assets) {
         textures, "textures/settings_html/footer-button.png", &footer));
     assert(wm_texture_cache_resolve(
         textures, "textures/settings_html/footer-button-focus.png", &focus));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/title-tab.png", &title));
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/title-tab.png",
+                                    &title));
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -1251,12 +1166,9 @@ static void test_offline_usb_connector_pages(const char *assets) {
     assert(count_drawn_texture(title, &title_quad) == 1);
     assert(title_quad.x == 136.0f && title_quad.y == 27.0f);
     assert(count_drawn_texture(footer, NULL) == 2);
-    assert(count_glyphs_in_box(100.0f, 540.0f,
-                               120.0f, 305.0f) >= 100);
-    assert(wm_settings_scene_hit(scene, 180, 405) ==
-           WM_SETTINGS_CONTROL_BACK);
-    assert(wm_settings_scene_hit(scene, 460, 405) ==
-           WM_SETTINGS_CONTROL_NEXT);
+    assert(count_glyphs_in_box(100.0f, 540.0f, 120.0f, 305.0f) >= 100);
+    assert(wm_settings_scene_hit(scene, 180, 405) == WM_SETTINGS_CONTROL_BACK);
+    assert(wm_settings_scene_hit(scene, 460, 405) == WM_SETTINGS_CONTROL_NEXT);
     assert(wm_settings_scene_hover(scene, WM_SETTINGS_CONTROL_NEXT));
     wm_settings_scene_advance(scene, 10.0f);
     drawn_quad_count = 0;
@@ -1278,12 +1190,9 @@ static void test_offline_usb_connector_pages(const char *assets) {
     WmQuad cancel_footer = {0};
     assert(count_drawn_texture(footer, &cancel_footer) == 1);
     assert(cancel_footer.x == 44.0f && cancel_footer.y == 371.0f);
-    assert(count_glyphs_in_box(100.0f, 540.0f,
-                               150.0f, 275.0f) >= 75);
-    assert(wm_settings_scene_hit(scene, 180, 405) ==
-           WM_SETTINGS_CONTROL_BACK);
-    assert(wm_settings_scene_hit(scene, 460, 405) ==
-           WM_SETTINGS_CONTROL_NONE);
+    assert(count_glyphs_in_box(100.0f, 540.0f, 150.0f, 275.0f) >= 75);
+    assert(wm_settings_scene_hit(scene, 180, 405) == WM_SETTINGS_CONTROL_BACK);
+    assert(wm_settings_scene_hit(scene, 460, 405) == WM_SETTINGS_CONTROL_NONE);
     /* The local USB registration attempt fails after 60 frames. */
     wm_settings_scene_advance(scene, 39.0f);
     assert(wm_settings_scene_snapshot(scene).detail == 10);
@@ -1295,12 +1204,9 @@ static void test_offline_usb_connector_pages(const char *assets) {
     wm_font_cache_begin_frame(fonts);
     assert(wm_settings_scene_draw(scene));
     assert(count_drawn_texture(footer, NULL) == 2);
-    assert(count_glyphs_in_box(100.0f, 540.0f,
-                               120.0f, 305.0f) >= 100);
-    assert(wm_settings_scene_hit(scene, 180, 405) ==
-           WM_SETTINGS_CONTROL_BACK);
-    assert(wm_settings_scene_hit(scene, 460, 405) ==
-           WM_SETTINGS_CONTROL_NEXT);
+    assert(count_glyphs_in_box(100.0f, 540.0f, 120.0f, 305.0f) >= 100);
+    assert(wm_settings_scene_hit(scene, 180, 405) == WM_SETTINGS_CONTROL_BACK);
+    assert(wm_settings_scene_hit(scene, 460, 405) == WM_SETTINGS_CONTROL_NEXT);
     /* The visible left Yes retries the wait despite swapped pane IDs. */
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_BACK));
     assert(wm_settings_scene_snapshot(scene).detail == 10);
@@ -1325,16 +1231,16 @@ static void test_offline_usb_connector_pages(const char *assets) {
 }
 
 static void test_user_agreements_button_order(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t footer = 0;
     assert(wm_texture_cache_resolve(
         textures, "textures/settings_html/footer-button.png", &footer));
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -1354,10 +1260,8 @@ static void test_user_agreements_button_order(const char *assets) {
     /* The EULA footer places Yes on the left and No on the right. */
     assert(count_glyphs_in_box(120.0f, 230.0f, 390.0f, 425.0f) == 3);
     assert(count_glyphs_in_box(430.0f, 520.0f, 390.0f, 425.0f) == 2);
-    assert(wm_settings_scene_hit(scene, 180, 405) ==
-           WM_SETTINGS_CONTROL_BACK);
-    assert(wm_settings_scene_hit(scene, 460, 405) ==
-           WM_SETTINGS_CONTROL_NEXT);
+    assert(wm_settings_scene_hit(scene, 180, 405) == WM_SETTINGS_CONTROL_BACK);
+    assert(wm_settings_scene_hit(scene, 460, 405) == WM_SETTINGS_CONTROL_NEXT);
 
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_NEXT));
     assert(!wm_settings_scene_snapshot(scene).internet_agreement);
@@ -1373,22 +1277,20 @@ static void test_user_agreements_button_order(const char *assets) {
 }
 
 static void test_resolution_source_default(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64 * 1024 * 1024);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16 * 1024 * 1024);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64 * 1024 * 1024);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16 * 1024 * 1024);
     assert(textures && fonts);
     uint32_t left_flame = 0;
     uint32_t right_flame = 0;
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/choice-left.png",
-        &left_flame));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/choice-right.png",
-        &right_flame));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/choice-left.png",
+                                    &left_flame));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/choice-right.png",
+                                    &right_flame));
 
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -1431,27 +1333,26 @@ static void test_resolution_source_default(const char *assets) {
 }
 
 static void test_language_selection_page(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t row = 0;
     uint32_t focus = 0;
     uint32_t left = 0;
     uint32_t right = 0;
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/large-row.png",
+                                    &row));
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/large-row.png", &row));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/large-row-focus.png",
-        &focus));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/choice-left.png", &left));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/choice-right.png", &right));
+        textures, "textures/settings_html/large-row-focus.png", &focus));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/choice-left.png",
+                                    &left));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/choice-right.png",
+                                    &right));
 
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -1463,8 +1364,7 @@ static void test_language_selection_page(const char *assets) {
     wm_settings_scene_advance(scene, 20.0f);
     assert(wm_settings_scene_snapshot(scene).category == 9);
     assert(wm_settings_scene_snapshot(scene).selection == 0);
-    assert(wm_settings_scene_hit(scene, 16 + 300, 181) ==
-           WM_SETTINGS_CONTROL_ITEM_2);
+    assert(wm_settings_scene_hit(scene, 16 + 300, 181) == WM_SETTINGS_CONTROL_ITEM_2);
 
     drawn_quad_count = 0;
     wm_texture_cache_begin_frame(textures);
@@ -1507,11 +1407,11 @@ static void test_language_selection_page(const char *assets) {
     bool new_marker = false;
     for (size_t index = 0; index < drawn_quad_count; index++) {
         const WmQuad *quad = &drawn_quads[index];
-        if (quad->texture != left) continue;
+        if (quad->texture != left)
+            continue;
         if (quad->y == 72.0f && quad->color.a == 1.0f)
             old_marker = true;
-        if (quad->y == 168.0f &&
-            fabsf(quad->color.a - 127.0f / 255.0f) < 0.001f)
+        if (quad->y == 168.0f && fabsf(quad->color.a - 127.0f / 255.0f) < 0.001f)
             new_marker = true;
     }
     assert(old_marker && new_marker);
@@ -1553,13 +1453,13 @@ static void test_language_selection_page(const char *assets) {
 }
 
 static void test_screen_language_artwork(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -1583,8 +1483,7 @@ static void test_screen_language_artwork(const char *assets) {
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_NEXT));
     wm_settings_scene_advance(scene, 20.0f);
     for (unsigned page = 3; page > 1; page--) {
-        assert(wm_settings_scene_activate(scene,
-                                          WM_SETTINGS_CONTROL_PREVIOUS));
+        assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_PREVIOUS));
         wm_settings_scene_advance(scene, 41.0f);
     }
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_3));
@@ -1615,8 +1514,7 @@ static void test_screen_language_artwork(const char *assets) {
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_NEXT));
     wm_settings_scene_advance(scene, 20.0f);
     for (unsigned page = 3; page > 1; page--) {
-        assert(wm_settings_scene_activate(scene,
-                                          WM_SETTINGS_CONTROL_PREVIOUS));
+        assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_PREVIOUS));
         wm_settings_scene_advance(scene, 41.0f);
     }
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_3));
@@ -1634,45 +1532,31 @@ static void test_screen_language_artwork(const char *assets) {
 }
 
 static void test_source_hit_regions(void) {
-    assert(wm_settings_index_hit(1, 320, 228) ==
-           WM_SETTINGS_CONTROL_ITEM_3);
-    assert(wm_settings_index_hit(1, 130, 78) ==
-           WM_SETTINGS_CONTROL_ITEM_1);
-    assert(wm_settings_index_hit(1, 130, 138) ==
-           WM_SETTINGS_CONTROL_NONE);
-    assert(wm_settings_index_hit(1, 568, 220) ==
-           WM_SETTINGS_CONTROL_NEXT);
-    assert(wm_settings_index_hit(1, 54, 220) ==
-           WM_SETTINGS_CONTROL_NONE);
-    assert(wm_settings_index_hit(2, 54, 220) ==
-           WM_SETTINGS_CONTROL_PREVIOUS);
-    assert(wm_settings_index_hit(3, 568, 220) ==
-           WM_SETTINGS_CONTROL_NONE);
-    assert(wm_settings_index_hit(3, 80, 400) ==
-           WM_SETTINGS_CONTROL_BACK);
-    assert(wm_settings_index_hit(0, 320, 228) ==
-           WM_SETTINGS_CONTROL_NONE);
-    assert(wm_settings_index_hit(4, 320, 228) ==
-           WM_SETTINGS_CONTROL_NONE);
-    assert(strcmp(wm_settings_category_label(1),
-                  "Console Nickname") == 0);
-    assert(strcmp(wm_settings_category_label(12),
-                  "Format Wii System Memory") == 0);
+    assert(wm_settings_index_hit(1, 320, 228) == WM_SETTINGS_CONTROL_ITEM_3);
+    assert(wm_settings_index_hit(1, 130, 78) == WM_SETTINGS_CONTROL_ITEM_1);
+    assert(wm_settings_index_hit(1, 130, 138) == WM_SETTINGS_CONTROL_NONE);
+    assert(wm_settings_index_hit(1, 568, 220) == WM_SETTINGS_CONTROL_NEXT);
+    assert(wm_settings_index_hit(1, 54, 220) == WM_SETTINGS_CONTROL_NONE);
+    assert(wm_settings_index_hit(2, 54, 220) == WM_SETTINGS_CONTROL_PREVIOUS);
+    assert(wm_settings_index_hit(3, 568, 220) == WM_SETTINGS_CONTROL_NONE);
+    assert(wm_settings_index_hit(3, 80, 400) == WM_SETTINGS_CONTROL_BACK);
+    assert(wm_settings_index_hit(0, 320, 228) == WM_SETTINGS_CONTROL_NONE);
+    assert(wm_settings_index_hit(4, 320, 228) == WM_SETTINGS_CONTROL_NONE);
+    assert(strcmp(wm_settings_category_label(1), "Console Nickname") == 0);
+    assert(strcmp(wm_settings_category_label(12), "Format Wii System Memory") == 0);
     assert(wm_settings_category_label(13) == NULL);
 }
 
 static void test_index_navigation(const char *assets) {
     WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1,
-        (WmFontCache *)1);
+        (WmPlatform *)1, assets, (WmTextureCache *)1, (WmFontCache *)1);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     assert(wm_settings_scene_snapshot(scene).page == 1);
     assert(wm_settings_scene_snapshot(scene).phase == WM_SETTINGS_APPEAR);
     wm_settings_scene_advance(scene, 1.0f);
     assert(wm_settings_scene_snapshot(scene).phase_frame == 0.0f);
-    assert(wm_settings_scene_hit(scene, 320, 228) ==
-           WM_SETTINGS_CONTROL_NONE);
+    assert(wm_settings_scene_hit(scene, 320, 228) == WM_SETTINGS_CONTROL_NONE);
     wm_settings_scene_advance(scene, 20.0f);
     assert(wm_settings_scene_snapshot(scene).phase == WM_SETTINGS_READY);
     assert(wm_settings_scene_hover(scene, WM_SETTINGS_CONTROL_NEXT));
@@ -1687,10 +1571,8 @@ static void test_index_navigation(const char *assets) {
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
     assert(wm_settings_scene_snapshot(scene).category == 6);
     assert(wm_settings_scene_take_category(scene) == 0);
-    assert(wm_settings_scene_hit(scene, 140, 150) ==
-           WM_SETTINGS_CONTROL_ITEM_1);
-    assert(wm_settings_scene_hit(scene, 140, 245) ==
-           WM_SETTINGS_CONTROL_ITEM_2);
+    assert(wm_settings_scene_hit(scene, 140, 150) == WM_SETTINGS_CONTROL_ITEM_1);
+    assert(wm_settings_scene_hit(scene, 140, 245) == WM_SETTINGS_CONTROL_ITEM_2);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
     assert(wm_settings_scene_snapshot(scene).detail == 1);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
@@ -1720,10 +1602,10 @@ static void test_index_navigation(const char *assets) {
 }
 
 static void test_index_source_badges_and_scroll(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t background = 0;
     uint32_t title = 0;
@@ -1731,20 +1613,20 @@ static void test_index_source_badges_and_scroll(const char *assets) {
     uint32_t page_on = 0;
     uint32_t page_off = 0;
     uint32_t side_panel = 0;
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/background.png", &background));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/title-tab.png", &title));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/background.png",
+                                    &background));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/title-tab.png",
+                                    &title));
     assert(wm_texture_cache_resolve(
         textures, "textures/settings_html/footer-button.png", &footer));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/page-on.png", &page_on));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/page-off.png", &page_off));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/side-panel.png", &side_panel));
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/page-on.png",
+                                    &page_on));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/page-off.png",
+                                    &page_off));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/side-panel.png",
+                                    &side_panel));
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -1761,9 +1643,8 @@ static void test_index_source_badges_and_scroll(const char *assets) {
     float title_ink_top = INFINITY;
     for (size_t index = 0; index < drawn_quad_count; index++) {
         const WmQuad *quad = &drawn_quads[index];
-        if (!quad->texture || quad->x < 48.0f || quad->x >= 340.0f ||
-            quad->y < 26.0f || quad->y >= 63.0f ||
-            quad->width >= 30.0f || quad->height >= 30.0f)
+        if (!quad->texture || quad->x < 48.0f || quad->x >= 340.0f || quad->y < 26.0f ||
+            quad->y >= 63.0f || quad->width >= 30.0f || quad->height >= 30.0f)
             continue;
         title_ink_top = fminf(title_ink_top, quad->y);
     }
@@ -1774,9 +1655,8 @@ static void test_index_source_badges_and_scroll(const char *assets) {
         size_t glyphs = 0;
         for (size_t index = 0; index < drawn_quad_count; index++) {
             const WmQuad *quad = &drawn_quads[index];
-            if (!quad->texture || quad->x < left ||
-                quad->x >= left + 40.0f || quad->y < 376.0f ||
-                quad->y >= 408.0f || quad->height > 30.0f)
+            if (!quad->texture || quad->x < left || quad->x >= left + 40.0f ||
+                quad->y < 376.0f || quad->y >= 408.0f || quad->height > 30.0f)
                 continue;
             assert(quad->height >= 16.0f);
             glyphs++;
@@ -1864,10 +1744,9 @@ static void test_index_source_badges_and_scroll(const char *assets) {
     /* The exported 41-frame clip is at 443.8/477 of its full displacement
      * on frame 13; each complete widescreen composition travels 640 pixels. */
     float wide_shift = 443.8f / 477.0f * WM_FRAME_WIDTH;
-    assert(fabsf(titles[0] - (projection.document_x +
-                 24.0f * 640.0f / 832.0f + wide_shift)) < 0.1f);
-    assert(fabsf(titles[0] - titles[1] -
-                 WM_FRAME_WIDTH) < 0.01f);
+    assert(fabsf(titles[0] - (projection.document_x + 24.0f * 640.0f / 832.0f +
+                              wide_shift)) < 0.1f);
+    assert(fabsf(titles[0] - titles[1] - WM_FRAME_WIDTH) < 0.01f);
 
     wm_settings_scene_destroy(scene);
     wm_font_cache_destroy(fonts);
@@ -1875,10 +1754,10 @@ static void test_index_source_badges_and_scroll(const char *assets) {
 }
 
 static void test_immediate_index_hover_art(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t row_focus = 0;
     uint32_t format_focus = 0;
@@ -1886,31 +1765,23 @@ static void test_immediate_index_hover_art(const char *assets) {
     uint32_t right_focus = 0;
     uint32_t left_focus = 0;
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/index-row-focus.png",
-        &row_focus));
+        textures, "textures/settings_html/index-row-focus.png", &row_focus));
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/index-row-format-focus.png",
-        &format_focus));
+        textures, "textures/settings_html/index-row-format-focus.png", &format_focus));
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/footer-button-focus.png",
-        &footer_focus));
+        textures, "textures/settings_html/footer-button-focus.png", &footer_focus));
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/arrow-right-focus.png",
-        &right_focus));
+        textures, "textures/settings_html/arrow-right-focus.png", &right_focus));
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/arrow-left-focus.png",
-        &left_focus));
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+        textures, "textures/settings_html/arrow-left-focus.png", &left_focus));
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
 
     WmSettingsControl controls[3] = {
-        WM_SETTINGS_CONTROL_ITEM_1,
-        WM_SETTINGS_CONTROL_BACK,
-        WM_SETTINGS_CONTROL_NEXT
-    };
+        WM_SETTINGS_CONTROL_ITEM_1, WM_SETTINGS_CONTROL_BACK, WM_SETTINGS_CONTROL_NEXT};
     uint32_t expected[3] = {row_focus, footer_focus, right_focus};
     for (unsigned step = 0; step < 3; step++) {
         assert(wm_settings_scene_hover(scene, controls[step]));
@@ -1930,13 +1801,10 @@ static void test_immediate_index_hover_art(const char *assets) {
     /* The caller re-hits a retained pointer position on each update. The
      * scroller blocks input until its final frame, then the same point may
      * focus the incoming page's right arrow without a pointer move. */
-    assert(wm_settings_scene_hit(scene, 566, 216) ==
-           WM_SETTINGS_CONTROL_NONE);
+    assert(wm_settings_scene_hit(scene, 566, 216) == WM_SETTINGS_CONTROL_NONE);
     wm_settings_scene_advance(scene, 40.0f);
-    assert(wm_settings_scene_hit(scene, 566, 216) ==
-           WM_SETTINGS_CONTROL_NEXT);
-    assert(wm_settings_scene_hover(scene,
-        wm_settings_scene_hit(scene, 566, 216)));
+    assert(wm_settings_scene_hit(scene, 566, 216) == WM_SETTINGS_CONTROL_NEXT);
+    assert(wm_settings_scene_hover(scene, wm_settings_scene_hit(scene, 566, 216)));
     drawn_quad_count = 0;
     wm_texture_cache_begin_frame(textures);
     wm_font_cache_begin_frame(fonts);
@@ -1987,8 +1855,7 @@ static void test_immediate_index_hover_art(const char *assets) {
 
 static void test_hover_image_swap(const char *assets) {
     WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1,
-        (WmFontCache *)1);
+        (WmPlatform *)1, assets, (WmTextureCache *)1, (WmFontCache *)1);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -2007,8 +1874,8 @@ static void test_hover_image_swap(const char *assets) {
     assert(wm_settings_scene_snapshot(scene).hover_opacity == 0.0f);
     assert(wm_settings_scene_snapshot(scene).page_opacity == 0.0f);
     wm_settings_scene_advance(scene, 10.0f);
-    assert(fabsf(wm_settings_scene_snapshot(scene).page_opacity -
-                 (127.0f / 255.0f)) < 0.001f);
+    assert(fabsf(wm_settings_scene_snapshot(scene).page_opacity - (127.0f / 255.0f)) <
+           0.001f);
     wm_settings_scene_advance(scene, 10.0f);
     assert(wm_settings_scene_snapshot(scene).page_opacity == 1.0f);
     wm_settings_scene_destroy(scene);
@@ -2024,10 +1891,8 @@ static void test_choice_and_detail_navigation(const char *assets) {
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_4));
     assert(wm_settings_scene_snapshot(scene).category == 4);
     assert(wm_settings_scene_snapshot(scene).selection == 1);
-    assert(wm_settings_scene_hit(scene, 132, 100) ==
-           WM_SETTINGS_CONTROL_ITEM_1);
-    assert(wm_settings_scene_hit(scene, 350, 400) ==
-           WM_SETTINGS_CONTROL_NEXT);
+    assert(wm_settings_scene_hit(scene, 132, 100) == WM_SETTINGS_CONTROL_ITEM_1);
+    assert(wm_settings_scene_hit(scene, 350, 400) == WM_SETTINGS_CONTROL_NEXT);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_3));
     assert(wm_settings_scene_snapshot(scene).selection == 2);
     assert(wm_settings_scene_back(scene));
@@ -2045,8 +1910,7 @@ static void test_choice_and_detail_navigation(const char *assets) {
     assert(wm_settings_scene_snapshot(scene).category == 3);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
     assert(wm_settings_scene_snapshot(scene).detail == 2);
-    assert(wm_settings_scene_hit(scene, 16 + 300, 160) ==
-           WM_SETTINGS_CONTROL_ITEM_2);
+    assert(wm_settings_scene_hit(scene, 16 + 300, 160) == WM_SETTINGS_CONTROL_ITEM_2);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
     assert(wm_settings_scene_snapshot(scene).selection == 0);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_NEXT));
@@ -2057,8 +1921,7 @@ static void test_choice_and_detail_navigation(const char *assets) {
     assert(wm_settings_scene_snapshot(scene).detail == 0);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
     assert(wm_settings_scene_snapshot(scene).selection == 16);
-    assert(wm_settings_scene_hit(scene, 16 + 185, 205) ==
-           WM_SETTINGS_CONTROL_ITEM_1);
+    assert(wm_settings_scene_hit(scene, 16 + 185, 205) == WM_SETTINGS_CONTROL_ITEM_1);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
     assert(wm_settings_scene_snapshot(scene).selection == 18);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
@@ -2077,31 +1940,22 @@ static void test_calendar_and_sensitivity(const char *assets) {
     wm_settings_scene_advance(scene, 21.0f);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
     assert(wm_settings_scene_snapshot(scene).category == 2);
-    assert(wm_settings_scene_hit(scene, 16 + 150, 150) ==
-           WM_SETTINGS_CONTROL_ITEM_1);
+    assert(wm_settings_scene_hit(scene, 16 + 150, 150) == WM_SETTINGS_CONTROL_ITEM_1);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
     assert(wm_settings_scene_snapshot(scene).detail == 1);
     WmSettingsSnapshot original = wm_settings_scene_snapshot(scene);
-    assert(wm_settings_scene_hit(scene, 16 + 430, 120) ==
-           WM_SETTINGS_CONTROL_ITEM_1);
-    assert(wm_settings_scene_hit(scene, 16 + 430, 270) ==
-           WM_SETTINGS_CONTROL_ITEM_2);
-    assert(wm_settings_scene_hit(scene, 16 + 110, 120) ==
-           WM_SETTINGS_CONTROL_ITEM_3);
-    assert(wm_settings_scene_hit(scene, 16 + 110, 270) ==
-           WM_SETTINGS_CONTROL_ITEM_4);
-    assert(wm_settings_scene_hit(scene, 16 + 250, 120) ==
-           WM_SETTINGS_CONTROL_ITEM_5);
-    assert(wm_settings_scene_hit(scene, 16 + 250, 270) ==
-           WM_SETTINGS_CONTROL_ITEM_6);
+    assert(wm_settings_scene_hit(scene, 16 + 430, 120) == WM_SETTINGS_CONTROL_ITEM_1);
+    assert(wm_settings_scene_hit(scene, 16 + 430, 270) == WM_SETTINGS_CONTROL_ITEM_2);
+    assert(wm_settings_scene_hit(scene, 16 + 110, 120) == WM_SETTINGS_CONTROL_ITEM_3);
+    assert(wm_settings_scene_hit(scene, 16 + 110, 270) == WM_SETTINGS_CONTROL_ITEM_4);
+    assert(wm_settings_scene_hit(scene, 16 + 250, 120) == WM_SETTINGS_CONTROL_ITEM_5);
+    assert(wm_settings_scene_hit(scene, 16 + 250, 270) == WM_SETTINGS_CONTROL_ITEM_6);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
-    assert(wm_settings_scene_snapshot(scene).year ==
-           (original.year + 1) % 36);
+    assert(wm_settings_scene_snapshot(scene).year == (original.year + 1) % 36);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
     assert(wm_settings_scene_snapshot(scene).year == original.year);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_3));
-    assert(wm_settings_scene_snapshot(scene).month ==
-           (original.month % 12) + 1);
+    assert(wm_settings_scene_snapshot(scene).month == (original.month % 12) + 1);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_4));
     assert(wm_settings_scene_snapshot(scene).month == original.month);
     assert(wm_settings_scene_back(scene));
@@ -2120,8 +1974,7 @@ static void test_calendar_and_sensitivity(const char *assets) {
     assert(wm_settings_scene_snapshot(scene).detail == 2);
     unsigned hour = wm_settings_scene_snapshot(scene).hour;
     unsigned minute = wm_settings_scene_snapshot(scene).minute;
-    assert(wm_settings_scene_hit(scene, 16 + 220, 120) ==
-           WM_SETTINGS_CONTROL_ITEM_1);
+    assert(wm_settings_scene_hit(scene, 16 + 220, 120) == WM_SETTINGS_CONTROL_ITEM_1);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
     assert(wm_settings_scene_snapshot(scene).hour == (hour + 1) % 24);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
@@ -2154,11 +2007,9 @@ static void test_calendar_and_sensitivity(const char *assets) {
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
     assert(wm_settings_scene_snapshot(scene).detail == 2);
     assert(wm_settings_scene_snapshot(scene).sensitivity == 3);
-    assert(wm_settings_scene_hit(scene, 16 + 465, 310) ==
-           WM_SETTINGS_CONTROL_NONE);
+    assert(wm_settings_scene_hit(scene, 16 + 465, 310) == WM_SETTINGS_CONTROL_NONE);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_NEXT));
-    assert(wm_settings_scene_hit(scene, 16 + 465, 310) ==
-           WM_SETTINGS_CONTROL_ITEM_2);
+    assert(wm_settings_scene_hit(scene, 16 + 465, 310) == WM_SETTINGS_CONTROL_ITEM_2);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
     assert(wm_settings_scene_snapshot(scene).sensitivity == 5);
@@ -2184,8 +2035,7 @@ static void test_extended_categories(const char *assets) {
 
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
     assert(wm_settings_scene_snapshot(scene).category == 1);
-    assert(wm_settings_scene_activate(scene,
-                                     WM_SETTINGS_CONTROL_NICKNAME_FIELD));
+    assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_NICKNAME_FIELD));
     assert(wm_settings_scene_type_ascii(scene, 'A'));
     assert(wm_settings_scene_backspace(scene));
     assert(strcmp(wm_settings_scene_snapshot(scene).nickname, "Wii") == 0);
@@ -2195,8 +2045,7 @@ static void test_extended_categories(const char *assets) {
     assert(wm_settings_scene_back(scene));
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
     assert(strcmp(wm_settings_scene_snapshot(scene).nickname, "Wii") == 0);
-    assert(wm_settings_scene_activate(scene,
-                                     WM_SETTINGS_CONTROL_NICKNAME_FIELD));
+    assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_NICKNAME_FIELD));
     assert(wm_settings_scene_type_ascii(scene, 'X'));
     wm_settings_scene_advance(scene, 36.0f);
     assert(wm_settings_scene_keyboard_close(scene, true));
@@ -2222,8 +2071,7 @@ static void test_extended_categories(const char *assets) {
 
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_3));
     assert(wm_settings_scene_snapshot(scene).category == 7);
-    assert(wm_settings_scene_hit(scene, 16 + 120, 100) ==
-           WM_SETTINGS_CONTROL_ITEM_1);
+    assert(wm_settings_scene_hit(scene, 16 + 120, 100) == WM_SETTINGS_CONTROL_ITEM_1);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
     assert(wm_settings_scene_snapshot(scene).detail == 1);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
@@ -2240,15 +2088,13 @@ static void test_extended_categories(const char *assets) {
 
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_4));
     assert(wm_settings_scene_snapshot(scene).category == 8);
-    assert(wm_settings_scene_hit(scene, 16 + 120, 200) ==
-           WM_SETTINGS_CONTROL_NONE);
+    assert(wm_settings_scene_hit(scene, 16 + 120, 200) == WM_SETTINGS_CONTROL_NONE);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
     assert(wm_settings_scene_snapshot(scene).detail == 1);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_NEXT));
     assert(wm_settings_scene_snapshot(scene).connect24_enabled);
-    assert(wm_settings_scene_hit(scene, 16 + 120, 200) ==
-           WM_SETTINGS_CONTROL_ITEM_2);
+    assert(wm_settings_scene_hit(scene, 16 + 120, 200) == WM_SETTINGS_CONTROL_ITEM_2);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_3));
     assert(wm_settings_scene_snapshot(scene).detail == 3);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
@@ -2263,13 +2109,11 @@ static void test_extended_categories(const char *assets) {
     assert(wm_settings_scene_snapshot(scene).category == 10);
     assert(wm_settings_scene_snapshot(scene).country_page == 0);
     assert(wm_settings_scene_snapshot(scene).country_choice == 41);
-    assert(wm_settings_scene_hit(scene, 16 + 550, 90) ==
-           WM_SETTINGS_CONTROL_NONE);
+    assert(wm_settings_scene_hit(scene, 16 + 550, 90) == WM_SETTINGS_CONTROL_NONE);
     for (unsigned page = 0; page < 8; page++)
         assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_6));
     assert(wm_settings_scene_snapshot(scene).country_page == 8);
-    assert(wm_settings_scene_hit(scene, 16 + 550, 300) ==
-           WM_SETTINGS_CONTROL_ITEM_6);
+    assert(wm_settings_scene_hit(scene, 16 + 550, 300) == WM_SETTINGS_CONTROL_ITEM_6);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
     assert(wm_settings_scene_snapshot(scene).country_choice == 39);
     assert(wm_settings_scene_back(scene));
@@ -2302,21 +2146,20 @@ static void test_extended_categories(const char *assets) {
 }
 
 static void test_console_information_placeholders(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t nested_tab = 0;
     uint32_t footer = 0;
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/tab-gray-nested.png",
-        &nested_tab));
+        textures, "textures/settings_html/tab-gray-nested.png", &nested_tab));
     assert(wm_texture_cache_resolve(
         textures, "textures/settings_html/footer-button.png", &footer));
 
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -2328,10 +2171,8 @@ static void test_console_information_placeholders(const char *assets) {
     wm_settings_scene_advance(scene, 20.0f);
     assert(wm_settings_scene_snapshot(scene).category == 7);
     assert(wm_settings_scene_snapshot(scene).detail == 2);
-    assert(wm_settings_scene_hit(scene, 16 + 164, 400) ==
-           WM_SETTINGS_CONTROL_BACK);
-    assert(wm_settings_scene_hit(scene, 16 + 444, 400) ==
-           WM_SETTINGS_CONTROL_NONE);
+    assert(wm_settings_scene_hit(scene, 16 + 164, 400) == WM_SETTINGS_CONTROL_BACK);
+    assert(wm_settings_scene_hit(scene, 16 + 444, 400) == WM_SETTINGS_CONTROL_NONE);
 
     drawn_quad_count = 0;
     wm_texture_cache_begin_frame(textures);
@@ -2343,10 +2184,10 @@ static void test_console_information_placeholders(const char *assets) {
     unsigned unavailable_lan_glyphs = 0;
     for (size_t index = 0; index < drawn_quad_count; index++) {
         const WmQuad *quad = &drawn_quads[index];
-        if (!quad->texture) continue;
-        bool white = quad->color.r == 1.0f &&
-                     quad->color.g == 1.0f &&
-                     quad->color.b == 1.0f;
+        if (!quad->texture)
+            continue;
+        bool white =
+            quad->color.r == 1.0f && quad->color.g == 1.0f && quad->color.b == 1.0f;
         bool dim = fabsf(quad->color.r - 0.2f) < 0.001f &&
                    fabsf(quad->color.g - 0.2f) < 0.001f &&
                    fabsf(quad->color.b - 0.2f) < 0.001f;
@@ -2368,16 +2209,16 @@ static void test_console_information_placeholders(const char *assets) {
 }
 
 static void test_update_initial_footer(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t footer = 0;
     assert(wm_texture_cache_resolve(
         textures, "textures/settings_html/footer-button.png", &footer));
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -2388,10 +2229,8 @@ static void test_update_initial_footer(const char *assets) {
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_3));
     wm_settings_scene_advance(scene, 20.0f);
     assert(wm_settings_scene_snapshot(scene).category == 11);
-    assert(wm_settings_scene_hit(scene, 16 + 164, 400) ==
-           WM_SETTINGS_CONTROL_BACK);
-    assert(wm_settings_scene_hit(scene, 16 + 444, 400) ==
-           WM_SETTINGS_CONTROL_NEXT);
+    assert(wm_settings_scene_hit(scene, 16 + 164, 400) == WM_SETTINGS_CONTROL_BACK);
+    assert(wm_settings_scene_hit(scene, 16 + 444, 400) == WM_SETTINGS_CONTROL_NEXT);
 
     drawn_quad_count = 0;
     wm_texture_cache_begin_frame(textures);
@@ -2402,11 +2241,13 @@ static void test_update_initial_footer(const char *assets) {
     unsigned right_glyphs = 0;
     for (size_t index = 0; index < drawn_quad_count; index++) {
         const WmQuad *quad = &drawn_quads[index];
-        if (!quad->texture || quad->texture == footer ||
-            quad->y < 390.0f || quad->y >= 430.0f ||
-            fabsf(quad->color.r - 0.2f) >= 0.001f) continue;
-        if (quad->x < 304.0f) left_glyphs++;
-        else right_glyphs++;
+        if (!quad->texture || quad->texture == footer || quad->y < 390.0f ||
+            quad->y >= 430.0f || fabsf(quad->color.r - 0.2f) >= 0.001f)
+            continue;
+        if (quad->x < 304.0f)
+            left_glyphs++;
+        else
+            right_glyphs++;
     }
     /* The update prompt places Yes at left and No at right; their outline
      * glyph counts are 3 and 2. */
@@ -2426,28 +2267,25 @@ static void test_update_initial_footer(const char *assets) {
     wm_texture_cache_destroy(textures);
 }
 
-static uint32_t assert_format_warning_layout(float first_low,
-                                             float first_high,
-                                             float last_low,
-                                             float last_high) {
+static uint32_t assert_format_warning_layout(float first_low, float first_high,
+                                             float last_low, float last_high) {
     float first_warning_ink = INFINITY;
     float last_warning_ink = -INFINITY;
     unsigned preview_glyphs = 0;
     uint32_t warning_font = 0;
     for (size_t index = 0; index < drawn_quad_count; index++) {
         const WmQuad *quad = &drawn_quads[index];
-        if (!quad->texture || quad->width >= 35.0f ||
-            quad->height >= 35.0f) continue;
-        if (quad->color.r == 1.0f && quad->color.g == 1.0f &&
-            quad->color.b == 1.0f && quad->y >= 90.0f &&
-            quad->y < 330.0f) {
-            if (!warning_font) warning_font = quad->texture;
+        if (!quad->texture || quad->width >= 35.0f || quad->height >= 35.0f)
+            continue;
+        if (quad->color.r == 1.0f && quad->color.g == 1.0f && quad->color.b == 1.0f &&
+            quad->y >= 90.0f && quad->y < 330.0f) {
+            if (!warning_font)
+                warning_font = quad->texture;
             assert(quad->texture == warning_font);
             first_warning_ink = fminf(first_warning_ink, quad->y);
             last_warning_ink = fmaxf(last_warning_ink, quad->y);
         }
-        if (quad->color.r == 0.8f && quad->y >= 335.0f &&
-            quad->y < 365.0f)
+        if (quad->color.r == 0.8f && quad->y >= 335.0f && quad->y < 365.0f)
             preview_glyphs++;
     }
     assert(first_warning_ink >= first_low && first_warning_ink <= first_high);
@@ -2457,14 +2295,14 @@ static uint32_t assert_format_warning_layout(float first_low,
     return warning_font;
 }
 
-static void assert_format_header(uint32_t title_tab,
-                                 uint32_t nested_tab,
+static void assert_format_header(uint32_t title_tab, uint32_t nested_tab,
                                  unsigned expected_title_count) {
     unsigned title_count = 0;
     for (size_t index = 0; index < drawn_quad_count; index++) {
         const WmQuad *quad = &drawn_quads[index];
         assert(quad->texture != nested_tab);
-        if (quad->texture != title_tab) continue;
+        if (quad->texture != title_tab)
+            continue;
         assert(quad->x == 72.0f && quad->y == 27.0f);
         assert(quad->width == 408.0f && quad->height == 36.0f);
         title_count++;
@@ -2473,10 +2311,10 @@ static void assert_format_header(uint32_t title_tab,
 }
 
 static void test_format_red_action_rollover(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t footer = 0;
     uint32_t normal_focus = 0;
@@ -2486,20 +2324,17 @@ static void test_format_red_action_rollover(const char *assets) {
     assert(wm_texture_cache_resolve(
         textures, "textures/settings_html/footer-button.png", &footer));
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/footer-button-focus.png",
-        &normal_focus));
+        textures, "textures/settings_html/footer-button-focus.png", &normal_focus));
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/footer-button-red-focus.png",
-        &red_focus));
+        textures, "textures/settings_html/footer-button-red-focus.png", &red_focus));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/title-tab.png",
+                                    &title_tab));
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/title-tab.png", &title_tab));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/tab-gray-nested.png",
-        &nested_tab));
+        textures, "textures/settings_html/tab-gray-nested.png", &nested_tab));
     assert(red_focus != normal_focus);
 
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -2516,8 +2351,7 @@ static void test_format_red_action_rollover(const char *assets) {
     wm_texture_cache_begin_frame(textures);
     wm_font_cache_begin_frame(fonts);
     assert(wm_settings_scene_draw(scene));
-    uint32_t warning_font = assert_format_warning_layout(
-        98.0f, 110.0f, 295.0f, 315.0f);
+    uint32_t warning_font = assert_format_warning_layout(98.0f, 110.0f, 295.0f, 315.0f);
     assert_format_header(title_tab, nested_tab, 1);
     WmQuad red = {0};
     assert(count_drawn_texture(footer, NULL) == 2);
@@ -2554,8 +2388,7 @@ static void test_format_red_action_rollover(const char *assets) {
     wm_texture_cache_begin_frame(textures);
     wm_font_cache_begin_frame(fonts);
     assert(wm_settings_scene_draw(scene));
-    assert(assert_format_warning_layout(98.0f, 110.0f,
-                                        295.0f, 315.0f) == warning_font);
+    assert(assert_format_warning_layout(98.0f, 110.0f, 295.0f, 315.0f) == warning_font);
     assert_format_header(title_tab, nested_tab, 1);
     assert(count_drawn_texture(red_focus, &red) == 1);
     assert(red.x == 324.0f && red.color.a == 1.0f);
@@ -2568,8 +2401,8 @@ static void test_format_red_action_rollover(const char *assets) {
     wm_texture_cache_begin_frame(textures);
     wm_font_cache_begin_frame(fonts);
     assert(wm_settings_scene_draw(scene));
-    assert(assert_format_warning_layout(130.0f, 145.0f,
-                                        260.0f, 280.0f) == warning_font);
+    assert(assert_format_warning_layout(130.0f, 145.0f, 260.0f, 280.0f) ==
+           warning_font);
     assert_format_header(title_tab, nested_tab, 1);
     assert(count_drawn_texture(red_focus, &red) == 1);
     assert(red.x == 44.0f && red.color.a == 1.0f);
@@ -2588,25 +2421,23 @@ static void test_format_red_action_rollover(const char *assets) {
 }
 
 static void test_connect24_onoff_immediate_state(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t row = 0;
     uint32_t disabled_row = 0;
     uint32_t choice_left = 0;
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/large-row.png",
+                                    &row));
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/large-row.png", &row));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/large-row-disabled.png",
-        &disabled_row));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/choice-left.png",
-        &choice_left));
+        textures, "textures/settings_html/large-row-disabled.png", &disabled_row));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/choice-left.png",
+                                    &choice_left));
 
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -2654,8 +2485,7 @@ static void test_connect24_onoff_immediate_state(const char *assets) {
     assert(wm_settings_scene_draw(scene));
     assert(count_drawn_texture(row, NULL) == 3);
     assert(count_drawn_texture(disabled_row, NULL) == 0);
-    assert(wm_settings_scene_hit(scene, 16 + 150, 181) ==
-           WM_SETTINGS_CONTROL_ITEM_2);
+    assert(wm_settings_scene_hit(scene, 16 + 150, 181) == WM_SETTINGS_CONTROL_ITEM_2);
 
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_1));
     wm_settings_scene_advance(scene, 20.0f);
@@ -2675,25 +2505,23 @@ static void test_connect24_onoff_immediate_state(const char *assets) {
 }
 
 static void test_sensor_position_source_mapping(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t row = 0;
     uint32_t choice_left = 0;
     uint32_t choice_right = 0;
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/large-row.png", &row));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/choice-left.png",
-        &choice_left));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/choice-right.png",
-        &choice_right));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/large-row.png",
+                                    &row));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/choice-left.png",
+                                    &choice_left));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/choice-right.png",
+                                    &choice_right));
 
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -2746,30 +2574,26 @@ static void test_sensor_position_source_mapping(const char *assets) {
 }
 
 static void test_screen_position_back_retains_offset(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t left_flame = 0;
     uint32_t right_flame = 0;
     uint32_t left_arrow = 0;
     uint32_t right_arrow = 0;
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/position-flame-left.png",
-        &left_flame));
+        textures, "textures/settings_html/position-flame-left.png", &left_flame));
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/position-flame-right.png",
-        &right_flame));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/arrow-left.png",
-        &left_arrow));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/arrow-right.png",
-        &right_arrow));
+        textures, "textures/settings_html/position-flame-right.png", &right_flame));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/arrow-left.png",
+                                    &left_arrow));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/arrow-right.png",
+                                    &right_arrow));
 
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -2816,30 +2640,26 @@ static void test_screen_position_back_retains_offset(const char *assets) {
 }
 
 static void test_widescreen_back_retains_row(const char *assets) {
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t standard = 0;
     uint32_t widescreen = 0;
     uint32_t marker_left = 0;
     uint32_t marker_right = 0;
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/widescreen-standard.png",
-        &standard));
+        textures, "textures/settings_html/widescreen-standard.png", &standard));
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/widescreen-wide.png",
-        &widescreen));
+        textures, "textures/settings_html/widescreen-wide.png", &widescreen));
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/tv-choice-left.png",
-        &marker_left));
+        textures, "textures/settings_html/tv-choice-left.png", &marker_left));
     assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/tv-choice-right.png",
-        &marker_right));
+        textures, "textures/settings_html/tv-choice-right.png", &marker_right));
 
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
@@ -2850,8 +2670,7 @@ static void test_widescreen_back_retains_row(const char *assets) {
     assert(wm_settings_scene_snapshot(scene).category == 3);
     assert(wm_settings_scene_snapshot(scene).detail == 2);
     assert(wm_settings_scene_snapshot(scene).selection == 1);
-    assert(wm_settings_scene_hit(scene, 16 + 100, 200) ==
-           WM_SETTINGS_CONTROL_ITEM_1);
+    assert(wm_settings_scene_hit(scene, 16 + 100, 200) == WM_SETTINGS_CONTROL_ITEM_1);
 
     WmSettingsProjection projection = wm_settings_scene_projection(scene);
     drawn_quad_count = 0;
@@ -2898,35 +2717,33 @@ static void test_widescreen_back_retains_row(const char *assets) {
     wm_texture_cache_destroy(textures);
 }
 
-static void test_display_two_row_back_retains_choice(
-    const char *assets, unsigned detail) {
+static void test_display_two_row_back_retains_choice(const char *assets,
+                                                     unsigned detail) {
     assert(detail == 3 || detail == 4);
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 16u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures && fonts);
     uint32_t row = 0;
     uint32_t marker_left = 0;
     uint32_t marker_right = 0;
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/large-row.png", &row));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/choice-left.png",
-        &marker_left));
-    assert(wm_texture_cache_resolve(
-        textures, "textures/settings_html/choice-right.png",
-        &marker_right));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/large-row.png",
+                                    &row));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/choice-left.png",
+                                    &marker_left));
+    assert(wm_texture_cache_resolve(textures, "textures/settings_html/choice-right.png",
+                                    &marker_right));
 
-    WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmSettingsScene *scene =
+        wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_3));
     wm_settings_scene_advance(scene, 20.0f);
-    WmSettingsControl detail_control = detail == 3
-        ? WM_SETTINGS_CONTROL_ITEM_3 : WM_SETTINGS_CONTROL_ITEM_4;
+    WmSettingsControl detail_control =
+        detail == 3 ? WM_SETTINGS_CONTROL_ITEM_3 : WM_SETTINGS_CONTROL_ITEM_4;
     assert(wm_settings_scene_activate(scene, detail_control));
     wm_settings_scene_advance(scene, 20.0f);
     assert(wm_settings_scene_snapshot(scene).detail == detail);
@@ -2987,22 +2804,20 @@ static bool collect_slide(void *context, const WmLayoutPaneView *pane) {
 
 static void test_wad_scroll_curve(const char *assets) {
     char path[4096];
-    int length = snprintf(path, sizeof(path),
-                          "%s/layouts/setting/SceenChange_b.json", assets);
+    int length =
+        snprintf(path, sizeof(path), "%s/layouts/setting/SceenChange_b.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     WmLayout *layout = wm_layout_load_json(path, NULL, 0);
     assert(layout);
     for (int direction = 0; direction < 2; direction++) {
-        WmLayoutClip clip = {
-            .animation = direction ? "SceenChange_b_Left"
-                                   : "SceenChange_b_Right",
-            .frame = 25.0f,
-            .loop_override = 0
-        };
+        WmLayoutClip clip = {.animation = direction ? "SceenChange_b_Left"
+                                                    : "SceenChange_b_Right",
+                             .frame = 25.0f,
+                             .loop_override = 0};
         assert(wm_layout_pose(layout, &clip, 1));
         SlideDistance distance = {0};
-        wm_layout_visit_all_transforms(layout, false, WM_LAYOUT_LOCAL,
-                                        NULL, collect_slide, &distance);
+        wm_layout_visit_all_transforms(layout, false, WM_LAYOUT_LOCAL, NULL,
+                                       collect_slide, &distance);
         assert(distance.found);
         assert(fabsf(fabsf(distance.x) - 477.0f) < 0.1f);
     }
@@ -3011,8 +2826,7 @@ static void test_wad_scroll_curve(const char *assets) {
 
 static void test_direct_internet_entry(const char *assets) {
     WmSettingsScene *scene = wm_settings_scene_create(
-        (WmPlatform *)1, assets, (WmTextureCache *)1,
-        (WmFontCache *)1);
+        (WmPlatform *)1, assets, (WmTextureCache *)1, (WmFontCache *)1);
     assert(scene && wm_settings_scene_open_internet(scene));
     WmSettingsSnapshot entry = wm_settings_scene_snapshot(scene);
     assert(entry.page == 2 && entry.category == 7 && entry.detail == 0);
@@ -3036,8 +2850,8 @@ int main(int argc, char **argv) {
     test_source_hit_regions();
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char path[4096];
-    int length = snprintf(path, sizeof(path),
-                          "%s/layouts/setting/SceenChange_b.json", assets);
+    int length =
+        snprintf(path, sizeof(path), "%s/layouts/setting/SceenChange_b.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     FILE *file = fopen(path, "rb");
     if (!file) {

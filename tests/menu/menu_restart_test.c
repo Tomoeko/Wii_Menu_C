@@ -7,22 +7,19 @@
 
 /* Clock tests do not create a rendering scene. These satisfy the shared
  * layout library while making accidental GPU use fail immediately. */
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad) {
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
     assert(false);
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
     assert(false);
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
     (void)vertices;
@@ -30,8 +27,8 @@ void wm_platform_draw_vertices(WmPlatform *platform,
     assert(false);
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     (void)width;
     (void)height;
@@ -95,14 +92,15 @@ static void test_coarse_step_preserves_handoff(void) {
 
 static void count_visible_quad(void *context, const WmLayoutQuad *quad) {
     size_t *count = context;
-    if (quad->vertices[0].color[3] > 0.01f) (*count)++;
+    if (quad->vertices[0].color[3] > 0.01f)
+        (*count)++;
 }
 
 static void test_embedded_layout(void) {
-    const char *path =
-        ".local/native-assets/layouts/restart/my_BackToWiiMenu.json";
+    const char *path = ".local/native-assets/layouts/restart/my_BackToWiiMenu.json";
     FILE *file = fopen(path, "rb");
-    if (!file) return;
+    if (!file)
+        return;
     fclose(file);
     char error[160] = {0};
     WmLayout *layout = wm_layout_load_json(path, error, sizeof(error));
@@ -111,14 +109,13 @@ static void test_embedded_layout(void) {
     assert(wm_layout_animation_info(layout, "my_BackToWiiMenu", &info));
     assert(near(info.frames, 1000.0f));
     size_t count = 0;
-    WmLayoutDrawOptions draw = {
-        .wide = true, .mode = WM_LAYOUT_IPL, .alpha = 1.0f,
-        .on_quad = count_visible_quad, .context = &count
-    };
+    WmLayoutDrawOptions draw = {.wide = true,
+                                .mode = WM_LAYOUT_IPL,
+                                .alpha = 1.0f,
+                                .on_quad = count_visible_quad,
+                                .context = &count};
     WmLayoutClip clip = {
-        .animation = "my_BackToWiiMenu", .frame = 40.0f,
-        .loop_override = 1
-    };
+        .animation = "my_BackToWiiMenu", .frame = 40.0f, .loop_override = 1};
     assert(wm_layout_pose(layout, &clip, 1));
     wm_layout_draw(layout, &draw);
     assert(count > 0);

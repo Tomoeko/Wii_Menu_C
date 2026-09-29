@@ -23,28 +23,27 @@
     } while (0)
 
 static bool write_pixel(const char *path, const uint8_t pixels[4]) {
-    WmImage image = { .width = 1, .height = 1, .pixels = (uint8_t *)pixels };
+    WmImage image = {.width = 1, .height = 1, .pixels = (uint8_t *)pixels};
     return wm_image_write(path, &image);
 }
 
-static bool path_in_directory(char *path, size_t capacity,
-                              const char *directory, const char *name) {
+static bool path_in_directory(char *path, size_t capacity, const char *directory,
+                              const char *name) {
     int length = snprintf(path, capacity, "%s/%s", directory, name);
     return length >= 0 && (size_t)length < capacity;
 }
 
 static bool read_pixel(FILE *source, const uint8_t expected[4]) {
     size_t declared_bytes = 0;
-    if (!wm_image_declared_bytes(source, &declared_bytes) ||
-        declared_bytes != 4) {
+    if (!wm_image_declared_bytes(source, &declared_bytes) || declared_bytes != 4) {
         return false;
     }
     WmImage image;
     if (!wm_image_read_bounded_stream(source, declared_bytes, &image)) {
         return false;
     }
-    bool matches = image.width == 1 && image.height == 1 &&
-                   memcmp(image.pixels, expected, 4) == 0;
+    bool matches =
+        image.width == 1 && image.height == 1 && memcmp(image.pixels, expected, 4) == 0;
     wm_image_free(&image);
     return matches;
 }
@@ -63,24 +62,21 @@ static int test_source_paths(void) {
     char nested_directory[512];
     char nested_path[512];
     char fifo_path[512];
-    CHECK(path_in_directory(source_path, sizeof(source_path), directory,
-                            "valid.wmra"));
-    CHECK(path_in_directory(moved_path, sizeof(moved_path), directory,
-                            "moved.wmra"));
-    CHECK(path_in_directory(alias_path, sizeof(alias_path), directory,
-                            "alias.wmra"));
-    CHECK(path_in_directory(directory_link, sizeof(directory_link), directory,
-                            "linked"));
-    CHECK(path_in_directory(outside_path, sizeof(outside_path),
-                            outside_directory, "child.wmra"));
+    CHECK(path_in_directory(source_path, sizeof(source_path), directory, "valid.wmra"));
+    CHECK(path_in_directory(moved_path, sizeof(moved_path), directory, "moved.wmra"));
+    CHECK(path_in_directory(alias_path, sizeof(alias_path), directory, "alias.wmra"));
+    CHECK(
+        path_in_directory(directory_link, sizeof(directory_link), directory, "linked"));
+    CHECK(path_in_directory(outside_path, sizeof(outside_path), outside_directory,
+                            "child.wmra"));
     CHECK(path_in_directory(nested_directory, sizeof(nested_directory), directory,
                             "nested"));
     CHECK(path_in_directory(nested_path, sizeof(nested_path), nested_directory,
                             "valid.wmra"));
     CHECK(path_in_directory(fifo_path, sizeof(fifo_path), directory, "pipe.wmra"));
 
-    const uint8_t original[4] = { 1, 2, 3, 4 };
-    const uint8_t replacement[4] = { 5, 6, 7, 8 };
+    const uint8_t original[4] = {1, 2, 3, 4};
+    const uint8_t replacement[4] = {5, 6, 7, 8};
     CHECK(write_pixel(source_path, original));
     CHECK(write_pixel(outside_path, replacement));
     CHECK(mkdir(nested_directory, 0700) == 0);
@@ -99,12 +95,10 @@ static int test_source_paths(void) {
     CHECK(source);
     CHECK(read_pixel(source, original));
     CHECK(fclose(source) == 0);
-    CHECK(!wm_texture_source_open(root_directory, "pipe.png",
-                                  strlen("pipe.png")));
+    CHECK(!wm_texture_source_open(root_directory, "pipe.png", strlen("pipe.png")));
 
     CHECK(symlink("valid.wmra", alias_path) == 0);
-    CHECK(!wm_texture_source_open(root_directory, "alias.png",
-                                  strlen("alias.png")));
+    CHECK(!wm_texture_source_open(root_directory, "alias.png", strlen("alias.png")));
     CHECK(symlink(outside_directory, directory_link) == 0);
     CHECK(!wm_texture_source_open(root_directory, "linked/child.png",
                                   strlen("linked/child.png")));
@@ -144,16 +138,14 @@ static int test_root_replacement(void) {
     char old_path[512];
     char new_path[512];
     char moved_directory[512];
-    CHECK(path_in_directory(old_path, sizeof(old_path), directory,
-                            "valid.wmra"));
-    int length = snprintf(moved_directory, sizeof(moved_directory),
-                          "%s-moved", directory);
+    CHECK(path_in_directory(old_path, sizeof(old_path), directory, "valid.wmra"));
+    int length =
+        snprintf(moved_directory, sizeof(moved_directory), "%s-moved", directory);
     CHECK(length >= 0 && (size_t)length < sizeof(moved_directory));
-    CHECK(path_in_directory(new_path, sizeof(new_path), moved_directory,
-                            "valid.wmra"));
+    CHECK(path_in_directory(new_path, sizeof(new_path), moved_directory, "valid.wmra"));
 
-    const uint8_t original[4] = { 1, 2, 3, 4 };
-    const uint8_t replacement[4] = { 5, 6, 7, 8 };
+    const uint8_t original[4] = {1, 2, 3, 4};
+    const uint8_t replacement[4] = {5, 6, 7, 8};
     CHECK(write_pixel(old_path, original));
     int root_directory = open(directory, O_RDONLY | O_DIRECTORY);
     CHECK(root_directory >= 0);
@@ -161,8 +153,8 @@ static int test_root_replacement(void) {
     CHECK(mkdir(directory, 0700) == 0);
     CHECK(write_pixel(old_path, replacement));
 
-    FILE *source = wm_texture_source_open(root_directory, "valid.png",
-                                           strlen("valid.png"));
+    FILE *source =
+        wm_texture_source_open(root_directory, "valid.png", strlen("valid.png"));
     CHECK(source);
     CHECK(read_pixel(source, original));
     CHECK(fclose(source) == 0);

@@ -9,9 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum {
-    HEALTH_LOCALE_CAPACITY = 32
-};
+enum { HEALTH_LOCALE_CAPACITY = 32 };
 
 struct WmHealthScene {
     WmPlatform *platform;
@@ -27,30 +25,33 @@ struct WmHealthScene {
 };
 
 static bool locale_available(const WmLayout *layout, const char *locale) {
-    if (!locale || !locale[0]) return false;
+    if (!locale || !locale[0])
+        return false;
     size_t length = strlen(locale);
-    if (length > HEALTH_LOCALE_CAPACITY - 6) return false;
+    if (length > HEALTH_LOCALE_CAPACITY - 6)
+        return false;
     char pane[HEALTH_LOCALE_CAPACITY + 5];
     int printed = snprintf(pane, sizeof(pane), "Has_%s", locale);
-    if (printed < 0 || printed >= (int)sizeof(pane)) return false;
+    if (printed < 0 || printed >= (int)sizeof(pane))
+        return false;
     WmLayoutPaneState state;
-    if (!wm_layout_pane_state(layout, pane, &state)) return false;
+    if (!wm_layout_pane_state(layout, pane, &state))
+        return false;
     printed = snprintf(pane, sizeof(pane), "Push_%s", locale);
     return printed >= 0 && printed < (int)sizeof(pane) &&
            wm_layout_pane_state(layout, pane, &state);
 }
 
 WmHealthScene *wm_health_scene_create(WmPlatform *platform,
-                                        const char *assets_directory,
-                                        WmTextureCache *textures,
-                                        WmFontCache *fonts,
-                                        bool enabled,
-                                        const char *locale) {
-    if (!platform || !assets_directory || !assets_directory[0] ||
-        !textures || !fonts) return NULL;
+                                      const char *assets_directory,
+                                      WmTextureCache *textures, WmFontCache *fonts,
+                                      bool enabled, const char *locale) {
+    if (!platform || !assets_directory || !assets_directory[0] || !textures || !fonts)
+        return NULL;
     WmLayout *layout = wm_layout_load_asset(
         assets_directory, "layouts/health/it_Has_a.json", "Health and Safety");
-    if (!layout) return NULL;
+    if (!layout)
+        return NULL;
     WmLayoutAnimationInfo enter;
     WmLayoutAnimationInfo exit;
     WmLayoutAnimationInfo push;
@@ -84,27 +85,31 @@ WmHealthScene *wm_health_scene_create(WmPlatform *platform,
 }
 
 void wm_health_scene_destroy(WmHealthScene *health) {
-    if (!health) return;
+    if (!health)
+        return;
     wm_layout_destroy(health->layout);
     free(health);
 }
 
 void wm_health_scene_reset(WmHealthScene *health, bool enabled) {
-    if (!health) return;
+    if (!health)
+        return;
     health->phase = enabled ? WM_HEALTH_ENTER : WM_HEALTH_DONE;
     health->elapsed = 0.0f;
     health->exit_start = 0.0f;
 }
 
 bool wm_health_scene_accept(WmHealthScene *health) {
-    if (!health || health->phase != WM_HEALTH_WAIT) return false;
+    if (!health || health->phase != WM_HEALTH_WAIT)
+        return false;
     health->phase = WM_HEALTH_LEAVE;
     health->exit_start = health->elapsed;
     return true;
 }
 
 void wm_health_scene_advance(WmHealthScene *health, float frames) {
-    if (!health || !isfinite(frames) || frames <= 0.0f) return;
+    if (!health || !isfinite(frames) || frames <= 0.0f)
+        return;
     health->elapsed += frames;
     if (health->phase == WM_HEALTH_ENTER &&
         health->elapsed >= health->enter_frames + 60.0f) {
@@ -153,57 +158,50 @@ static bool select_locale_pane(void *opaque, const WmLayoutPaneView *pane) {
         show = context->show_push;
     }
     if (prefix) {
-        show = show && strcmp(pane->name + strlen(prefix),
-                              context->health->locale) == 0;
+        show =
+            show && strcmp(pane->name + strlen(prefix), context->health->locale) == 0;
         wm_layout_set_pane_visible(context->health->layout, pane->name, show);
     }
     return true;
 }
 
 bool wm_health_scene_pose(WmHealthScene *health) {
-    if (!health) return false;
-    WmLayoutClip clips[3] = {
-        {
-            .animation = "it_Has_a_SeenIn",
-            .group = "G_All",
-            .frame = health->elapsed,
-            .loop_override = 0
-        }
-    };
+    if (!health)
+        return false;
+    WmLayoutClip clips[3] = {{.animation = "it_Has_a_SeenIn",
+                              .group = "G_All",
+                              .frame = health->elapsed,
+                              .loop_override = 0}};
     size_t count = 1;
     if (health->phase == WM_HEALTH_WAIT) {
-        clips[count++] = (WmLayoutClip){
-            .animation = "it_Has_a_Push",
-            .group = "G_Push",
-            .frame = health->elapsed - health->enter_frames - 60.0f,
-            .loop_override = 1
-        };
+        clips[count++] =
+            (WmLayoutClip){.animation = "it_Has_a_Push",
+                           .group = "G_Push",
+                           .frame = health->elapsed - health->enter_frames - 60.0f,
+                           .loop_override = 1};
     }
     if (health->phase == WM_HEALTH_LEAVE ||
         (health->phase == WM_HEALTH_DONE && health->exit_start > 0.0f)) {
-        clips[count++] = (WmLayoutClip){
-            .animation = "it_Has_a_SeenOut",
-            .group = "G_All",
-            .frame = health->elapsed - health->exit_start,
-            .loop_override = 0
-        };
+        clips[count++] = (WmLayoutClip){.animation = "it_Has_a_SeenOut",
+                                        .group = "G_All",
+                                        .frame = health->elapsed - health->exit_start,
+                                        .loop_override = 0};
     }
-    if (!wm_layout_pose(health->layout, clips, count)) return false;
-    LocaleContext context = {
-        .health = health,
-        .show_push = health->phase == WM_HEALTH_WAIT ||
-                     health->phase == WM_HEALTH_LEAVE
-    };
-    wm_layout_visit_all_transforms(health->layout, true, WM_LAYOUT_IPL,
-                                    NULL, select_locale_pane, &context);
+    if (!wm_layout_pose(health->layout, clips, count))
+        return false;
+    LocaleContext context = {.health = health,
+                             .show_push = health->phase == WM_HEALTH_WAIT ||
+                                          health->phase == WM_HEALTH_LEAVE};
+    wm_layout_visit_all_transforms(health->layout, true, WM_LAYOUT_IPL, NULL,
+                                   select_locale_pane, &context);
     return true;
 }
 
 void wm_health_scene_draw(WmHealthScene *health) {
-    if (!wm_health_scene_pose(health)) return;
-    wm_layout_present_with_fonts(health->platform, health->textures,
-                                 health->fonts, health->layout, true,
-                                 WM_LAYOUT_IPL, NULL);
+    if (!wm_health_scene_pose(health))
+        return;
+    wm_layout_present_with_fonts(health->platform, health->textures, health->fonts,
+                                 health->layout, true, WM_LAYOUT_IPL, NULL);
 }
 
 const WmLayout *wm_health_scene_layout(const WmHealthScene *health) {

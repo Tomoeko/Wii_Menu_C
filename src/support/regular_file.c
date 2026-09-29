@@ -12,7 +12,8 @@
 
 WmRegularFileStatus wm_regular_file_read(const char *path, size_t limit,
                                          char **contents, size_t *length) {
-    if (!path || !contents || !length) return WM_REGULAR_FILE_ERROR;
+    if (!path || !contents || !length)
+        return WM_REGULAR_FILE_ERROR;
     *contents = NULL;
     *length = 0;
 
@@ -20,7 +21,8 @@ WmRegularFileStatus wm_regular_file_read(const char *path, size_t limit,
     if (lstat(path, &named) != 0) {
         return errno == ENOENT ? WM_REGULAR_FILE_MISSING : WM_REGULAR_FILE_ERROR;
     }
-    if (!S_ISREG(named.st_mode)) return WM_REGULAR_FILE_ERROR;
+    if (!S_ISREG(named.st_mode))
+        return WM_REGULAR_FILE_ERROR;
 
     /* A path swapped for a FIFO between lstat and open must not block here. */
     int flags = O_RDONLY | O_NONBLOCK;
@@ -31,15 +33,13 @@ WmRegularFileStatus wm_regular_file_read(const char *path, size_t limit,
     flags |= O_CLOEXEC;
 #endif
     int descriptor = open(path, flags);
-    if (descriptor < 0) return WM_REGULAR_FILE_ERROR;
+    if (descriptor < 0)
+        return WM_REGULAR_FILE_ERROR;
 
     struct stat opened;
-    bool valid = fstat(descriptor, &opened) == 0 &&
-                 S_ISREG(opened.st_mode) &&
-                 opened.st_dev == named.st_dev &&
-                 opened.st_ino == named.st_ino &&
-                 opened.st_size > 0 &&
-                 (uint64_t)opened.st_size <= limit &&
+    bool valid = fstat(descriptor, &opened) == 0 && S_ISREG(opened.st_mode) &&
+                 opened.st_dev == named.st_dev && opened.st_ino == named.st_ino &&
+                 opened.st_size > 0 && (uint64_t)opened.st_size <= limit &&
                  (uint64_t)opened.st_size < SIZE_MAX;
     if (!valid) {
         close(descriptor);
@@ -55,8 +55,10 @@ WmRegularFileStatus wm_regular_file_read(const char *path, size_t limit,
     size_t offset = 0;
     while (offset < size) {
         ssize_t count = read(descriptor, bytes + offset, size - offset);
-        if (count < 0 && errno == EINTR) continue;
-        if (count <= 0) break;
+        if (count < 0 && errno == EINTR)
+            continue;
+        if (count <= 0)
+            break;
         offset += (size_t)count;
     }
     char extra;
@@ -65,7 +67,8 @@ WmRegularFileStatus wm_regular_file_read(const char *path, size_t limit,
         after = read(descriptor, &extra, 1);
     } while (after < 0 && errno == EINTR);
     valid = offset == size && after == 0;
-    if (close(descriptor) != 0) valid = false;
+    if (close(descriptor) != 0)
+        valid = false;
     if (!valid) {
         free(bytes);
         return WM_REGULAR_FILE_ERROR;

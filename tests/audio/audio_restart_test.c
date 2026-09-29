@@ -24,22 +24,19 @@ static WmAudioDevice *device;
 
 /* This test exercises the restart clock without creating a rendering scene.
  * An accidental GPU operation must fail rather than silently pass. */
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad) {
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
     assert(false);
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
     assert(false);
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
     (void)vertices;
@@ -47,8 +44,8 @@ void wm_platform_draw_vertices(WmPlatform *platform,
     assert(false);
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     (void)width;
     (void)height;
@@ -126,14 +123,14 @@ static void test_manifest_audio_alias(void) {
     assert(unlink(directory) == 0);
     assert(mkdir(directory, 0700) == 0);
     char audio_directory[256], source_path[256], alias_path[256], manifest_path[256];
-    assert(snprintf(audio_directory, sizeof(audio_directory), "%s/audio",
-                    directory) < (int)sizeof(audio_directory));
+    assert(snprintf(audio_directory, sizeof(audio_directory), "%s/audio", directory) <
+           (int)sizeof(audio_directory));
     assert(snprintf(source_path, sizeof(source_path), "%s/WIPL_BGM_MENU.wav",
                     audio_directory) < (int)sizeof(source_path));
     assert(snprintf(alias_path, sizeof(alias_path), "%s/background.wav",
                     audio_directory) < (int)sizeof(alias_path));
-    assert(snprintf(manifest_path, sizeof(manifest_path),
-                    "%s/audio-sequence.json", directory) < (int)sizeof(manifest_path));
+    assert(snprintf(manifest_path, sizeof(manifest_path), "%s/audio-sequence.json",
+                    directory) < (int)sizeof(manifest_path));
     assert(mkdir(audio_directory, 0700) == 0);
     write_tone(source_path, 1000);
     FILE *manifest = fopen(manifest_path, "wb");
@@ -177,17 +174,14 @@ int main(void) {
     char background_path[256];
     char intro_path[256];
     char click_path[256];
-    assert(snprintf(audio_directory, sizeof(audio_directory), "%s/audio",
-                    directory) < (int)sizeof(audio_directory));
+    assert(snprintf(audio_directory, sizeof(audio_directory), "%s/audio", directory) <
+           (int)sizeof(audio_directory));
     assert(mkdir(audio_directory, 0700) == 0);
-    assert(snprintf(background_path, sizeof(background_path),
-                    "%s/background.wav", audio_directory) <
-           (int)sizeof(background_path));
-    assert(snprintf(intro_path, sizeof(intro_path),
-                    "%s/backgroundIntro.wav", audio_directory) <
-           (int)sizeof(intro_path));
-    assert(snprintf(click_path, sizeof(click_path),
-                    "%s/click.wav", audio_directory) <
+    assert(snprintf(background_path, sizeof(background_path), "%s/background.wav",
+                    audio_directory) < (int)sizeof(background_path));
+    assert(snprintf(intro_path, sizeof(intro_path), "%s/backgroundIntro.wav",
+                    audio_directory) < (int)sizeof(intro_path));
+    assert(snprintf(click_path, sizeof(click_path), "%s/click.wav", audio_directory) <
            (int)sizeof(click_path));
     write_tone(background_path, 1000);
     write_tone(intro_path, 2000);

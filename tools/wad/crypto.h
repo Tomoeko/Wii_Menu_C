@@ -19,6 +19,6 @@ void wm_aes128_init(WmAes128 *aes, const uint8_t key[16]);
 void wm_aes128_decrypt_block(const WmAes128 *aes, const uint8_t input[16],
                              uint8_t output[16]);
 void wm_aes128_cbc_decrypt(WmAes128 *aes, uint8_t *data, size_t length,
-                            const uint8_t initial_vector[16]);
+                           const uint8_t initial_vector[16]);
 
 #endif

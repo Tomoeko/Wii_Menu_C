@@ -10,11 +10,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-enum {
-    HOME_CLIP_CAPACITY = 80,
-    HOME_EFFECT_CAPACITY = 16,
-    HOME_ANIMATION_COUNT = 40
-};
+enum { HOME_CLIP_CAPACITY = 80, HOME_EFFECT_CAPACITY = 16, HOME_ANIMATION_COUNT = 40 };
 
 typedef enum HomeAnimation {
     ANIM_12BTN_ON,

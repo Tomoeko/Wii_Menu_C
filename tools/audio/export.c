@@ -31,52 +31,45 @@ static const SoundName direct_sounds[] = {
     {"WIPL_ME_GC_BANNER", "WIPL_ME_GC_BANNER"},
     {"WIPL_ME_INVALID_DISC_BANNER", "WIPL_ME_INVALID_DISC_BANNER"},
     {"WIPL_ME_SD_BANNER", "WIPL_ME_SD_BANNER"},
-    {"WIPL_SE_SK_PAGE_CHG", "WIPL_SE_SK_PAGE_CHG"}
-};
+    {"WIPL_SE_SK_PAGE_CHG", "WIPL_SE_SK_PAGE_CHG"}};
 
-static const SoundName sequence_aliases[] = {
-    {"background", "WIPL_BGM_MENU"},
-    {"hover", "WIPL_SE_CH_TARGETTING"},
-    {"buttonHover", "WIPL_SE_BT_TARGETTING"},
-    {"select", "WIPL_SE_CH_SELECT"},
-    {"click", "WIPL_SE_BT_PUSH"},
-    {"back", "WIPL_SE_CH_UNSELECT"},
-    {"confirm", "WIPL_SE_DECIDE"},
-    {"cancel", "WIPL_SE_CANCEL"},
-    {"balloon", "WIPL_SE_BALLOON"},
-    {"infoWindow", "WIPL_SE_INFO_WINDOW"},
-    {"grab", "WIPL_SE_CH_HOLD"},
-    {"drop", "WIPL_SE_CH_SET"},
-    {"invalidDrop", "WIPL_SE_CH_NOT_MOVE"},
-    {"drag", "WIPL_SE_CH_DRAG"},
-    {"dateSelect", "WIPL_SE_DATE_SELECT"}
-};
+static const SoundName sequence_aliases[] = {{"background", "WIPL_BGM_MENU"},
+                                             {"hover", "WIPL_SE_CH_TARGETTING"},
+                                             {"buttonHover", "WIPL_SE_BT_TARGETTING"},
+                                             {"select", "WIPL_SE_CH_SELECT"},
+                                             {"click", "WIPL_SE_BT_PUSH"},
+                                             {"back", "WIPL_SE_CH_UNSELECT"},
+                                             {"confirm", "WIPL_SE_DECIDE"},
+                                             {"cancel", "WIPL_SE_CANCEL"},
+                                             {"balloon", "WIPL_SE_BALLOON"},
+                                             {"infoWindow", "WIPL_SE_INFO_WINDOW"},
+                                             {"grab", "WIPL_SE_CH_HOLD"},
+                                             {"drop", "WIPL_SE_CH_SET"},
+                                             {"invalidDrop", "WIPL_SE_CH_NOT_MOVE"},
+                                             {"drag", "WIPL_SE_CH_DRAG"},
+                                             {"dateSelect", "WIPL_SE_DATE_SELECT"}};
 
-static const SoundName speaker_sounds[] = {
-    {"HOME_SPEAKER_CONNECT1", "connect1.bwav"},
-    {"HOME_SPEAKER_CONNECT2", "connect2.bwav"},
-    {"HOME_SPEAKER_CONNECT3", "connect3.bwav"},
-    {"HOME_SPEAKER_CONNECT4", "connect4.bwav"},
-    {"HOME_SPEAKER_VOLUME", "volume.bwav"}
-};
+static const SoundName speaker_sounds[] = {{"HOME_SPEAKER_CONNECT1", "connect1.bwav"},
+                                           {"HOME_SPEAKER_CONNECT2", "connect2.bwav"},
+                                           {"HOME_SPEAKER_CONNECT3", "connect3.bwav"},
+                                           {"HOME_SPEAKER_CONNECT4", "connect4.bwav"},
+                                           {"HOME_SPEAKER_VOLUME", "volume.bwav"}};
 
-static bool combine_path(char path[4096], const char *root,
-                         const char *middle, const char *name)
-{
+static bool combine_path(char path[4096], const char *root, const char *middle,
+                         const char *name) {
     int length = snprintf(path, 4096, "%s/%s%s", root, middle, name);
     return length > 0 && length < 4096;
 }
 
-static uint8_t *read_file(const char *path, size_t *size)
-{
+static uint8_t *read_file(const char *path, size_t *size) {
     FILE *file = fopen(path, "rb");
     if (!file || fseek(file, 0, SEEK_END) != 0) {
-        if (file) fclose(file);
+        if (file)
+            fclose(file);
         return NULL;
     }
     long length = ftell(file);
-    if (length < 64 || length > 128 * 1024 * 1024 ||
-        fseek(file, 0, SEEK_SET) != 0) {
+    if (length < 64 || length > 128 * 1024 * 1024 || fseek(file, 0, SEEK_SET) != 0) {
         fclose(file);
         return NULL;
     }
@@ -91,8 +84,7 @@ static uint8_t *read_file(const char *path, size_t *size)
     return data;
 }
 
-static int usage(const char *program)
-{
+static int usage(const char *program) {
     fprintf(stderr, "Usage: %s RESOURCE_97.app EXECUTABLE_98.app OUTPUT_ASSETS\n",
             program);
     fprintf(stderr, "Exports local original waves and sequenced menu audio.\n");
@@ -100,11 +92,9 @@ static int usage(const char *program)
 }
 
 static bool audio_filename(char destination[4096], const char *output,
-                           const char *name)
-{
+                           const char *name) {
     for (const unsigned char *part = (const unsigned char *)name; *part; part++) {
-        if (!((*part >= 'A' && *part <= 'Z') ||
-              (*part >= 'a' && *part <= 'z') ||
+        if (!((*part >= 'A' && *part <= 'Z') || (*part >= 'a' && *part <= 'z') ||
               (*part >= '0' && *part <= '9') || *part == '_' || *part == '-'))
             return false;
     }
@@ -114,11 +104,10 @@ static bool audio_filename(char destination[4096], const char *output,
            combine_path(destination, output, "audio/", filename);
 }
 
-static bool write_sequence_entry(FILE *manifest, const char *name,
-                                 const char *symbol, const WmAudioPcm *pcm,
-                                 float gain, bool first)
-{
-    if (!first && fputs(",\n", manifest) < 0) return false;
+static bool write_sequence_entry(FILE *manifest, const char *name, const char *symbol,
+                                 const WmAudioPcm *pcm, float gain, bool first) {
+    if (!first && fputs(",\n", manifest) < 0)
+        return false;
     return fprintf(manifest,
                    "  \"%s\": {\"sourceSymbol\": \"%s\", "
                    "\"gain\": %.9g, \"loop\": %s, "
@@ -128,25 +117,24 @@ static bool write_sequence_entry(FILE *manifest, const char *name,
                    (double)pcm->loop_end / pcm->sample_rate) > 0;
 }
 
-static bool held_symbol(const char *symbol)
-{
+static bool held_symbol(const char *symbol) {
     return strcmp(symbol, "WIPL_SE_CH_DRAG") == 0 ||
            strcmp(symbol, "WIPL_SE_BOARD_DRAG") == 0;
 }
 
-static bool write_float_array(FILE *file, const float *values, size_t count)
-{
+static bool write_float_array(FILE *file, const float *values, size_t count) {
     for (size_t index = 0; index < count; index++) {
         if (fprintf(file, "      %.9g%s\n", (double)values[index],
-                     index + 1 < count ? "," : "") < 0) return false;
+                    index + 1 < count ? "," : "") < 0)
+            return false;
     }
     return true;
 }
 
 static bool write_held_profile(FILE *file, const char *symbol,
-                               const WmAudioHeldProfile *profile, bool first)
-{
-    if (!first && fputs(",\n", file) < 0) return false;
+                               const WmAudioHeldProfile *profile, bool first) {
+    if (!first && fputs(",\n", file) < 0)
+        return false;
     return fprintf(file,
                    "    \"%s\": {\n"
                    "      \"attackMultiplier\": %.9g,\n"
@@ -162,13 +150,9 @@ static bool write_held_profile(FILE *file, const char *symbol,
                    (double)profile->pan) > 0;
 }
 
-static bool export_held_manifest(const WmRsar *archive,
-                                 const uint8_t *executable,
-                                 size_t executable_size, const char *output)
-{
-    static const char *const symbols[] = {
-        "WIPL_SE_CH_DRAG", "WIPL_SE_BOARD_DRAG"
-    };
+static bool export_held_manifest(const WmRsar *archive, const uint8_t *executable,
+                                 size_t executable_size, const char *output) {
+    static const char *const symbols[] = {"WIPL_SE_CH_DRAG", "WIPL_SE_BOARD_DRAG"};
     WmAudioHeldProfile profiles[2];
     WmAudioHeldTables tables;
     for (size_t index = 0; index < 2; index++) {
@@ -176,17 +160,18 @@ static bool export_held_manifest(const WmRsar *archive,
         WmAudioPcm wave = {0};
         char error[160] = {0};
         if (!wm_rsar_find_sound(archive, symbols[index], &sound) ||
-            !wm_sequence_extract_held(archive, &sound, executable,
-                                      executable_size, &profiles[index],
-                                      &tables, &wave, error, sizeof(error))) {
-            fprintf(stderr, "Unsupported held sequence %s: %s\n",
-                    symbols[index], error);
+            !wm_sequence_extract_held(archive, &sound, executable, executable_size,
+                                      &profiles[index], &tables, &wave, error,
+                                      sizeof(error))) {
+            fprintf(stderr, "Unsupported held sequence %s: %s\n", symbols[index],
+                    error);
             return false;
         }
         wm_audio_pcm_free(&wave);
     }
     char path[4096];
-    if (!combine_path(path, output, "", "audio-held.json")) return false;
+    if (!combine_path(path, output, "", "audio-held.json"))
+        return false;
     WmAtomicFile temporary;
     if (wm_atomic_file_open(&temporary, path) != WM_ATOMIC_FILE_OK)
         return false;
@@ -196,17 +181,21 @@ static bool export_held_manifest(const WmRsar *archive,
                        "  \"sampleRate\": 32000,\n"
                        "  \"blockFrames\": 96,\n"
                        "  \"tables\": {\n"
-                       "    \"decibels\": [\n", file) >= 0;
-    if (valid) valid = write_float_array(file, tables.decibels,
-                                         WM_AUDIO_HELD_DECIBELS);
-    if (valid) valid = fputs("    ],\n    \"pan\": [\n", file) >= 0;
-    if (valid) valid = write_float_array(file, tables.pan, WM_AUDIO_HELD_PAN);
-    if (valid) valid = fputs("    ]\n  },\n  \"profiles\": {\n", file) >= 0;
+                       "    \"decibels\": [\n",
+                       file) >= 0;
+    if (valid)
+        valid = write_float_array(file, tables.decibels, WM_AUDIO_HELD_DECIBELS);
+    if (valid)
+        valid = fputs("    ],\n    \"pan\": [\n", file) >= 0;
+    if (valid)
+        valid = write_float_array(file, tables.pan, WM_AUDIO_HELD_PAN);
+    if (valid)
+        valid = fputs("    ]\n  },\n  \"profiles\": {\n", file) >= 0;
     for (size_t index = 0; index < 2 && valid; index++) {
-        valid = write_held_profile(file, symbols[index], &profiles[index],
-                                    index == 0);
+        valid = write_held_profile(file, symbols[index], &profiles[index], index == 0);
     }
-    if (valid) valid = fputs("\n  }\n}\n", file) >= 0;
+    if (valid)
+        valid = fputs("\n  }\n}\n", file) >= 0;
     if (valid)
         valid = wm_atomic_file_commit(&temporary, path);
     else
@@ -214,10 +203,8 @@ static bool export_held_manifest(const WmRsar *archive,
     return valid;
 }
 
-static bool export_sequences(const WmRsar *archive,
-                             const uint8_t *executable, size_t executable_size,
-                             const char *output)
-{
+static bool export_sequences(const WmRsar *archive, const uint8_t *executable,
+                             size_t executable_size, const char *output) {
     if (!export_held_manifest(archive, executable, executable_size, output))
         return false;
     char manifest_path[4096];
@@ -229,17 +216,15 @@ static bool export_sequences(const WmRsar *archive,
     FILE *manifest = temporary.stream;
     bool valid = fputs("{\n", manifest) >= 0;
     size_t rendered = 0, skipped = 0, aliases = 0;
-    for (size_t index = 0;
-         index < wm_rsar_sound_count(archive) && valid;
-         index++) {
+    for (size_t index = 0; index < wm_rsar_sound_count(archive) && valid; index++) {
         char symbol[128], destination[4096], error[160] = {0};
         WmRsarSound sound;
-        if (!wm_rsar_sound_at(archive, index, symbol,
-                              sizeof(symbol), &sound)) {
+        if (!wm_rsar_sound_at(archive, index, symbol, sizeof(symbol), &sound)) {
             valid = false;
             break;
         }
-        if (sound.type != 1) continue;
+        if (sound.type != 1)
+            continue;
         WmAudioPcm pcm = {0};
         float gain = 1.0f;
         bool held = held_symbol(symbol);
@@ -247,15 +232,13 @@ static bool export_sequences(const WmRsar *archive,
         if (held) {
             WmAudioHeldProfile profile;
             WmAudioHeldTables tables;
-            decoded = wm_sequence_extract_held(archive, &sound, executable,
-                                               executable_size, &profile,
-                                               &tables, &pcm,
-                                               error, sizeof(error));
+            decoded =
+                wm_sequence_extract_held(archive, &sound, executable, executable_size,
+                                         &profile, &tables, &pcm, error, sizeof(error));
             gain = (float)sound.volume / 127.0f;
         } else {
-            decoded = wm_sequence_render(archive, &sound, executable,
-                                          executable_size, &pcm,
-                                          error, sizeof(error));
+            decoded = wm_sequence_render(archive, &sound, executable, executable_size,
+                                         &pcm, error, sizeof(error));
         }
         if (!decoded) {
             fprintf(stderr, "Unsupported sequence %s: %s\n", symbol, error);
@@ -264,8 +247,8 @@ static bool export_sequences(const WmRsar *archive,
         }
         if (!audio_filename(destination, output, symbol) ||
             !wm_audio_wav_write(destination, &pcm, error, sizeof(error)) ||
-            !write_sequence_entry(manifest, symbol, symbol, &pcm,
-                                  gain, rendered + aliases == 0)) {
+            !write_sequence_entry(manifest, symbol, symbol, &pcm, gain,
+                                  rendered + aliases == 0)) {
             fprintf(stderr, "Could not export sequence %s: %s\n", symbol, error);
             wm_audio_pcm_free(&pcm);
             valid = false;
@@ -273,12 +256,12 @@ static bool export_sequences(const WmRsar *archive,
         }
         rendered++;
         for (size_t alias = 0;
-             alias < sizeof(sequence_aliases) / sizeof(sequence_aliases[0]);
-             alias++) {
-            if (strcmp(sequence_aliases[alias].symbol, symbol) != 0) continue;
+             alias < sizeof(sequence_aliases) / sizeof(sequence_aliases[0]); alias++) {
+            if (strcmp(sequence_aliases[alias].symbol, symbol) != 0)
+                continue;
             /* Alias metadata points at the already exported source WAV. */
-            if (!write_sequence_entry(manifest, sequence_aliases[alias].name,
-                                      symbol, &pcm, gain, false)) {
+            if (!write_sequence_entry(manifest, sequence_aliases[alias].name, symbol,
+                                      &pcm, gain, false)) {
                 fprintf(stderr, "Could not record sequence alias %s.\n",
                         sequence_aliases[alias].name);
                 valid = false;
@@ -288,21 +271,21 @@ static bool export_sequences(const WmRsar *archive,
         }
         wm_audio_pcm_free(&pcm);
     }
-    if (valid) valid = fputs("\n}\n", manifest) >= 0;
+    if (valid)
+        valid = fputs("\n}\n", manifest) >= 0;
     if (valid)
         valid = wm_atomic_file_commit(&temporary, manifest_path);
     else
         wm_atomic_file_discard(&temporary);
-    if (!valid) return false;
+    if (!valid)
+        return false;
     printf("Exported %zu sequenced sounds and %zu aliases; %zu unsupported.\n",
            rendered, aliases, skipped);
     return skipped == 0;
 }
 
-static bool export_speaker_samples(const WmU8Archive *container,
-                                   const char *output, FILE *manifest,
-                                   size_t *entries)
-{
+static bool export_speaker_samples(const WmU8Archive *container, const char *output,
+                                   FILE *manifest, size_t *entries) {
     const WmU8Entry *speaker = wm_u8_find(container, "homebutton/SpeakerSe.arc");
     if (!speaker) {
         fprintf(stderr, "Missing HOME remote-speaker archive.\n");
@@ -310,35 +293,31 @@ static bool export_speaker_samples(const WmU8Archive *container,
     }
     WmU8Archive samples = {0};
     char error[160];
-    if (!wm_u8_parse(speaker->data, speaker->size, &samples,
-                     error, sizeof(error))) {
+    if (!wm_u8_parse(speaker->data, speaker->size, &samples, error, sizeof(error))) {
         fprintf(stderr, "Could not open remote-speaker samples: %s\n", error);
         return false;
     }
     bool valid = true;
     for (size_t index = 0;
-         index < sizeof(speaker_sounds) / sizeof(speaker_sounds[0]) && valid;
-         index++) {
-        const WmU8Entry *entry = wm_u8_find(&samples,
-                                             speaker_sounds[index].symbol);
-        if (!entry || !entry->size || (entry->size & 1) ||
-            entry->size / 2 > 20000000) {
+         index < sizeof(speaker_sounds) / sizeof(speaker_sounds[0]) && valid; index++) {
+        const WmU8Entry *entry = wm_u8_find(&samples, speaker_sounds[index].symbol);
+        if (!entry || !entry->size || (entry->size & 1) || entry->size / 2 > 20000000) {
             fprintf(stderr, "Invalid remote-speaker sample %s.\n",
                     speaker_sounds[index].symbol);
             valid = false;
             break;
         }
-        WmAudioPcm pcm = {
-            .samples = malloc(entry->size),
-            .sample_rate = 6000,
-            .frame_count = (uint32_t)(entry->size / 2),
-            .channels = 1
-        };
-        if (!pcm.samples) { valid = false; break; }
+        WmAudioPcm pcm = {.samples = malloc(entry->size),
+                          .sample_rate = 6000,
+                          .frame_count = (uint32_t)(entry->size / 2),
+                          .channels = 1};
+        if (!pcm.samples) {
+            valid = false;
+            break;
+        }
         for (size_t frame = 0; frame < pcm.frame_count; frame++) {
             const uint8_t *source = entry->data + frame * 2;
-            pcm.samples[frame] = (int16_t)(((uint16_t)source[0] << 8) |
-                                           source[1]);
+            pcm.samples[frame] = (int16_t)(((uint16_t)source[0] << 8) | source[1]);
         }
         char destination[4096];
         if (!audio_filename(destination, output, speaker_sounds[index].name) ||
@@ -346,12 +325,14 @@ static bool export_speaker_samples(const WmU8Archive *container,
             fprintf(stderr, "Could not export remote-speaker sample: %s\n", error);
             valid = false;
         } else {
-            if (*entries > 0) valid = fputs(",\n", manifest) >= 0;
-            if (valid) valid = fprintf(manifest,
-                                       "  \"%s\": {\"sourceSymbol\": \"%s\", "
-                                       "\"gain\": 1, \"loop\": false}",
-                                       speaker_sounds[index].name,
-                                       speaker_sounds[index].name) > 0;
+            if (*entries > 0)
+                valid = fputs(",\n", manifest) >= 0;
+            if (valid)
+                valid =
+                    fprintf(manifest,
+                            "  \"%s\": {\"sourceSymbol\": \"%s\", "
+                            "\"gain\": 1, \"loop\": false}",
+                            speaker_sounds[index].name, speaker_sounds[index].name) > 0;
             (*entries)++;
         }
         wm_audio_pcm_free(&pcm);
@@ -360,9 +341,9 @@ static bool export_speaker_samples(const WmU8Archive *container,
     return valid;
 }
 
-int main(int argc, char **argv)
-{
-    if (argc != 4) return usage(argv[0]);
+int main(int argc, char **argv) {
+    if (argc != 4)
+        return usage(argv[0]);
     size_t source_size;
     uint8_t *source = read_file(argv[1], &source_size);
     if (!source) {
@@ -386,8 +367,8 @@ int main(int argc, char **argv)
     }
     const WmU8Entry *entry = wm_u8_find(&container, "sound/IplSound.brsar");
     WmRsar archive;
-    if (!entry || !wm_rsar_open(entry->data, entry->size, &archive,
-                                error, sizeof(error))) {
+    if (!entry ||
+        !wm_rsar_open(entry->data, entry->size, &archive, error, sizeof(error))) {
         fprintf(stderr, "Could not open IplSound archive: %s\n",
                 entry ? error : "missing sound/IplSound.brsar");
         wm_u8_free(&container);
@@ -424,49 +405,48 @@ int main(int argc, char **argv)
     bool valid = fputs("{\n", manifest) >= 0;
     size_t exported = 0;
     for (size_t index = 0;
-         index < sizeof(direct_sounds) / sizeof(direct_sounds[0]) && valid;
-         index++) {
+         index < sizeof(direct_sounds) / sizeof(direct_sounds[0]) && valid; index++) {
         WmRsarSound sound;
         WmAudioPcm pcm = {0};
         if (!wm_rsar_find_sound(&archive, direct_sounds[index].symbol, &sound) ||
-            !wm_rsar_decode_direct_wave(&archive, &sound, &pcm,
-                                        error, sizeof(error))) {
-            fprintf(stderr, "Could not decode %s: %s\n",
-                    direct_sounds[index].symbol, error);
+            !wm_rsar_decode_direct_wave(&archive, &sound, &pcm, error, sizeof(error))) {
+            fprintf(stderr, "Could not decode %s: %s\n", direct_sounds[index].symbol,
+                    error);
             valid = false;
             break;
         }
         char destination[4096], filename[128];
-        int length = snprintf(filename, sizeof(filename), "%s.wav",
-                              direct_sounds[index].name);
+        int length =
+            snprintf(filename, sizeof(filename), "%s.wav", direct_sounds[index].name);
         if (length <= 0 || length >= (int)sizeof(filename) ||
             !combine_path(destination, argv[3], "audio/", filename) ||
             !wm_audio_wav_write(destination, &pcm, error, sizeof(error))) {
-            fprintf(stderr, "Could not export %s: %s\n",
-                    direct_sounds[index].symbol, error);
+            fprintf(stderr, "Could not export %s: %s\n", direct_sounds[index].symbol,
+                    error);
             wm_audio_pcm_free(&pcm);
             valid = false;
             break;
         }
-        if (exported > 0) valid = fputs(",\n", manifest) >= 0;
+        if (exported > 0)
+            valid = fputs(",\n", manifest) >= 0;
         if (valid) {
-            valid = fprintf(manifest,
-                            "  \"%s\": {\"sourceSymbol\": \"%s\", "
-                            "\"gain\": %.9g, \"loop\": %s, "
-                            "\"loopStart\": %.9g, \"loopEnd\": %.9g}",
-                            direct_sounds[index].name,
-                            direct_sounds[index].symbol,
-                            (double)sound.volume / 127.0,
-                            pcm.looping ? "true" : "false",
-                            (double)pcm.loop_start / pcm.sample_rate,
-                            (double)pcm.loop_end / pcm.sample_rate) > 0;
+            valid =
+                fprintf(manifest,
+                        "  \"%s\": {\"sourceSymbol\": \"%s\", "
+                        "\"gain\": %.9g, \"loop\": %s, "
+                        "\"loopStart\": %.9g, \"loopEnd\": %.9g}",
+                        direct_sounds[index].name, direct_sounds[index].symbol,
+                        (double)sound.volume / 127.0, pcm.looping ? "true" : "false",
+                        (double)pcm.loop_start / pcm.sample_rate,
+                        (double)pcm.loop_end / pcm.sample_rate) > 0;
         }
         exported++;
         wm_audio_pcm_free(&pcm);
     }
-    if (valid) valid = export_speaker_samples(&container, argv[3],
-                                               manifest, &exported);
-    if (valid) valid = fputs("\n}\n", manifest) >= 0;
+    if (valid)
+        valid = export_speaker_samples(&container, argv[3], manifest, &exported);
+    if (valid)
+        valid = fputs("\n}\n", manifest) >= 0;
     if (valid)
         valid = wm_atomic_file_commit(&temporary, manifest_path);
     else
@@ -477,8 +457,7 @@ int main(int argc, char **argv)
         free(executable);
         return 1;
     }
-    printf("Exported %zu original direct-wave and remote-speaker sounds.\n",
-           exported);
+    printf("Exported %zu original direct-wave and remote-speaker sounds.\n", exported);
     valid = export_sequences(&archive, executable, executable_size, argv[3]);
     wm_u8_free(&container);
     free(source);

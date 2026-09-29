@@ -32,9 +32,9 @@ typedef enum WmSettingsControl {
 } WmSettingsControl;
 
 typedef struct WmSettingsSnapshot {
-    unsigned page; /* One through three, as labeled by the source pages. */
-    unsigned category; /* Zero on the index; otherwise the selected category. */
-    unsigned detail; /* Zero on a category page; otherwise its selected screen. */
+    unsigned page;      /* One through three, as labeled by the source pages. */
+    unsigned category;  /* Zero on the index; otherwise the selected category. */
+    unsigned detail;    /* Zero on a category page; otherwise its selected screen. */
     unsigned selection; /* Staged zero-based choice on selectable screens. */
     unsigned year;
     unsigned month;
@@ -42,7 +42,7 @@ typedef struct WmSettingsSnapshot {
     unsigned hour;
     unsigned minute;
     unsigned sensitivity; /* One through five. */
-    char nickname[11]; /* Local in-memory edit, up to ten ASCII characters. */
+    char nickname[11];    /* Local in-memory edit, up to ten ASCII characters. */
     bool parental_enabled;
     bool connect24_enabled;
     bool standby_enabled;
@@ -56,7 +56,7 @@ typedef struct WmSettingsSnapshot {
     float phase_frame;
     WmSettingsControl hover;
     float hover_opacity; /* Source image rollover is immediate: zero or one. */
-    float page_opacity; /* Current page in a category/detail raster crossfade. */
+    float page_opacity;  /* Current page in a category/detail raster crossfade. */
 } WmSettingsSnapshot;
 
 typedef struct WmSettingsProjection {
@@ -70,17 +70,15 @@ typedef struct WmSettingsProjection {
  * entry screens. Its index page-change curve comes from the exported
  * SceenChange_b WAD layout. Console services are represented by local state. */
 WmSettingsScene *wm_settings_scene_create(WmPlatform *platform,
-                                           const char *assets_directory,
-                                           WmTextureCache *textures,
-                                           WmFontCache *fonts);
+                                          const char *assets_directory,
+                                          WmTextureCache *textures, WmFontCache *fonts);
 void wm_settings_scene_destroy(WmSettingsScene *scene);
 /* The source 16:9 surface places the 608-pixel document in an 832-pixel
  * composition fitted into the 640-pixel framebuffer. The C backdrop fills
  * that framebuffer independently of this foreground projection.
  * Leave disabled for the source 4:3 document and its original hit geometry. */
 void wm_settings_scene_set_wide(WmSettingsScene *scene, bool wide);
-WmSettingsProjection wm_settings_scene_projection(
-    const WmSettingsScene *scene);
+WmSettingsProjection wm_settings_scene_projection(const WmSettingsScene *scene);
 bool wm_settings_scene_open(WmSettingsScene *scene);
 /* Open the Internet category directly from the Message Board's connection
  * prompt. Back from its category index exits instead of showing page two. */
@@ -104,23 +102,19 @@ const char *wm_settings_category_label(unsigned category);
 /* Settings index hit geometry, projected from 608 pixels into the centered
  * 640-pixel logical framebuffer. This pure function is also used for tests. */
 WmSettingsControl wm_settings_index_hit(unsigned page, int x, int y);
-WmSettingsControl wm_settings_scene_hit(const WmSettingsScene *scene,
-                                        int x, int y);
-bool wm_settings_scene_hover(WmSettingsScene *scene,
-                             WmSettingsControl control);
+WmSettingsControl wm_settings_scene_hit(const WmSettingsScene *scene, int x, int y);
+bool wm_settings_scene_hover(WmSettingsScene *scene, WmSettingsControl control);
 /* Classify visible directional arrows separately from ordinary button rows. */
 bool wm_settings_scene_directional_control(const WmSettingsScene *scene,
-                                            WmSettingsControl control);
+                                           WmSettingsControl control);
 /* Return the source-requested Settings sound cue for a control. Call before
  * activation, while the source page and its button meaning are still known. */
 const char *wm_settings_scene_click_cue(const WmSettingsScene *scene,
-                                         WmSettingsControl control);
-bool wm_settings_scene_activate(WmSettingsScene *scene,
-                                WmSettingsControl control);
+                                        WmSettingsControl control);
+bool wm_settings_scene_activate(WmSettingsScene *scene, WmSettingsControl control);
 /* Date/Time arrows act on press and repeat after 400 ms, then every 150 ms.
  * A true result means the caller must suppress its ordinary release click. */
-bool wm_settings_scene_pointer_down(WmSettingsScene *scene,
-                                    WmSettingsControl control);
+bool wm_settings_scene_pointer_down(WmSettingsScene *scene, WmSettingsControl control);
 void wm_settings_scene_pointer_up(WmSettingsScene *scene);
 /* The source Nickname input accepts ten characters. Physical keys edit at
  * the selected caret while the software keyboard is active. */
@@ -129,20 +123,17 @@ bool wm_settings_scene_backspace(WmSettingsScene *scene);
 bool wm_settings_scene_editing_nickname(const WmSettingsScene *scene);
 bool wm_settings_scene_nickname_keyboard_visible(const WmSettingsScene *scene);
 bool wm_settings_scene_place_nickname_caret(WmSettingsScene *scene, int x);
-WmBoardKeyboardControl wm_settings_scene_keyboard_hit(WmSettingsScene *scene,
-                                                       int x, int y);
-bool wm_settings_scene_keyboard_place_caret(WmSettingsScene *scene,
-                                             int x, int y);
+WmBoardKeyboardControl wm_settings_scene_keyboard_hit(WmSettingsScene *scene, int x,
+                                                      int y);
+bool wm_settings_scene_keyboard_place_caret(WmSettingsScene *scene, int x, int y);
 void wm_settings_scene_keyboard_hover(WmSettingsScene *scene,
-                                       WmBoardKeyboardControl control);
+                                      WmBoardKeyboardControl control);
 const char *wm_settings_scene_keyboard_activate(WmSettingsScene *scene,
-                                                 WmBoardKeyboardControl control);
-const char *wm_settings_scene_keyboard_close(WmSettingsScene *scene,
-                                              bool accept);
-bool wm_settings_scene_move_nickname_caret(WmSettingsScene *scene,
-                                            int direction);
-void wm_settings_scene_keyboard_modifiers(WmSettingsScene *scene,
-                                           bool shift_down, bool caps_lock_on);
+                                                WmBoardKeyboardControl control);
+const char *wm_settings_scene_keyboard_close(WmSettingsScene *scene, bool accept);
+bool wm_settings_scene_move_nickname_caret(WmSettingsScene *scene, int direction);
+void wm_settings_scene_keyboard_modifiers(WmSettingsScene *scene, bool shift_down,
+                                          bool caps_lock_on);
 
 /* Draw inside a caller-owned platform frame, beneath its pointer. */
 bool wm_settings_scene_draw(WmSettingsScene *scene);

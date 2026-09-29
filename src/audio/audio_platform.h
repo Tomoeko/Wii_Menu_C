@@ -4,8 +4,7 @@
 #include <stddef.h>
 
 typedef struct WmAudioDevice WmAudioDevice;
-typedef void (*WmAudioRender)(void *context, float *interleaved,
-                              size_t frames);
+typedef void (*WmAudioRender)(void *context, float *interleaved, size_t frames);
 
 /* Fixed 48 kHz, stereo, interleaved float output. The renderer must perform
  * no allocation, file access, or blocking work on the audio callback. */

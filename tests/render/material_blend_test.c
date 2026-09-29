@@ -2,12 +2,12 @@
 
 #include <stdio.h>
 
-#define CHECK(condition)                                                            \
-    do {                                                                            \
-        if (!(condition)) {                                                         \
-            fprintf(stderr, "%s:%d: %s failed\n", __FILE__, __LINE__, #condition); \
-            return 1;                                                               \
-        }                                                                           \
+#define CHECK(condition)                                                               \
+    do {                                                                               \
+        if (!(condition)) {                                                            \
+            fprintf(stderr, "%s:%d: %s failed\n", __FILE__, __LINE__, #condition);     \
+            return 1;                                                                  \
+        }                                                                              \
     } while (0)
 
 int main(void) {

@@ -63,15 +63,15 @@ typedef struct WmLayoutTextColorRange {
 } WmLayoutTextColorRange;
 
 typedef struct WmLayoutTextInfo {
-    const char *value; /* UTF-8; empty string when the source has no text. */
+    const char *value;     /* UTF-8; empty string when the source has no text. */
     const char *font_name; /* NULL when the layout font index is unresolved. */
     int font_index;
     int material_index;
     const WmLayoutMaterialInfo *material; /* NULL when unresolved. */
-    WmFontPane pane; /* Size, origin, 3 x 3 alignment, spacing, and colors. */
+    WmFontPane pane;           /* Size, origin, 3 x 3 alignment, spacing, and colors. */
     unsigned horizontal_align; /* 0 left, 1 center, 2 right. */
-    unsigned vertical_align; /* 0 top, 1 center, 2 bottom. */
-    float colors[2][4]; /* Unrounded source colors after animation. */
+    unsigned vertical_align;   /* 0 top, 1 center, 2 bottom. */
+    float colors[2][4];        /* Unrounded source colors after animation. */
     WmLayoutTextColorRange color_ranges[WM_LAYOUT_TEXT_COLOR_RANGES];
     size_t color_range_count;
 } WmLayoutTextInfo;
@@ -97,7 +97,7 @@ typedef struct WmLayoutClip {
     float frame;
     const char *group; /* NULL applies to every matching target. */
     bool recursive_group;
-    int loop_override; /* -1: resource bit, 0: hold endpoint, 1: repeat. */
+    int loop_override;       /* -1: resource bit, 0: hold endpoint, 1: repeat. */
     const char *target_name; /* NULL applies to all targets in the group. */
     /* With target_name, copy that pane's animation tracks and its material
      * tracks onto this pane and its material. Mirrors NW4R pane binding. */
@@ -117,7 +117,7 @@ typedef struct WmLayoutAnimationInfo {
 typedef struct WmLayoutPaneState {
     const char *name;
     const char *type;
-    const char *text; /* NULL outside txt1. */
+    const char *text;      /* NULL outside txt1. */
     const char *font_name; /* NULL when no valid font is referenced. */
     unsigned flags;
     float translation[3];
@@ -132,14 +132,13 @@ typedef void (*WmLayoutQuadCallback)(void *context, const WmLayoutQuad *quad);
 
 /* Resolve a local image name/URL to a backend texture. Return false to use
  * handle zero; the caller can map PNG export names to its own image format. */
-typedef bool (*WmLayoutImageProvider)(void *context,
-                                      const WmLayoutTexture *resource,
+typedef bool (*WmLayoutImageProvider)(void *context, const WmLayoutTexture *resource,
                                       uint32_t *handle);
 
 typedef struct WmLayoutDrawOptions {
     bool wide;
     WmLayoutMode mode;
-    float alpha; /* Zero is literal zero; use 1 for normal drawing. */
+    float alpha;                /* Zero is literal zero; use 1 for normal drawing. */
     const float *parent_matrix; /* Optional row-major 3 x 4; NULL is identity. */
     WmLayoutPaneCallback on_pane;
     WmLayoutQuadCallback on_quad;
@@ -165,8 +164,8 @@ bool wm_layout_pane_state(const WmLayout *layout, const char *name,
                           WmLayoutPaneState *state);
 /* Return the current source text geometry and font name. font_name may be
  * NULL when the layout references an unresolved font; it is layout-owned. */
-bool wm_layout_pane_font(const WmLayout *layout, const char *name,
-                         WmFontPane *pane, const char **font_name);
+bool wm_layout_pane_font(const WmLayout *layout, const char *name, WmFontPane *pane,
+                         const char **font_name);
 
 /* These changes affect the current pose. A later wm_layout_pose restores the
  * source properties; call them again after posing each frame as needed. */
@@ -175,14 +174,13 @@ bool wm_layout_set_pane_visible(WmLayout *layout, const char *name, bool visible
  * alpha writes mirror controllers that fade their independently drawn custom
  * layout children; both are discarded by the next wm_layout_pose. */
 bool wm_layout_set_pane_alpha(WmLayout *layout, const char *name, float alpha);
-bool wm_layout_set_descendant_alpha(WmLayout *layout, const char *name,
-                                     float alpha);
-bool wm_layout_set_pane_size(WmLayout *layout, const char *name,
-                             float width, float height);
+bool wm_layout_set_descendant_alpha(WmLayout *layout, const char *name, float alpha);
+bool wm_layout_set_pane_size(WmLayout *layout, const char *name, float width,
+                             float height);
 /* Absolute source-layout coordinates, applied after the current pose. A later
  * wm_layout_pose restores the authored or animated translation. */
-bool wm_layout_set_pane_translation(WmLayout *layout, const char *name,
-                                     float x, float y, float z);
+bool wm_layout_set_pane_translation(WmLayout *layout, const char *name, float x,
+                                    float y, float z);
 /* Move the branch containing a pane to the end of each sibling list. Call
  * after posing; the next pose restores the authored draw order. */
 bool wm_layout_raise_pane(WmLayout *layout, const char *name);
@@ -190,16 +188,14 @@ bool wm_layout_raise_pane(WmLayout *layout, const char *name);
  * the scope keep their authored position, including background layers. */
 bool wm_layout_raise_pane_within(WmLayout *layout, const char *ancestor,
                                  const char *name);
-bool wm_layout_set_text_style(WmLayout *layout, const char *name,
-                              float font_width, float font_height,
-                              float char_space);
+bool wm_layout_set_text_style(WmLayout *layout, const char *name, float font_width,
+                              float font_height, float char_space);
 /* Per-pose text replacement, discarded by the next wm_layout_pose. */
-bool wm_layout_set_pose_text(WmLayout *layout, const char *pane_name,
-                              const char *utf8);
+bool wm_layout_set_pose_text(WmLayout *layout, const char *pane_name, const char *utf8);
 /* Override a text pane's glyph colors for byte ranges in its posed UTF-8 text.
  * Called after wm_layout_pose; the next pose clears these overrides. */
 bool wm_layout_set_pose_text_colors(WmLayout *layout, const char *pane_name,
-    const WmLayoutTextColorRange *ranges, size_t count);
+                                    const WmLayoutTextColorRange *ranges, size_t count);
 /* Hide panes listed in other language groups, preserving their authored flags
  * and giving the selected group precedence for shared members. Call per pose. */
 bool wm_layout_mask_language_groups(WmLayout *layout, const char *language);
@@ -212,10 +208,8 @@ void wm_layout_draw(const WmLayout *layout, const WmLayoutDrawOptions *options);
  * ChannelSelect clock anchors remain valid while their parent is invisible
  * during a page scroll. This traversal emits no graphics. */
 void wm_layout_visit_all_transforms(const WmLayout *layout, bool wide,
-                                    WmLayoutMode mode,
-                                    const float parent_matrix[12],
-                                    WmLayoutPaneCallback visitor,
-                                    void *context);
+                                    WmLayoutMode mode, const float parent_matrix[12],
+                                    WmLayoutPaneCallback visitor, void *context);
 
 size_t wm_layout_pane_count(const WmLayout *layout);
 size_t wm_layout_material_count(const WmLayout *layout);
@@ -227,15 +221,13 @@ const WmLayoutTexture *wm_layout_texture_at(const WmLayout *layout, size_t index
 /* Read one material for shader preparation without requiring a visible pane.
  * The stage pointer remains owned by the layout. */
 bool wm_layout_material_info(const WmLayout *layout, size_t index,
-                              WmLayoutMaterialInfo *info,
-                              uint8_t wraps[4][2]);
+                             WmLayoutMaterialInfo *info, uint8_t wraps[4][2]);
 size_t wm_layout_font_count(const WmLayout *layout);
 const char *wm_layout_font_name(const WmLayout *layout, size_t index);
 
 /* Replace authored placeholder text with a scene value. The replacement is
  * retained across animation poses. */
-bool wm_layout_set_text(WmLayout *layout, const char *pane_name,
-                        const char *utf8);
+bool wm_layout_set_text(WmLayout *layout, const char *pane_name, const char *utf8);
 
 /* Apply the source menu's SetTexture donor substitution before posing. The
  * replacement is retained when later animation poses reset materials. */

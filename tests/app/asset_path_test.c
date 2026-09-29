@@ -13,36 +13,31 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static void join_path(char *result, const char *root, const char *suffix)
-{
+static void join_path(char *result, const char *root, const char *suffix) {
     int length = snprintf(result, WM_APP_ASSET_PATH_CAPACITY, "%s/%s", root, suffix);
     assert(length > 0 && length < WM_APP_ASSET_PATH_CAPACITY);
 }
 
-static void make_directory(const char *root, const char *suffix)
-{
+static void make_directory(const char *root, const char *suffix) {
     char path[WM_APP_ASSET_PATH_CAPACITY];
     join_path(path, root, suffix);
     assert(mkdir(path, 0700) == 0);
 }
 
-static void remove_directory(const char *root, const char *suffix)
-{
+static void remove_directory(const char *root, const char *suffix) {
     char path[WM_APP_ASSET_PATH_CAPACITY];
     join_path(path, root, suffix);
     assert(rmdir(path) == 0);
 }
 
-static void make_executable(const char *path)
-{
+static void make_executable(const char *path) {
     FILE *file = fopen(path, "wb");
     assert(file);
     assert(fclose(file) == 0);
     assert(chmod(path, 0700) == 0);
 }
 
-int main(void)
-{
+int main(void) {
     char original_directory[WM_APP_ASSET_PATH_CAPACITY];
     assert(getcwd(original_directory, sizeof(original_directory)));
     const char *path_environment = getenv("PATH");
@@ -85,7 +80,8 @@ int main(void)
     /* A searchable directory named like the command is not an executable. */
     make_directory(root, "launch/wii-menu");
     char search_path[WM_APP_ASSET_PATH_CAPACITY * 2];
-    int path_length = snprintf(search_path, sizeof(search_path), "%s:%s", launch, build);
+    int path_length =
+        snprintf(search_path, sizeof(search_path), "%s:%s", launch, build);
     assert(path_length > 0 && (size_t)path_length < sizeof(search_path));
     assert(setenv("PATH", search_path, 1) == 0);
     assert(wm_app_find_default_assets("wii-menu", found, sizeof(found)));
@@ -134,8 +130,10 @@ int main(void)
     assert(!wm_app_find_default_assets(executable, found, 0));
 
     assert(chdir(original_directory) == 0);
-    if (original_path) assert(setenv("PATH", original_path, 1) == 0);
-    else assert(unsetenv("PATH") == 0);
+    if (original_path)
+        assert(setenv("PATH", original_path, 1) == 0);
+    else
+        assert(unsetenv("PATH") == 0);
     free(original_path);
     assert(unlink(expected) == 0);
     assert(unlink(executable) == 0);

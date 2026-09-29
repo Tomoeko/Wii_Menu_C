@@ -17,31 +17,26 @@ typedef struct WmTplShape {
     int bytes;
 } WmTplShape;
 
-static uint16_t wm_read_be16(const uint8_t *bytes)
-{
+static uint16_t wm_read_be16(const uint8_t *bytes) {
     return (uint16_t)(((uint16_t)bytes[0] << 8) | bytes[1]);
 }
 
-static uint32_t wm_read_be32(const uint8_t *bytes)
-{
+static uint32_t wm_read_be32(const uint8_t *bytes) {
     return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
            ((uint32_t)bytes[2] << 8) | bytes[3];
 }
 
-static bool wm_range_fits(size_t size, size_t offset, size_t length)
-{
+static bool wm_range_fits(size_t size, size_t offset, size_t length) {
     return offset <= size && length <= size - offset;
 }
 
-static void wm_error(char *error, size_t error_size, const char *message)
-{
+static void wm_error(char *error, size_t error_size, const char *message) {
     if (error != NULL && error_size != 0) {
         snprintf(error, error_size, "%s", message);
     }
 }
 
-static void wm_rgb565(uint16_t value, uint8_t color[4])
-{
+static void wm_rgb565(uint16_t value, uint8_t color[4]) {
     unsigned red = value >> 11;
     unsigned green = (value >> 5) & 63u;
     unsigned blue = value & 31u;
@@ -51,8 +46,7 @@ static void wm_rgb565(uint16_t value, uint8_t color[4])
     color[3] = 255;
 }
 
-static void wm_rgb5a3(uint16_t value, uint8_t color[4])
-{
+static void wm_rgb5a3(uint16_t value, uint8_t color[4]) {
     if ((value & 0x8000u) != 0) {
         unsigned red = (value >> 10) & 31u;
         unsigned green = (value >> 5) & 31u;
@@ -70,30 +64,35 @@ static void wm_rgb5a3(uint16_t value, uint8_t color[4])
     }
 }
 
-static bool wm_shape(uint32_t format, WmTplShape *shape)
-{
+static bool wm_shape(uint32_t format, WmTplShape *shape) {
     switch (format) {
-    case 0: case 8: case 14:
-        *shape = (WmTplShape){8, 8, 32};
-        return true;
-    case 1: case 2: case 9:
-        *shape = (WmTplShape){8, 4, 32};
-        return true;
-    case 3: case 4: case 5: case 10:
-        *shape = (WmTplShape){4, 4, 32};
-        return true;
-    case 6:
-        *shape = (WmTplShape){4, 4, 64};
-        return true;
-    default:
-        return false;
+        case 0:
+        case 8:
+        case 14:
+            *shape = (WmTplShape){8, 8, 32};
+            return true;
+        case 1:
+        case 2:
+        case 9:
+            *shape = (WmTplShape){8, 4, 32};
+            return true;
+        case 3:
+        case 4:
+        case 5:
+        case 10:
+            *shape = (WmTplShape){4, 4, 32};
+            return true;
+        case 6:
+            *shape = (WmTplShape){4, 4, 64};
+            return true;
+        default:
+            return false;
     }
 }
 
 static bool wm_read_palette(const uint8_t *data, size_t size, size_t header_offset,
-                            uint8_t **palette, size_t *palette_count,
-                            char *error, size_t error_size)
-{
+                            uint8_t **palette, size_t *palette_count, char *error,
+                            size_t error_size) {
     if (!wm_range_fits(size, header_offset, 12)) {
         wm_error(error, error_size, "Truncated TPL palette header.");
         return false;
@@ -130,86 +129,87 @@ static bool wm_read_palette(const uint8_t *data, size_t size, size_t header_offs
     return true;
 }
 
-static bool wm_decode_pixel(const uint8_t *tile, uint32_t format,
-                            int x, int y, int tile_width,
-                            const uint8_t *palette, size_t palette_count,
-                            uint8_t color[4])
-{
+static bool wm_decode_pixel(const uint8_t *tile, uint32_t format, int x, int y,
+                            int tile_width, const uint8_t *palette,
+                            size_t palette_count, uint8_t color[4]) {
     int index = y * tile_width + x;
     uint32_t value;
     size_t palette_index = 0;
 
     switch (format) {
-    case 0:
-    case 8:
-        value = (tile[index / 2] >> ((index & 1) != 0 ? 0 : 4)) & 15u;
-        if (format == 8) {
-            palette_index = value;
+        case 0:
+        case 8:
+            value = (tile[index / 2] >> ((index & 1) != 0 ? 0 : 4)) & 15u;
+            if (format == 8) {
+                palette_index = value;
+                break;
+            }
+            memset(color, (int)(value * 17u), 4);
+            return true;
+        case 1:
+            memset(color, tile[index], 4);
+            return true;
+        case 2:
+            value = tile[index];
+            color[0] = (uint8_t)((value & 15u) * 17u);
+            color[1] = color[0];
+            color[2] = color[0];
+            color[3] = (uint8_t)((value >> 4) * 17u);
+            return true;
+        case 3:
+            value = wm_read_be16(tile + index * 2);
+            color[0] = (uint8_t)value;
+            color[1] = color[0];
+            color[2] = color[0];
+            color[3] = (uint8_t)(value >> 8);
+            return true;
+        case 4:
+            wm_rgb565(wm_read_be16(tile + index * 2), color);
+            return true;
+        case 5:
+            wm_rgb5a3(wm_read_be16(tile + index * 2), color);
+            return true;
+        case 6:
+            color[0] = tile[index * 2 + 1];
+            color[1] = tile[32 + index * 2];
+            color[2] = tile[33 + index * 2];
+            color[3] = tile[index * 2];
+            return true;
+        case 9:
+            palette_index = tile[index];
             break;
-        }
-        memset(color, (int)(value * 17u), 4);
-        return true;
-    case 1:
-        memset(color, tile[index], 4);
-        return true;
-    case 2:
-        value = tile[index];
-        color[0] = (uint8_t)((value & 15u) * 17u);
-        color[1] = color[0];
-        color[2] = color[0];
-        color[3] = (uint8_t)((value >> 4) * 17u);
-        return true;
-    case 3:
-        value = wm_read_be16(tile + index * 2);
-        color[0] = (uint8_t)value;
-        color[1] = color[0];
-        color[2] = color[0];
-        color[3] = (uint8_t)(value >> 8);
-        return true;
-    case 4:
-        wm_rgb565(wm_read_be16(tile + index * 2), color);
-        return true;
-    case 5:
-        wm_rgb5a3(wm_read_be16(tile + index * 2), color);
-        return true;
-    case 6:
-        color[0] = tile[index * 2 + 1];
-        color[1] = tile[32 + index * 2];
-        color[2] = tile[33 + index * 2];
-        color[3] = tile[index * 2];
-        return true;
-    case 9:
-        palette_index = tile[index];
-        break;
-    case 10:
-        palette_index = wm_read_be16(tile + index * 2) & 0x3fffu;
-        break;
-    case 14: {
-        size_t subblock = (size_t)((y / 4 * 2 + x / 4) * 8);
-        uint16_t c0 = wm_read_be16(tile + subblock);
-        uint16_t c1 = wm_read_be16(tile + subblock + 2);
-        uint8_t first[4];
-        uint8_t second[4];
-        wm_rgb565(c0, first);
-        wm_rgb565(c1, second);
-        unsigned selector = (tile[subblock + 4 + (size_t)(y % 4)] >>
-                             (6 - 2 * (x % 4))) & 3u;
-        if (selector == 0 || selector == 1) {
-            memcpy(color, selector == 0 ? first : second, 4);
+        case 10:
+            palette_index = wm_read_be16(tile + index * 2) & 0x3fffu;
+            break;
+        case 14: {
+            size_t subblock = (size_t)((y / 4 * 2 + x / 4) * 8);
+            uint16_t c0 = wm_read_be16(tile + subblock);
+            uint16_t c1 = wm_read_be16(tile + subblock + 2);
+            uint8_t first[4];
+            uint8_t second[4];
+            wm_rgb565(c0, first);
+            wm_rgb565(c1, second);
+            unsigned selector =
+                (tile[subblock + 4 + (size_t)(y % 4)] >> (6 - 2 * (x % 4))) & 3u;
+            if (selector == 0 || selector == 1) {
+                memcpy(color, selector == 0 ? first : second, 4);
+                return true;
+            }
+            for (int channel = 0; channel < 3; channel++) {
+                color[channel] =
+                    (uint8_t)(c0 > c1 ? (selector == 2 ? (5u * first[channel] +
+                                                          3u * second[channel]) >>
+                                                             3
+                                                       : (3u * first[channel] +
+                                                          5u * second[channel]) >>
+                                                             3)
+                                      : (first[channel] + second[channel]) / 2u);
+            }
+            color[3] = c0 <= c1 && selector == 3 ? 0 : 255;
             return true;
         }
-        for (int channel = 0; channel < 3; channel++) {
-            color[channel] = (uint8_t)(c0 > c1 ?
-                (selector == 2 ?
-                    (5u * first[channel] + 3u * second[channel]) >> 3 :
-                    (3u * first[channel] + 5u * second[channel]) >> 3) :
-                (first[channel] + second[channel]) / 2u);
-        }
-        color[3] = c0 <= c1 && selector == 3 ? 0 : 255;
-        return true;
-    }
-    default:
-        return false;
+        default:
+            return false;
     }
 
     if (palette == NULL || palette_index >= palette_count) {
@@ -219,10 +219,9 @@ static bool wm_decode_pixel(const uint8_t *tile, uint32_t format,
     return true;
 }
 
-static bool wm_decode_image(const uint8_t *data, size_t size,
-                            size_t image_header, size_t palette_header,
-                            WmTplImage *image, char *error, size_t error_size)
-{
+static bool wm_decode_image(const uint8_t *data, size_t size, size_t image_header,
+                            size_t palette_header, WmTplImage *image, char *error,
+                            size_t error_size) {
     if (!wm_range_fits(size, image_header, 12)) {
         wm_error(error, error_size, "Truncated TPL image header.");
         return false;
@@ -251,8 +250,8 @@ static bool wm_decode_image(const uint8_t *data, size_t size,
     size_t palette_count = 0;
     if (format == 8 || format == 9 || format == 10) {
         if (palette_header == 0 ||
-            !wm_read_palette(data, size, palette_header,
-                             &palette, &palette_count, error, error_size)) {
+            !wm_read_palette(data, size, palette_header, &palette, &palette_count,
+                             error, error_size)) {
             if (palette_header == 0) {
                 wm_error(error, error_size, "Indexed TPL image has no palette.");
             }
@@ -279,14 +278,14 @@ static bool wm_decode_image(const uint8_t *data, size_t size,
                         continue;
                     }
                     uint8_t color[4];
-                    if (!wm_decode_pixel(tile, format, x, y, shape.width,
-                                         palette, palette_count, color)) {
+                    if (!wm_decode_pixel(tile, format, x, y, shape.width, palette,
+                                         palette_count, color)) {
                         wm_error(error, error_size, "Invalid TPL palette index.");
                         valid = false;
                         break;
                     }
-                    size_t pixel_offset = ((by + (size_t)y) * width +
-                                           bx + (size_t)x) * 4;
+                    size_t pixel_offset =
+                        ((by + (size_t)y) * width + bx + (size_t)x) * 4;
                     memcpy(rgba + pixel_offset, color, 4);
                 }
             }
@@ -301,8 +300,7 @@ static bool wm_decode_image(const uint8_t *data, size_t size,
     return true;
 }
 
-void wm_tpl_free(WmTpl *tpl)
-{
+void wm_tpl_free(WmTpl *tpl) {
     if (tpl == NULL) {
         return;
     }
@@ -313,11 +311,9 @@ void wm_tpl_free(WmTpl *tpl)
     *tpl = (WmTpl){0};
 }
 
-bool wm_tpl_decode(const uint8_t *data, size_t size, WmTpl *tpl,
-                   char *error, size_t error_size)
-{
-    if (data == NULL || tpl == NULL || size < 12 ||
-        wm_read_be32(data) != 0x0020af30u) {
+bool wm_tpl_decode(const uint8_t *data, size_t size, WmTpl *tpl, char *error,
+                   size_t error_size) {
+    if (data == NULL || tpl == NULL || size < 12 || wm_read_be32(data) != 0x0020af30u) {
         wm_error(error, error_size, "Expected a TPL texture archive.");
         return false;
     }

@@ -53,8 +53,7 @@ typedef struct LetterTransform {
     float matrix[12];
 } LetterTransform;
 
-static bool capture_letter_transform(void *context,
-                                      const WmLayoutPaneView *pane) {
+static bool capture_letter_transform(void *context, const WmLayoutPaneView *pane) {
     LetterTransform *letter = context;
     if (strcmp(pane->name, "T_Letter") == 0 && pane->text) {
         letter->font = pane->text->pane;
@@ -64,45 +63,37 @@ static bool capture_letter_transform(void *context,
 }
 
 static void memo_pointer_for_caret(WmLayout *source, WmCachedFont *face,
-                                    const char *text, size_t byte_index,
-                                    float scroll_offset, bool editing,
-                                    int *x, int *y) {
-    WmLayoutClip entry = {
-        .animation = "my_Memo_a_MailIn", .frame = 16.0f
-    };
+                                   const char *text, size_t byte_index,
+                                   float scroll_offset, bool editing, int *x, int *y) {
+    WmLayoutClip entry = {.animation = "my_Memo_a_MailIn", .frame = 16.0f};
     assert(wm_layout_pose(source, &entry, 1));
-    assert(wm_layout_set_pane_translation(source, "N_Memo", 0.0f,
-        scroll_offset + (editing ? 145.0f : 0.0f), 0.0f));
+    assert(wm_layout_set_pane_translation(
+        source, "N_Memo", 0.0f, scroll_offset + (editing ? 145.0f : 0.0f), 0.0f));
     LetterTransform letter = {0};
-    WmLayoutDrawOptions options = {
-        .wide = true,
-        .mode = WM_LAYOUT_IPL,
-        .alpha = 1.0f,
-        .on_pane = capture_letter_transform,
-        .context = &letter
-    };
+    WmLayoutDrawOptions options = {.wide = true,
+                                   .mode = WM_LAYOUT_IPL,
+                                   .alpha = 1.0f,
+                                   .on_pane = capture_letter_transform,
+                                   .context = &letter};
     wm_layout_draw(source, &options);
-    const WmFontTextLayout *layout = wm_font_cache_layout(face, text,
-                                                          &letter.font);
+    const WmFontTextLayout *layout = wm_font_cache_layout(face, text, &letter.font);
     float local_x, local_y;
     assert(wm_font_text_layout_caret(layout, byte_index, &local_x, &local_y));
     local_y -= 21.0f;
-    float world_x = letter.matrix[0] * local_x +
-                    letter.matrix[1] * local_y + letter.matrix[3];
-    float world_y = letter.matrix[4] * local_x +
-                    letter.matrix[5] * local_y + letter.matrix[7];
-    *x = (int)roundf(WM_FRAME_WIDTH * 0.5f +
-                     world_x * WM_FRAME_WIDTH / 832.0f);
+    float world_x =
+        letter.matrix[0] * local_x + letter.matrix[1] * local_y + letter.matrix[3];
+    float world_y =
+        letter.matrix[4] * local_x + letter.matrix[5] * local_y + letter.matrix[7];
+    *x = (int)roundf(WM_FRAME_WIDTH * 0.5f + world_x * WM_FRAME_WIDTH / 832.0f);
     *y = (int)roundf(WM_FRAME_HEIGHT * 0.5f - world_y);
 }
 
 static bool contains_center(const WmSourceRect *rect, float x, float y) {
-    return x >= rect->x && x <= rect->x + rect->width &&
-           y >= rect->y && y <= rect->y + rect->height;
+    return x >= rect->x && x <= rect->x + rect->width && y >= rect->y &&
+           y <= rect->y + rect->height;
 }
 
-static bool near_center(const WmMaterialQuad *quad,
-                        const WmSourceRect *rect) {
+static bool near_center(const WmMaterialQuad *quad, const WmSourceRect *rect) {
     float x = 0.0f, y = 0.0f;
     for (size_t index = 0; index < 4; index++) {
         x += quad->vertices[index].x * 0.25f;
@@ -121,13 +112,13 @@ static unsigned take_scroll_cues(WmBoardCompose *compose) {
     unsigned count = 0;
     const char *cue;
     while ((cue = wm_board_compose_take_key_cue(compose)) != NULL) {
-        if (strcmp(cue, "WIPL_SE_LINE_SCROLL") == 0) count++;
+        if (strcmp(cue, "WIPL_SE_LINE_SCROLL") == 0)
+            count++;
     }
     return count;
 }
 
-static float draw_line_feed_top(WmBoardCompose *compose,
-                                 unsigned expected_markers) {
+static float draw_line_feed_top(WmBoardCompose *compose, unsigned expected_markers) {
     tracking_line_feed = true;
     line_feed_glyphs = 0;
     line_feed_first_y = NAN;
@@ -139,16 +130,15 @@ static float draw_line_feed_top(WmBoardCompose *compose,
 }
 
 static void assert_memo_keyboard_exit(WmBoardCompose *compose,
-                                       unsigned expected_markers,
-                                       float start_offset, float end_offset) {
+                                      unsigned expected_markers, float start_offset,
+                                      float end_offset) {
     WmBoardComposeScrollState scroll;
     assert(wm_board_compose_scroll_state(compose, &scroll));
     assert(fabsf(scroll.offset - start_offset) < 0.01f);
     float start_y = draw_line_feed_top(compose, expected_markers);
     assert(wm_board_compose_back(compose));
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_LEAVE_EDIT);
-    assert(fabsf(draw_line_feed_top(compose, expected_markers) - start_y)
-           < 0.01f);
+    assert(fabsf(draw_line_feed_top(compose, expected_markers) - start_y) < 0.01f);
     assert(take_scroll_cues(compose) == 0);
     wm_board_compose_advance(compose, 15.0f);
     assert(wm_board_compose_scroll_state(compose, &scroll));
@@ -172,8 +162,7 @@ static void assert_memo_keyboard_exit(WmBoardCompose *compose,
 }
 static uint32_t next_texture = 1;
 
-static bool matches_rect(const WmMaterialQuad *quad,
-                         const WmSourceRect *rect) {
+static bool matches_rect(const WmMaterialQuad *quad, const WmSourceRect *rect) {
     float left = INFINITY;
     float right = -INFINITY;
     float top = INFINITY;
@@ -184,8 +173,7 @@ static bool matches_rect(const WmMaterialQuad *quad,
         top = fminf(top, quad->vertices[index].y);
         bottom = fmaxf(bottom, quad->vertices[index].y);
     }
-    return fabsf(left - rect->x) < 0.03f &&
-           fabsf(top - rect->y) < 0.03f &&
+    return fabsf(left - rect->x) < 0.03f && fabsf(top - rect->y) < 0.03f &&
            fabsf(right - left - rect->width) < 0.03f &&
            fabsf(bottom - top - rect->height) < 0.03f;
 }
@@ -209,30 +197,28 @@ void wm_platform_draw_quad(WmPlatform *platform, const WmQuad *quad) {
     (void)quad;
 }
 
-void wm_platform_draw_vertices(WmPlatform *platform,
-                               const WmDrawVertex vertices[4],
+void wm_platform_draw_vertices(WmPlatform *platform, const WmDrawVertex vertices[4],
                                uint32_t texture) {
     (void)platform;
     if (tracking_line_feed && texture != 0 &&
         fabsf(vertices[0].u - line_feed_u) < 0.0001f &&
-        fabsf(vertices[0].v - line_feed_v) < 0.0001f &&
-        vertices[0].color.a > 0.01f) {
-        if (line_feed_glyphs == 0) line_feed_first_y = vertices[0].y;
+        fabsf(vertices[0].v - line_feed_v) < 0.0001f && vertices[0].color.a > 0.01f) {
+        if (line_feed_glyphs == 0)
+            line_feed_first_y = vertices[0].y;
         line_feed_glyphs++;
     }
-    if (!tracking_hint || texture == 0) return;
+    if (!tracking_hint || texture == 0)
+        return;
     float x = (vertices[0].x + vertices[3].x) * 0.5f;
     float y = (vertices[0].y + vertices[3].y) * 0.5f;
-    if (vertices[0].color.a > 0.05f &&
-        contains_center(&hint_rect, x, y) &&
+    if (vertices[0].color.a > 0.05f && contains_center(&hint_rect, x, y) &&
         y < hint_rect.y + 50.0f) {
         hint_glyphs++;
         hint_max_alpha = fmaxf(hint_max_alpha, vertices[0].color.a);
     }
 }
 
-void wm_platform_draw_material_quad(WmPlatform *platform,
-                                    const WmMaterialQuad *quad) {
+void wm_platform_draw_material_quad(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     draw_index++;
     if (tracking_back_scale && near_center(quad, &back_button_rect)) {
@@ -241,29 +227,38 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
     }
     if (tracking_selector_left) {
         float center_x = (quad->vertices[0].x + quad->vertices[1].x +
-                          quad->vertices[2].x + quad->vertices[3].x) * 0.25f;
+                          quad->vertices[2].x + quad->vertices[3].x) *
+                         0.25f;
         float center_y = (quad->vertices[0].y + quad->vertices[1].y +
-                          quad->vertices[2].y + quad->vertices[3].y) * 0.25f;
+                          quad->vertices[2].y + quad->vertices[3].y) *
+                         0.25f;
         float width = fabsf(quad->vertices[1].x - quad->vertices[0].x);
-        if (center_x > 0.0f && center_x < 150.0f &&
-            center_y > 120.0f && center_y < 300.0f &&
-            width > 100.0f && quad->vertices[0].color.a > 0.0f)
+        if (center_x > 0.0f && center_x < 150.0f && center_y > 120.0f &&
+            center_y < 300.0f && width > 100.0f && quad->vertices[0].color.a > 0.0f)
             selector_left_draws++;
         if (matches_rect(quad, &selector_mask_rect))
             selector_mask_draws++;
     }
-    if (matches_rect(quad, &header_rect)) header_index = draw_index;
-    if (matches_rect(quad, &first_row_rect)) first_row_index = draw_index;
-    if (matches_rect(quad, &second_row_rect)) second_row_index = draw_index;
-    if (matches_rect(quad, &mii_idle_rect)) mii_idle_draws++;
-    if (matches_rect(quad, &mii_half_focus_rect)) mii_half_focus_draws++;
-    if (matches_rect(quad, &mii_reentered_rect)) mii_reentered_draws++;
+    if (matches_rect(quad, &header_rect))
+        header_index = draw_index;
+    if (matches_rect(quad, &first_row_rect))
+        first_row_index = draw_index;
+    if (matches_rect(quad, &second_row_rect))
+        second_row_index = draw_index;
+    if (matches_rect(quad, &mii_idle_rect))
+        mii_idle_draws++;
+    if (matches_rect(quad, &mii_half_focus_rect))
+        mii_half_focus_draws++;
+    if (matches_rect(quad, &mii_reentered_rect))
+        mii_reentered_draws++;
     if (tracking_mii_alpha && matches_rect(quad, &tracked_mii_rect)) {
         mii_alpha = fmaxf(mii_alpha, quad->vertices[0].color.a);
     }
     if (tracking_notice) {
-        if (near_center(quad, &back_button_rect)) back_button_near_draws++;
-        if (near_center(quad, &post_button_rect)) post_button_near_draws++;
+        if (near_center(quad, &back_button_rect))
+            back_button_near_draws++;
+        if (near_center(quad, &post_button_rect))
+            post_button_near_draws++;
         if (matches_rect(quad, &notice_panel_rect))
             notice_panel_index = draw_index;
         if (matches_rect(quad, &back_button_rect))
@@ -273,14 +268,13 @@ void wm_platform_draw_material_quad(WmPlatform *platform,
     }
 }
 
-void wm_platform_prepare_material(WmPlatform *platform,
-                                  const WmMaterialQuad *quad) {
+void wm_platform_prepare_material(WmPlatform *platform, const WmMaterialQuad *quad) {
     (void)platform;
     (void)quad;
 }
 
-uint32_t wm_platform_create_texture(WmPlatform *platform, int width,
-                                    int height, const uint8_t *rgba) {
+uint32_t wm_platform_create_texture(WmPlatform *platform, int width, int height,
+                                    const uint8_t *rgba) {
     (void)platform;
     assert(width > 0 && height > 0 && rgba);
     return next_texture++;
@@ -294,8 +288,8 @@ void wm_platform_destroy_texture(WmPlatform *platform, uint32_t texture) {
 int main(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
     char path[4096];
-    int length = snprintf(path, sizeof(path),
-                          "%s/layouts/sofkeybd/my_Memo_a.json", assets);
+    int length =
+        snprintf(path, sizeof(path), "%s/layouts/sofkeybd/my_Memo_a.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     FILE *check = fopen(path, "rb");
     if (!check) {
@@ -307,99 +301,84 @@ int main(int argc, char **argv) {
     char error[160] = {0};
     WmLayout *source = wm_layout_load_json(path, error, sizeof(error));
     assert(source);
-    WmLayoutClip entry = {
-        .animation = "my_Memo_a_MailIn", .frame = 16.0f
-    };
+    WmLayoutClip entry = {.animation = "my_Memo_a_MailIn", .frame = 16.0f};
     assert(wm_layout_pose(source, &entry, 1));
-    assert(wm_source_pane_rect(source, "Header_s2", true, WM_LAYOUT_IPL,
-                               NULL, &header_rect));
-    assert(wm_source_pane_rect(source, "Picture_12", true, WM_LAYOUT_IPL,
-                               NULL, &first_row_rect));
-    assert(wm_source_pane_rect(source, "Nigaoe", true, WM_LAYOUT_IPL,
-                               NULL, &mii_idle_rect));
-    assert(wm_source_pane_rect(source, "T_TouchLetter", true,
-                               WM_LAYOUT_IPL, NULL, &hint_rect));
+    assert(wm_source_pane_rect(source, "Header_s2", true, WM_LAYOUT_IPL, NULL,
+                               &header_rect));
+    assert(wm_source_pane_rect(source, "Picture_12", true, WM_LAYOUT_IPL, NULL,
+                               &first_row_rect));
+    assert(wm_source_pane_rect(source, "Nigaoe", true, WM_LAYOUT_IPL, NULL,
+                               &mii_idle_rect));
+    assert(wm_source_pane_rect(source, "T_TouchLetter", true, WM_LAYOUT_IPL, NULL,
+                               &hint_rect));
     second_row_rect = first_row_rect;
     second_row_rect.y += 42.0f;
-    WmLayoutClip half_focus[] = {
-        entry,
-        { .animation = "my_Memo_a_NigaoeFoucusIn",
-          .target_name = "Nigaoe", .frame = 3.0f }
-    };
+    WmLayoutClip half_focus[] = {entry,
+                                 {.animation = "my_Memo_a_NigaoeFoucusIn",
+                                  .target_name = "Nigaoe",
+                                  .frame = 3.0f}};
     assert(wm_layout_pose(source, half_focus, 2));
-    assert(wm_source_pane_rect(source, "Nigaoe", true, WM_LAYOUT_IPL,
-                               NULL, &mii_half_focus_rect));
+    assert(wm_source_pane_rect(source, "Nigaoe", true, WM_LAYOUT_IPL, NULL,
+                               &mii_half_focus_rect));
     half_focus[1].frame = 2.0f;
     assert(wm_layout_pose(source, half_focus, 2));
-    assert(wm_source_pane_rect(source, "Nigaoe", true, WM_LAYOUT_IPL,
-                               NULL, &mii_reentered_rect));
+    assert(wm_source_pane_rect(source, "Nigaoe", true, WM_LAYOUT_IPL, NULL,
+                               &mii_reentered_rect));
 
-    length = snprintf(path, sizeof(path),
-                      "%s/layouts/mlAdSel/my_Mail_a.json", assets);
+    length = snprintf(path, sizeof(path), "%s/layouts/mlAdSel/my_Mail_a.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     WmLayout *selector = wm_layout_load_json(path, error, sizeof(error));
     assert(selector);
     WmLayoutClip selector_entry = {
-        .animation = "my_Mail_a_SelectIn",
-        .group = "G_SelectInOut", .frame = 30.0f
-    };
+        .animation = "my_Mail_a_SelectIn", .group = "G_SelectInOut", .frame = 30.0f};
     assert(wm_layout_pose(selector, &selector_entry, 1));
-    assert(wm_source_pane_rect(selector, "mask", true,
-                               WM_LAYOUT_IPL, NULL, &selector_mask_rect));
+    assert(wm_source_pane_rect(selector, "mask", true, WM_LAYOUT_IPL, NULL,
+                               &selector_mask_rect));
 
-    length = snprintf(path, sizeof(path),
-                      "%s/layouts/cmnBtn/my_IplTop_e.json", assets);
+    length = snprintf(path, sizeof(path), "%s/layouts/cmnBtn/my_IplTop_e.json", assets);
     assert(length > 0 && length < (int)sizeof(path));
     WmLayout *footer = wm_layout_load_json(path, error, sizeof(error));
     assert(footer);
     WmLayoutClip footer_clips[] = {
-        { .animation = "my_IplTop_e", .group = "G_SeenChange",
-          .frame = 3326.0f },
-        { .animation = "my_IplTop_e", .group = "G_ArwL_End",
-          .frame = 10110.0f },
-        { .animation = "my_IplTop_e", .group = "G_ArwR_End",
-          .frame = 10110.0f }
-    };
+        {.animation = "my_IplTop_e", .group = "G_SeenChange", .frame = 3326.0f},
+        {.animation = "my_IplTop_e", .group = "G_ArwL_End", .frame = 10110.0f},
+        {.animation = "my_IplTop_e", .group = "G_ArwR_End", .frame = 10110.0f}};
     assert(wm_layout_pose(footer, footer_clips, 3));
-    assert(wm_source_pane_rect(footer, "CalExitBase1", true,
-                               WM_LAYOUT_IPL, NULL, &back_button_rect));
-    assert(wm_source_pane_rect(footer, "Add_R_Base1", true,
-                               WM_LAYOUT_IPL, NULL, &post_button_rect));
+    assert(wm_source_pane_rect(footer, "CalExitBase1", true, WM_LAYOUT_IPL, NULL,
+                               &back_button_rect));
+    assert(wm_source_pane_rect(footer, "Add_R_Base1", true, WM_LAYOUT_IPL, NULL,
+                               &post_button_rect));
 
-    length = snprintf(path, sizeof(path),
-                      "%s/layouts/dlgWdw/my_DialogWindow_a2.json", assets);
+    length = snprintf(path, sizeof(path), "%s/layouts/dlgWdw/my_DialogWindow_a2.json",
+                      assets);
     assert(length > 0 && length < (int)sizeof(path));
     WmLayout *dialog = wm_layout_load_json(path, error, sizeof(error));
     assert(dialog);
     WmLayoutClip dialog_entry = {
-        .animation = "my_DialogWindow_a1_DialogIn",
-        .group = "G_InOut", .frame = 24.0f
-    };
+        .animation = "my_DialogWindow_a1_DialogIn", .group = "G_InOut", .frame = 24.0f};
     assert(wm_layout_pose(dialog, &dialog_entry, 1));
-    assert(wm_source_pane_rect(dialog, "Picture_03", true,
-                               WM_LAYOUT_IPL, NULL, &notice_panel_rect));
+    assert(wm_source_pane_rect(dialog, "Picture_03", true, WM_LAYOUT_IPL, NULL,
+                               &notice_panel_rect));
 
-    WmTextureCache *textures = wm_texture_cache_create(
-        (WmPlatform *)1, assets, 64u * 1024u * 1024u);
-    WmFontCache *fonts = wm_font_cache_create(
-        (WmPlatform *)1, assets, 8u * 1024u * 1024u);
+    WmTextureCache *textures =
+        wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
+    WmFontCache *fonts =
+        wm_font_cache_create((WmPlatform *)1, assets, 8u * 1024u * 1024u);
     assert(textures && fonts);
     WmFontPane letter_font;
     const char *letter_font_name = NULL;
-    assert(wm_layout_pane_font(source, "T_Letter", &letter_font,
-                               &letter_font_name));
-    WmCachedFont *letter_face = wm_font_cache_resolve(fonts,
-                                                      letter_font_name);
+    assert(wm_layout_pane_font(source, "T_Letter", &letter_font, &letter_font_name));
+    WmCachedFont *letter_face = wm_font_cache_resolve(fonts, letter_font_name);
     const WmFont *letter_resource = wm_cached_font_resource(letter_face);
     const WmFontGlyph *line_feed = wm_font_glyph(letter_resource, 0xe056);
     assert(line_feed);
-    const WmFontSheetInfo *line_feed_sheet = wm_font_sheet_info(
-        letter_resource, line_feed->sheet);
+    const WmFontSheetInfo *line_feed_sheet =
+        wm_font_sheet_info(letter_resource, line_feed->sheet);
     assert(line_feed_sheet);
     line_feed_u = (float)line_feed->x / line_feed_sheet->width;
     line_feed_v = (float)line_feed->y / line_feed_sheet->height;
-    WmBoardCompose *compose = wm_board_compose_create(
-        (WmPlatform *)1, assets, textures, fonts);
+    WmBoardCompose *compose =
+        wm_board_compose_create((WmPlatform *)1, assets, textures, fonts);
     assert(compose && wm_board_compose_open(compose));
     wm_board_compose_advance(compose, 39.0f);
     wm_board_compose_hover(compose, WM_COMPOSE_CONTROL_MEMO);
@@ -441,12 +420,9 @@ int main(int argc, char **argv) {
     wm_board_compose_draw(compose);
     tracking_notice = false;
     assert(notice_panel_index > 0);
-    assert(back_button_index > 0 &&
-           back_button_index < notice_panel_index);
-    assert(post_button_index > 0 &&
-           post_button_index < notice_panel_index);
-    assert(wm_board_compose_activate(compose,
-                                     WM_COMPOSE_CONTROL_ADDRESS_DIALOG_OK));
+    assert(back_button_index > 0 && back_button_index < notice_panel_index);
+    assert(post_button_index > 0 && post_button_index < notice_panel_index);
+    assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_ADDRESS_DIALOG_OK));
     wm_board_compose_advance(compose, 38.0f);
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_MEMO);
     tracking_hint = true;
@@ -457,8 +433,8 @@ int main(int argc, char **argv) {
     wm_board_compose_advance(compose, 30.0f);
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_EDIT);
     assert(wm_board_compose_finish_edit(compose));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_SK_CANCEL_CLOSE") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_SK_CANCEL_CLOSE") ==
+           0);
     assert(wm_board_compose_take_key_cue(compose) == NULL);
     wm_board_compose_advance(compose, 20.0f);
     hint_glyphs = 0;
@@ -488,16 +464,13 @@ int main(int argc, char **argv) {
     tracking_hint = false;
 
     assert(wm_board_compose_back(compose));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CANCEL") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CANCEL") == 0);
     assert(wm_board_compose_take_key_cue(compose) == NULL);
     wm_board_compose_advance(compose, 20.0f);
-    WmLayoutClip exit_clip = {
-        .animation = "my_Memo_a_MailOut", .frame = 0.0f
-    };
+    WmLayoutClip exit_clip = {.animation = "my_Memo_a_MailOut", .frame = 0.0f};
     assert(wm_layout_pose(source, &exit_clip, 1));
-    assert(wm_source_pane_rect(source, "Nigaoe", true, WM_LAYOUT_IPL,
-                               NULL, &tracked_mii_rect));
+    assert(wm_source_pane_rect(source, "Nigaoe", true, WM_LAYOUT_IPL, NULL,
+                               &tracked_mii_rect));
     tracking_mii_alpha = true;
     mii_alpha = 0.0f;
     wm_board_compose_draw(compose);
@@ -505,16 +478,16 @@ int main(int argc, char **argv) {
     wm_board_compose_advance(compose, 8.0f);
     exit_clip.frame = 8.0f;
     assert(wm_layout_pose(source, &exit_clip, 1));
-    assert(wm_source_pane_rect(source, "Nigaoe", true, WM_LAYOUT_IPL,
-                               NULL, &tracked_mii_rect));
+    assert(wm_source_pane_rect(source, "Nigaoe", true, WM_LAYOUT_IPL, NULL,
+                               &tracked_mii_rect));
     mii_alpha = 0.0f;
     wm_board_compose_draw(compose);
     float mii_exit_middle_alpha = mii_alpha;
     wm_board_compose_advance(compose, 8.0f);
     exit_clip.frame = 16.0f;
     assert(wm_layout_pose(source, &exit_clip, 1));
-    assert(wm_source_pane_rect(source, "Nigaoe", true, WM_LAYOUT_IPL,
-                               NULL, &tracked_mii_rect));
+    assert(wm_source_pane_rect(source, "Nigaoe", true, WM_LAYOUT_IPL, NULL,
+                               &tracked_mii_rect));
     mii_alpha = 0.0f;
     wm_board_compose_draw(compose);
     assert(mii_exit_start_alpha > mii_exit_middle_alpha);
@@ -522,32 +495,31 @@ int main(int argc, char **argv) {
     tracking_mii_alpha = false;
     wm_board_compose_destroy(compose);
 
-    compose = wm_board_compose_create((WmPlatform *)1, assets,
-                                      textures, fonts);
+    compose = wm_board_compose_create((WmPlatform *)1, assets, textures, fonts);
     assert(compose && wm_board_compose_open(compose));
     wm_board_compose_advance(compose, 39.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_MEMO));
     wm_board_compose_advance(compose, 26.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_EDIT));
     wm_board_compose_advance(compose, 30.0f);
-    while (wm_board_compose_take_key_cue(compose)) {}
-    assert(wm_board_compose_activate(compose,
-                                     compose_key(WM_KEYBOARD_PHONE)));
-    while (wm_board_compose_take_key_cue(compose)) {}
-    WmBoardComposeControl phone_space = compose_key(
-        (WmBoardKeyboardControl)(WM_KEYBOARD_PHONE_FIRST + 10));
-    WmBoardComposeControl phone_letters = compose_key(
-        (WmBoardKeyboardControl)(WM_KEYBOARD_PHONE_FIRST + 1));
+    while (wm_board_compose_take_key_cue(compose)) {
+    }
+    assert(wm_board_compose_activate(compose, compose_key(WM_KEYBOARD_PHONE)));
+    while (wm_board_compose_take_key_cue(compose)) {
+    }
+    WmBoardComposeControl phone_space =
+        compose_key((WmBoardKeyboardControl)(WM_KEYBOARD_PHONE_FIRST + 10));
+    WmBoardComposeControl phone_letters =
+        compose_key((WmBoardKeyboardControl)(WM_KEYBOARD_PHONE_FIRST + 1));
     wm_board_compose_hover(compose, phone_space);
     assert(wm_board_compose_activate(compose, phone_space));
     assert(strcmp(wm_board_compose_text(compose), " ") == 0);
-    assert(strcmp(wm_board_compose_display_text(compose),
-                  "\342\220\243") == 0);
-    while (wm_board_compose_take_key_cue(compose)) {}
+    assert(strcmp(wm_board_compose_display_text(compose), "\342\220\243") == 0);
+    while (wm_board_compose_take_key_cue(compose)) {
+    }
     wm_board_compose_hover(compose, phone_letters);
     assert(strcmp(wm_board_compose_display_text(compose), " ") == 0);
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CHAR_DECIDE") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CHAR_DECIDE") == 0);
     assert(wm_board_compose_take_key_cue(compose) == NULL);
     assert(wm_board_compose_activate(compose, phone_letters));
     assert(strlen(wm_board_compose_text(compose)) == 2);
@@ -557,73 +529,65 @@ int main(int argc, char **argv) {
     assert(wm_board_compose_text(compose)[1] != first_letter);
     wm_board_compose_destroy(compose);
 
-    compose = wm_board_compose_create((WmPlatform *)1, assets,
-                                      textures, fonts);
+    compose = wm_board_compose_create((WmPlatform *)1, assets, textures, fonts);
     assert(compose && wm_board_compose_open(compose));
     wm_board_compose_advance(compose, 39.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_MEMO));
     wm_board_compose_advance(compose, 26.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_EDIT));
     wm_board_compose_advance(compose, 30.0f);
-    while (wm_board_compose_take_key_cue(compose)) {}
-    assert(wm_board_compose_activate(compose,
-                                     compose_key(WM_KEYBOARD_PREDICTION)));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_SK_PREDICT_ON") == 0);
+    while (wm_board_compose_take_key_cue(compose)) {
+    }
+    assert(wm_board_compose_activate(compose, compose_key(WM_KEYBOARD_PREDICTION)));
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_SK_PREDICT_ON") ==
+           0);
     assert(wm_board_compose_insert_text(compose, "hel"));
     assert(strcmp(wm_board_compose_text(compose), "hel") == 0);
     assert(!wm_board_compose_insert_text(compose, "\xed\xa0\x80"));
     assert(strcmp(wm_board_compose_text(compose), "hel") == 0);
     assert(strcmp(wm_board_compose_display_text(compose), "hello") == 0);
-    assert(wm_board_compose_activate(compose, compose_key(
-        WM_KEYBOARD_CANDIDATE_FIRST)));
+    assert(
+        wm_board_compose_activate(compose, compose_key(WM_KEYBOARD_CANDIDATE_FIRST)));
     assert(strcmp(wm_board_compose_text(compose), "hello") == 0);
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CHAR_DECIDE") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CHAR_DECIDE") == 0);
     assert(wm_board_compose_insert_text(compose, " xz1!"));
-    assert(strcmp(wm_board_compose_display_text(compose),
-                  "hello xz1!") == 0);
+    assert(strcmp(wm_board_compose_display_text(compose), "hello xz1!") == 0);
     assert(wm_board_compose_insert_text(compose, " "));
     assert(strcmp(wm_board_compose_text(compose), "hello xz1! ") == 0);
     char boundary_run[33];
     memset(boundary_run, 'a', 32);
     boundary_run[32] = '\0';
     assert(wm_board_compose_insert_text(compose, boundary_run));
-    while (wm_board_compose_take_key_cue(compose)) {}
+    while (wm_board_compose_take_key_cue(compose)) {
+    }
     assert(wm_board_compose_insert_text(compose, "b"));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CHAR_DECIDE") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CHAR_DECIDE") == 0);
     assert(strncmp(wm_board_compose_text(compose), "hello xz1! ", 11) == 0);
-    assert(strncmp(wm_board_compose_text(compose) + 11,
-                   boundary_run, 32) == 0);
+    assert(strncmp(wm_board_compose_text(compose) + 11, boundary_run, 32) == 0);
     assert(strcmp(wm_board_compose_text(compose) + 43, "b") == 0);
     wm_board_compose_destroy(compose);
 
-    compose = wm_board_compose_create((WmPlatform *)1, assets,
-                                      textures, fonts);
+    compose = wm_board_compose_create((WmPlatform *)1, assets, textures, fonts);
     assert(compose && wm_board_compose_open(compose));
     wm_board_compose_advance(compose, 39.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_MEMO));
     wm_board_compose_advance(compose, 26.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_EDIT));
     wm_board_compose_advance(compose, 30.0f);
-    assert(wm_board_compose_activate(compose,
-                                     compose_key(WM_KEYBOARD_PREDICTION)));
-    assert(wm_board_compose_activate(compose,
-                                     compose_key(WM_KEYBOARD_PHONE)));
+    assert(wm_board_compose_activate(compose, compose_key(WM_KEYBOARD_PREDICTION)));
+    assert(wm_board_compose_activate(compose, compose_key(WM_KEYBOARD_PHONE)));
     for (unsigned index = 0; index < 32; index++)
         assert(wm_board_compose_activate(compose, phone_letters));
     assert(strlen(wm_board_compose_text(compose)) == 32);
-    while (wm_board_compose_take_key_cue(compose)) {}
+    while (wm_board_compose_take_key_cue(compose)) {
+    }
     assert(wm_board_compose_activate(compose, phone_letters));
     assert(strlen(wm_board_compose_text(compose)) == 33);
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CHAR_DECIDE") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CHAR_DECIDE") == 0);
     assert(wm_board_compose_take_key_cue(compose) == NULL);
     wm_board_compose_destroy(compose);
 
-    compose = wm_board_compose_create((WmPlatform *)1, assets,
-                                      textures, fonts);
+    compose = wm_board_compose_create((WmPlatform *)1, assets, textures, fonts);
     assert(compose && wm_board_compose_open(compose));
     wm_board_compose_advance(compose, 39.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_MEMO));
@@ -657,8 +621,7 @@ int main(int argc, char **argv) {
     assert(wm_board_compose_phase(compose) == WM_COMPOSE_SELECTOR);
     wm_board_compose_destroy(compose);
 
-    compose = wm_board_compose_create((WmPlatform *)1, assets,
-                                      textures, fonts);
+    compose = wm_board_compose_create((WmPlatform *)1, assets, textures, fonts);
     assert(compose && wm_board_compose_open(compose));
     wm_board_compose_advance(compose, 39.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_MEMO));
@@ -669,8 +632,7 @@ int main(int argc, char **argv) {
     wm_board_compose_advance(compose, 30.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_POST));
     wm_board_compose_advance(compose, 20.0f + 51.0f);
-    assert(wm_board_compose_phase(compose) ==
-           WM_COMPOSE_EXIT_AFTER_POST);
+    assert(wm_board_compose_phase(compose) == WM_COMPOSE_EXIT_AFTER_POST);
     tracking_selector_left = true;
     for (int frame = 0; frame < 20; frame += 10) {
         selector_left_draws = 0;
@@ -685,16 +647,14 @@ int main(int argc, char **argv) {
 
     /* A click on Memo Back at its source button coordinates must retire the
      * press scale before the returning selector's Back becomes available. */
-    compose = wm_board_compose_create((WmPlatform *)1, assets,
-                                      textures, fonts);
+    compose = wm_board_compose_create((WmPlatform *)1, assets, textures, fonts);
     assert(compose && wm_board_compose_open(compose));
     wm_board_compose_advance(compose, 39.0f);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_MEMO));
     wm_board_compose_advance(compose, 26.0f);
     int back_x = (int)(back_button_rect.x + back_button_rect.width * 0.5f);
     int back_y = (int)(back_button_rect.y + back_button_rect.height * 0.5f);
-    assert(wm_board_compose_hit(compose, back_x, back_y) ==
-           WM_COMPOSE_CONTROL_BACK);
+    assert(wm_board_compose_hit(compose, back_x, back_y) == WM_COMPOSE_CONTROL_BACK);
     tracking_back_scale = true;
     back_max_width = 0.0f;
     wm_board_compose_draw(compose);
@@ -706,7 +666,7 @@ int main(int argc, char **argv) {
     wm_board_compose_draw(compose);
     assert(back_max_width > neutral_width * 1.05f);
     assert(wm_board_compose_activate(compose,
-        wm_board_compose_hit(compose, back_x, back_y)));
+                                     wm_board_compose_hit(compose, back_x, back_y)));
     wm_board_compose_advance(compose, 20.0f);
     back_max_width = 0.0f;
     wm_board_compose_draw(compose);
@@ -734,9 +694,8 @@ int main(int argc, char **argv) {
     assert(wm_board_compose_scroll_state(compose, &scrolled_memo));
     assert(fabsf(scrolled_memo.offset - 68.0f) < 0.01f);
     int pointer_x, pointer_y;
-    memo_pointer_for_caret(source, letter_face, "Alpha", 2,
-                            scrolled_memo.offset, false,
-                            &pointer_x, &pointer_y);
+    memo_pointer_for_caret(source, letter_face, "Alpha", 2, scrolled_memo.offset, false,
+                           &pointer_x, &pointer_y);
     assert(wm_board_compose_hit(compose, pointer_x, pointer_y) ==
            WM_COMPOSE_CONTROL_EDIT);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_EDIT));
@@ -780,8 +739,8 @@ int main(int argc, char **argv) {
     WmBoardComposeScrollState scroll;
     assert(wm_board_compose_scroll_state(compose, &scroll));
     size_t selected = (size_t)(strstr(draft, "Delta") - draft) + 2;
-    memo_pointer_for_caret(source, letter_face, draft, selected,
-                            scroll.offset, false, &pointer_x, &pointer_y);
+    memo_pointer_for_caret(source, letter_face, draft, selected, scroll.offset, false,
+                           &pointer_x, &pointer_y);
     assert(wm_board_compose_hit(compose, pointer_x, pointer_y) ==
            WM_COMPOSE_CONTROL_EDIT);
     assert(wm_board_compose_caret(compose) == strlen(draft));
@@ -806,8 +765,8 @@ int main(int argc, char **argv) {
 
     /* Selection in the open two-line editor uses the same drawn glyph grid. */
     selected = (size_t)(strstr(draft, "Echo") - draft) + 1;
-    memo_pointer_for_caret(source, letter_face, draft, selected,
-                            scroll.offset, true, &pointer_x, &pointer_y);
+    memo_pointer_for_caret(source, letter_face, draft, selected, scroll.offset, true,
+                           &pointer_x, &pointer_y);
     assert(wm_board_compose_hit(compose, pointer_x, pointer_y) ==
            WM_COMPOSE_CONTROL_EDIT);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_EDIT));
@@ -824,8 +783,8 @@ int main(int argc, char **argv) {
     assert(wm_board_compose_scroll_state(compose, &scroll));
     draft = wm_board_compose_text(compose);
     selected = (size_t)(strstr(draft, "\303\251") - draft) + 2;
-    memo_pointer_for_caret(source, letter_face, draft, selected,
-                            scroll.offset, false, &pointer_x, &pointer_y);
+    memo_pointer_for_caret(source, letter_face, draft, selected, scroll.offset, false,
+                           &pointer_x, &pointer_y);
     assert(wm_board_compose_hit(compose, pointer_x, pointer_y) ==
            WM_COMPOSE_CONTROL_EDIT);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_EDIT));
@@ -837,8 +796,7 @@ int main(int argc, char **argv) {
     assert(wm_board_compose_backspace(compose));
     assert(strstr(wm_board_compose_text(compose), "Alpha \nBravo"));
 
-    assert(wm_board_compose_activate(compose,
-                                     compose_key(WM_KEYBOARD_PREDICTION)));
+    assert(wm_board_compose_activate(compose, compose_key(WM_KEYBOARD_PREDICTION)));
     wm_board_compose_advance(compose, 13.0f);
     assert(wm_board_compose_insert_text(compose, "Hel"));
     char predicted_text[4097];
@@ -849,8 +807,8 @@ int main(int argc, char **argv) {
     assert(strstr(predicted_text, "\nBravo\nCharlie\nDelta\nExcho\nFoxtrot"));
     size_t original_caret = wm_board_compose_caret(compose);
     selected = (size_t)(strstr(predicted_text, "Bravo") - predicted_text) + 1;
-    memo_pointer_for_caret(source, letter_face, predicted_text, selected,
-                            0.0f, true, &pointer_x, &pointer_y);
+    memo_pointer_for_caret(source, letter_face, predicted_text, selected, 0.0f, true,
+                           &pointer_x, &pointer_y);
     assert(wm_board_compose_hit(compose, pointer_x, pointer_y) ==
            WM_COMPOSE_CONTROL_EDIT);
     assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_EDIT));
@@ -875,10 +833,8 @@ int main(int argc, char **argv) {
     wm_board_compose_advance(compose, 30.0f);
     assert(take_scroll_cues(compose) == 0);
     assert(wm_board_compose_activate(compose, compose_key(WM_KEYBOARD_RETURN)));
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_LINE_SCROLL") == 0);
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CHAR_DECIDE") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_LINE_SCROLL") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CHAR_DECIDE") == 0);
     assert(wm_board_compose_take_key_cue(compose) == NULL);
     wm_board_compose_advance(compose, 15.0f);
     assert(take_scroll_cues(compose) == 0);
@@ -912,10 +868,8 @@ int main(int argc, char **argv) {
     }
     assert(wm_board_compose_activate(compose, phone_letters));
     assert(wm_board_compose_text(compose)[120] == '2');
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_LINE_SCROLL") == 0);
-    assert(strcmp(wm_board_compose_take_key_cue(compose),
-                  "WIPL_SE_CHAR_INPUT") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_LINE_SCROLL") == 0);
+    assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CHAR_INPUT") == 0);
     assert(wm_board_compose_take_key_cue(compose) == NULL);
     assert(wm_board_compose_scroll_state(compose, &scroll));
     assert(scroll.maximum == 42.0f);

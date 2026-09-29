@@ -71,26 +71,24 @@ typedef struct WmHomeReconnectFixture {
 } WmHomeReconnectFixture;
 
 typedef void (*WmHomeCueCallback)(void *context, const char *symbol);
-typedef void (*WmHomeRemoteCallback)(void *context,
-                                     const WmHomeRemoteState *state);
+typedef void (*WmHomeRemoteCallback)(void *context, const WmHomeRemoteState *state);
 
 /* The overlay owns its parsed layout. Platform, texture cache, and font cache
  * remain caller-owned. The source JSON and .wmra textures come from the local
  * WAD export. Returns NULL if the HOME layout is unavailable or incomplete. */
 WmHomeOverlay *wm_home_overlay_create(WmPlatform *platform,
-                                       const char *assets_directory,
-                                       WmTextureCache *textures,
-                                       WmFontCache *fonts,
-                                       WmHomeCueCallback cue,
-                                       WmHomeRemoteCallback remote_changed,
-                                       void *callback_context);
+                                      const char *assets_directory,
+                                      WmTextureCache *textures, WmFontCache *fonts,
+                                      WmHomeCueCallback cue,
+                                      WmHomeRemoteCallback remote_changed,
+                                      void *callback_context);
 void wm_home_overlay_destroy(WmHomeOverlay *home);
 
 bool wm_home_overlay_set_remote_state(WmHomeOverlay *home,
                                       const WmHomeRemoteState *state);
 WmHomeRemoteState wm_home_overlay_remote_state(const WmHomeOverlay *home);
-bool wm_home_overlay_set_reconnect_fixture(
-    WmHomeOverlay *home, const WmHomeReconnectFixture *fixture);
+bool wm_home_overlay_set_reconnect_fixture(WmHomeOverlay *home,
+                                           const WmHomeReconnectFixture *fixture);
 
 bool wm_home_overlay_open(WmHomeOverlay *home);
 void wm_home_overlay_reset(WmHomeOverlay *home);

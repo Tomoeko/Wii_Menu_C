@@ -7,8 +7,7 @@ void board_compose_scroll_reset(BoardComposeScroll *scroll) {
     /* line_height is measured from the loaded layout and survives resets. */
     memset(scroll->arrows, 0, sizeof(scroll->arrows));
     for (size_t mode = 0; mode < 2; mode++) {
-        for (size_t direction = 0; direction < COMPOSE_SCROLL_DIRECTIONS;
-             direction++) {
+        for (size_t direction = 0; direction < COMPOSE_SCROLL_DIRECTIONS; direction++) {
             scroll->arrows[mode][direction].appearance_frame = 11.0f;
             scroll->arrows[mode][direction].focus.entering = true;
         }
@@ -73,8 +72,7 @@ void board_compose_scroll_refresh(BoardComposeScroll *scroll,
     }
     bool display = phase == WM_COMPOSE_ENTER_MEMO || phase == WM_COMPOSE_MEMO;
     bool editor = phase == WM_COMPOSE_EDIT;
-    for (size_t direction = 0; direction < COMPOSE_SCROLL_DIRECTIONS;
-         direction++) {
+    for (size_t direction = 0; direction < COMPOSE_SCROLL_DIRECTIONS; direction++) {
         bool within_range = direction == COMPOSE_SCROLL_UP
                                 ? scroll->offset > 0.001f
                                 : scroll->offset + 0.001f < scroll->maximum;
@@ -105,8 +103,7 @@ bool board_compose_scroll_start(BoardComposeScroll *scroll, float target) {
 void board_compose_scroll_advance(BoardComposeScroll *scroll, float frames,
                                   WmBoardComposePhase phase) {
     for (size_t mode = 0; mode < 2; mode++) {
-        for (size_t direction = 0; direction < COMPOSE_SCROLL_DIRECTIONS;
-             direction++) {
+        for (size_t direction = 0; direction < COMPOSE_SCROLL_DIRECTIONS; direction++) {
             BoardComposeScrollArrow *arrow = &scroll->arrows[mode][direction];
             arrow->appearance_frame += frames;
             if (arrow->focus.active) {
@@ -124,8 +121,7 @@ void board_compose_scroll_advance(BoardComposeScroll *scroll, float frames,
         scroll->frame = fminf(15.0f, scroll->frame + frames);
         float progress = scroll->frame / 15.0f;
         float eased = progress * progress * (3.0f - 2.0f * progress);
-        scroll->offset = scroll->start +
-                         (scroll->target - scroll->start) * eased;
+        scroll->offset = scroll->start + (scroll->target - scroll->start) * eased;
         if (scroll->frame >= 15.0f) {
             scroll->moving = false;
         }
@@ -139,30 +135,27 @@ void board_compose_scroll_begin_enter_edit(BoardComposeScroll *scroll) {
      * the keyboard rises, instead of clamping the memo on the first frame. */
     scroll->display_return_offset = scroll->offset;
     scroll->start = scroll->offset;
-    scroll->target = fminf(scroll->maximum,
-        roundf(scroll->offset / scroll->line_height) * scroll->line_height);
+    scroll->target =
+        fminf(scroll->maximum,
+              roundf(scroll->offset / scroll->line_height) * scroll->line_height);
     scroll->moving = false;
 }
 
-void board_compose_scroll_enter_edit_frame(BoardComposeScroll *scroll,
-                                            float frame) {
+void board_compose_scroll_enter_edit_frame(BoardComposeScroll *scroll, float frame) {
     float progress = fminf(fmaxf(frame, 0.0f), 30.0f) / 30.0f;
     float eased = progress * progress * (3.0f - 2.0f * progress);
-    scroll->offset = scroll->start +
-                     (scroll->target - scroll->start) * eased;
+    scroll->offset = scroll->start + (scroll->target - scroll->start) * eased;
 }
 
 void board_compose_scroll_leave_edit(BoardComposeScroll *scroll, float frame) {
     float progress = fminf(fmaxf(frame, 0.0f), 30.0f) / 30.0f;
     float eased = progress * progress * (3.0f - 2.0f * progress);
-    scroll->offset = scroll->start +
-                     (scroll->target - scroll->start) * eased;
+    scroll->offset = scroll->start + (scroll->target - scroll->start) * eased;
 }
 
 void board_compose_scroll_finish_leave_edit(BoardComposeScroll *scroll) {
     /* The editor arrows have already faded; restarting Fade_OUT flashes them. */
-    for (size_t direction = 0; direction < COMPOSE_SCROLL_DIRECTIONS;
-         direction++) {
+    for (size_t direction = 0; direction < COMPOSE_SCROLL_DIRECTIONS; direction++) {
         BoardComposeScrollArrow *editor =
             &scroll->arrows[COMPOSE_SCROLL_EDITOR][direction];
         editor->visible = false;
@@ -188,8 +181,7 @@ bool board_compose_scroll_state(const BoardComposeScroll *scroll,
     if (phase == WM_COMPOSE_EDIT) {
         editor_opacity = 1.0f;
     } else if (phase == WM_COMPOSE_LEAVE_EDIT) {
-        editor_opacity = 1.0f -
-            fminf(fmaxf(phase_frame, 0.0f), 30.0f) / 30.0f;
+        editor_opacity = 1.0f - fminf(fmaxf(phase_frame, 0.0f), 30.0f) / 30.0f;
     }
     *state = (WmBoardComposeScrollState){
         .offset = scroll->offset,
@@ -197,8 +189,6 @@ bool board_compose_scroll_state(const BoardComposeScroll *scroll,
         .editor_opacity = editor_opacity,
         .editing = mode == COMPOSE_SCROLL_EDITOR,
         .up_target_visible = scroll->arrows[mode][COMPOSE_SCROLL_UP].visible,
-        .down_target_visible =
-            scroll->arrows[mode][COMPOSE_SCROLL_DOWN].visible
-    };
+        .down_target_visible = scroll->arrows[mode][COMPOSE_SCROLL_DOWN].visible};
     return true;
 }

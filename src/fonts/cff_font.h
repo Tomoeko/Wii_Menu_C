@@ -34,11 +34,9 @@ typedef struct WmCffGlyph {
 
 /* Views into the owned SFNT bytes. No font data is retained outside the
  * caller's buffer, and no CFF or Type 2 program is trusted without bounds. */
-WmCffFont *wm_cff_font_parse(const uint8_t *bytes, size_t size,
-                             size_t table_offset, size_t table_size,
-                             unsigned glyph_count);
+WmCffFont *wm_cff_font_parse(const uint8_t *bytes, size_t size, size_t table_offset,
+                             size_t table_size, unsigned glyph_count);
 void wm_cff_font_destroy(WmCffFont *font);
-bool wm_cff_font_glyph(const WmCffFont *font, unsigned glyph_index,
-                       WmCffGlyph *glyph);
+bool wm_cff_font_glyph(const WmCffFont *font, unsigned glyph_index, WmCffGlyph *glyph);
 
 #endif

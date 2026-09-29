@@ -14,23 +14,19 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static bool join(char output[256], const char *directory, const char *name)
-{
+static bool join(char output[256], const char *directory, const char *name) {
     int length = snprintf(output, 256, "%s/%s", directory, name);
     return length > 0 && length < 256;
 }
 
-static bool publish_probe(const char *root, const char *relative)
-{
+static bool publish_probe(const char *root, const char *relative) {
     char directory[256], path[256];
     return wm_export_directory_child(root, relative, 0700) &&
-           join(directory, root, relative) &&
-           join(path, directory, "probe.bin") &&
+           join(directory, root, relative) && join(path, directory, "probe.bin") &&
            wm_atomic_file_replace(path, "new", 3);
 }
 
-int main(void)
-{
+int main(void) {
     char root[] = "export-directory-XXXXXX";
     assert(mkdtemp(root));
 

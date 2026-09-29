@@ -6,10 +6,7 @@
 #include "wii_menu/layout/layout_runtime.h"
 #include "wii_menu/layout/layout_assets.h"
 
-enum {
-    STORAGE_PAGE_SIZE = 15,
-    STORAGE_FOCUS_COUNT = 25
-};
+enum { STORAGE_PAGE_SIZE = 15, STORAGE_FOCUS_COUNT = 25 };
 
 typedef struct StorageMedium {
     WmStorageMediumStatus status;
@@ -79,8 +76,7 @@ struct WmStorageScene {
 
 /* These read-only accessors keep medium/page bounds in one place. */
 const StorageMedium *wm_storage_current_medium(const WmStorageScene *scene);
-const WmStorageRecord *wm_storage_record_at(const WmStorageScene *scene,
-                                             int slot);
+const WmStorageRecord *wm_storage_record_at(const WmStorageScene *scene, int slot);
 
 /* Hit testing poses the same authored layout as drawing. These helpers do
  * not draw; the presentation module owns their pose and anchor details. */

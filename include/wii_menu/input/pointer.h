@@ -24,8 +24,7 @@ void wm_pointer_hide(WmPointer *pointer);
 void wm_pointer_set_grabbed(WmPointer *pointer, bool grabbed);
 /* Use Cat only during channel grab/drag or while dragging a Board memo.
  * Drop/cancel use Def. */
-bool wm_pointer_grabbed_for_state(WmChannelDragPhase channel_phase,
-                                  bool dragging_memo);
+bool wm_pointer_grabbed_for_state(WmChannelDragPhase channel_phase, bool dragging_memo);
 
 /* Draw after scene content, before the platform's end-frame call. The grabbed
  * resource is reserved for actual channel/memo drag, not ordinary presses. */

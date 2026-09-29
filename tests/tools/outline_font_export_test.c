@@ -21,8 +21,7 @@ static void put32(uint8_t *bytes, size_t offset, uint32_t value) {
     bytes[offset + 3] = (uint8_t)value;
 }
 
-static int run_exporter(const char *tool, const char *source,
-                        const char *output) {
+static int run_exporter(const char *tool, const char *source, const char *output) {
     pid_t child = fork();
     assert(child >= 0);
     if (child == 0) {
@@ -40,14 +39,15 @@ int main(int argc, char **argv) {
     char temporary[] = "outline-font-export-XXXXXX";
     assert(mkdtemp(temporary));
     char source_path[256], output_path[256];
-    assert(snprintf(source_path, sizeof(source_path), "%s/invalid.app",
-                    temporary) > 0);
-    assert(snprintf(output_path, sizeof(output_path), "%s/assets",
-                    temporary) > 0);
+    assert(snprintf(source_path, sizeof(source_path), "%s/invalid.app", temporary) > 0);
+    assert(snprintf(output_path, sizeof(output_path), "%s/assets", temporary) > 0);
 
     uint8_t archive[160] = {0};
     const char name[] = "\0WiiNTLG-Regular.ttc";
-    memcpy(archive, "U\xaa" "8-", 4);
+    memcpy(archive,
+           "U\xaa"
+           "8-",
+           4);
     put32(archive, 4, 32);
     put32(archive, 8, 24 + sizeof(name));
     put32(archive, 12, 128);
@@ -78,10 +78,9 @@ int main(int argc, char **argv) {
         char linked[256], fonts[256], font_path[256], sentinel[256];
         assert(snprintf(linked, sizeof(linked), "%s/linked", temporary) > 0);
         assert(snprintf(fonts, sizeof(fonts), "%s/fonts", output_path) > 0);
-        assert(snprintf(font_path, sizeof(font_path),
-                        "%s/settings-latin.ttc", fonts) > 0);
-        assert(snprintf(sentinel, sizeof(sentinel), "%s/sentinel",
-                        temporary) > 0);
+        assert(snprintf(font_path, sizeof(font_path), "%s/settings-latin.ttc", fonts) >
+               0);
+        assert(snprintf(sentinel, sizeof(sentinel), "%s/sentinel", temporary) > 0);
         assert(mkdir(output_path, 0700) == 0);
         assert(symlink("assets", linked) == 0);
         assert(run_exporter(argv[1], valid_source, linked) == 1);
@@ -89,8 +88,7 @@ int main(int argc, char **argv) {
         assert(unlink(linked) == 0);
 
         assert(run_exporter(argv[1], valid_source, output_path) == 0);
-        assert(lstat(font_path, &metadata) == 0 &&
-               S_ISREG(metadata.st_mode));
+        assert(lstat(font_path, &metadata) == 0 && S_ISREG(metadata.st_mode));
         assert(run_exporter(argv[1], valid_source, output_path) == 1);
         assert(unlink(font_path) == 0);
         FILE *marker = fopen(sentinel, "wb");

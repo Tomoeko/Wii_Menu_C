@@ -15,10 +15,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
-enum {
-    WM_MAX_CHANNELS = 2048,
-    WM_MAX_TMD_CONTENTS = 4096
-};
+enum { WM_MAX_CHANNELS = 2048, WM_MAX_TMD_CONTENTS = 4096 };
 
 typedef struct WmTmdContent {
     uint32_t id;
@@ -35,95 +32,95 @@ typedef struct WmMetadata {
     uint32_t version;
 } WmMetadata;
 
-const char *const wm_languages[10] = {
-    "JPN", "ENG", "GER", "FRA", "SPA", "ITA", "NED", "CHN", "CHT", "KOR"
-};
+const char *const wm_languages[10] = {"JPN", "ENG", "GER", "FRA", "SPA",
+                                      "ITA", "NED", "CHN", "CHT", "KOR"};
 
-static uint64_t wm_be64(const uint8_t *bytes)
-{
+static uint64_t wm_be64(const uint8_t *bytes) {
     return ((uint64_t)wm_be32(bytes) << 32) | wm_be32(bytes + 4);
 }
 
-static void wm_format_sha1(const uint8_t digest[20], char result[41])
-{
+static void wm_format_sha1(const uint8_t digest[20], char result[41]) {
     for (size_t index = 0; index < 20; ++index) {
         snprintf(result + index * 2, 3, "%02x", digest[index]);
     }
     result[40] = '\0';
 }
 
-static bool wm_hex8(const char *value)
-{
-    if (strlen(value) != 8) return false;
+static bool wm_hex8(const char *value) {
+    if (strlen(value) != 8)
+        return false;
     for (unsigned index = 0; index < 8; ++index) {
         char c = value[index];
         if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
-              (c >= 'A' && c <= 'F'))) return false;
+              (c >= 'A' && c <= 'F')))
+            return false;
     }
     return true;
 }
 
-static bool wm_regular_file(const char *path)
-{
+static bool wm_regular_file(const char *path) {
     struct stat info;
     return lstat(path, &info) == 0 && S_ISREG(info.st_mode);
 }
 
-static bool wm_directory(const char *path)
-{
+static bool wm_directory(const char *path) {
     struct stat info;
     return lstat(path, &info) == 0 && S_ISDIR(info.st_mode);
 }
 
-static bool wm_make_directories(const char *path)
-{
+static bool wm_make_directories(const char *path) {
     size_t length = strlen(path);
-    if (length == 0 || length >= WM_PATH_CAP) return false;
+    if (length == 0 || length >= WM_PATH_CAP)
+        return false;
     char buffer[WM_PATH_CAP];
     memcpy(buffer, path, length + 1);
     for (size_t index = 1; index <= length; ++index) {
-        if (buffer[index] != '/' && buffer[index] != '\0') continue;
+        if (buffer[index] != '/' && buffer[index] != '\0')
+            continue;
         char saved = buffer[index];
         buffer[index] = '\0';
-        if (mkdir(buffer, 0755) != 0 && errno != EEXIST) return false;
-        if (!wm_directory(buffer)) return false;
+        if (mkdir(buffer, 0755) != 0 && errno != EEXIST)
+            return false;
+        if (!wm_directory(buffer))
+            return false;
         buffer[index] = saved;
     }
     return true;
 }
 
-bool wm_output_parent(const char *path)
-{
+bool wm_output_parent(const char *path) {
     char parent[WM_PATH_CAP];
     size_t size = strlen(path);
-    if (size == 0 || size >= sizeof(parent)) return false;
+    if (size == 0 || size >= sizeof(parent))
+        return false;
     memcpy(parent, path, size + 1);
     char *slash = strrchr(parent, '/');
-    if (!slash) return true;
+    if (!slash)
+        return true;
     *slash = '\0';
     return wm_make_directories(parent);
 }
 
-bool wm_output_target_safe(const char *path)
-{
+bool wm_output_target_safe(const char *path) {
     struct stat info;
-    if (lstat(path, &info) == 0) return S_ISREG(info.st_mode);
+    if (lstat(path, &info) == 0)
+        return S_ISREG(info.st_mode);
     return errno == ENOENT;
 }
 
-static uint8_t *wm_read_file(const char *path, size_t maximum, size_t *size)
-{
+static uint8_t *wm_read_file(const char *path, size_t maximum, size_t *size) {
     *size = 0;
-    if (!wm_regular_file(path)) return NULL;
+    if (!wm_regular_file(path))
+        return NULL;
     FILE *stream = fopen(path, "rb");
-    if (!stream) return NULL;
+    if (!stream)
+        return NULL;
     if (fseek(stream, 0, SEEK_END) != 0) {
         fclose(stream);
         return NULL;
     }
     long length = ftell(stream);
-    if (length < 0 || (uint64_t)length > maximum ||
-        fseek(stream, 0, SEEK_SET) != 0) {
+    if (length < 0 || (uint64_t)length > maximum || fseek(stream, 0, SEEK_SET) != 0) {
         fclose(stream);
         return NULL;
     }
@@ -139,21 +136,20 @@ static uint8_t *wm_read_file(const char *path, size_t maximum, size_t *size)
     return data;
 }
 
-bool wm_output_write_file(const char *path, const void *data, size_t size)
-{
-    if (!wm_output_parent(path) || !wm_output_target_safe(path)) return false;
+bool wm_output_write_file(const char *path, const void *data, size_t size) {
+    if (!wm_output_parent(path) || !wm_output_target_safe(path))
+        return false;
     return wm_atomic_file_replace(path, data, size);
 }
 
-static bool wm_append_channel(WmChannelList *list,
-                              const WmChannelExport *channel)
-{
-    if (list->count >= WM_MAX_CHANNELS) return false;
+static bool wm_append_channel(WmChannelList *list, const WmChannelExport *channel) {
+    if (list->count >= WM_MAX_CHANNELS)
+        return false;
     if (list->count == list->capacity) {
         size_t capacity = list->capacity ? list->capacity * 2 : 16;
-        WmChannelExport *items = realloc(list->items,
-                                          capacity * sizeof(*items));
-        if (!items) return false;
+        WmChannelExport *items = realloc(list->items, capacity * sizeof(*items));
+        if (!items)
+            return false;
         list->items = items;
         list->capacity = capacity;
     }
@@ -161,36 +157,38 @@ static bool wm_append_channel(WmChannelList *list,
     return true;
 }
 
-static bool wm_utf16_line(const uint8_t *bytes, char output[512])
-{
+static bool wm_utf16_line(const uint8_t *bytes, char output[512]) {
     size_t position = 0;
     for (size_t index = 0; index < 21; ++index) {
         uint32_t codepoint = wm_be16(bytes + index * 2);
-        if (codepoint == 0) break;
+        if (codepoint == 0)
+            break;
         if (codepoint >= 0xd800 && codepoint <= 0xdbff) {
-            if (index + 1 == 21) return false;
+            if (index + 1 == 21)
+                return false;
             uint32_t low = wm_be16(bytes + (++index) * 2);
-            if (low < 0xdc00 || low > 0xdfff) return false;
-            codepoint = 0x10000 + ((codepoint - 0xd800) << 10) +
-                        (low - 0xdc00);
+            if (low < 0xdc00 || low > 0xdfff)
+                return false;
+            codepoint = 0x10000 + ((codepoint - 0xd800) << 10) + (low - 0xdc00);
         } else if (codepoint >= 0xdc00 && codepoint <= 0xdfff) {
             return false;
         }
-        size_t bytes_needed = codepoint < 0x80 ? 1 :
-                              codepoint < 0x800 ? 2 :
-                              codepoint < 0x10000 ? 3 : 4;
-        if (position + bytes_needed >= 512) return false;
+        size_t bytes_needed = codepoint < 0x80      ? 1
+                              : codepoint < 0x800   ? 2
+                              : codepoint < 0x10000 ? 3
+                                                    : 4;
+        if (position + bytes_needed >= 512)
+            return false;
         if (bytes_needed == 1) {
             output[position++] = (char)codepoint;
         } else {
             for (size_t part = 0; part < bytes_needed; ++part) {
                 unsigned shift = (unsigned)((bytes_needed - part - 1) * 6);
-                uint8_t prefix = part == 0 ?
-                    (uint8_t)(0xffu << (8 - bytes_needed)) : 0x80u;
-                uint8_t payload = part == 0 ?
-                    (uint8_t)((1u << (7 - bytes_needed)) - 1) : 0x3fu;
-                output[position++] = (char)(prefix |
-                    ((codepoint >> shift) & payload));
+                uint8_t prefix =
+                    part == 0 ? (uint8_t)(0xffu << (8 - bytes_needed)) : 0x80u;
+                uint8_t payload =
+                    part == 0 ? (uint8_t)((1u << (7 - bytes_needed)) - 1) : 0x3fu;
+                output[position++] = (char)(prefix | ((codepoint >> shift) & payload));
             }
         }
     }
@@ -199,18 +197,21 @@ static bool wm_utf16_line(const uint8_t *bytes, char output[512])
 }
 
 static bool wm_metadata(const uint8_t *data, size_t size, unsigned language,
-                         WmMetadata *metadata)
-{
+                        WmMetadata *metadata) {
     size_t position = 0;
     while (position + 4 <= size && position < 0xa3 &&
-           memcmp(data + position, "IMET", 4) != 0) position++;
-    if (position >= 0xa3 || !wm_fits(size, position, 28 + 10 * 84)) return false;
+           memcmp(data + position, "IMET", 4) != 0)
+        position++;
+    if (position >= 0xa3 || !wm_fits(size, position, 28 + 10 * 84))
+        return false;
     uint32_t header_size = wm_be32(data + position + 4);
     size_t archive_offset = position + (size_t)header_size;
-    if (archive_offset < 64) return false;
+    if (archive_offset < 64)
+        return false;
     archive_offset -= 64;
     if (!wm_fits(size, archive_offset, 4) ||
-        memcmp(data + archive_offset, "\x55\xaa\x38\x2d", 4) != 0) return false;
+        memcmp(data + archive_offset, "\x55\xaa\x38\x2d", 4) != 0)
+        return false;
     memset(metadata, 0, sizeof(*metadata));
     metadata->archive_offset = archive_offset;
     metadata->version = wm_be32(data + position + 8);
@@ -219,14 +220,15 @@ static bool wm_metadata(const uint8_t *data, size_t size, unsigned language,
         char first[512];
         char second[512];
         const uint8_t *name = data + position + 28 + index * 84;
-        if (!wm_utf16_line(name, first) ||
-            !wm_utf16_line(name + 42, second)) return false;
+        if (!wm_utf16_line(name, first) || !wm_utf16_line(name + 42, second))
+            return false;
         int length = snprintf(metadata->titles[index], 512, "%s%s%s", first,
                               first[0] && second[0] ? " " : "", second);
-        if (length < 0 || length >= 512) return false;
+        if (length < 0 || length >= 512)
+            return false;
     }
-    const char *title = metadata->titles[language][0]
-        ? metadata->titles[language] : metadata->titles[1];
+    const char *title = metadata->titles[language][0] ? metadata->titles[language]
+                                                      : metadata->titles[1];
     if (!title[0]) {
         for (unsigned index = 0; index < 10; ++index) {
             if (metadata->titles[index][0]) {
@@ -240,29 +242,33 @@ static bool wm_metadata(const uint8_t *data, size_t size, unsigned language,
 }
 
 static bool wm_tmd_contents(const uint8_t *data, size_t size,
-                             const char *expected_title,
-                             WmTmdContent **contents, size_t *count,
-                             unsigned *version)
-{
+                            const char *expected_title, WmTmdContent **contents,
+                            size_t *count, unsigned *version) {
     *contents = NULL;
     *count = 0;
-    if (size < 4) return false;
+    if (size < 4)
+        return false;
     uint32_t signature = wm_be32(data);
-    size_t body = signature == 0x10000 ? 0x240 :
-                  signature == 0x10001 ? 0x140 :
-                  signature == 0x10002 ? 0x80 : 0;
-    if (body == 0 || !wm_fits(size, body, 0xa4)) return false;
+    size_t body = signature == 0x10000   ? 0x240
+                  : signature == 0x10001 ? 0x140
+                  : signature == 0x10002 ? 0x80
+                                         : 0;
+    if (body == 0 || !wm_fits(size, body, 0xa4))
+        return false;
     char title[17];
     for (unsigned index = 0; index < 8; ++index) {
         snprintf(title + index * 2, 3, "%02x", data[body + 0x4c + index]);
     }
-    if (strcmp(title, expected_title) != 0) return false;
+    if (strcmp(title, expected_title) != 0)
+        return false;
     *version = wm_be16(data + body + 0x9c);
     size_t item_count = wm_be16(data + body + 0x9e);
     if (item_count == 0 || item_count > WM_MAX_TMD_CONTENTS ||
-        !wm_fits(size, body + 0xa4, item_count * 36)) return false;
+        !wm_fits(size, body + 0xa4, item_count * 36))
+        return false;
     WmTmdContent *items = calloc(item_count, sizeof(*items));
-    if (!items) return false;
+    if (!items)
+        return false;
     for (size_t index = 0; index < item_count; ++index) {
         const uint8_t *record = data + body + 0xa4 + index * 36;
         items[index].id = wm_be32(record);
@@ -281,24 +287,26 @@ static bool wm_tmd_contents(const uint8_t *data, size_t size,
     return true;
 }
 
-static bool wm_has_imet(const char *path)
-{
-    if (!wm_regular_file(path)) return false;
+static bool wm_has_imet(const char *path) {
+    if (!wm_regular_file(path))
+        return false;
     FILE *stream = fopen(path, "rb");
-    if (!stream) return false;
+    if (!stream)
+        return false;
     uint8_t header[0xa3];
     size_t size = fread(header, 1, sizeof(header), stream);
     fclose(stream);
     for (size_t index = 0; index + 4 <= size; ++index) {
-        if (memcmp(header + index, "IMET", 4) == 0) return true;
+        if (memcmp(header + index, "IMET", 4) == 0)
+            return true;
     }
     return false;
 }
 
 static bool wm_validated_content(const char *path, const WmTmdContent *record,
-                                  uint8_t **data, size_t *size)
-{
-    if (record->size > WM_MAX_CONTENT) return false;
+                                 uint8_t **data, size_t *size) {
+    if (record->size > WM_MAX_CONTENT)
+        return false;
     size_t file_size = 0;
     uint8_t *bytes = wm_read_file(path, WM_MAX_CONTENT + 64, &file_size);
     if (!bytes || file_size < record->size) {
@@ -325,8 +333,7 @@ static bool wm_validated_content(const char *path, const WmTmdContent *record,
     return true;
 }
 
-static void wm_free_channels(WmChannelList *channels)
-{
+static void wm_free_channels(WmChannelList *channels) {
     for (size_t index = 0; index < channels->count; ++index) {
         free(channels->items[index].layouts[0]);
         free(channels->items[index].layouts[1]);
@@ -335,8 +342,7 @@ static void wm_free_channels(WmChannelList *channels)
     memset(channels, 0, sizeof(*channels));
 }
 
-static void wm_lower_title_id(char id[17], const char *high, const char *low)
-{
+static void wm_lower_title_id(char id[17], const char *high, const char *low) {
     for (unsigned index = 0; index < 8; ++index) {
         id[index] = (char)tolower((unsigned char)high[index]);
         id[index + 8] = (char)tolower((unsigned char)low[index]);
@@ -344,8 +350,7 @@ static void wm_lower_title_id(char id[17], const char *high, const char *low)
     id[16] = '\0';
 }
 
-static void wm_short_title_id(char short_id[5], const char *low)
-{
+static void wm_short_title_id(char short_id[5], const char *low) {
     for (unsigned index = 0; index < 4; ++index) {
         char digits[3] = {low[index * 2], low[index * 2 + 1], '\0'};
         unsigned long value = strtoul(digits, NULL, 16);
@@ -354,26 +359,28 @@ static void wm_short_title_id(char short_id[5], const char *low)
     short_id[4] = '\0';
 }
 
-static bool wm_export_title(const char *root, const char *output,
-                            const char *high, const char *low,
-                            unsigned language, WmChannelList *channels)
-{
+static bool wm_export_title(const char *root, const char *output, const char *high,
+                            const char *low, unsigned language,
+                            WmChannelList *channels) {
     char id[17];
     wm_lower_title_id(id, high, low);
-    if (strcmp(id, "0000000100000002") == 0) return true;
+    if (strcmp(id, "0000000100000002") == 0)
+        return true;
 
     char tmd_path[WM_PATH_CAP];
     int length = snprintf(tmd_path, sizeof(tmd_path),
                           "%s/title/%s/%s/content/title.tmd", root, high, low);
-    if (length < 0 || length >= (int)sizeof(tmd_path)) return false;
-    if (!wm_regular_file(tmd_path)) return true;
+    if (length < 0 || length >= (int)sizeof(tmd_path))
+        return false;
+    if (!wm_regular_file(tmd_path))
+        return true;
     size_t tmd_size = 0;
     uint8_t *tmd = wm_read_file(tmd_path, 1024 * 1024, &tmd_size);
     WmTmdContent *records = NULL;
     size_t record_count = 0;
     unsigned version = 0;
-    bool valid = tmd && wm_tmd_contents(tmd, tmd_size, id,
-                                        &records, &record_count, &version);
+    bool valid =
+        tmd && wm_tmd_contents(tmd, tmd_size, id, &records, &record_count, &version);
     uint8_t tmd_digest[20] = {0};
     if (valid) {
         WmSha1 sha1;
@@ -391,16 +398,17 @@ static bool wm_export_title(const char *root, const char *output,
     char selected_path[WM_PATH_CAP] = {0};
     for (size_t index = 0; index < record_count; ++index) {
         const WmTmdContent *record = &records[index];
-        if ((record->type & 0x8000u) != 0) continue;
+        if ((record->type & 0x8000u) != 0)
+            continue;
         char path[WM_PATH_CAP];
-        length = snprintf(path, sizeof(path),
-                          "%s/title/%s/%s/content/%08x.app",
-                          root, high, low, record->id);
+        length = snprintf(path, sizeof(path), "%s/title/%s/%s/content/%08x.app", root,
+                          high, low, record->id);
         if (length < 0 || length >= (int)sizeof(path)) {
             valid = false;
             break;
         }
-        if (!wm_has_imet(path)) continue;
+        if (!wm_has_imet(path))
+            continue;
         if (selected) {
             fprintf(stderr, "Multiple active IMET contents for title %s.\n", id);
             valid = false;
@@ -416,8 +424,7 @@ static bool wm_export_title(const char *root, const char *output,
 
     uint8_t *content = NULL;
     size_t content_size = 0;
-    if (!wm_validated_content(selected_path, selected,
-                               &content, &content_size)) {
+    if (!wm_validated_content(selected_path, selected, &content, &content_size)) {
         fprintf(stderr, "TMD SHA-1 or content size mismatch for title %s.\n", id);
         free(records);
         return false;
@@ -427,8 +434,8 @@ static bool wm_export_title(const char *root, const char *output,
     char error[160] = {0};
     valid = wm_metadata(content, content_size, language, &metadata) &&
             wm_u8_parse(content + metadata.archive_offset,
-                        content_size - metadata.archive_offset,
-                        &archive, error, sizeof(error));
+                        content_size - metadata.archive_offset, &archive, error,
+                        sizeof(error));
     if (!valid) {
         fprintf(stderr, "Invalid IMET archive for title %s: %s\n", id, error);
         free(content);
@@ -460,30 +467,37 @@ static bool wm_export_title(const char *root, const char *output,
     if (strcmp(channel.short_id, "HAFA") == 0 ||
         strcmp(channel.short_id, "HAGA") == 0) {
         char counterpart[WM_PATH_CAP];
-        length = snprintf(counterpart, sizeof(counterpart),
-                          "%s/title/%s/%.6s45", root, high, low);
-        if (length < 0 || length >= (int)sizeof(counterpart)) valid = false;
-        else if (wm_directory(counterpart)) channel.preferred = false;
+        length = snprintf(counterpart, sizeof(counterpart), "%s/title/%s/%.6s45", root,
+                          high, low);
+        if (length < 0 || length >= (int)sizeof(counterpart))
+            valid = false;
+        else if (wm_directory(counterpart))
+            channel.preferred = false;
     }
     char source_file[WM_PATH_CAP];
-    length = snprintf(source_file, sizeof(source_file),
-                      "title/%s/%s/content/%08x.app",
+    length = snprintf(source_file, sizeof(source_file), "title/%s/%s/content/%08x.app",
                       high, low, selected->id);
-    if (length < 0 || length >= (int)sizeof(source_file)) valid = false;
-    if (valid) memcpy(channel.source_file, source_file, (size_t)length + 1);
-    if (valid && icon) valid = wm_export_resource(
-        icon, output, id, "icon", source_file,
-        &channel.layouts[0], &channel.layout_count[0], channel.icon_layout,
-        &channel.icon_textures, &channel.icon_animations);
-    if (valid && banner) valid = wm_export_resource(
-        banner, output, id, "banner", source_file,
-        &channel.layouts[1], &channel.layout_count[1], channel.banner_layout,
-        &channel.banner_textures, &channel.banner_animations);
-    if (valid) valid = wm_export_channel_audio(sound, output, &channel);
+    if (length < 0 || length >= (int)sizeof(source_file))
+        valid = false;
+    if (valid)
+        memcpy(channel.source_file, source_file, (size_t)length + 1);
+    if (valid && icon)
+        valid = wm_export_resource(icon, output, id, "icon", source_file,
+                                   &channel.layouts[0], &channel.layout_count[0],
+                                   channel.icon_layout, &channel.icon_textures,
+                                   &channel.icon_animations);
+    if (valid && banner)
+        valid = wm_export_resource(banner, output, id, "banner", source_file,
+                                   &channel.layouts[1], &channel.layout_count[1],
+                                   channel.banner_layout, &channel.banner_textures,
+                                   &channel.banner_animations);
+    if (valid)
+        valid = wm_export_channel_audio(sound, output, &channel);
     if (valid && channel.title[0] == '\0') {
         memcpy(channel.title, channel.short_id, sizeof(channel.short_id));
     }
-    if (valid) valid = wm_append_channel(channels, &channel);
+    if (valid)
+        valid = wm_append_channel(channels, &channel);
     if (!valid) {
         fprintf(stderr, "Could not export channel %s.\n", id);
         free(channel.layouts[0]);
@@ -495,26 +509,28 @@ static bool wm_export_title(const char *root, const char *output,
     return valid;
 }
 
-static bool wm_scan_titles(const char *root, const char *output,
-                           unsigned language, WmChannelList *channels)
-{
+static bool wm_scan_titles(const char *root, const char *output, unsigned language,
+                           WmChannelList *channels) {
     char high_root[WM_PATH_CAP];
     int length = snprintf(high_root, sizeof(high_root), "%s/title", root);
-    if (length < 0 || length >= (int)sizeof(high_root)) return false;
+    if (length < 0 || length >= (int)sizeof(high_root))
+        return false;
     DIR *highs = opendir(high_root);
-    if (!highs) return false;
+    if (!highs)
+        return false;
     bool valid = true;
     struct dirent *high;
     while (valid && (high = readdir(highs)) != NULL) {
-        if (!wm_hex8(high->d_name)) continue;
+        if (!wm_hex8(high->d_name))
+            continue;
         char low_root[WM_PATH_CAP];
-        length = snprintf(low_root, sizeof(low_root),
-                          "%s/%s", high_root, high->d_name);
+        length = snprintf(low_root, sizeof(low_root), "%s/%s", high_root, high->d_name);
         if (length < 0 || length >= (int)sizeof(low_root)) {
             valid = false;
             break;
         }
-        if (!wm_directory(low_root)) continue;
+        if (!wm_directory(low_root))
+            continue;
         DIR *lows = opendir(low_root);
         if (!lows) {
             valid = false;
@@ -522,17 +538,19 @@ static bool wm_scan_titles(const char *root, const char *output,
         }
         struct dirent *low;
         while (valid && (low = readdir(lows)) != NULL) {
-            if (!wm_hex8(low->d_name)) continue;
+            if (!wm_hex8(low->d_name))
+                continue;
             char title_root[WM_PATH_CAP];
-            length = snprintf(title_root, sizeof(title_root),
-                              "%s/%s", low_root, low->d_name);
+            length = snprintf(title_root, sizeof(title_root), "%s/%s", low_root,
+                              low->d_name);
             if (length < 0 || length >= (int)sizeof(title_root)) {
                 valid = false;
                 break;
             }
-            if (!wm_directory(title_root)) continue;
-            valid = wm_export_title(root, output, high->d_name,
-                                    low->d_name, language, channels);
+            if (!wm_directory(title_root))
+                continue;
+            valid = wm_export_title(root, output, high->d_name, low->d_name, language,
+                                    channels);
         }
         closedir(lows);
     }
@@ -540,25 +558,23 @@ static bool wm_scan_titles(const char *root, const char *output,
     return valid;
 }
 
-static int wm_compare_channels(const void *left, const void *right)
-{
+static int wm_compare_channels(const void *left, const void *right) {
     const WmChannelExport *a = left;
     const WmChannelExport *b = right;
     return strcmp(a->id, b->id);
 }
 
 static bool wm_copy_saved_layout(const char *root, const char *output,
-                                 WmSavedLayout *parsed, bool *present)
-{
+                                 WmSavedLayout *parsed, bool *present) {
     *present = false;
     char source[WM_PATH_CAP];
     char destination[WM_PATH_CAP];
     int one = snprintf(source, sizeof(source),
-        "%s/title/00000001/00000002/data/iplsave.bin", root);
-    int two = snprintf(destination, sizeof(destination),
-        "%s/iplsave.bin", output);
-    if (one < 0 || one >= (int)sizeof(source) ||
-        two < 0 || two >= (int)sizeof(destination)) return false;
+                       "%s/title/00000001/00000002/data/iplsave.bin", root);
+    int two = snprintf(destination, sizeof(destination), "%s/iplsave.bin", output);
+    if (one < 0 || one >= (int)sizeof(source) || two < 0 ||
+        two >= (int)sizeof(destination))
+        return false;
     if (!wm_regular_file(source)) {
         remove(destination);
         return true;
@@ -566,31 +582,31 @@ static bool wm_copy_saved_layout(const char *root, const char *output,
     size_t size = 0;
     uint8_t *data = wm_read_file(source, WM_SAVED_LAYOUT_BYTES, &size);
     char error[160] = {0};
-    if (!data || !wm_saved_layout_parse(data, size, parsed,
-                                         error, sizeof(error))) {
+    if (!data || !wm_saved_layout_parse(data, size, parsed, error, sizeof(error))) {
         fprintf(stderr, "Ignoring invalid saved channel placement: %s\n", error);
         free(data);
         remove(destination);
         return true;
     }
     bool valid = wm_output_write_file(destination, data, size);
-    if (valid) *present = true;
+    if (valid)
+        *present = true;
     free(data);
     return valid;
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     if (argc < 3 || argc > 4) {
         fprintf(stderr,
-            "Usage: wm-channel-export EXTRACTED_ROOT OUTPUT_ROOT [LANGUAGE]\n"
-            "LANGUAGE: JPN, ENG, GER, FRA, SPA, ITA, NED, CHN, CHT, KOR.\n");
+                "Usage: wm-channel-export EXTRACTED_ROOT OUTPUT_ROOT [LANGUAGE]\n"
+                "LANGUAGE: JPN, ENG, GER, FRA, SPA, ITA, NED, CHN, CHT, KOR.\n");
         return 2;
     }
     unsigned language = 1;
     if (argc == 4) {
         for (unsigned index = 0; index < 10; ++index) {
-            if (strcmp(argv[3], wm_languages[index]) == 0) language = index;
+            if (strcmp(argv[3], wm_languages[index]) == 0)
+                language = index;
         }
         if (strcmp(argv[3], wm_languages[language]) != 0) {
             fprintf(stderr, "Unsupported channel language.\n");
@@ -604,11 +620,11 @@ int main(int argc, char **argv)
     WmChannelList channels = {0};
     bool valid = wm_scan_titles(argv[1], argv[2], language, &channels);
     if (valid) {
-        qsort(channels.items, channels.count,
-              sizeof(*channels.items), wm_compare_channels);
+        qsort(channels.items, channels.count, sizeof(*channels.items),
+              wm_compare_channels);
         for (size_t index = 1; index < channels.count; ++index) {
-            if (strcmp(channels.items[index - 1].id,
-                       channels.items[index].id) == 0) valid = false;
+            if (strcmp(channels.items[index - 1].id, channels.items[index].id) == 0)
+                valid = false;
         }
     }
     if (valid && channels.count == 0) {
@@ -617,14 +633,16 @@ int main(int argc, char **argv)
     }
     WmSavedLayout saved_layout = {0};
     bool has_saved_layout = false;
-    if (valid) valid = wm_copy_saved_layout(argv[1], argv[2],
-                                             &saved_layout, &has_saved_layout);
-    if (valid) valid = wm_write_manifest(argv[2], wm_languages[language],
-                                         &channels,
-                                         has_saved_layout ? &saved_layout : NULL);
-    if (valid) fprintf(stdout, "Exported %zu installed channel catalogs.\n",
-                       channels.count);
-    else fprintf(stderr, "Channel export failed.\n");
+    if (valid)
+        valid =
+            wm_copy_saved_layout(argv[1], argv[2], &saved_layout, &has_saved_layout);
+    if (valid)
+        valid = wm_write_manifest(argv[2], wm_languages[language], &channels,
+                                  has_saved_layout ? &saved_layout : NULL);
+    if (valid)
+        fprintf(stdout, "Exported %zu installed channel catalogs.\n", channels.count);
+    else
+        fprintf(stderr, "Channel export failed.\n");
     wm_free_channels(&channels);
     return valid ? 0 : 1;
 }

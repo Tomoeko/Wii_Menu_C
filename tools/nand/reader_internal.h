@@ -47,8 +47,7 @@ typedef struct WmNandReader {
     uint32_t generation;
 } WmNandReader;
 
-static inline uint32_t wm_nand_be32(const uint8_t *bytes)
-{
+static inline uint32_t wm_nand_be32(const uint8_t *bytes) {
     return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
            ((uint32_t)bytes[2] << 8) | bytes[3];
 }

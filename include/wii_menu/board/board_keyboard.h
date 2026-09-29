@@ -90,16 +90,14 @@ typedef struct WmBoardKeyboardComposition {
 
 WmBoardKeyboard *wm_board_keyboard_create(WmPlatform *platform,
                                           const char *assets_directory,
-                                          WmTextureCache *textures,
-                                          WmFontCache *fonts);
+                                          WmTextureCache *textures, WmFontCache *fonts);
 void wm_board_keyboard_destroy(WmBoardKeyboard *keyboard);
 void wm_board_keyboard_reset(WmBoardKeyboard *keyboard);
 /* Address and Console Nickname profiles reuse the keytop controller while
  * displaying the source background/text box and masking unavailable controls. */
 void wm_board_keyboard_set_profile(WmBoardKeyboard *keyboard,
-                                    WmBoardKeyboardProfile profile);
-WmBoardKeyboardProfile wm_board_keyboard_profile(
-    const WmBoardKeyboard *keyboard);
+                                   WmBoardKeyboardProfile profile);
+WmBoardKeyboardProfile wm_board_keyboard_profile(const WmBoardKeyboard *keyboard);
 /* A held Backspace or QWERTY Space acts on press, then repeats at updates
  * 36, 45, 54, ... while the pointer stays over that key. The returned count
  * is applied by the active Memo or Address editor through its ordinary path. */
@@ -107,20 +105,16 @@ unsigned wm_board_keyboard_advance(WmBoardKeyboard *keyboard, float frames);
 bool wm_board_keyboard_begin_hold(WmBoardKeyboard *keyboard,
                                   WmBoardKeyboardControl control);
 void wm_board_keyboard_release_hold(WmBoardKeyboard *keyboard);
-WmBoardKeyboardControl wm_board_keyboard_held_control(
-    const WmBoardKeyboard *keyboard);
-void wm_board_keyboard_set_text_context(WmBoardKeyboard *keyboard,
-                                         const char *utf8);
+WmBoardKeyboardControl wm_board_keyboard_held_control(const WmBoardKeyboard *keyboard);
+void wm_board_keyboard_set_text_context(WmBoardKeyboard *keyboard, const char *utf8);
 /* Mirror the host keyboard's held Shift and latched Caps Lock on the visible
  * keytops. The editor still receives the host's actual printable character. */
 void wm_board_keyboard_set_physical_modifiers(WmBoardKeyboard *keyboard,
-                                               bool shift_down,
-                                               bool caps_lock_on);
+                                              bool shift_down, bool caps_lock_on);
 /* Console Nickname draws a red caret in the keyboard's source text box. */
-void wm_board_keyboard_set_caret(WmBoardKeyboard *keyboard,
-                                size_t byte_index, bool visible);
-void wm_board_keyboard_text_changed(WmBoardKeyboard *keyboard,
-                                     bool from_phone_key);
+void wm_board_keyboard_set_caret(WmBoardKeyboard *keyboard, size_t byte_index,
+                                 bool visible);
+void wm_board_keyboard_text_changed(WmBoardKeyboard *keyboard, bool from_phone_key);
 /* End the current predictive run at the editor's present text length. The
  * next non-whitespace insertion begins a new run there. Literal phone-key
  * pending state remains intact for the Open Box preview. */
@@ -128,8 +122,7 @@ void wm_board_keyboard_finish_composition(WmBoardKeyboard *keyboard);
 void wm_board_keyboard_clear_phone_pending(WmBoardKeyboard *keyboard);
 bool wm_board_keyboard_phone_space_pending(const WmBoardKeyboard *keyboard);
 bool wm_board_keyboard_phone_pending(const WmBoardKeyboard *keyboard);
-size_t wm_board_keyboard_phone_pending_bytes(
-    const WmBoardKeyboard *keyboard);
+size_t wm_board_keyboard_phone_pending_bytes(const WmBoardKeyboard *keyboard);
 /* A pending telephone key commits once when pointer focus leaves it. */
 bool wm_board_keyboard_take_phone_commit(WmBoardKeyboard *keyboard);
 bool wm_board_keyboard_phone_mode(const WmBoardKeyboard *keyboard);
@@ -137,28 +130,24 @@ bool wm_board_keyboard_prediction_enabled(const WmBoardKeyboard *keyboard);
 /* For ACCEPT_CANDIDATE and PREDICT_PHONE, replace this many trailing UTF-8
  * bytes with candidate_text. The editor owns bounds and length validation. */
 const char *wm_board_keyboard_candidate_text(const WmBoardKeyboard *keyboard);
-size_t wm_board_keyboard_candidate_prefix_bytes(
-    const WmBoardKeyboard *keyboard);
+size_t wm_board_keyboard_candidate_prefix_bytes(const WmBoardKeyboard *keyboard);
 /* Candidate strings remain keyboard-owned until its next text or dictionary
  * update. The selected candidate persists after pointer departure. */
 bool wm_board_keyboard_composition(const WmBoardKeyboard *keyboard,
                                    WmBoardKeyboardComposition *composition);
 /* Show the authored key press for a physical character, Return, or Backspace.
  * This affects presentation only; the editor still owns text changes. */
-WmBoardKeyboardControl wm_board_keyboard_press_physical(
-    WmBoardKeyboard *keyboard, const char *utf8);
-void wm_board_keyboard_draw(WmBoardKeyboard *keyboard, float progress,
-                            bool entering);
-bool wm_board_keyboard_hit_text_caret(WmBoardKeyboard *keyboard,
-                                      int x, int y, size_t *byte_index);
-WmBoardKeyboardControl wm_board_keyboard_hit(WmBoardKeyboard *keyboard,
-                                             int x, int y);
-void wm_board_keyboard_hover(WmBoardKeyboard *keyboard,
-                             WmBoardKeyboardControl control);
+WmBoardKeyboardControl wm_board_keyboard_press_physical(WmBoardKeyboard *keyboard,
+                                                        const char *utf8);
+void wm_board_keyboard_draw(WmBoardKeyboard *keyboard, float progress, bool entering);
+bool wm_board_keyboard_hit_text_caret(WmBoardKeyboard *keyboard, int x, int y,
+                                      size_t *byte_index);
+WmBoardKeyboardControl wm_board_keyboard_hit(WmBoardKeyboard *keyboard, int x, int y);
+void wm_board_keyboard_hover(WmBoardKeyboard *keyboard, WmBoardKeyboardControl control);
 bool wm_board_keyboard_symbols_visible(const WmBoardKeyboard *keyboard);
 bool wm_board_keyboard_back(WmBoardKeyboard *keyboard);
-WmBoardKeyboardAction wm_board_keyboard_activate(
-    WmBoardKeyboard *keyboard, WmBoardKeyboardControl control,
-    bool reverse, char utf8[5]);
+WmBoardKeyboardAction wm_board_keyboard_activate(WmBoardKeyboard *keyboard,
+                                                 WmBoardKeyboardControl control,
+                                                 bool reverse, char utf8[5]);
 
 #endif

@@ -15,31 +15,31 @@ static WmLayout *load_layout(const char *directory, const char *relative_path) {
 }
 
 void preview_scene_preload_banner_textures(WmPreviewScene *scene,
-                                    const WmLayout *layout)
-{
-    if (!scene || !layout) return;
+                                           const WmLayout *layout) {
+    if (!scene || !layout)
+        return;
     /* Preload channel textures before entry. A picture that first becomes
      * visible mid-fade must not stall for decoding or flash a fallback. */
     for (size_t index = 0; index < wm_layout_texture_count(layout); index++) {
         const WmLayoutTexture *resource = wm_layout_texture_at(layout, index);
-        if (!resource || resource->missing || !resource->url[0]) continue;
+        if (!resource || resource->missing || !resource->url[0])
+            continue;
         uint32_t handle = 0;
         (void)wm_texture_cache_resolve(scene->textures, resource->url, &handle);
     }
 }
 
 WmPreviewScene *wm_preview_scene_create(WmPlatform *platform,
-                                         const char *assets_directory,
-                                         const WmMenu *menu,
-                                         WmTextureCache *textures,
-                                         WmFontCache *fonts)
-{
-    if (platform == NULL || assets_directory == NULL ||
-        assets_directory[0] == '\0' || textures == NULL || fonts == NULL) {
+                                        const char *assets_directory,
+                                        const WmMenu *menu, WmTextureCache *textures,
+                                        WmFontCache *fonts) {
+    if (platform == NULL || assets_directory == NULL || assets_directory[0] == '\0' ||
+        textures == NULL || fonts == NULL) {
         return NULL;
     }
     WmPreviewScene *scene = calloc(1, sizeof(*scene));
-    if (scene == NULL) return NULL;
+    if (scene == NULL)
+        return NULL;
     scene->platform = platform;
     scene->textures = textures;
     scene->fonts = fonts;
@@ -48,22 +48,16 @@ WmPreviewScene *wm_preview_scene_create(WmPlatform *platform,
     scene->date_day = -1;
     scene->prepared_slot = -1;
     wm_arrow_interaction_init(&scene->arrows_interaction,
-        (WmArrowInteractionConfig){
-            .focus_in_frames = 15.0f,
-            .focus_out_frames = 15.0f,
-            .press_frames = 30.0f,
-            .visibility_frames = 10.0f
-        });
-    scene->background = load_layout(assets_directory,
-                                    "layouts/board/my_IplTop_c.json");
-    scene->banner = load_layout(assets_directory,
-                                "layouts/diskBann/my_DiskCh_a.json");
-    scene->title = load_layout(assets_directory,
-                               "layouts/chanTtl/my_ChTop_a.json");
-    scene->arrows = load_layout(assets_directory,
-                                "layouts/cmnBtn/my_IplTop_e.json");
-    if (scene->background == NULL || scene->banner == NULL ||
-        scene->title == NULL || scene->arrows == NULL ||
+                              (WmArrowInteractionConfig){.focus_in_frames = 15.0f,
+                                                         .focus_out_frames = 15.0f,
+                                                         .press_frames = 30.0f,
+                                                         .visibility_frames = 10.0f});
+    scene->background = load_layout(assets_directory, "layouts/board/my_IplTop_c.json");
+    scene->banner = load_layout(assets_directory, "layouts/diskBann/my_DiskCh_a.json");
+    scene->title = load_layout(assets_directory, "layouts/chanTtl/my_ChTop_a.json");
+    scene->arrows = load_layout(assets_directory, "layouts/cmnBtn/my_IplTop_e.json");
+    if (scene->background == NULL || scene->banner == NULL || scene->title == NULL ||
+        scene->arrows == NULL ||
         !preview_scene_pose_frame(scene->background, "my_IplTop_c", 0.0f)) {
         wm_preview_scene_destroy(scene);
         return NULL;
@@ -73,11 +67,11 @@ WmPreviewScene *wm_preview_scene_create(WmPlatform *platform,
     wm_layout_set_text(scene->banner, "T_Comment1", "");
     wm_layout_set_text(scene->title, "T_BtnA", "Wii Menu");
     wm_layout_set_text(scene->title, "T_BtnB", "Start");
-    static const char *const inactive_footer_text[] = {
-        "T_BbsMark1", "T_CalAdd_R", "T_CalExit", "T_Add", "T_Dust"
-    };
-    for (size_t index = 0; index <
-         sizeof(inactive_footer_text) / sizeof(inactive_footer_text[0]); index++) {
+    static const char *const inactive_footer_text[] = {"T_BbsMark1", "T_CalAdd_R",
+                                                       "T_CalExit", "T_Add", "T_Dust"};
+    for (size_t index = 0;
+         index < sizeof(inactive_footer_text) / sizeof(inactive_footer_text[0]);
+         index++) {
         wm_layout_set_text(scene->arrows, inactive_footer_text[index], "");
     }
     wm_layout_prepare_materials(platform, scene->background);
@@ -89,12 +83,13 @@ WmPreviewScene *wm_preview_scene_create(WmPlatform *platform,
     if (menu) {
         for (int slot = 1; slot < WM_SLOT_COUNT; slot++) {
             const char *path = menu->slots[slot].banner_layout;
-            if (!menu->slots[slot].occupied || !path[0]) continue;
+            if (!menu->slots[slot].occupied || !path[0])
+                continue;
             scene->channel_banners[slot] = load_layout(assets_directory, path);
             if (scene->channel_banners[slot]) {
-                wm_layout_prepare_materials(platform,
-                                             scene->channel_banners[slot]);
-                preview_scene_preload_banner_textures(scene, scene->channel_banners[slot]);
+                wm_layout_prepare_materials(platform, scene->channel_banners[slot]);
+                preview_scene_preload_banner_textures(scene,
+                                                      scene->channel_banners[slot]);
                 wm_texture_cache_begin_frame(scene->textures);
             }
         }
@@ -102,9 +97,9 @@ WmPreviewScene *wm_preview_scene_create(WmPlatform *platform,
     return scene;
 }
 
-void wm_preview_scene_destroy(WmPreviewScene *scene)
-{
-    if (scene == NULL) return;
+void wm_preview_scene_destroy(WmPreviewScene *scene) {
+    if (scene == NULL)
+        return;
     wm_layout_destroy(scene->background);
     wm_layout_destroy(scene->banner);
     wm_layout_destroy(scene->title);
@@ -115,17 +110,16 @@ void wm_preview_scene_destroy(WmPreviewScene *scene)
     free(scene);
 }
 
-void wm_preview_scene_move_channel(WmPreviewScene *scene, int from, int to)
-{
-    if (!scene || from < 0 || from >= WM_SLOT_COUNT ||
-        to < 0 || to >= WM_SLOT_COUNT || from == to) return;
+void wm_preview_scene_move_channel(WmPreviewScene *scene, int from, int to) {
+    if (!scene || from < 0 || from >= WM_SLOT_COUNT || to < 0 || to >= WM_SLOT_COUNT ||
+        from == to)
+        return;
     WmLayout *layout = scene->channel_banners[from];
     scene->channel_banners[from] = scene->channel_banners[to];
     scene->channel_banners[to] = layout;
 }
 
-void wm_preview_scene_set_module_lead(WmPreviewScene *scene, float frames)
-{
+void wm_preview_scene_set_module_lead(WmPreviewScene *scene, float frames) {
     if (scene && isfinite(frames) && frames >= 0.0f) {
         scene->module_lead_frames = frames;
         /* The caller assigns this at each settled preview entry, even when
@@ -134,28 +128,28 @@ void wm_preview_scene_set_module_lead(WmPreviewScene *scene, float frames)
     }
 }
 
-static int focus_button(WmHitType hit)
-{
-    if (hit == WM_HIT_BACK) return 0;
-    if (hit == WM_HIT_START) return 1;
+static int focus_button(WmHitType hit) {
+    if (hit == WM_HIT_BACK)
+        return 0;
+    if (hit == WM_HIT_START)
+        return 1;
     return -1;
 }
 
-static int focus_arrow(WmHitType hit)
-{
-    if (hit == WM_HIT_PREVIEW_PREVIOUS) return 0;
-    if (hit == WM_HIT_PREVIEW_NEXT) return 1;
+static int focus_arrow(WmHitType hit) {
+    if (hit == WM_HIT_PREVIEW_PREVIOUS)
+        return 0;
+    if (hit == WM_HIT_PREVIEW_NEXT)
+        return 1;
     return -1;
 }
 
-void preview_scene_reset_button_focus(WmPreviewScene *scene)
-{
+void preview_scene_reset_button_focus(WmPreviewScene *scene) {
     scene->hovered_button = WM_HIT_NONE;
     memset(scene->focus, 0, sizeof(scene->focus));
 }
 
-static void reset_preview_feedback(WmPreviewScene *scene)
-{
+static void reset_preview_feedback(WmPreviewScene *scene) {
     preview_scene_reset_button_focus(scene);
     wm_arrow_interaction_reset_feedback(&scene->arrows_interaction);
     scene->preview_change_seen = false;
@@ -166,22 +160,19 @@ static void reset_preview_feedback(WmPreviewScene *scene)
     scene->arrow_clock_started = false;
 }
 
-static bool new_preview_change(const WmPreviewScene *scene, const WmMenu *menu)
-{
+static bool new_preview_change(const WmPreviewScene *scene, const WmMenu *menu) {
     return menu->transition == WM_TRANSITION_PREVIEW &&
            (!scene->preview_change_seen ||
             scene->preview_change_from != menu->transition_from_selected ||
             scene->preview_change_to != menu->selected);
 }
 
-void preview_scene_advance_arrow_clocks(WmPreviewScene *scene, float delta)
-{
+void preview_scene_advance_arrow_clocks(WmPreviewScene *scene, float delta) {
     wm_arrow_interaction_advance(&scene->arrows_interaction, delta);
 }
 
 static void advance_arrow_feedback(WmPreviewScene *scene, const WmMenu *menu,
-                                   WmHit hover)
-{
+                                   WmHit hover) {
     int hovered = focus_arrow(hover.type);
     wm_arrow_interaction_hover(&scene->arrows_interaction, hovered);
 
@@ -189,14 +180,14 @@ static void advance_arrow_feedback(WmPreviewScene *scene, const WmMenu *menu,
         float transition_frame = wm_menu_transition_frame(menu);
         if (new_preview_change(scene, menu)) {
             int pressed = menu->transition_direction < 0 ? 0 : 1;
-            wm_arrow_interaction_press(&scene->arrows_interaction,
-                                       pressed, transition_frame);
+            wm_arrow_interaction_press(&scene->arrows_interaction, pressed,
+                                       transition_frame);
             scene->preview_change_from = menu->transition_from_selected;
             scene->preview_change_to = menu->selected;
         } else {
             int pressed = menu->transition_direction < 0 ? 0 : 1;
-            wm_arrow_interaction_min_press_age(&scene->arrows_interaction,
-                                                pressed, transition_frame);
+            wm_arrow_interaction_min_press_age(&scene->arrows_interaction, pressed,
+                                               transition_frame);
         }
         scene->preview_change_seen = true;
     } else {
@@ -204,9 +195,8 @@ static void advance_arrow_feedback(WmPreviewScene *scene, const WmMenu *menu,
     }
 }
 
-void preview_scene_advance_focus(WmPreviewScene *scene, const WmMenu *menu,
-                          WmHit hover, float seconds)
-{
+void preview_scene_advance_focus(WmPreviewScene *scene, const WmMenu *menu, WmHit hover,
+                                 float seconds) {
     if (scene->preview_return_seen) {
         reset_preview_feedback(scene);
         scene->preview_return_seen = false;
@@ -214,9 +204,9 @@ void preview_scene_advance_focus(WmPreviewScene *scene, const WmMenu *menu,
     }
     /* A channel change restarts the banner clock, but the common arrow's
      * 30-frame press continues across its 20-frame preview transition. */
-    bool finishing_change = scene->preview_change_seen &&
-                            (menu->transition == WM_TRANSITION_NONE ||
-                             new_preview_change(scene, menu));
+    bool finishing_change =
+        scene->preview_change_seen &&
+        (menu->transition == WM_TRANSITION_NONE || new_preview_change(scene, menu));
     if (seconds < scene->last_draw_seconds && !finishing_change)
         reset_preview_feedback(scene);
     float delta = fmaxf(0.0f, seconds - scene->last_draw_seconds) * 60.0f;
@@ -224,10 +214,8 @@ void preview_scene_advance_focus(WmPreviewScene *scene, const WmMenu *menu,
     /* Channel banners restart their clock after a preview change. The common
      * arrows enter only once and retain their separate looping motion. */
     if (scene->arrow_clock_started) {
-        scene->arrow_entry_frames = fminf(10.0f,
-                                          scene->arrow_entry_frames + delta);
-        scene->arrow_loop_frames = fmodf(scene->arrow_loop_frames + delta,
-                                         55.0f);
+        scene->arrow_entry_frames = fminf(10.0f, scene->arrow_entry_frames + delta);
+        scene->arrow_loop_frames = fmodf(scene->arrow_loop_frames + delta, 55.0f);
     } else {
         scene->arrow_entry_frames = fminf(10.0f, seconds * 60.0f);
         scene->arrow_loop_frames = fmodf(seconds * 60.0f, 55.0f);
@@ -238,8 +226,8 @@ void preview_scene_advance_focus(WmPreviewScene *scene, const WmMenu *menu,
         /* A second click can begin in the same event batch as the previous
          * change's completion, with no settled preview draw in between. */
         for (size_t index = 0; index < 2; index++) {
-            wm_arrow_interaction_min_press_age(&scene->arrows_interaction,
-                                                (int)index, 20.0f);
+            wm_arrow_interaction_min_press_age(&scene->arrows_interaction, (int)index,
+                                               20.0f);
         }
     }
     advance_arrow_feedback(scene, menu, hover);
@@ -251,24 +239,25 @@ void preview_scene_advance_focus(WmPreviewScene *scene, const WmMenu *menu,
             float frame = old->active && old->entering
                               ? 8.0f - fminf(5.0f, old->frame) * 8.0f / 5.0f
                               : 8.0f;
-            *old = (PreviewFocus){ .frame = frame, .active = true };
+            *old = (PreviewFocus){.frame = frame, .active = true};
         }
         if (new_button >= 0) {
             PreviewFocus *next = &scene->focus[new_button];
             float frame = next->active && !next->entering
                               ? 5.0f * (1.0f - fminf(8.0f, next->frame) / 8.0f)
                               : 0.0f;
-            *next = (PreviewFocus){
-                .frame = frame, .active = true, .entering = true
-            };
+            *next = (PreviewFocus){.frame = frame, .active = true, .entering = true};
         }
         scene->hovered_button = hover.type;
     }
     for (size_t index = 0; index < 2; index++) {
         PreviewFocus *focus = &scene->focus[index];
-        if (!focus->active) continue;
+        if (!focus->active)
+            continue;
         focus->frame += delta;
-        if (focus->entering) focus->frame = fminf(10.0f, focus->frame);
-        else if (focus->frame >= 10.0f) focus->active = false;
+        if (focus->entering)
+            focus->frame = fminf(10.0f, focus->frame);
+        else if (focus->frame >= 10.0f)
+            focus->active = false;
     }
 }
