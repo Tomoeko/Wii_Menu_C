@@ -82,15 +82,15 @@ static bool audio_filename(char destination[4096], const char *output,
            combine_path(destination, output, "audio/", filename);
 }
 
-static bool write_sequence_entry(FILE *manifest, const char *name, const char *symbol,
-                                 const WmAudioPcm *pcm, float gain, bool first) {
+static bool write_sound_entry(FILE *manifest, const char *name, const char *symbol,
+                              const WmAudioPcm *pcm, double gain, bool first) {
     if (!first && fputs(",\n", manifest) < 0)
         return false;
     return fprintf(manifest,
                    "  \"%s\": {\"sourceSymbol\": \"%s\", "
                    "\"gain\": %.9g, \"loop\": %s, "
                    "\"loopStart\": %.9g, \"loopEnd\": %.9g}",
-                   name, symbol, (double)gain, pcm->looping ? "true" : "false",
+                   name, symbol, gain, pcm->looping ? "true" : "false",
                    (double)pcm->loop_start / pcm->sample_rate,
                    (double)pcm->loop_end / pcm->sample_rate) > 0;
 }
@@ -225,8 +225,8 @@ static bool export_sequences(const WmRsar *archive, const uint8_t *executable,
         }
         if (!audio_filename(destination, output, symbol) ||
             !wm_audio_wav_write(destination, &pcm, error, sizeof(error)) ||
-            !write_sequence_entry(manifest, symbol, symbol, &pcm, gain,
-                                  rendered + aliases == 0)) {
+            !write_sound_entry(manifest, symbol, symbol, &pcm, gain,
+                               rendered + aliases == 0)) {
             fprintf(stderr, "Could not export sequence %s: %s\n", symbol, error);
             wm_audio_pcm_free(&pcm);
             valid = false;
@@ -238,8 +238,8 @@ static bool export_sequences(const WmRsar *archive, const uint8_t *executable,
             if (strcmp(sequence_aliases[alias].symbol, symbol) != 0)
                 continue;
             /* Alias metadata points at the already exported source WAV. */
-            if (!write_sequence_entry(manifest, sequence_aliases[alias].name, symbol,
-                                      &pcm, gain, false)) {
+            if (!write_sound_entry(manifest, sequence_aliases[alias].name, symbol, &pcm,
+                                   gain, false)) {
                 fprintf(stderr, "Could not record sequence alias %s.\n",
                         sequence_aliases[alias].name);
                 valid = false;
@@ -319,128 +319,114 @@ static bool export_speaker_samples(const WmU8Archive *container, const char *out
     return valid;
 }
 
-int main(int argc, char **argv) {
-    if (argc != 4)
-        return usage(argv[0]);
-    size_t source_size = 0;
-    uint8_t *source = NULL;
-    if (wm_regular_file_read_bytes(argv[1], 64, 128 * 1024 * 1024, &source,
-                                   &source_size) != WM_REGULAR_FILE_OK) {
-        fprintf(stderr, "Could not read bounded WAD resource content.\n");
-        return 1;
+static bool export_direct_waves(const WmRsar *archive, const char *output,
+                                FILE *manifest, size_t *exported) {
+    for (size_t index = 0; index < sizeof(direct_sounds) / sizeof(direct_sounds[0]);
+         index++) {
+        const SoundName *source = &direct_sounds[index];
+        WmRsarSound sound;
+        WmAudioPcm pcm = {0};
+        char error[160] = {0};
+        if (!wm_rsar_find_sound(archive, source->symbol, &sound) ||
+            !wm_rsar_decode_direct_wave(archive, &sound, &pcm, error, sizeof(error))) {
+            fprintf(stderr, "Could not decode %s: %s\n", source->symbol, error);
+            wm_audio_pcm_free(&pcm);
+            return false;
+        }
+        char destination[4096];
+        if (!audio_filename(destination, output, source->name) ||
+            !wm_audio_wav_write(destination, &pcm, error, sizeof(error))) {
+            fprintf(stderr, "Could not export %s: %s\n", source->symbol,
+                    error[0] ? error : "invalid audio output path");
+            wm_audio_pcm_free(&pcm);
+            return false;
+        }
+        bool valid = write_sound_entry(manifest, source->name, source->symbol, &pcm,
+                                       (double)sound.volume / 127.0, *exported == 0);
+        wm_audio_pcm_free(&pcm);
+        if (!valid)
+            return false;
+        (*exported)++;
     }
-    size_t executable_size = 0;
-    uint8_t *executable = NULL;
-    if (wm_regular_file_read_bytes(argv[2], 64, 128 * 1024 * 1024, &executable,
-                                   &executable_size) != WM_REGULAR_FILE_OK) {
-        fprintf(stderr, "Could not read bounded System Menu executable.\n");
-        free(source);
-        return 1;
-    }
-    WmU8Archive container = {0};
-    char error[160];
-    if (!wm_u8_parse(source, source_size, &container, error, sizeof(error))) {
-        fprintf(stderr, "Could not open resource content: %s\n", error);
-        free(source);
-        free(executable);
-        return 1;
-    }
-    const WmU8Entry *entry = wm_u8_find(&container, "sound/IplSound.brsar");
-    WmRsar archive;
-    if (!entry ||
-        !wm_rsar_open(entry->data, entry->size, &archive, error, sizeof(error))) {
-        fprintf(stderr, "Could not open IplSound archive: %s\n",
-                entry ? error : "missing sound/IplSound.brsar");
-        wm_u8_free(&container);
-        free(source);
-        free(executable);
-        return 1;
-    }
+    return true;
+}
+
+static bool export_direct_manifest(const WmU8Archive *container, const WmRsar *archive,
+                                   const char *output, size_t *exported) {
     char audio_directory[4096];
-    if (!wm_export_directory_root(argv[3], 0755) ||
-        !combine_path(audio_directory, argv[3], "", "audio") ||
-        !wm_export_directory_child(argv[3], "audio", 0755)) {
+    if (!wm_export_directory_root(output, 0755) ||
+        !combine_path(audio_directory, output, "", "audio") ||
+        !wm_export_directory_child(output, "audio", 0755)) {
         fprintf(stderr, "Could not create local audio directory.\n");
-        wm_u8_free(&container);
-        free(source);
-        free(executable);
-        return 1;
+        return false;
     }
     char manifest_path[4096];
-    if (!combine_path(manifest_path, argv[3], "", "audio-direct.json")) {
-        wm_u8_free(&container);
-        free(source);
-        free(executable);
-        return 1;
-    }
+    if (!combine_path(manifest_path, output, "", "audio-direct.json"))
+        return false;
     WmAtomicFile temporary;
     if (wm_atomic_file_open(&temporary, manifest_path) != WM_ATOMIC_FILE_OK) {
         fprintf(stderr, "Could not create local audio manifest.\n");
-        wm_u8_free(&container);
-        free(source);
-        free(executable);
-        return 1;
+        return false;
     }
     FILE *manifest = temporary.stream;
     bool valid = fputs("{\n", manifest) >= 0;
-    size_t exported = 0;
-    for (size_t index = 0;
-         index < sizeof(direct_sounds) / sizeof(direct_sounds[0]) && valid; index++) {
-        WmRsarSound sound;
-        WmAudioPcm pcm = {0};
-        if (!wm_rsar_find_sound(&archive, direct_sounds[index].symbol, &sound) ||
-            !wm_rsar_decode_direct_wave(&archive, &sound, &pcm, error, sizeof(error))) {
-            fprintf(stderr, "Could not decode %s: %s\n", direct_sounds[index].symbol,
-                    error);
-            valid = false;
-            break;
-        }
-        char destination[4096], filename[128];
-        int length =
-            snprintf(filename, sizeof(filename), "%s.wav", direct_sounds[index].name);
-        if (length <= 0 || length >= (int)sizeof(filename) ||
-            !combine_path(destination, argv[3], "audio/", filename) ||
-            !wm_audio_wav_write(destination, &pcm, error, sizeof(error))) {
-            fprintf(stderr, "Could not export %s: %s\n", direct_sounds[index].symbol,
-                    error);
-            wm_audio_pcm_free(&pcm);
-            valid = false;
-            break;
-        }
-        if (exported > 0)
-            valid = fputs(",\n", manifest) >= 0;
-        if (valid) {
-            valid =
-                fprintf(manifest,
-                        "  \"%s\": {\"sourceSymbol\": \"%s\", "
-                        "\"gain\": %.9g, \"loop\": %s, "
-                        "\"loopStart\": %.9g, \"loopEnd\": %.9g}",
-                        direct_sounds[index].name, direct_sounds[index].symbol,
-                        (double)sound.volume / 127.0, pcm.looping ? "true" : "false",
-                        (double)pcm.loop_start / pcm.sample_rate,
-                        (double)pcm.loop_end / pcm.sample_rate) > 0;
-        }
-        exported++;
-        wm_audio_pcm_free(&pcm);
-    }
     if (valid)
-        valid = export_speaker_samples(&container, argv[3], manifest, &exported);
+        valid = export_direct_waves(archive, output, manifest, exported);
+    if (valid)
+        valid = export_speaker_samples(container, output, manifest, exported);
     if (valid)
         valid = fputs("\n}\n", manifest) >= 0;
     if (valid)
         valid = wm_atomic_file_commit(&temporary, manifest_path);
     else
         wm_atomic_file_discard(&temporary);
-    if (!valid) {
-        wm_u8_free(&container);
-        free(source);
-        free(executable);
-        return 1;
+    return valid;
+}
+
+int main(int argc, char **argv) {
+    if (argc != 4)
+        return usage(argv[0]);
+
+    uint8_t *source = NULL;
+    uint8_t *executable = NULL;
+    size_t source_size = 0;
+    size_t executable_size = 0;
+    WmU8Archive container = {0};
+    WmRsar archive = {0};
+    char error[160] = {0};
+    int result = 1;
+
+    if (wm_regular_file_read_bytes(argv[1], 64, 128 * 1024 * 1024, &source,
+                                   &source_size) != WM_REGULAR_FILE_OK) {
+        fprintf(stderr, "Could not read bounded WAD resource content.\n");
+        goto release_inputs;
     }
+    if (wm_regular_file_read_bytes(argv[2], 64, 128 * 1024 * 1024, &executable,
+                                   &executable_size) != WM_REGULAR_FILE_OK) {
+        fprintf(stderr, "Could not read bounded System Menu executable.\n");
+        goto release_inputs;
+    }
+    if (!wm_u8_parse(source, source_size, &container, error, sizeof(error))) {
+        fprintf(stderr, "Could not open resource content: %s\n", error);
+        goto release_inputs;
+    }
+    const WmU8Entry *entry = wm_u8_find(&container, "sound/IplSound.brsar");
+    if (!entry ||
+        !wm_rsar_open(entry->data, entry->size, &archive, error, sizeof(error))) {
+        fprintf(stderr, "Could not open IplSound archive: %s\n",
+                entry ? error : "missing sound/IplSound.brsar");
+        goto release_inputs;
+    }
+
+    size_t exported = 0;
+    if (!export_direct_manifest(&container, &archive, argv[3], &exported))
+        goto release_inputs;
     printf("Exported %zu original direct-wave and remote-speaker sounds.\n", exported);
-    valid = export_sequences(&archive, executable, executable_size, argv[3]);
+    result = export_sequences(&archive, executable, executable_size, argv[3]) ? 0 : 1;
+
+release_inputs:
     wm_u8_free(&container);
     free(source);
     free(executable);
-    return valid ? 0 : 1;
+    return result;
 }
