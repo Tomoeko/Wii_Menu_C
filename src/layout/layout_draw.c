@@ -39,6 +39,21 @@ static void pane_matrix(const LayoutPane *pane, float scale_x, float result[12])
     result[11] = pane->translation[2];
 }
 
+static void pane_world_matrix(const LayoutPane *pane, int index, const float parent[12],
+                              bool wide, WmLayoutMode mode, float world[12]) {
+    float scale_x = pane->scale[0];
+    if (wide && mode != WM_LAYOUT_LOCAL) {
+        if (index == 0 && mode == WM_LAYOUT_IPL)
+            scale_x *= 832.0f / 608.0f;
+        if (pane->flags & LAYOUT_PANE_WIDE_COMPENSATION)
+            scale_x *= 608.0f / 832.0f;
+    }
+
+    float local[12];
+    pane_matrix(pane, scale_x, local);
+    matrix_multiply(parent, local, world);
+}
+
 static void transform_point(const float matrix[12], float x, float y, float result[3]) {
     result[0] = matrix[0] * x + matrix[1] * y + matrix[3];
     result[1] = matrix[4] * x + matrix[5] * y + matrix[7];
@@ -354,6 +369,36 @@ static void copy_font_pane(const LayoutPane *source, WmFontPane *target) {
     }
 }
 
+static const char *pane_font_name(const WmLayout *layout, const LayoutPane *pane) {
+    if (pane->font_index < 0 || (size_t)pane->font_index >= layout->font_count)
+        return NULL;
+    return layout->fonts[pane->font_index];
+}
+
+static void pane_text_info(const WmLayout *layout, const LayoutPane *pane,
+                           WmLayoutTextInfo *text, WmLayoutMaterialInfo *material) {
+    *text = (WmLayoutTextInfo){0};
+    text->value = pane->text ? pane->text : "";
+    text->font_index = pane->font_index;
+    text->font_name = pane_font_name(layout, pane);
+    text->material_index = pane->material;
+    if (pane->material >= 0 && (size_t)pane->material < layout->material_count) {
+        wm_layout_material_info_from_data(&layout->materials[pane->material], material);
+        text->material = material;
+    }
+
+    copy_font_pane(pane, &text->pane);
+    text->horizontal_align = pane->text_position % 3;
+    text->vertical_align = pane->text_position / 3;
+    /* Preserve the animated float colors as well as the rounded font colors. */
+    memcpy(text->colors, pane->text_colors, sizeof(text->colors));
+    text->color_range_count = pane->text_color_range_count;
+    if (text->color_range_count) {
+        memcpy(text->color_ranges, pane->text_color_ranges,
+               text->color_range_count * sizeof(text->color_ranges[0]));
+    }
+}
+
 bool wm_layout_pane_font(const WmLayout *layout, const char *name, WmFontPane *pane,
                          const char **font_name) {
     if (!layout || !name || !pane || !font_name)
@@ -364,61 +409,25 @@ bool wm_layout_pane_font(const WmLayout *layout, const char *name, WmFontPane *p
     }
     const LayoutPane *source = &layout->panes[index];
     copy_font_pane(source, pane);
-    *font_name =
-        source->font_index >= 0 && (size_t)source->font_index < layout->font_count
-            ? layout->fonts[source->font_index]
-            : NULL;
+    *font_name = pane_font_name(layout, source);
     return true;
 }
 
 static void visit_pane(const WmLayout *layout, int index, const float parent_matrix[12],
                        float ancestor_alpha, const WmLayoutDrawOptions *options) {
     const LayoutPane *pane = &layout->panes[index];
-    if (!(pane->flags & 1))
+    if (!(pane->flags & LAYOUT_PANE_VISIBLE))
         return;
-    float scale_x = pane->scale[0];
-    if (options->wide && options->mode != WM_LAYOUT_LOCAL) {
-        if (index == 0 && options->mode == WM_LAYOUT_IPL)
-            scale_x *= 832.0f / 608.0f;
-        if (pane->flags & 4)
-            scale_x *= 608.0f / 832.0f;
-    }
-    float local[12], world[12];
-    pane_matrix(pane, scale_x, local);
-    matrix_multiply(parent_matrix, local, world);
+    float world[12];
+    pane_world_matrix(pane, index, parent_matrix, options->wide, options->mode, world);
     float pane_alpha = pane->alpha / 255;
     float alpha = options->alpha * pane_alpha * ancestor_alpha;
     WmLayoutPaneView view = {
         .name = pane->name, .type = pane->type, .alpha = alpha, .flags = pane->flags};
-    WmLayoutTextInfo text = {0};
+    WmLayoutTextInfo text;
     WmLayoutMaterialInfo text_material;
     if (strcmp(pane->type, "txt1") == 0) {
-        text.value = pane->text ? pane->text : "";
-        text.font_index = pane->font_index;
-        text.font_name =
-            pane->font_index >= 0 && (size_t)pane->font_index < layout->font_count
-                ? layout->fonts[pane->font_index]
-                : NULL;
-        text.material_index = pane->material;
-        if (pane->material >= 0 && (size_t)pane->material < layout->material_count) {
-            wm_layout_material_info_from_data(&layout->materials[pane->material],
-                                              &text_material);
-            text.material = &text_material;
-        }
-        copy_font_pane(pane, &text.pane);
-        text.horizontal_align = pane->text_position % 3;
-        text.vertical_align = pane->text_position / 3;
-        for (size_t color = 0; color < 2; color++) {
-            for (size_t channel = 0; channel < 4; channel++) {
-                float value = pane->text_colors[color][channel];
-                text.colors[color][channel] = value;
-            }
-        }
-        text.color_range_count = pane->text_color_range_count;
-        if (text.color_range_count) {
-            memcpy(text.color_ranges, pane->text_color_ranges,
-                   text.color_range_count * sizeof(text.color_ranges[0]));
-        }
+        pane_text_info(layout, pane, &text, &text_material);
         view.text = &text;
     }
     memcpy(view.matrix, world, sizeof(world));
@@ -432,7 +441,8 @@ static void visit_pane(const WmLayout *layout, int index, const float parent_mat
             emit_window(layout, pane, world, alpha, options);
         }
     }
-    float child_alpha = ancestor_alpha * ((pane->flags & 2) ? pane_alpha : 1);
+    float child_alpha =
+        ancestor_alpha * ((pane->flags & LAYOUT_PANE_CHILD_ALPHA) ? pane_alpha : 1);
     for (int child = pane->first_child; child >= 0;
          child = layout->panes[child].next_sibling) {
         visit_pane(layout, child, world, child_alpha, options);
@@ -453,16 +463,8 @@ static void visit_all_transforms(const WmLayout *layout, int index,
                                  WmLayoutMode mode, WmLayoutPaneCallback visitor,
                                  void *context) {
     const LayoutPane *pane = &layout->panes[index];
-    float scale_x = pane->scale[0];
-    if (wide && mode != WM_LAYOUT_LOCAL) {
-        if (index == 0 && mode == WM_LAYOUT_IPL)
-            scale_x *= 832.0f / 608.0f;
-        if (pane->flags & 4)
-            scale_x *= 608.0f / 832.0f;
-    }
-    float local[12], world[12];
-    pane_matrix(pane, scale_x, local);
-    matrix_multiply(parent_matrix, local, world);
+    float world[12];
+    pane_world_matrix(pane, index, parent_matrix, wide, mode, world);
     WmLayoutPaneView view = {.name = pane->name,
                              .type = pane->type,
                              .alpha = pane->alpha / 255.0f,

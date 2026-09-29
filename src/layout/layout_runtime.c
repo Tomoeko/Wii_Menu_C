@@ -262,9 +262,9 @@ bool wm_layout_set_pane_visible(WmLayout *layout, const char *name, bool visible
     if (index < 0)
         return false;
     if (visible)
-        layout->panes[index].flags |= 1u;
+        layout->panes[index].flags |= LAYOUT_PANE_VISIBLE;
     else
-        layout->panes[index].flags &= ~1u;
+        layout->panes[index].flags &= ~LAYOUT_PANE_VISIBLE;
     return true;
 }
 
@@ -419,7 +419,7 @@ bool wm_layout_mask_language_groups(WmLayout *layout, const char *language) {
     }
     for (size_t index = 0; index < layout->pane_count; index++) {
         if (layout->allowed_panes[index])
-            layout->panes[index].flags &= ~1u;
+            layout->panes[index].flags &= ~LAYOUT_PANE_VISIBLE;
     }
     return true;
 }
@@ -515,9 +515,9 @@ static void apply_pane_track(LayoutPane *pane, const LayoutTrack *track, float v
             if (weight < 1.0f)
                 break;
             if (value != 0)
-                pane->flags |= 1;
+                pane->flags |= LAYOUT_PANE_VISIBLE;
             else
-                pane->flags &= ~1u;
+                pane->flags &= ~LAYOUT_PANE_VISIBLE;
             break;
         case LAYOUT_RLVC:
             if (property == 16)

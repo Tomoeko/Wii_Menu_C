@@ -18,6 +18,10 @@
 #define WM_LAYOUT_MAX_TEXT_BYTES 65536u
 #define WM_LAYOUT_PI 3.14159265358979323846
 
+#define LAYOUT_PANE_VISIBLE 1u
+#define LAYOUT_PANE_CHILD_ALPHA 2u
+#define LAYOUT_PANE_WIDE_COMPENSATION 4u
+
 typedef struct LayoutSrt {
     float translate[2];
     float rotation;
