@@ -122,6 +122,7 @@ if(WM_BUILD_APP)
     set(WM_APP_SOURCES
         app/app_resources.c
         app/asset_path.c
+        app/corruption_outline.c
         app/corruption_screen.c
         app/board_input.c
         app/board_update.c

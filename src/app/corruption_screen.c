@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "corruption_screen.h"
+#include "corruption_outline.h"
 
 #include "wii_menu/fonts/font_cache.h"
 #include "wii_menu/platform/platform.h"
@@ -184,14 +185,18 @@ int wm_app_show_corruption_screen(const char *assets_root) {
     if (!message || strcmp(message, CORRUPTION_MESSAGE) != 0)
         message = CORRUPTION_MESSAGE;
 
-    WmFontCache *fonts = assets_root
+    WmCorruptionOutline outline = {0};
+    bool has_outline = assets_root && wm_corruption_outline_create(
+        &outline, platform, assets_root, message);
+    WmFontCache *fonts = assets_root && !has_outline
         ? wm_font_cache_create(platform, assets_root, 4u * 1024u * 1024u) : NULL;
     ScreenFont screen_font = {
         .platform = platform,
         .face = wm_font_cache_resolve(
             fonts, "RevoIpl_RodinNTLGPro_DB_32_I4.brfnt")
     };
-    uint32_t fallback = screen_font.face ? 0 : create_emergency_text(platform, message);
+    uint32_t fallback = has_outline || screen_font.face
+        ? 0 : create_emergency_text(platform, message);
     /* The emergency bitmap uses the same centered message width as the WAD font. */
     const WmQuad fallback_quad = {
         .x = 120.0f, .y = 170.0f, .width = 400.0f, .height = 112.0f,
@@ -209,7 +214,9 @@ int wm_app_show_corruption_screen(const char *assets_root) {
         }
         if (!running) break;
         wm_platform_begin(platform, (WmColor){0.0f, 0.0f, 0.0f, 1.0f});
-        if (screen_font.face) {
+        if (has_outline) {
+            wm_corruption_outline_draw(&outline, platform);
+        } else if (screen_font.face) {
             wm_font_cache_begin_frame(fonts);
             draw_wad_text(&screen_font, message);
         } else if (fallback) {
@@ -221,6 +228,7 @@ int wm_app_show_corruption_screen(const char *assets_root) {
     }
     if (fallback) wm_platform_destroy_texture(platform, fallback);
     wm_font_cache_destroy(fonts);
+    wm_corruption_outline_destroy(&outline, platform);
     wm_bmg_destroy(messages);
     wm_platform_destroy(platform);
     return 1;
