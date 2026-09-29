@@ -237,74 +237,57 @@ static bool activate_extended_category(WmSettingsScene *scene,
     return true;
 }
 
-bool settings_scene_activate_category(WmSettingsScene *scene,
-                                      WmSettingsControl control) {
-    if (!scene || !scene->active_category || scene->phase != WM_SETTINGS_READY ||
-        scene->exit_pending || control <= WM_SETTINGS_CONTROL_NONE ||
-        control > WM_SETTINGS_CONTROL_ITEM_6)
-        return false;
-    if (scene->active_category == SETTINGS_NICKNAME ||
-        scene->active_category == SETTINGS_PARENTAL ||
-        scene->active_category == SETTINGS_INTERNET ||
-        scene->active_category == SETTINGS_CONNECT24 ||
-        scene->active_category == SETTINGS_COUNTRY ||
-        scene->active_category == SETTINGS_UPDATE ||
-        scene->active_category == SETTINGS_FORMAT)
-        return activate_extended_category(scene, control);
-    if (control == WM_SETTINGS_CONTROL_BACK)
-        return settings_scene_back_control(scene);
-    if (control == WM_SETTINGS_CONTROL_NEXT) {
-        if (scene->active_category == SETTINGS_CALENDAR && scene->detail == 1) {
-            scene->year = scene->edit_year;
-            scene->month = scene->edit_month;
-            scene->day = scene->edit_day;
-            scene->detail = 0;
-        } else if (scene->active_category == SETTINGS_CALENDAR && scene->detail == 2) {
-            scene->hour = scene->edit_hour;
-            scene->minute = scene->edit_minute;
-            scene->detail = 0;
-        } else if (scene->active_category == SETTINGS_SOUND) {
-            scene->sound_choice = scene->selection;
-            scene->active_category = 0;
-        } else if (scene->active_category == SETTINGS_LANGUAGE) {
-            scene->language_choice = scene->selection;
-            scene->active_category = 0;
-        } else if (scene->active_category == SETTINGS_SCREEN && scene->detail) {
-            switch (scene->detail) {
-                case 1:
-                    scene->screen_position = scene->selection;
-                    break;
-                case 2:
-                    scene->widescreen_choice = scene->selection;
-                    break;
-                case 3:
-                    scene->resolution_choice = scene->selection;
-                    break;
-                case 4:
-                    scene->burn_in_choice = scene->selection;
-                    break;
-            }
-            scene->detail = 0;
-        } else if (scene->active_category == SETTINGS_SENSOR && scene->detail == 1) {
-            scene->sensor_position = scene->selection == 0 ? 1 : 0;
-            scene->detail = 0;
-        } else if (scene->active_category == SETTINGS_SENSOR && scene->detail == 2) {
-            if (scene->sensitivity_instructions)
-                scene->sensitivity_instructions = false;
-            else {
-                scene->sensitivity = scene->edit_sensitivity;
-                scene->detail = 0;
-            }
-        } else {
-            return false;
+static bool activate_category_next(WmSettingsScene *scene) {
+    if (scene->active_category == SETTINGS_CALENDAR && scene->detail == 1) {
+        scene->year = scene->edit_year;
+        scene->month = scene->edit_month;
+        scene->day = scene->edit_day;
+        scene->detail = 0;
+    } else if (scene->active_category == SETTINGS_CALENDAR && scene->detail == 2) {
+        scene->hour = scene->edit_hour;
+        scene->minute = scene->edit_minute;
+        scene->detail = 0;
+    } else if (scene->active_category == SETTINGS_SOUND) {
+        scene->sound_choice = scene->selection;
+        scene->active_category = 0;
+    } else if (scene->active_category == SETTINGS_LANGUAGE) {
+        scene->language_choice = scene->selection;
+        scene->active_category = 0;
+    } else if (scene->active_category == SETTINGS_SCREEN && scene->detail) {
+        switch (scene->detail) {
+            case 1:
+                scene->screen_position = scene->selection;
+                break;
+            case 2:
+                scene->widescreen_choice = scene->selection;
+                break;
+            case 3:
+                scene->resolution_choice = scene->selection;
+                break;
+            case 4:
+                scene->burn_in_choice = scene->selection;
+                break;
         }
-        scene->hover = WM_SETTINGS_CONTROL_NONE;
-        return true;
-    }
-    if (control < WM_SETTINGS_CONTROL_ITEM_1 || control > WM_SETTINGS_CONTROL_ITEM_6)
+        scene->detail = 0;
+    } else if (scene->active_category == SETTINGS_SENSOR && scene->detail == 1) {
+        scene->sensor_position = scene->selection == 0 ? 1 : 0;
+        scene->detail = 0;
+    } else if (scene->active_category == SETTINGS_SENSOR && scene->detail == 2) {
+        if (scene->sensitivity_instructions)
+            scene->sensitivity_instructions = false;
+        else {
+            scene->sensitivity = scene->edit_sensitivity;
+            scene->detail = 0;
+        }
+    } else {
         return false;
-    unsigned item = (unsigned)(control - WM_SETTINGS_CONTROL_ITEM_1);
-    if (scene->active_category == SETTINGS_CALENDAR && !scene->detail && item < 2) {
+    }
+    scene->hover = WM_SETTINGS_CONTROL_NONE;
+    return true;
+}
+
+static bool activate_calendar_item(WmSettingsScene *scene, unsigned item) {
+    if (!scene->detail && item < 2) {
         scene->detail = item + 1;
         scene->edit_year = scene->year;
         scene->edit_month = scene->month;
@@ -314,7 +297,7 @@ bool settings_scene_activate_category(WmSettingsScene *scene,
         scene->hover = WM_SETTINGS_CONTROL_NONE;
         return true;
     }
-    if (scene->active_category == SETTINGS_CALENDAR && scene->detail == 1) {
+    if (scene->detail == 1) {
         switch (item) {
             case 0:
                 scene->edit_year = (scene->edit_year + 1) % 36;
@@ -347,7 +330,7 @@ bool settings_scene_activate_category(WmSettingsScene *scene,
         }
         return true;
     }
-    if (scene->active_category == SETTINGS_CALENDAR && scene->detail == 2) {
+    if (scene->detail == 2) {
         switch (item) {
             case 0:
                 scene->edit_hour = (scene->edit_hour + 1) % 24;
@@ -366,14 +349,15 @@ bool settings_scene_activate_category(WmSettingsScene *scene,
         }
         return true;
     }
-    if (scene->active_category == SETTINGS_SOUND ||
-        scene->active_category == SETTINGS_LANGUAGE) {
-        if (item >= 3)
-            return false;
+    if (scene->detail && item < 2) {
         scene->selection = item;
         return true;
     }
-    if (!scene->detail && scene->active_category == SETTINGS_SCREEN) {
+    return false;
+}
+
+static bool activate_screen_item(WmSettingsScene *scene, unsigned item) {
+    if (!scene->detail) {
         scene->detail = item + 1;
         switch (scene->detail) {
             case 1:
@@ -392,32 +376,7 @@ bool settings_scene_activate_category(WmSettingsScene *scene,
         scene->hover = WM_SETTINGS_CONTROL_NONE;
         return true;
     }
-    if (!scene->detail && scene->active_category == SETTINGS_SENSOR && item < 2) {
-        scene->detail = item + 1;
-        scene->selection = scene->sensor_position == 1 ? 0 : 1;
-        scene->edit_sensitivity = scene->sensitivity;
-        scene->sensitivity_instructions = item == 1;
-        scene->hover = WM_SETTINGS_CONTROL_NONE;
-        return true;
-    }
-    if (scene->active_category == SETTINGS_SENSOR && scene->detail == 1) {
-        if (item >= 2)
-            return false;
-        /* Above TV maps to 1, Below TV to 0; selection commits the value. */
-        scene->selection = item;
-        scene->sensor_position = item == 0 ? 1 : 0;
-        return true;
-    }
-    if (scene->active_category == SETTINGS_SENSOR && scene->detail == 2) {
-        if (scene->sensitivity_instructions || item >= 2)
-            return false;
-        if (item == 0 && scene->edit_sensitivity > 1)
-            scene->edit_sensitivity--;
-        else if (item == 1 && scene->edit_sensitivity < 5)
-            scene->edit_sensitivity++;
-        return true;
-    }
-    if (scene->active_category == SETTINGS_SCREEN && scene->detail == 1) {
+    if (scene->detail == 1) {
         if (item >= 2)
             return false;
         /* Left moves the position by +2; right moves it by -2. */
@@ -431,7 +390,7 @@ bool settings_scene_activate_category(WmSettingsScene *scene,
         scene->screen_position = scene->selection;
         return true;
     }
-    if (scene->active_category == SETTINGS_SCREEN && scene->detail == 2) {
+    if (scene->detail == 2) {
         if (item >= 2)
             return false;
         /* Selection commits the local widescreen choice; it does not
@@ -440,8 +399,7 @@ bool settings_scene_activate_category(WmSettingsScene *scene,
         scene->widescreen_choice = item;
         return true;
     }
-    if (scene->active_category == SETTINGS_SCREEN &&
-        (scene->detail == 3 || scene->detail == 4)) {
+    if (scene->detail == 3 || scene->detail == 4) {
         if (item >= 2)
             return false;
         /* Selection commits either local value, so Back retains the row. */
@@ -452,9 +410,86 @@ bool settings_scene_activate_category(WmSettingsScene *scene,
             scene->burn_in_choice = item;
         return true;
     }
+    if (item < 2) {
+        scene->selection = item;
+        return true;
+    }
+    return false;
+}
+
+static bool activate_sensor_item(WmSettingsScene *scene, unsigned item) {
+    if (!scene->detail && item < 2) {
+        scene->detail = item + 1;
+        scene->selection = scene->sensor_position == 1 ? 0 : 1;
+        scene->edit_sensitivity = scene->sensitivity;
+        scene->sensitivity_instructions = item == 1;
+        scene->hover = WM_SETTINGS_CONTROL_NONE;
+        return true;
+    }
+    if (scene->detail == 1) {
+        if (item >= 2)
+            return false;
+        /* Above TV maps to 1, Below TV to 0; selection commits the value. */
+        scene->selection = item;
+        scene->sensor_position = item == 0 ? 1 : 0;
+        return true;
+    }
+    if (scene->detail == 2) {
+        if (scene->sensitivity_instructions || item >= 2)
+            return false;
+        if (item == 0 && scene->edit_sensitivity > 1)
+            scene->edit_sensitivity--;
+        else if (item == 1 && scene->edit_sensitivity < 5)
+            scene->edit_sensitivity++;
+        return true;
+    }
     if (scene->detail && item < 2) {
         scene->selection = item;
         return true;
     }
     return false;
+}
+
+bool settings_scene_activate_category(WmSettingsScene *scene,
+                                      WmSettingsControl control) {
+    if (!scene || !scene->active_category || scene->phase != WM_SETTINGS_READY ||
+        scene->exit_pending || control <= WM_SETTINGS_CONTROL_NONE ||
+        control > WM_SETTINGS_CONTROL_ITEM_6)
+        return false;
+    if (scene->active_category == SETTINGS_NICKNAME ||
+        scene->active_category == SETTINGS_PARENTAL ||
+        scene->active_category == SETTINGS_INTERNET ||
+        scene->active_category == SETTINGS_CONNECT24 ||
+        scene->active_category == SETTINGS_COUNTRY ||
+        scene->active_category == SETTINGS_UPDATE ||
+        scene->active_category == SETTINGS_FORMAT)
+        return activate_extended_category(scene, control);
+    if (control == WM_SETTINGS_CONTROL_BACK)
+        return settings_scene_back_control(scene);
+    if (control == WM_SETTINGS_CONTROL_NEXT)
+        return activate_category_next(scene);
+    if (control < WM_SETTINGS_CONTROL_ITEM_1 || control > WM_SETTINGS_CONTROL_ITEM_6)
+        return false;
+
+    unsigned item = (unsigned)(control - WM_SETTINGS_CONTROL_ITEM_1);
+    switch (scene->active_category) {
+        case SETTINGS_CALENDAR:
+            return activate_calendar_item(scene, item);
+        case SETTINGS_SCREEN:
+            return activate_screen_item(scene, item);
+        case SETTINGS_SENSOR:
+            return activate_sensor_item(scene, item);
+        case SETTINGS_SOUND:
+        case SETTINGS_LANGUAGE:
+            if (item >= 3)
+                return false;
+            scene->selection = item;
+            return true;
+        default:
+            if (scene->detail && item < 2) {
+                scene->selection = item;
+                return true;
+            }
+            return false;
+    }
 }
