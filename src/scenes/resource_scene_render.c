@@ -467,6 +467,125 @@ static bool capture_preview(WmResourceScene *scene, const WmMenu *menu,
     return scene->capture_valid;
 }
 
+static void draw_grid_focus(WmResourceScene *scene, const WmMenu *menu,
+                            const WmGridPresentation *presentation,
+                            const GridTraversal *traversal) {
+    if (menu->transition == WM_TRANSITION_SELECT && menu->selected >= 0 &&
+        menu->selected < WM_SLOT_COUNT) {
+        int index = menu->selected % WM_CHANNELS_PER_PAGE;
+        if (traversal->has_tile[2][index]) {
+            float frame = menu->transition_elapsed * 60.0f;
+            if (frame < 16.0f) {
+                WmLayoutClip select_clip = {.animation = "my_IplTop_d_Select",
+                                            .frame = frame,
+                                            .loop_override = 0};
+                wm_layout_pose(scene->focus, &select_clip, 1);
+                wm_layout_present_with_fonts(
+                    scene->platform, scene->textures, scene->fonts, scene->focus, true,
+                    WM_LAYOUT_EMBEDDED, traversal->tiles[2][index].matrix);
+            }
+        }
+        return;
+    }
+    for (int index = 0; index < WM_CHANNELS_PER_PAGE; index++) {
+        int absolute = presentation->page * WM_CHANNELS_PER_PAGE + index;
+        FocusAnimation *focus = &scene->focus_states[absolute];
+        if (!focus->active || !traversal->has_tile[2][index])
+            continue;
+        WmLayoutClip focus_clip = {.animation = focus->off_phase
+                                                    ? "my_IplTop_d_FocusOff"
+                                                    : "my_IplTop_d_FocusOn",
+                                   .frame = focus->frame,
+                                   .loop_override = 0};
+        wm_layout_pose(scene->focus, &focus_clip, 1);
+        wm_layout_present_with_fonts(scene->platform, scene->textures, scene->fonts,
+                                     scene->focus, true, WM_LAYOUT_EMBEDDED,
+                                     traversal->tiles[2][index].matrix);
+    }
+}
+
+static void draw_footer(WmResourceScene *scene, float elapsed_seconds,
+                        const float *camera) {
+    WmLayoutClip footer_clips[12] = {
+        {.animation = "my_IplTop_e",
+         .frame = 0,
+         .group = "G_SeenChange",
+         .loop_override = 0},
+        {.animation = "my_IplTop_e",
+         .frame = 10000.0f + (float)((int)(elapsed_seconds * 60.0f) % 55),
+         .group = "G_ArwRoop",
+         .loop_override = 0},
+        {.animation = "my_IplTop_e",
+         .frame = (scene->arrow_visible[0] ? 10150.0f : 10100.0f) +
+                  fminf(scene->arrow_age[0], 10.0f),
+         .group = "G_ArwL_End",
+         .loop_override = 0},
+        {.animation = "my_IplTop_e",
+         .frame = (scene->arrow_visible[1] ? 10150.0f : 10100.0f) +
+                  fminf(scene->arrow_age[1], 10.0f),
+         .group = "G_ArwR_End",
+         .loop_override = 0}};
+    size_t footer_clip_count = 4;
+    static const char *const footer_groups[] = {"G_Set", "G_Bbs", "G_ArwL_Focus",
+                                                "G_ArwR_Focus"};
+    for (size_t index = 0; index < 4; index++) {
+        HoverAnimation *state = &scene->footer_states[index];
+        if (!state->active && index < 2)
+            continue;
+        float origin;
+        float length;
+        if (index == 0) {
+            origin = state->entering ? 6900.0f : 6930.0f;
+            length = state->entering ? 6.0f : 8.0f;
+        } else if (index == 1) {
+            origin = state->entering ? 900.0f : 930.0f;
+            length = state->entering ? 6.0f : 8.0f;
+        } else {
+            origin = state->active && !state->entering ? 10800.0f : 10600.0f;
+            length = 15.0f;
+        }
+        footer_clips[footer_clip_count++] =
+            (WmLayoutClip){.animation = "my_IplTop_e",
+                           .frame = origin + fminf(state->frame, length),
+                           .group = footer_groups[index],
+                           .loop_override = 0};
+    }
+    for (size_t index = 0; index < 2; index++) {
+        if (scene->arrow_press_age[index] < 0.0f)
+            continue;
+        footer_clips[footer_clip_count++] =
+            (WmLayoutClip){.animation = "my_IplTop_e",
+                           .frame = 10700.0f + scene->arrow_press_age[index],
+                           .group = index == 0 ? "G_ArwL_Ac" : "G_ArwR_Ac",
+                           .loop_override = 0};
+    }
+    /* G_Bbs hover also keys Picture_00. Apply the mail-number group after
+     * hover so its frame-zero pose keeps the spare envelope hidden when the
+     * Board has no messages. */
+    footer_clips[footer_clip_count++] =
+        (WmLayoutClip){.animation = "my_IplTop_e",
+                       .frame = scene->message_badge_count
+                                    ? 1.0f + fmodf(elapsed_seconds * 60.0f, 399.0f)
+                                    : 0.0f,
+                       .group = "G_BbsSignal",
+                       .loop_override = 0};
+    footer_clips[footer_clip_count++] = (WmLayoutClip){
+        .animation = "my_IplTop_e",
+        .frame =
+            scene->new_mail_active ? 1.0f + fminf(scene->new_mail_age, 159.0f) : 0.0f,
+        .group = "G_BbsSignal_new",
+        .loop_override = 0};
+    wm_layout_pose(scene->footer, footer_clips, footer_clip_count);
+    if (camera) {
+        wm_layout_present_filtered_with_fonts(
+            scene->platform, scene->textures, scene->fonts, scene->footer, true,
+            WM_LAYOUT_IPL, camera, footer_without_arrows, NULL);
+    } else {
+        wm_layout_present_with_fonts(scene->platform, scene->textures, scene->fonts,
+                                     scene->footer, true, WM_LAYOUT_IPL, NULL);
+    }
+}
+
 static void draw_resource_scene(WmResourceScene *scene, const WmMenu *menu,
                                 const WmResourceSceneFrame *frame, bool owns_frame) {
     if (!scene || !menu || !frame)
@@ -596,38 +715,7 @@ static void draw_resource_scene(WmResourceScene *scene, const WmMenu *menu,
         draw_grid_clock(scene, &traversal, elapsed_seconds, camera, &wall_time, &date);
     }
 
-    if (menu->transition == WM_TRANSITION_SELECT && menu->selected >= 0 &&
-        menu->selected < WM_SLOT_COUNT) {
-        int index = menu->selected % WM_CHANNELS_PER_PAGE;
-        if (traversal.has_tile[2][index]) {
-            float frame = menu->transition_elapsed * 60.0f;
-            if (frame < 16.0f) {
-                WmLayoutClip select_clip = {.animation = "my_IplTop_d_Select",
-                                            .frame = frame,
-                                            .loop_override = 0};
-                wm_layout_pose(scene->focus, &select_clip, 1);
-                wm_layout_present_with_fonts(
-                    scene->platform, scene->textures, scene->fonts, scene->focus, true,
-                    WM_LAYOUT_EMBEDDED, traversal.tiles[2][index].matrix);
-            }
-        }
-    } else {
-        for (int index = 0; index < WM_CHANNELS_PER_PAGE; index++) {
-            int absolute = presentation.page * WM_CHANNELS_PER_PAGE + index;
-            FocusAnimation *focus = &scene->focus_states[absolute];
-            if (!focus->active || !traversal.has_tile[2][index])
-                continue;
-            WmLayoutClip focus_clip = {.animation = focus->off_phase
-                                                        ? "my_IplTop_d_FocusOff"
-                                                        : "my_IplTop_d_FocusOn",
-                                       .frame = focus->frame,
-                                       .loop_override = 0};
-            wm_layout_pose(scene->focus, &focus_clip, 1);
-            wm_layout_present_with_fonts(scene->platform, scene->textures, scene->fonts,
-                                         scene->focus, true, WM_LAYOUT_EMBEDDED,
-                                         traversal.tiles[2][index].matrix);
-        }
-    }
+    draw_grid_focus(scene, menu, &presentation, &traversal);
 
     /* Keep the carried channel beneath the common footer arrows. The grab
      * hand itself is the final overlay, like the ordinary pointer. */
@@ -635,84 +723,7 @@ static void draw_resource_scene(WmResourceScene *scene, const WmMenu *menu,
         wm_channel_drag_draw_shade(frame->drag);
     }
 
-    WmLayoutClip footer_clips[12] = {
-        {.animation = "my_IplTop_e",
-         .frame = 0,
-         .group = "G_SeenChange",
-         .loop_override = 0},
-        {.animation = "my_IplTop_e",
-         .frame = 10000.0f + (float)((int)(elapsed_seconds * 60.0f) % 55),
-         .group = "G_ArwRoop",
-         .loop_override = 0},
-        {.animation = "my_IplTop_e",
-         .frame = (scene->arrow_visible[0] ? 10150.0f : 10100.0f) +
-                  fminf(scene->arrow_age[0], 10.0f),
-         .group = "G_ArwL_End",
-         .loop_override = 0},
-        {.animation = "my_IplTop_e",
-         .frame = (scene->arrow_visible[1] ? 10150.0f : 10100.0f) +
-                  fminf(scene->arrow_age[1], 10.0f),
-         .group = "G_ArwR_End",
-         .loop_override = 0}};
-    size_t footer_clip_count = 4;
-    static const char *const footer_groups[] = {"G_Set", "G_Bbs", "G_ArwL_Focus",
-                                                "G_ArwR_Focus"};
-    for (size_t index = 0; index < 4; index++) {
-        HoverAnimation *state = &scene->footer_states[index];
-        if (!state->active && index < 2)
-            continue;
-        float origin;
-        float length;
-        if (index == 0) {
-            origin = state->entering ? 6900.0f : 6930.0f;
-            length = state->entering ? 6.0f : 8.0f;
-        } else if (index == 1) {
-            origin = state->entering ? 900.0f : 930.0f;
-            length = state->entering ? 6.0f : 8.0f;
-        } else {
-            origin = state->active && !state->entering ? 10800.0f : 10600.0f;
-            length = 15.0f;
-        }
-        footer_clips[footer_clip_count++] =
-            (WmLayoutClip){.animation = "my_IplTop_e",
-                           .frame = origin + fminf(state->frame, length),
-                           .group = footer_groups[index],
-                           .loop_override = 0};
-    }
-    for (size_t index = 0; index < 2; index++) {
-        if (scene->arrow_press_age[index] < 0.0f)
-            continue;
-        footer_clips[footer_clip_count++] =
-            (WmLayoutClip){.animation = "my_IplTop_e",
-                           .frame = 10700.0f + scene->arrow_press_age[index],
-                           .group = index == 0 ? "G_ArwL_Ac" : "G_ArwR_Ac",
-                           .loop_override = 0};
-    }
-    /* G_Bbs hover also keys Picture_00. Apply the mail-number group after
-     * hover so its frame-zero pose keeps the spare envelope hidden when the
-     * Board has no messages. */
-    footer_clips[footer_clip_count++] =
-        (WmLayoutClip){.animation = "my_IplTop_e",
-                       .frame = scene->message_badge_count
-                                    ? 1.0f + fmodf(elapsed_seconds * 60.0f, 399.0f)
-                                    : 0.0f,
-                       .group = "G_BbsSignal",
-                       .loop_override = 0};
-    footer_clips[footer_clip_count++] = (WmLayoutClip){
-        .animation = "my_IplTop_e",
-        .frame =
-            scene->new_mail_active ? 1.0f + fminf(scene->new_mail_age, 159.0f) : 0.0f,
-        .group = "G_BbsSignal_new",
-        .loop_override = 0};
-    wm_layout_pose(scene->footer, footer_clips, footer_clip_count);
-    if (camera) {
-        wm_layout_present_filtered_with_fonts(
-            scene->platform, scene->textures, scene->fonts, scene->footer, true,
-            WM_LAYOUT_IPL, camera, footer_without_arrows, NULL);
-    } else {
-        wm_layout_present_with_fonts(scene->platform, scene->textures, scene->fonts,
-                                     scene->footer, true, WM_LAYOUT_IPL, NULL);
-    }
+    draw_footer(scene, elapsed_seconds, camera);
 
     draw_sd_button(scene, menu, elapsed_seconds, camera, 0.0f);
     if (camera && captured) {
