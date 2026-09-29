@@ -104,6 +104,8 @@ static const char *resource_archive_path(const WmU8Entry *item,
                                          const WmU8Entry *common_entry,
                                          const WmU8Entry *localized_entry,
                                          const WmU8Archive *localized) {
+    /* Merging copies entries shallowly, so path identity still marks an
+     * entry that came from the localized archive. */
     if (localized_entry != NULL) {
         const WmU8Entry *candidate = wm_u8_find(localized, item->path);
         if (candidate != NULL && candidate->path == item->path) {
@@ -113,25 +115,186 @@ static const char *resource_archive_path(const WmU8Entry *item,
     return common_entry->path;
 }
 
+typedef struct {
+    const WmU8Entry *common_entry;
+    const WmU8Entry *localized_entry;
+    const WmU8Archive *localized;
+    const char *output;
+    const char *package;
+    WmResourceTexture *textures;
+    WmResourceAnimation *animations;
+    size_t texture_count;
+    size_t animation_count;
+    size_t *texture_total;
+    size_t *layout_total;
+    char *error;
+    size_t error_capacity;
+} PackageCatalog;
+
+static bool catalog_source_path(const PackageCatalog *catalog, const WmU8Entry *item,
+                                char source[WM_EXPORT_PATH_CAPACITY]) {
+    int length =
+        snprintf(source, WM_EXPORT_PATH_CAPACITY, "%s/%s",
+                 resource_archive_path(item, catalog->common_entry,
+                                       catalog->localized_entry, catalog->localized),
+                 item->path);
+    return length >= 0 && length < WM_EXPORT_PATH_CAPACITY;
+}
+
+static bool catalog_add_animation(PackageCatalog *catalog, const WmU8Entry *item,
+                                  const char *stem) {
+    char *name = malloc(strlen(stem) + 1);
+    if (!name)
+        return false;
+    strcpy(name, stem);
+    catalog->animations[catalog->animation_count++] =
+        (WmResourceAnimation){.name = name, .data = item->data, .size = item->size};
+    return true;
+}
+
+static bool catalog_write_texture_image(const PackageCatalog *catalog, const WmTpl *tpl,
+                                        const char *stem, size_t image_index) {
+    char filename[160];
+    int filename_length =
+        snprintf(filename, sizeof(filename),
+                 image_index == 0 ? "%s.wmra" : "%s-%zu.wmra", stem, image_index);
+    char subdirectory[160];
+    int directory_length =
+        snprintf(subdirectory, sizeof(subdirectory), "textures/%s", catalog->package);
+    char path[WM_EXPORT_PATH_CAPACITY];
+    if (filename_length < 0 || filename_length >= (int)sizeof(filename) ||
+        directory_length < 0 || directory_length >= (int)sizeof(subdirectory) ||
+        !write_path(path, catalog->output, subdirectory, filename))
+        return false;
+
+    WmImage converted = {tpl->images[image_index].width,
+                         tpl->images[image_index].height,
+                         tpl->images[image_index].rgba};
+    if (!wm_image_write(path, &converted)) {
+        fprintf(stderr, "Could not write a local texture.\n");
+        return false;
+    }
+    (*catalog->texture_total)++;
+    return true;
+}
+
+static bool catalog_record_texture(PackageCatalog *catalog, const WmTpl *tpl,
+                                   const char *basename, const char *stem,
+                                   const char *source) {
+    char url[WM_EXPORT_PATH_CAPACITY];
+    int length =
+        snprintf(url, sizeof(url), "textures/%s/%s.png", catalog->package, stem);
+    if (length < 0 || length >= (int)sizeof(url))
+        return false;
+
+    char *owned_name = malloc(strlen(basename) + 1);
+    char *owned_url = malloc(strlen(url) + 1);
+    char *owned_source = malloc(strlen(source) + 1);
+    if (!owned_name || !owned_url || !owned_source) {
+        free(owned_name);
+        free(owned_url);
+        free(owned_source);
+        return false;
+    }
+    strcpy(owned_name, basename);
+    strcpy(owned_url, url);
+    strcpy(owned_source, source);
+    catalog->textures[catalog->texture_count++] =
+        (WmResourceTexture){owned_name,
+                            owned_url,
+                            tpl->images[0].width,
+                            tpl->images[0].height,
+                            tpl->images[0].format,
+                            owned_source};
+    return true;
+}
+
+static bool catalog_export_texture(PackageCatalog *catalog, const WmU8Entry *item,
+                                   const char *stem, const char *basename) {
+    char source[WM_EXPORT_PATH_CAPACITY];
+    if (!catalog_source_path(catalog, item, source))
+        return false;
+
+    WmTpl tpl = {0};
+    if (!wm_tpl_decode(item->data, item->size, &tpl, catalog->error,
+                       catalog->error_capacity)) {
+        fprintf(stderr, "TPL decode failed: %s\n", catalog->error);
+        return false;
+    }
+    bool valid = true;
+    for (size_t image = 0; image < tpl.count; image++) {
+        if (!catalog_write_texture_image(catalog, &tpl, stem, image)) {
+            valid = false;
+            break;
+        }
+    }
+    if (valid && tpl.count != 0)
+        valid = catalog_record_texture(catalog, &tpl, basename, stem, source);
+    wm_tpl_free(&tpl);
+    return valid;
+}
+
+static bool catalog_export_layout(PackageCatalog *catalog, const WmU8Entry *item,
+                                  const char *stem) {
+    char source[WM_EXPORT_PATH_CAPACITY];
+    char *json = NULL;
+    size_t json_size = 0;
+    bool valid =
+        catalog_source_path(catalog, item, source) &&
+        wm_brlyt_to_json_with_source(
+            item->data, item->size, stem, catalog->package, source, catalog->textures,
+            catalog->texture_count, catalog->animations, catalog->animation_count,
+            &json, &json_size, catalog->error, catalog->error_capacity);
+    if (!valid) {
+        fprintf(stderr, "BRLYT export failed: %s\n", catalog->error);
+        free(json);
+        return false;
+    }
+
+    char filename[160];
+    char subdirectory[160];
+    int filename_size = snprintf(filename, sizeof(filename), "%s.json", stem);
+    int directory_size =
+        snprintf(subdirectory, sizeof(subdirectory), "layouts/%s", catalog->package);
+    char path[WM_EXPORT_PATH_CAPACITY];
+    valid = filename_size >= 0 && filename_size < (int)sizeof(filename) &&
+            directory_size >= 0 && directory_size < (int)sizeof(subdirectory) &&
+            write_path(path, catalog->output, subdirectory, filename) &&
+            wm_atomic_file_replace(path, json, json_size);
+    free(json);
+    if (!valid) {
+        fprintf(stderr, "Could not write a local layout.\n");
+        return false;
+    }
+    (*catalog->layout_total)++;
+    return true;
+}
+
 static bool export_package(const WmU8Entry *entry, const WmU8Entry *localized_entry,
                            const char *output, const char *package,
                            size_t *layout_total, size_t *texture_total) {
     char error[160] = {0};
     uint8_t *decoded = NULL;
+    uint8_t *localized_decoded = NULL;
     size_t decoded_size = 0;
+    WmU8Archive archive = {0};
+    WmU8Archive localized = {0};
+    WmU8Entry *merged = NULL;
+    WmResourceTexture *textures = NULL;
+    WmResourceAnimation *animations = NULL;
+    PackageCatalog catalog = {0};
+    size_t merged_count = 0;
+    bool valid = false;
+
     if (!wm_ash_decode(entry->data, entry->size, &decoded, &decoded_size, error,
                        sizeof(error))) {
         fprintf(stderr, "ASH decode failed: %s\n", error);
-        return false;
+        goto release_package;
     }
-    WmU8Archive archive = {0};
     if (!wm_u8_parse(decoded, decoded_size, &archive, error, sizeof(error))) {
         fprintf(stderr, "Nested U8 parse failed: %s\n", error);
-        free(decoded);
-        return false;
+        goto release_package;
     }
-    uint8_t *localized_decoded = NULL;
-    WmU8Archive localized = {0};
     if (localized_entry != NULL) {
         size_t localized_size = 0;
         if (!wm_ash_decode(localized_entry->data, localized_entry->size,
@@ -139,31 +302,21 @@ static bool export_package(const WmU8Entry *entry, const WmU8Entry *localized_en
             !wm_u8_parse(localized_decoded, localized_size, &localized, error,
                          sizeof(error))) {
             fprintf(stderr, "Localized archive decode failed: %s\n", error);
-            wm_u8_free(&archive);
-            free(decoded);
-            free(localized_decoded);
-            return false;
+            goto release_package;
         }
     }
     if (archive.count >= SIZE_MAX - localized.count) {
         fprintf(stderr, "Resource archive has too many entries.\n");
-        wm_u8_free(&localized);
-        wm_u8_free(&archive);
-        free(localized_decoded);
-        free(decoded);
-        return false;
+        goto release_package;
     }
-    WmU8Entry *merged = calloc(archive.count + localized.count + 1, sizeof(*merged));
+    merged = calloc(archive.count + localized.count + 1, sizeof(*merged));
     if (merged == NULL) {
         fprintf(stderr, "Out of memory merging local resources.\n");
-        wm_u8_free(&localized);
-        wm_u8_free(&archive);
-        free(localized_decoded);
-        free(decoded);
-        return false;
+        goto release_package;
     }
-    size_t merged_count = archive.count;
-    memcpy(merged, archive.entries, archive.count * sizeof(*merged));
+    merged_count = archive.count;
+    if (archive.count > 0)
+        memcpy(merged, archive.entries, archive.count * sizeof(*merged));
     for (size_t index = 0; index < localized.count; index++) {
         const WmU8Entry *item = &localized.entries[index];
         size_t match = 0;
@@ -178,162 +331,51 @@ static bool export_package(const WmU8Entry *entry, const WmU8Entry *localized_en
     qsort(merged, merged_count, sizeof(*merged), compare_entries);
     if (!ensure_package_directories(output, package)) {
         fprintf(stderr, "Could not create the local output directories.\n");
-        free(merged);
-        wm_u8_free(&localized);
-        wm_u8_free(&archive);
-        free(localized_decoded);
-        free(decoded);
-        return false;
+        goto release_package;
     }
 
-    WmResourceTexture *textures = calloc(merged_count + 1, sizeof(*textures));
-    WmResourceAnimation *animations = calloc(merged_count + 1, sizeof(*animations));
+    textures = calloc(merged_count + 1, sizeof(*textures));
+    animations = calloc(merged_count + 1, sizeof(*animations));
     if (textures == NULL || animations == NULL) {
         fprintf(stderr, "Out of memory preparing the package.\n");
-        free(textures);
-        free(animations);
-        free(merged);
-        wm_u8_free(&localized);
-        wm_u8_free(&archive);
-        free(localized_decoded);
-        free(decoded);
-        return false;
+        goto release_package;
     }
-    size_t texture_count = 0;
-    size_t animation_count = 0;
-    bool valid = true;
-    char path[WM_EXPORT_PATH_CAPACITY];
-
+    catalog = (PackageCatalog){.common_entry = entry,
+                               .localized_entry = localized_entry,
+                               .localized = &localized,
+                               .output = output,
+                               .package = package,
+                               .textures = textures,
+                               .animations = animations,
+                               .texture_total = texture_total,
+                               .layout_total = layout_total,
+                               .error = error,
+                               .error_capacity = sizeof(error)};
+    valid = true;
     for (size_t index = 0; index < merged_count && valid; index++) {
         const WmU8Entry *item = &merged[index];
         char stem[128];
         char basename[128];
-        if (resource_stem(item->path, ".brlan", stem, basename)) {
-            animations[animation_count].name = malloc(strlen(stem) + 1);
-            if (animations[animation_count].name == NULL) {
-                valid = false;
-                break;
-            }
-            strcpy((char *)animations[animation_count].name, stem);
-            animations[animation_count].data = item->data;
-            animations[animation_count].size = item->size;
-            animation_count++;
-        } else if (resource_stem(item->path, ".tpl", stem, basename)) {
-            char source[WM_EXPORT_PATH_CAPACITY];
-            int source_length = snprintf(
-                source, sizeof(source), "%s/%s",
-                resource_archive_path(item, entry, localized_entry, &localized),
-                item->path);
-            if (source_length < 0 || source_length >= (int)sizeof(source)) {
-                valid = false;
-                break;
-            }
-            WmTpl tpl = {0};
-            if (!wm_tpl_decode(item->data, item->size, &tpl, error, sizeof(error))) {
-                fprintf(stderr, "TPL decode failed: %s\n", error);
-                valid = false;
-                break;
-            }
-            for (size_t image = 0; image < tpl.count && valid; image++) {
-                char filename[160];
-                int length =
-                    snprintf(filename, sizeof(filename),
-                             image == 0 ? "%s.wmra" : "%s-%zu.wmra", stem, image);
-                char subdirectory[160];
-                int sub_length = snprintf(subdirectory, sizeof(subdirectory),
-                                          "textures/%s", package);
-                if (length < 0 || length >= (int)sizeof(filename) || sub_length < 0 ||
-                    sub_length >= (int)sizeof(subdirectory) ||
-                    !write_path(path, output, subdirectory, filename)) {
-                    valid = false;
-                    break;
-                }
-                WmImage converted = {tpl.images[image].width, tpl.images[image].height,
-                                     tpl.images[image].rgba};
-                if (!wm_image_write(path, &converted)) {
-                    fprintf(stderr, "Could not write a local texture.\n");
-                    valid = false;
-                    break;
-                }
-                (*texture_total)++;
-            }
-            if (valid && tpl.count != 0) {
-                char url[WM_EXPORT_PATH_CAPACITY];
-                int length =
-                    snprintf(url, sizeof(url), "textures/%s/%s.png", package, stem);
-                if (length < 0 || length >= (int)sizeof(url)) {
-                    valid = false;
-                } else {
-                    char *owned_name = malloc(strlen(basename) + 1);
-                    char *owned_url = malloc(strlen(url) + 1);
-                    char *owned_source = malloc(strlen(source) + 1);
-                    if (owned_name == NULL || owned_url == NULL ||
-                        owned_source == NULL) {
-                        free(owned_name);
-                        free(owned_url);
-                        free(owned_source);
-                        valid = false;
-                    } else {
-                        strcpy(owned_name, basename);
-                        strcpy(owned_url, url);
-                        strcpy(owned_source, source);
-                        textures[texture_count++] = (WmResourceTexture){
-                            owned_name,           owned_url,
-                            tpl.images[0].width,  tpl.images[0].height,
-                            tpl.images[0].format, owned_source};
-                    }
-                }
-            }
-            wm_tpl_free(&tpl);
-        }
+        if (resource_stem(item->path, ".brlan", stem, basename))
+            valid = catalog_add_animation(&catalog, item, stem);
+        else if (resource_stem(item->path, ".tpl", stem, basename))
+            valid = catalog_export_texture(&catalog, item, stem, basename);
     }
-
     for (size_t index = 0; index < merged_count && valid; index++) {
         const WmU8Entry *item = &merged[index];
         char stem[128];
         char basename[128];
-        if (!resource_stem(item->path, ".brlyt", stem, basename)) {
-            continue;
-        }
-        char *json = NULL;
-        size_t json_size = 0;
-        char source[WM_EXPORT_PATH_CAPACITY];
-        int source_length =
-            snprintf(source, sizeof(source), "%s/%s",
-                     resource_archive_path(item, entry, localized_entry, &localized),
-                     item->path);
-        if (source_length < 0 || source_length >= (int)sizeof(source) ||
-            !wm_brlyt_to_json_with_source(
-                item->data, item->size, stem, package, source, textures, texture_count,
-                animations, animation_count, &json, &json_size, error, sizeof(error))) {
-            fprintf(stderr, "BRLYT export failed: %s\n", error);
-            valid = false;
-            break;
-        }
-        char filename[160];
-        char subdirectory[160];
-        int filename_size = snprintf(filename, sizeof(filename), "%s.json", stem);
-        int directory_size =
-            snprintf(subdirectory, sizeof(subdirectory), "layouts/%s", package);
-        if (filename_size < 0 || filename_size >= (int)sizeof(filename) ||
-            directory_size < 0 || directory_size >= (int)sizeof(subdirectory) ||
-            !write_path(path, output, subdirectory, filename) ||
-            !wm_atomic_file_replace(path, json, json_size)) {
-            fprintf(stderr, "Could not write a local layout.\n");
-            valid = false;
-        }
-        free(json);
-        if (valid) {
-            (*layout_total)++;
-        }
+        if (resource_stem(item->path, ".brlyt", stem, basename))
+            valid = catalog_export_layout(&catalog, item, stem);
     }
 
-    for (size_t index = 0; index < texture_count; index++) {
+release_package:
+    for (size_t index = 0; index < catalog.texture_count; index++) {
         free((char *)textures[index].name);
         free((char *)textures[index].url);
         free((char *)textures[index].source);
     }
-    for (size_t index = 0; index < animation_count; index++) {
+    for (size_t index = 0; index < catalog.animation_count; index++) {
         free((char *)animations[index].name);
     }
     free(textures);
