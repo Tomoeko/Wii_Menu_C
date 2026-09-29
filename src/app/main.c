@@ -48,6 +48,114 @@ static int print_usage(const char *program) {
     return 0;
 }
 
+static bool select_preview_channel(WmMenu *menu, WmAppResources *resources,
+                                   const char *requested) {
+    int match = -1;
+    for (int slot = 1; slot < WM_SLOT_COUNT; slot++) {
+        const WmChannel *channel = &menu->slots[slot];
+        if (!channel->occupied || (strcmp(channel->id, requested) != 0 &&
+                                   strcmp(channel->title, requested) != 0))
+            continue;
+        if (match >= 0) {
+            fprintf(stderr, "Ambiguous channel name: %s; use its ID.\n", requested);
+            return false;
+        }
+        match = slot;
+    }
+    if (match < 0) {
+        fprintf(stderr, "Channel is not visible: %s\n", requested);
+        return false;
+    }
+
+    wm_health_scene_reset(resources->health_scene, false);
+    menu->screen = WM_SCREEN_PREVIEW;
+    menu->page = match / WM_CHANNELS_PER_PAGE;
+    menu->selected = match;
+    return true;
+}
+
+static void sync_audio_and_pointer(WmAppRuntime *app, bool health_frame) {
+    WmMenu *menu = app->menu;
+    WmAppResources *resources = app->resources;
+    if (!resources->layout && !health_frame &&
+        !wm_menu_restart_active(&app->flow->restart)) {
+        wm_audio_sync(resources->audio, menu);
+        /* Health may queue the badge before startup audio begins. */
+        if (menu->screen == WM_SCREEN_GRID &&
+            !wm_home_overlay_active(resources->home) &&
+            wm_resource_scene_take_new_mail_sound(resources->resource_scene)) {
+            wm_audio_play(resources->audio, "WIPL_SE_NEW_ARRIVAL");
+        }
+    }
+    /* The source switches from P1_Def to P1_Cat only while a channel or
+     * Board memo is held. Derive the pointer pose after drag controllers
+     * advance so a release returns to the normal hand in this frame. */
+    WmChannelDragPhase drag_phase = wm_channel_drag_state(resources->drag).phase;
+    bool memo_held = menu->screen == WM_SCREEN_BOARD &&
+                     wm_board_scene_dragging(resources->board_scene);
+    wm_pointer_set_grabbed(resources->pointer,
+                           wm_pointer_grabbed_for_state(drag_phase, memo_held));
+}
+
+static void advance_scenes_after_events(WmAppRuntime *app, float elapsed,
+                                        bool health_frame, uint64_t frame_start) {
+    WmMenu *menu = app->menu;
+    WmAppResources *resources = app->resources;
+    WmAppInputState *input = app->input;
+    WmAppFlowState *flow = app->flow;
+    WmAppBoardUpdate board_update = {.menu = menu,
+                                     .board = resources->board_scene,
+                                     .resource_scene = resources->resource_scene,
+                                     .audio = resources->audio,
+                                     .fade = &flow->fade,
+                                     .input = &input->board,
+                                     .menu_hover = &input->menu_pointer.hovered,
+                                     .settings_request = &flow->board_settings_request,
+                                     .state_path = resources->board_state_path,
+                                     .entry_hover_pending =
+                                         &flow->board_entry_hover_pending,
+                                     .visited = &flow->board_visited,
+                                     .pointer_inside = input->pointer_inside,
+                                     .pointer_x = input->pointer_x,
+                                     .pointer_y = input->pointer_y};
+    bool scene_updates_active = !resources->layout && !health_frame &&
+                                !wm_home_overlay_active(resources->home) &&
+                                !wm_menu_restart_active(&flow->restart);
+    wm_app_board_advance(&board_update, elapsed * 60.0f, scene_updates_active,
+                         !resources->layout, wm_home_overlay_active(resources->home));
+    if (scene_updates_active && menu->screen == WM_SCREEN_SETTINGS &&
+        (resources->options_scene || flow->active_storage)) {
+        WmAppSettingsUpdate settings_update = {
+            .menu = menu,
+            .options = resources->options_scene,
+            .storage_scenes = resources->storage_scenes,
+            .active_storage = &flow->active_storage,
+            .audio = resources->audio,
+            .fade = &flow->fade,
+            .board_settings_request = &flow->board_settings_request,
+            .hovered = &input->scene.options_hovered,
+            .pointer_inside = input->pointer_inside,
+            .pointer_x = input->pointer_x,
+            .pointer_y = input->pointer_y};
+        wm_app_settings_advance(&settings_update, elapsed * 60.0f);
+    }
+    if (scene_updates_active && resources->sd_scene && menu->screen == WM_SCREEN_SD) {
+        WmAppSdUpdate sd_update = {.scene = resources->sd_scene,
+                                   .audio = resources->audio,
+                                   .fade = &flow->fade,
+                                   .page = &flow->sd_page,
+                                   .help_seen = &flow->sd_help_seen};
+        wm_app_sd_advance(&sd_update, elapsed * 60.0f);
+    }
+    if (scene_updates_active && resources->drag) {
+        wm_app_menu_drag_advance(&input->menu_pointer, menu, resources->resource_scene,
+                                 resources->preview_scene, resources->drag,
+                                 resources->audio, elapsed * 60.0f);
+    }
+    sync_audio_and_pointer(app, health_frame);
+    wm_app_update_preview_clock(app, frame_start);
+}
+
 int main(int argc, char **argv) {
     const char *assets = NULL;
     const char *layout_path = NULL;
@@ -126,50 +234,11 @@ int main(int argc, char **argv) {
     if (!wm_app_resources_create(&resources, &menu, assets, layout_path, raw_root)) {
         return 1;
     }
-    if (preview_channel) {
-        int match = -1;
-        for (int slot = 1; slot < WM_SLOT_COUNT; slot++) {
-            const WmChannel *channel = &menu.slots[slot];
-            if (!channel->occupied || (strcmp(channel->id, preview_channel) != 0 &&
-                                       strcmp(channel->title, preview_channel) != 0))
-                continue;
-            if (match >= 0) {
-                fprintf(stderr, "Ambiguous channel name: %s; use its ID.\n",
-                        preview_channel);
-                wm_app_resources_destroy(&resources);
-                return 2;
-            }
-            match = slot;
-        }
-        if (match < 0) {
-            fprintf(stderr, "Channel is not visible: %s\n", preview_channel);
-            wm_app_resources_destroy(&resources);
-            return 2;
-        }
-        wm_health_scene_reset(resources.health_scene, false);
-        menu.screen = WM_SCREEN_PREVIEW;
-        menu.page = match / WM_CHANNELS_PER_PAGE;
-        menu.selected = match;
+    if (preview_channel &&
+        !select_preview_channel(&menu, &resources, preview_channel)) {
+        wm_app_resources_destroy(&resources);
+        return 2;
     }
-    WmLayout *layout = resources.layout;
-    WmPlatform *platform = resources.platform;
-    WmTextureCache *textures = resources.layout_textures;
-    WmFontCache *fonts = resources.layout_fonts;
-    WmTextureCache *scene_textures = resources.scene_textures;
-    WmFontCache *scene_fonts = resources.scene_fonts;
-    WmResourceScene *resource_scene = resources.resource_scene;
-    WmPreviewScene *preview_scene = resources.preview_scene;
-    WmBoardScene *board_scene = resources.board_scene;
-    WmMenuRestartScene *restart_scene = resources.restart_scene;
-    WmHealthScene *health_scene = resources.health_scene;
-    WmOptionsScene *options_scene = resources.options_scene;
-    WmSdScene *sd_scene = resources.sd_scene;
-    WmStorageScene **storage_scenes = resources.storage_scenes;
-    WmPointer *pointer = resources.pointer;
-    WmAudio *audio = resources.audio;
-    WmHomeOverlay *home = resources.home;
-    WmChannelDrag *drag = resources.drag;
-    char *board_state_path = resources.board_state_path;
 
     bool running = true;
     uint64_t previous = monotonic_nanoseconds();
@@ -180,25 +249,25 @@ int main(int argc, char **argv) {
                            .preview_running_slot = -1,
                            .started = previous,
                            .preview_started = previous};
-    WmAppRenderer renderer = {.platform = platform,
-                              .layout_textures = textures,
-                              .layout_fonts = fonts,
-                              .scene_textures = scene_textures,
-                              .scene_fonts = scene_fonts,
-                              .layout = layout,
+    WmAppRenderer renderer = {.platform = resources.platform,
+                              .layout_textures = resources.layout_textures,
+                              .layout_fonts = resources.layout_fonts,
+                              .scene_textures = resources.scene_textures,
+                              .scene_fonts = resources.scene_fonts,
+                              .layout = resources.layout,
                               .animation = animation,
                               .hide_masks = hide_masks,
-                              .health_scene = health_scene,
-                              .restart_scene = restart_scene,
-                              .home = home,
-                              .resource_scene = resource_scene,
-                              .preview_scene = preview_scene,
-                              .board_scene = board_scene,
-                              .options_scene = options_scene,
-                              .sd_scene = sd_scene,
-                              .pointer = pointer,
-                              .drag = drag,
-                              .audio = audio};
+                              .health_scene = resources.health_scene,
+                              .restart_scene = resources.restart_scene,
+                              .home = resources.home,
+                              .resource_scene = resources.resource_scene,
+                              .preview_scene = resources.preview_scene,
+                              .board_scene = resources.board_scene,
+                              .options_scene = resources.options_scene,
+                              .sd_scene = resources.sd_scene,
+                              .pointer = resources.pointer,
+                              .drag = resources.drag,
+                              .audio = resources.audio};
     WmAppRuntime app = {.menu = &menu,
                         .resources = &resources,
                         .renderer = &renderer,
@@ -219,78 +288,16 @@ int main(int argc, char **argv) {
             elapsed = 0.1f;
         previous = frame_start;
         bool health_frame = wm_app_advance_before_events(&app, frame_start, elapsed);
-        if (board_scene && menu.screen == WM_SCREEN_BOARD && !menu.home_open) {
+        if (resources.board_scene && menu.screen == WM_SCREEN_BOARD &&
+            !menu.home_open) {
             wm_board_scene_set_menu_elapsed_seconds(
-                board_scene, (float)(frame_start - flow.started) / 1000000000.0f);
+                resources.board_scene,
+                (float)(frame_start - flow.started) / 1000000000.0f);
         }
         wm_app_poll_events(&app, frame_start, health_frame, &running);
         if (!running)
             break;
-        WmAppBoardUpdate board_update = {
-            .menu = &menu,
-            .board = board_scene,
-            .resource_scene = resource_scene,
-            .audio = audio,
-            .fade = &flow.fade,
-            .input = &input.board,
-            .menu_hover = &input.menu_pointer.hovered,
-            .settings_request = &flow.board_settings_request,
-            .state_path = board_state_path,
-            .entry_hover_pending = &flow.board_entry_hover_pending,
-            .visited = &flow.board_visited,
-            .pointer_inside = input.pointer_inside,
-            .pointer_x = input.pointer_x,
-            .pointer_y = input.pointer_y};
-        bool scene_updates_active = !layout && !health_frame &&
-                                    !wm_home_overlay_active(home) &&
-                                    !wm_menu_restart_active(&flow.restart);
-        wm_app_board_advance(&board_update, elapsed * 60.0f, scene_updates_active,
-                             !layout, wm_home_overlay_active(home));
-        if (scene_updates_active && menu.screen == WM_SCREEN_SETTINGS &&
-            (options_scene || flow.active_storage)) {
-            WmAppSettingsUpdate settings_update = {
-                .menu = &menu,
-                .options = options_scene,
-                .storage_scenes = storage_scenes,
-                .active_storage = &flow.active_storage,
-                .audio = audio,
-                .fade = &flow.fade,
-                .board_settings_request = &flow.board_settings_request,
-                .hovered = &input.scene.options_hovered,
-                .pointer_inside = input.pointer_inside,
-                .pointer_x = input.pointer_x,
-                .pointer_y = input.pointer_y};
-            wm_app_settings_advance(&settings_update, elapsed * 60.0f);
-        }
-        if (scene_updates_active && sd_scene && menu.screen == WM_SCREEN_SD) {
-            WmAppSdUpdate sd_update = {.scene = sd_scene,
-                                       .audio = audio,
-                                       .fade = &flow.fade,
-                                       .page = &flow.sd_page,
-                                       .help_seen = &flow.sd_help_seen};
-            wm_app_sd_advance(&sd_update, elapsed * 60.0f);
-        }
-        if (scene_updates_active && drag) {
-            wm_app_menu_drag_advance(&input.menu_pointer, &menu, resource_scene,
-                                     preview_scene, drag, audio, elapsed * 60.0f);
-        }
-        if (!layout && !health_frame && !wm_menu_restart_active(&flow.restart)) {
-            wm_audio_sync(audio, &menu);
-            /* Health may queue the badge before startup audio begins. */
-            if (menu.screen == WM_SCREEN_GRID && !wm_home_overlay_active(home) &&
-                wm_resource_scene_take_new_mail_sound(resource_scene)) {
-                wm_audio_play(audio, "WIPL_SE_NEW_ARRIVAL");
-            }
-        }
-        /* The source switches from P1_Def to P1_Cat only while a channel or
-         * Board memo is held. Derive the pointer pose after drag controllers
-         * advance so a release returns to the normal hand in this frame. */
-        WmChannelDragPhase drag_phase = wm_channel_drag_state(drag).phase;
-        bool memo_held =
-            menu.screen == WM_SCREEN_BOARD && wm_board_scene_dragging(board_scene);
-        wm_pointer_set_grabbed(pointer,
-                               wm_pointer_grabbed_for_state(drag_phase, memo_held));
-        wm_app_update_preview_clock(&app, frame_start);
+        advance_scenes_after_events(&app, elapsed, health_frame, frame_start);
         WmAppRenderFrame render_frame = {
             .menu = &menu,
             .fade = &flow.fade,
@@ -320,7 +327,8 @@ int main(int argc, char **argv) {
             if (draw_time > profile_draw_max)
                 profile_draw_max = draw_time;
             if (profile_frame_count == 120) {
-                WmTextureCacheStats textures = wm_texture_cache_stats(scene_textures);
+                WmTextureCacheStats textures =
+                    wm_texture_cache_stats(resources.scene_textures);
                 fprintf(stderr,
                         "Frame timing: screen=%d, frame=%.2f ms, draw=%.2f ms, "
                         "max draw=%.2f ms, textures=%zu/%zu MiB, "
