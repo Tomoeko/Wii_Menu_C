@@ -3,6 +3,10 @@ wm_add_test(wii-menu-default-assets
     SOURCES app/asset_path_test.c "${PROJECT_SOURCE_DIR}/src/app/asset_path.c"
     INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/app"
 )
+wm_add_test(wii-menu-asset-manifest
+    SOURCES support/asset_manifest_test.c
+    LIBRARIES wii_menu_core
+)
 
 # Animation.
 wm_add_test(wii-menu-transition
@@ -356,6 +360,8 @@ wm_add_test(wii-menu-channel-manifest
 wm_add_test(wii-menu-prepare-update
     SOURCES
         tools/prepare_update_test.c
+        "${PROJECT_SOURCE_DIR}/src/support/asset_manifest.c"
+        "${PROJECT_SOURCE_DIR}/src/support/sha1.c"
         "${PROJECT_SOURCE_DIR}/tools/preparation/prepare_fs.c"
         "${PROJECT_SOURCE_DIR}/tools/preparation/prepare_recovery.c"
         "${PROJECT_SOURCE_DIR}/tools/preparation/prepare_update.c"
@@ -379,16 +385,22 @@ wm_add_test(wii-menu-settings-png
 )
 wm_add_test(wii-menu-crypto
     SOURCES
+        "${PROJECT_SOURCE_DIR}/src/support/sha1.c"
         "${PROJECT_SOURCE_DIR}/tools/wad/crypto.c"
         tools/wad_crypto_test.c
-    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/tools/wad"
+    INCLUDE_DIRECTORIES
+        "${PROJECT_SOURCE_DIR}/tools/wad"
+        "${PROJECT_SOURCE_DIR}/include"
 )
 wm_add_test(wii-menu-wad-extract
     SOURCES
+        "${PROJECT_SOURCE_DIR}/src/support/sha1.c"
         tools/wad_extract_test.c
         "${PROJECT_SOURCE_DIR}/tools/wad/crypto.c"
         "${PROJECT_SOURCE_DIR}/tools/wad/retail_keys.c"
-    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/tools/wad"
+    INCLUDE_DIRECTORIES
+        "${PROJECT_SOURCE_DIR}/tools/wad"
+        "${PROJECT_SOURCE_DIR}/include"
 )
 wm_add_test(wii-menu-outline-font-export
     SOURCES tools/outline_font_export_test.c

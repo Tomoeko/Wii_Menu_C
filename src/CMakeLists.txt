@@ -104,8 +104,10 @@ add_library(wii_menu_core STATIC
     scenes/storage_scene_presentation.c
 
     support/atomic_file.c
+    support/asset_manifest.c
     support/json.c
     support/regular_file.c
+    support/sha1.c
 )
 target_include_directories(wii_menu_core PUBLIC "${PROJECT_SOURCE_DIR}/include")
 wm_enable_warnings(wii_menu_core CONVERSION)
@@ -120,6 +122,7 @@ if(WM_BUILD_APP)
     set(WM_APP_SOURCES
         app/app_resources.c
         app/asset_path.c
+        app/corruption_screen.c
         app/board_input.c
         app/board_update.c
         app/event_dispatch.c

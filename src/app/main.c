@@ -4,9 +4,11 @@
 #include "app_runtime.h"
 #include "asset_path.h"
 #include "board_update.h"
+#include "corruption_screen.h"
 #include "event_dispatch.h"
 #include "frame_transitions.h"
 #include "scene_updates.h"
+#include "wii_menu/support/asset_manifest.h"
 
 #include <errno.h>
 #include <stdbool.h>
@@ -32,12 +34,13 @@ static void sleep_nanoseconds(uint64_t duration) {
 }
 
 static int print_usage(const char *program) {
-    fprintf(stderr, "Usage: %s [--assets DIRECTORY]\n", program);
+    fprintf(stderr, "Usage: %s [--assets DIRECTORY] [--bypass]\n", program);
     fprintf(stderr,
             "       %s --layout JSON --raw-root DIRECTORY [--animation NAME] "
             "[--hide-masks]\n",
             program);
     fprintf(stderr, "Default assets: searches for .local/native-assets.\n");
+    fprintf(stderr, "--bypass skips prepared-asset integrity checks.\n");
     fprintf(stderr, "Controls: pointer, arrow keys, Enter, Escape, H for HOME.\n");
     return 0;
 }
@@ -48,6 +51,7 @@ int main(int argc, char **argv) {
     const char *raw_root = NULL;
     const char *animation = NULL;
     bool hide_masks = false;
+    bool bypass = false;
     for (int index = 1; index < argc; index++) {
         if (strcmp(argv[index], "--help") == 0 || strcmp(argv[index], "-h") == 0) {
             return print_usage(argv[0]);
@@ -72,6 +76,10 @@ int main(int argc, char **argv) {
             hide_masks = true;
             continue;
         }
+        if (strcmp(argv[index], "--bypass") == 0) {
+            bypass = true;
+            continue;
+        }
         print_usage(argv[0]);
         return 2;
     }
@@ -88,6 +96,17 @@ int main(int argc, char **argv) {
         } else {
             fprintf(stderr, "Could not find .local/native-assets; "
                             "use --assets DIRECTORY to select prepared assets.\n");
+        }
+    }
+
+    if (!layout_path && !bypass) {
+        const char *root = assets ? assets : ".local/native-assets";
+        unsigned issues = 0;
+        if (!wm_asset_manifest_verify(root, stderr, &issues)) {
+            fprintf(stderr, "Prepared assets at %s have %u integrity issue(s).\n"
+                            "Use --bypass only if these files were intentionally edited.\n",
+                    root, issues);
+            return wm_app_show_corruption_screen(assets);
         }
     }
 

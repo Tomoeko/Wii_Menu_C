@@ -9,6 +9,7 @@
 #include "preparation/prepare_fs.h"
 #include "preparation/prepare_recovery.h"
 #include "preparation/prepare_update.h"
+#include "wii_menu/support/asset_manifest.h"
 
 #include <errno.h>
 #include <stdbool.h>
@@ -430,6 +431,9 @@ int main(int argc, char **argv) {
         }
         if (okay) okay = prepare_update_channels(assets, incoming_assets, assets,
                                         &replace_ids, &keep_ids, replace_all);
+    }
+    if (okay && !plan) {
+        okay = wm_asset_manifest_write(assets, stderr);
     }
     if (okay && !plan) {
         okay = publish_directory_no_replace(assets, output);

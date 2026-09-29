@@ -64,6 +64,11 @@ your only build. An ALSA-compatible default output device is needed for audio.
 Without `--assets`, the app searches for `.local/native-assets` in the current
 directory and its parents, then beside the executable and its parents. Use
 `--assets DIRECTORY` to select another prepared asset directory.
+Preparation seals its output with `asset-manifest.sha1`. On startup, the app
+checks the prepared files and lists missing or mismatched paths in the terminal
+while showing the WAD's system-files-corrupted message. Reprepare older asset
+directories that have no manifest. Use `--bypass` to run with intentionally
+modified files without this check.
 
 Omit `--nand` to prepare only the System Menu. For an unsupported key index,
 use `--common-key-file FILE` and `--common-key-index N` to supply an override.
