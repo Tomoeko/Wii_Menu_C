@@ -272,6 +272,131 @@ static PrepareParseResult parse_options(int argc, char **argv,
     return PREPARE_PARSE_READY;
 }
 
+typedef struct {
+    char assets[PREPARE_PATH_CAPACITY];
+    char nand_output[PREPARE_PATH_CAPACITY];
+    char incoming_assets[PREPARE_PATH_CAPACITY];
+    char resource10[PREPARE_PATH_CAPACITY];
+    char resource97[PREPARE_PATH_CAPACITY];
+    char resource98[PREPARE_PATH_CAPACITY];
+    char content_directory[PREPARE_PATH_CAPACITY];
+} PrepareStagePaths;
+
+static bool stage_paths(PrepareStagePaths *paths, const char *temporary) {
+    return path_join(paths->assets, sizeof(paths->assets), temporary, "assets") &&
+           path_join(paths->nand_output, sizeof(paths->nand_output), temporary,
+                     "nand") &&
+           path_join(paths->incoming_assets, sizeof(paths->incoming_assets), temporary,
+                     "incoming-assets") &&
+           path_join(paths->resource10, sizeof(paths->resource10), temporary,
+                     ".local/wad/0000000100000002/content/0000000a.app") &&
+           path_join(paths->resource97, sizeof(paths->resource97), temporary,
+                     ".local/wad/0000000100000002/content/00000097.app") &&
+           path_join(paths->resource98, sizeof(paths->resource98), temporary,
+                     ".local/wad/0000000100000002/content/00000098.app") &&
+           path_join(paths->content_directory, sizeof(paths->content_directory),
+                     temporary, ".local/wad/0000000100000002/content");
+}
+
+static bool create_stage_assets(const PrepareStagePaths *paths, const char *base_path,
+                                bool plan) {
+    if (base_path && plan)
+        return regular_tree(base_path) && mkdir(paths->incoming_assets, 0700) == 0;
+    if (base_path)
+        return copy_tree(base_path, paths->assets) &&
+               mkdir(paths->incoming_assets, 0700) == 0;
+    return mkdir(paths->assets, 0700) == 0;
+}
+
+static bool export_wad_assets(const char *binary_directory, const char *temporary,
+                              const PrepareStagePaths *paths, const char *wad_path,
+                              const char *common_key_path, const char *common_key_index,
+                              const char *language) {
+    char *wad_arguments[8] = {"wm-wad-extract", "--wad", (char *)wad_path};
+    size_t argument_count = 3;
+    if (common_key_path) {
+        wad_arguments[argument_count++] = "--common-key-file";
+        wad_arguments[argument_count++] = (char *)common_key_path;
+    }
+    if (common_key_index) {
+        wad_arguments[argument_count++] = "--common-key-index";
+        wad_arguments[argument_count++] = (char *)common_key_index;
+    }
+    wad_arguments[argument_count] = NULL;
+    if (!run_tool(binary_directory, "wm-wad-extract", temporary, wad_arguments, false))
+        return false;
+
+    char *dictionary_arguments[] = {"wm-keyboard-dictionary-export",
+                                    (char *)paths->content_directory,
+                                    (char *)paths->assets, NULL};
+    if (!run_tool(binary_directory, "wm-keyboard-dictionary-export", temporary,
+                  dictionary_arguments, false))
+        return false;
+
+    char *layout_arguments[] = {"wm-layout-export", (char *)paths->resource97,
+                                (char *)paths->assets, (char *)language, NULL};
+    if (!run_tool(binary_directory, "wm-layout-export", temporary, layout_arguments,
+                  false))
+        return false;
+
+    char *settings_arguments[] = {"wm-settings-export", (char *)paths->resource97,
+                                  (char *)paths->assets, NULL};
+    if (!run_tool(binary_directory, "wm-settings-export", temporary, settings_arguments,
+                  false))
+        return false;
+
+    char *outline_font_arguments[] = {"wm-outline-font-export",
+                                      (char *)paths->resource10, (char *)paths->assets,
+                                      NULL};
+    if (!run_tool(binary_directory, "wm-outline-font-export", temporary,
+                  outline_font_arguments, false))
+        return false;
+
+    char *audio_arguments[] = {"wm-audio-export", (char *)paths->resource97,
+                               (char *)paths->resource98, (char *)paths->assets, NULL};
+    if (!run_tool(binary_directory, "wm-audio-export", temporary, audio_arguments,
+                  false))
+        return false;
+
+    char *restart_arguments[] = {"wm-restart-export", (char *)paths->resource98,
+                                 (char *)paths->assets, NULL};
+    return run_tool(binary_directory, "wm-restart-export", temporary, restart_arguments,
+                    false);
+}
+
+static bool export_nand_assets(const char *binary_directory, const char *temporary,
+                               const PrepareStagePaths *paths, const char *nand_path,
+                               const char *nand_keys_path, const char *base_path,
+                               const char *language, bool plan) {
+    char *nand_arguments[] = {"wm-nand-extract",
+                              (char *)nand_path,
+                              (char *)paths->nand_output,
+                              NULL,
+                              NULL,
+                              NULL};
+    if (nand_keys_path) {
+        nand_arguments[3] = "--keys";
+        nand_arguments[4] = (char *)nand_keys_path;
+    }
+    if (!run_tool(binary_directory, "wm-nand-extract", temporary, nand_arguments, plan))
+        return false;
+
+    char *channel_arguments[] = {
+        "wm-channel-export", (char *)paths->nand_output,
+        (char *)(base_path ? paths->incoming_assets : paths->assets), (char *)language,
+        NULL};
+    if (!run_tool(binary_directory, "wm-channel-export", temporary, channel_arguments,
+                  plan))
+        return false;
+    if (base_path)
+        return true;
+
+    char *font_arguments[] = {"wm-shared-font-export", (char *)paths->nand_output,
+                              (char *)paths->assets, NULL};
+    return run_tool(binary_directory, "wm-shared-font-export", temporary,
+                    font_arguments, false);
+}
+
 int main(int argc, char **argv) {
     PrepareOptions options;
     PrepareParseResult parse_result = parse_options(argc, argv, &options);
@@ -403,95 +528,16 @@ int main(int argc, char **argv) {
             prepare_close_manifest(&existing_manifest);
         goto release_paths;
     }
-    char assets[PREPARE_PATH_CAPACITY], nand_output[PREPARE_PATH_CAPACITY];
-    char resource10[PREPARE_PATH_CAPACITY];
-    char resource97[PREPARE_PATH_CAPACITY], resource98[PREPARE_PATH_CAPACITY];
-    char content_directory[PREPARE_PATH_CAPACITY];
-    char incoming_assets[PREPARE_PATH_CAPACITY];
-    bool okay = path_join(assets, sizeof(assets), temporary, "assets") &&
-                path_join(nand_output, sizeof(nand_output), temporary, "nand") &&
-                path_join(incoming_assets, sizeof(incoming_assets), temporary,
-                          "incoming-assets") &&
-                path_join(resource10, sizeof(resource10), temporary,
-                          ".local/wad/0000000100000002/content/0000000a.app") &&
-                path_join(resource97, sizeof(resource97), temporary,
-                          ".local/wad/0000000100000002/content/00000097.app") &&
-                path_join(resource98, sizeof(resource98), temporary,
-                          ".local/wad/0000000100000002/content/00000098.app") &&
-                path_join(content_directory, sizeof(content_directory), temporary,
-                          ".local/wad/0000000100000002/content");
-    if (okay && base_path && plan)
-        okay = regular_tree(base_path);
-    if (okay && base_path && !plan)
-        okay = copy_tree(base_path, assets) && mkdir(incoming_assets, 0700) == 0;
-    else if (okay && plan)
-        okay = mkdir(incoming_assets, 0700) == 0;
-    else if (okay)
-        okay = mkdir(assets, 0700) == 0;
+    PrepareStagePaths paths;
+    bool okay =
+        stage_paths(&paths, temporary) && create_stage_assets(&paths, base_path, plan);
     if (okay && !base_path) {
-        char *wad_arguments[8] = {"wm-wad-extract", "--wad", wad_path};
-        size_t argument_count = 3;
-        if (common_key_path) {
-            wad_arguments[argument_count++] = "--common-key-file";
-            wad_arguments[argument_count++] = common_key_path;
-        }
-        if (common_key_index) {
-            wad_arguments[argument_count++] = "--common-key-index";
-            wad_arguments[argument_count++] = (char *)common_key_index;
-        }
-        wad_arguments[argument_count] = NULL;
-        okay = run_tool(self, "wm-wad-extract", temporary, wad_arguments, false);
-    }
-    if (okay && !base_path) {
-        char *dictionary_arguments[] = {"wm-keyboard-dictionary-export",
-                                        content_directory, assets, NULL};
-        okay = run_tool(self, "wm-keyboard-dictionary-export", temporary,
-                        dictionary_arguments, false);
-    }
-    if (okay && !base_path) {
-        char *layout_arguments[] = {"wm-layout-export", resource97, assets,
-                                    (char *)language, NULL};
-        okay = run_tool(self, "wm-layout-export", temporary, layout_arguments, false);
-    }
-    if (okay && !base_path) {
-        char *settings_arguments[] = {"wm-settings-export", resource97, assets, NULL};
-        okay =
-            run_tool(self, "wm-settings-export", temporary, settings_arguments, false);
-    }
-    if (okay && !base_path) {
-        char *outline_font_arguments[] = {"wm-outline-font-export", resource10, assets,
-                                          NULL};
-        okay = run_tool(self, "wm-outline-font-export", temporary,
-                        outline_font_arguments, false);
-    }
-    if (okay && !base_path) {
-        char *audio_arguments[] = {"wm-audio-export", resource97, resource98, assets,
-                                   NULL};
-        okay = run_tool(self, "wm-audio-export", temporary, audio_arguments, false);
-    }
-    if (okay && !base_path) {
-        char *restart_arguments[] = {"wm-restart-export", resource98, assets, NULL};
-        okay = run_tool(self, "wm-restart-export", temporary, restart_arguments, false);
+        okay = export_wad_assets(self, temporary, &paths, wad_path, common_key_path,
+                                 common_key_index, language);
     }
     if (okay && nand_path) {
-        char *nand_arguments[] = {
-            "wm-nand-extract", nand_path, nand_output, NULL, NULL, NULL};
-        if (nand_keys_path) {
-            nand_arguments[3] = "--keys";
-            nand_arguments[4] = nand_keys_path;
-        }
-        okay = run_tool(self, "wm-nand-extract", temporary, nand_arguments, plan);
-    }
-    if (okay && nand_path) {
-        char *channel_arguments[] = {"wm-channel-export", nand_output,
-                                     base_path ? incoming_assets : assets,
-                                     (char *)language, NULL};
-        okay = run_tool(self, "wm-channel-export", temporary, channel_arguments, plan);
-    }
-    if (okay && nand_path && !base_path) {
-        char *font_arguments[] = {"wm-shared-font-export", nand_output, assets, NULL};
-        okay =
-            run_tool(self, "wm-shared-font-export", temporary, font_arguments, false);
+        okay = export_nand_assets(self, temporary, &paths, nand_path, nand_keys_path,
+                                  base_path, language, plan);
     }
     char input_nand_sha1[41];
     if (okay && base_path) {
@@ -500,28 +546,29 @@ int main(int argc, char **argv) {
             fputs("Could not hash the NAND input for the update plan.\n", stderr);
     }
     if (okay && plan) {
-        okay = prepare_print_update_plan(stdout, base_path, incoming_assets,
+        okay = prepare_print_update_plan(stdout, base_path, paths.incoming_assets,
                                          input_nand_sha1, &replace_ids, &keep_ids,
                                          replace_all);
     } else if (okay && base_path) {
         if (expected_plan) {
-            okay = prepare_verify_expected_plan(expected_plan, assets, incoming_assets,
-                                                input_nand_sha1, &replace_ids,
-                                                &keep_ids, replace_all);
+            okay = prepare_verify_expected_plan(expected_plan, paths.assets,
+                                                paths.incoming_assets, input_nand_sha1,
+                                                &replace_ids, &keep_ids, replace_all);
             if (!okay)
                 fputs("The reviewed channel update plan no longer "
                       "matches these inputs and choices.\n",
                       stderr);
         }
         if (okay)
-            okay = prepare_update_channels(assets, incoming_assets, assets,
-                                           &replace_ids, &keep_ids, replace_all);
+            okay = prepare_update_channels(paths.assets, paths.incoming_assets,
+                                           paths.assets, &replace_ids, &keep_ids,
+                                           replace_all);
     }
     if (okay && !plan) {
-        okay = wm_asset_manifest_write(assets, stderr);
+        okay = wm_asset_manifest_write(paths.assets, stderr);
     }
     if (okay && !plan) {
-        okay = publish_directory_no_replace(assets, output);
+        okay = publish_directory_no_replace(paths.assets, output);
     }
     if (!okay)
         fputs("Preparation failed; the destination was not published.\n", stderr);
