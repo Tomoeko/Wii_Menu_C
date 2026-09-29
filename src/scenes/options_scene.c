@@ -250,6 +250,19 @@ static void finish_back_level(WmOptionsScene *scene) {
     start_phase(scene, WM_OPTIONS_READY);
 }
 
+static bool return_to_history_entry(WmOptionsScene *scene, HistoryEntry previous) {
+    int first, second;
+    if (!options_scene_page_pair(previous.page, &first, &second) ||
+        (previous.selected != first && previous.selected != second))
+        return false;
+    scene->exiting_page = scene->page;
+    scene->page = previous.page;
+    scene->selected = previous.selected;
+    scene->sibling = previous.selected == first ? second : first;
+    start_phase(scene, WM_OPTIONS_BACK_LEVEL);
+    return true;
+}
+
 static void finish_phase(WmOptionsScene *scene) {
     int first, second;
     switch (scene->phase) {
@@ -300,13 +313,13 @@ static void finish_phase(WmOptionsScene *scene) {
                  * Options pose underneath it until the black handoff. */
                 start_phase(scene, WM_OPTIONS_EXIT_HOLD);
             } else {
-                HistoryEntry previous = scene->history[--scene->history_count];
-                scene->exiting_page = scene->page;
-                scene->page = previous.page;
-                scene->selected = previous.selected;
-                options_scene_page_pair(scene->page, &first, &second);
-                scene->sibling = scene->selected == first ? second : first;
-                start_phase(scene, WM_OPTIONS_BACK_LEVEL);
+                HistoryEntry previous = scene->history[scene->history_count - 1];
+                if (return_to_history_entry(scene, previous)) {
+                    scene->history_count--;
+                } else {
+                    scene->action = WM_OPTIONS_ACTION_EXITED;
+                    start_phase(scene, WM_OPTIONS_EXIT_HOLD);
+                }
             }
             break;
         case WM_OPTIONS_BACK_LEVEL:
@@ -476,14 +489,10 @@ bool wm_options_scene_back(WmOptionsScene *scene) {
         scene->page == WM_OPTIONS_PAGE_GAMECUBE_STORAGE) {
         if (!scene->history_count)
             return false;
-        int first, second;
-        HistoryEntry previous = scene->history[--scene->history_count];
-        scene->exiting_page = scene->page;
-        scene->page = previous.page;
-        scene->selected = previous.selected;
-        options_scene_page_pair(scene->page, &first, &second);
-        scene->sibling = scene->selected == first ? second : first;
-        start_phase(scene, WM_OPTIONS_BACK_LEVEL);
+        HistoryEntry previous = scene->history[scene->history_count - 1];
+        if (!return_to_history_entry(scene, previous))
+            return false;
+        scene->history_count--;
         return true;
     }
     start_phase(scene, WM_OPTIONS_BACK_FLASH);
