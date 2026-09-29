@@ -133,6 +133,8 @@ static void font_quad(void *context, const WmFontQuad *quad) {
 }
 
 static void draw_wad_text(ScreenFont *screen_font, const char *message) {
+    /* Keep the longest message line near half the 640-pixel logical screen. */
+    const float text_height = 19.0f;
     const WmFont *font = wm_cached_font_resource(screen_font->face);
     const WmFontMetrics *metrics = wm_font_metrics(font);
     if (!metrics || !metrics->height) return;
@@ -147,7 +149,8 @@ static void draw_wad_text(ScreenFont *screen_font, const char *message) {
         WmFontDrawOptions options = {
             .x = 0.0f,
             .y = WM_FRAME_HEIGHT * 0.5f - (180.0f + 32.0f * row),
-            .size = {24.0f * metrics->width / metrics->height, 24.0f},
+            .size = {text_height * metrics->width / metrics->height,
+                     text_height},
             .alpha = 1.0f,
             .top_color = {255, 255, 255, 255},
             .bottom_color = {255, 255, 255, 255},
@@ -182,8 +185,9 @@ int wm_app_show_corruption_screen(const char *assets_root) {
             fonts, "RevoIpl_RodinNTLGPro_DB_32_I4.brfnt")
     };
     uint32_t fallback = screen_font.face ? 0 : create_emergency_text(platform, message);
+    /* The emergency bitmap uses the same centered message width as the WAD font. */
     const WmQuad fallback_quad = {
-        .x = 0.0f, .y = 170.0f, .width = 640.0f, .height = 112.0f,
+        .x = 120.0f, .y = 170.0f, .width = 400.0f, .height = 112.0f,
         .u0 = 0.0f, .v0 = 0.0f, .u1 = 1.0f, .v1 = 1.0f,
         .color = {1.0f, 1.0f, 1.0f, 1.0f}, .texture = fallback
     };
