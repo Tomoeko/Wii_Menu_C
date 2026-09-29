@@ -1,5 +1,7 @@
 #include "wii_menu/resources/resource_tpl.h"
 
+#include "resource_bytes.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,19 +18,6 @@ typedef struct WmTplShape {
     int height;
     int bytes;
 } WmTplShape;
-
-static uint16_t wm_read_be16(const uint8_t *bytes) {
-    return (uint16_t)(((uint16_t)bytes[0] << 8) | bytes[1]);
-}
-
-static uint32_t wm_read_be32(const uint8_t *bytes) {
-    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
-           ((uint32_t)bytes[2] << 8) | bytes[3];
-}
-
-static bool wm_range_fits(size_t size, size_t offset, size_t length) {
-    return offset <= size && length <= size - offset;
-}
 
 static void wm_error(char *error, size_t error_size, const char *message) {
     if (error != NULL && error_size != 0) {
@@ -93,14 +82,14 @@ static bool wm_shape(uint32_t format, WmTplShape *shape) {
 static bool wm_read_palette(const uint8_t *data, size_t size, size_t header_offset,
                             uint8_t **palette, size_t *palette_count, char *error,
                             size_t error_size) {
-    if (!wm_range_fits(size, header_offset, 12)) {
+    if (!wm_resource_range_fits(size, header_offset, 12)) {
         wm_error(error, error_size, "Truncated TPL palette header.");
         return false;
     }
-    size_t count = wm_read_be16(data + header_offset);
-    uint32_t format = wm_read_be32(data + header_offset + 4);
-    size_t offset = wm_read_be32(data + header_offset + 8);
-    if (count == 0 || format > 2 || !wm_range_fits(size, offset, count * 2)) {
+    size_t count = wm_resource_be16(data + header_offset);
+    uint32_t format = wm_resource_be32(data + header_offset + 4);
+    size_t offset = wm_resource_be32(data + header_offset + 8);
+    if (count == 0 || format > 2 || !wm_resource_range_fits(size, offset, count * 2)) {
         wm_error(error, error_size, "Invalid TPL palette.");
         return false;
     }
@@ -111,7 +100,7 @@ static bool wm_read_palette(const uint8_t *data, size_t size, size_t header_offs
         return false;
     }
     for (size_t index = 0; index < count; index++) {
-        uint16_t value = wm_read_be16(data + offset + index * 2);
+        uint16_t value = wm_resource_be16(data + offset + index * 2);
         uint8_t *color = colors + index * 4;
         if (format == 0) {
             color[0] = (uint8_t)value;
@@ -157,17 +146,17 @@ static bool wm_decode_pixel(const uint8_t *tile, uint32_t format, int x, int y,
             color[3] = (uint8_t)((value >> 4) * 17u);
             return true;
         case 3:
-            value = wm_read_be16(tile + index * 2);
+            value = wm_resource_be16(tile + index * 2);
             color[0] = (uint8_t)value;
             color[1] = color[0];
             color[2] = color[0];
             color[3] = (uint8_t)(value >> 8);
             return true;
         case 4:
-            wm_rgb565(wm_read_be16(tile + index * 2), color);
+            wm_rgb565(wm_resource_be16(tile + index * 2), color);
             return true;
         case 5:
-            wm_rgb5a3(wm_read_be16(tile + index * 2), color);
+            wm_rgb5a3(wm_resource_be16(tile + index * 2), color);
             return true;
         case 6:
             color[0] = tile[index * 2 + 1];
@@ -179,12 +168,12 @@ static bool wm_decode_pixel(const uint8_t *tile, uint32_t format, int x, int y,
             palette_index = tile[index];
             break;
         case 10:
-            palette_index = wm_read_be16(tile + index * 2) & 0x3fffu;
+            palette_index = wm_resource_be16(tile + index * 2) & 0x3fffu;
             break;
         case 14: {
             size_t subblock = (size_t)((y / 4 * 2 + x / 4) * 8);
-            uint16_t c0 = wm_read_be16(tile + subblock);
-            uint16_t c1 = wm_read_be16(tile + subblock + 2);
+            uint16_t c0 = wm_resource_be16(tile + subblock);
+            uint16_t c1 = wm_resource_be16(tile + subblock + 2);
             uint8_t first[4];
             uint8_t second[4];
             wm_rgb565(c0, first);
@@ -222,14 +211,14 @@ static bool wm_decode_pixel(const uint8_t *tile, uint32_t format, int x, int y,
 static bool wm_decode_image(const uint8_t *data, size_t size, size_t image_header,
                             size_t palette_header, WmTplImage *image, char *error,
                             size_t error_size) {
-    if (!wm_range_fits(size, image_header, 12)) {
+    if (!wm_resource_range_fits(size, image_header, 12)) {
         wm_error(error, error_size, "Truncated TPL image header.");
         return false;
     }
-    uint16_t height = wm_read_be16(data + image_header);
-    uint16_t width = wm_read_be16(data + image_header + 2);
-    uint32_t format = wm_read_be32(data + image_header + 4);
-    size_t offset = wm_read_be32(data + image_header + 8);
+    uint16_t height = wm_resource_be16(data + image_header);
+    uint16_t width = wm_resource_be16(data + image_header + 2);
+    uint32_t format = wm_resource_be32(data + image_header + 4);
+    size_t offset = wm_resource_be32(data + image_header + 8);
     WmTplShape shape;
     if (height == 0 || width == 0 || !wm_shape(format, &shape)) {
         wm_error(error, error_size, "Unsupported TPL image dimensions or format.");
@@ -240,7 +229,8 @@ static bool wm_decode_image(const uint8_t *data, size_t size, size_t image_heade
     size_t tiles_y = ((size_t)height + (size_t)shape.height - 1) / (size_t)shape.height;
     size_t max_tiles = SIZE_MAX / (size_t)shape.bytes;
     if (tiles_x > max_tiles / tiles_y ||
-        !wm_range_fits(size, offset, tiles_x * tiles_y * (size_t)shape.bytes) ||
+        !wm_resource_range_fits(size, offset,
+                                tiles_x * tiles_y * (size_t)shape.bytes) ||
         (size_t)width > WM_TPL_MAX_RGBA_BYTES / 4 / (size_t)height) {
         wm_error(error, error_size, "TPL image data is truncated or too large.");
         return false;
@@ -313,29 +303,30 @@ void wm_tpl_free(WmTpl *tpl) {
 
 bool wm_tpl_decode(const uint8_t *data, size_t size, WmTpl *tpl, char *error,
                    size_t error_size) {
-    if (data == NULL || tpl == NULL || size < 12 || wm_read_be32(data) != 0x0020af30u) {
+    if (data == NULL || tpl == NULL || size < 12 ||
+        wm_resource_be32(data) != 0x0020af30u) {
         wm_error(error, error_size, "Expected a TPL texture archive.");
         return false;
     }
     *tpl = (WmTpl){0};
 
-    size_t count = wm_read_be32(data + 4);
-    size_t table = wm_read_be32(data + 8);
+    size_t count = wm_resource_be32(data + 4);
+    size_t table = wm_resource_be32(data + 8);
     if (count == 0 || count > WM_TPL_MAX_IMAGES ||
-        !wm_range_fits(size, table, count * 8)) {
+        !wm_resource_range_fits(size, table, count * 8)) {
         wm_error(error, error_size, "Invalid TPL texture table.");
         return false;
     }
 
     uint64_t total_rgba_bytes = 0;
     for (size_t index = 0; index < count; index++) {
-        size_t image_header = wm_read_be32(data + table + index * 8);
-        if (!wm_range_fits(size, image_header, 12)) {
+        size_t image_header = wm_resource_be32(data + table + index * 8);
+        if (!wm_resource_range_fits(size, image_header, 12)) {
             wm_error(error, error_size, "Truncated TPL image header.");
             return false;
         }
-        uint64_t height = wm_read_be16(data + image_header);
-        uint64_t width = wm_read_be16(data + image_header + 2);
+        uint64_t height = wm_resource_be16(data + image_header);
+        uint64_t width = wm_resource_be16(data + image_header + 2);
         uint64_t image_bytes = width * height * 4;
         if (image_bytes > WM_TPL_MAX_RGBA_BYTES - total_rgba_bytes) {
             wm_error(error, error_size, "TPL decoded images exceed the memory limit.");
@@ -351,8 +342,8 @@ bool wm_tpl_decode(const uint8_t *data, size_t size, WmTpl *tpl, char *error,
     }
     tpl->count = count;
     for (size_t index = 0; index < count; index++) {
-        size_t image_header = wm_read_be32(data + table + index * 8);
-        size_t palette_header = wm_read_be32(data + table + index * 8 + 4);
+        size_t image_header = wm_resource_be32(data + table + index * 8);
+        size_t palette_header = wm_resource_be32(data + table + index * 8 + 4);
         if (!wm_decode_image(data, size, image_header, palette_header,
                              &tpl->images[index], error, error_size)) {
             wm_tpl_free(tpl);

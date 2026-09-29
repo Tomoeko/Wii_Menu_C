@@ -1,5 +1,7 @@
 #include "wii_menu/resources/resource_bmg.h"
 
+#include "resource_bytes.h"
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,19 +26,6 @@ struct WmBmg {
     size_t info_offset;
     size_t info_stride;
 };
-
-static uint16_t read_be16(const uint8_t *bytes) {
-    return (uint16_t)(((uint16_t)bytes[0] << 8) | bytes[1]);
-}
-
-static uint32_t read_be32(const uint8_t *bytes) {
-    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
-           ((uint32_t)bytes[2] << 8) | bytes[3];
-}
-
-static bool fits(size_t size, size_t offset, size_t length) {
-    return offset <= size && length <= size - offset;
-}
 
 static void set_error(char *error, size_t capacity, const char *reason) {
     if (error && capacity)
@@ -74,14 +63,14 @@ static void put_utf8(char *output, size_t offset, uint32_t point) {
 static bool decode_message(const uint8_t *strings, size_t string_size, size_t start,
                            char *output, size_t *output_size, char *error,
                            size_t error_capacity) {
-    if (!fits(string_size, start, 2)) {
+    if (!wm_resource_range_fits(string_size, start, 2)) {
         set_error(error, error_capacity, "BMG message offset is out of bounds.");
         return false;
     }
     size_t cursor = start;
     size_t written = 0;
-    while (fits(string_size, cursor, 2)) {
-        uint16_t unit = read_be16(strings + cursor);
+    while (wm_resource_range_fits(string_size, cursor, 2)) {
+        uint16_t unit = wm_resource_be16(strings + cursor);
         if (unit == 0) {
             if (output)
                 output[written] = '\0';
@@ -89,12 +78,13 @@ static bool decode_message(const uint8_t *strings, size_t string_size, size_t st
             return true;
         }
         if (unit == 0x001a) {
-            if (!fits(string_size, cursor, 3)) {
+            if (!wm_resource_range_fits(string_size, cursor, 3)) {
                 set_error(error, error_capacity, "Truncated BMG control packet.");
                 return false;
             }
             size_t packet_size = strings[cursor + 2];
-            if (packet_size < 4 || !fits(string_size, cursor, packet_size)) {
+            if (packet_size < 4 ||
+                !wm_resource_range_fits(string_size, cursor, packet_size)) {
                 set_error(error, error_capacity, "Invalid BMG control packet.");
                 return false;
             }
@@ -104,11 +94,11 @@ static bool decode_message(const uint8_t *strings, size_t string_size, size_t st
         cursor += 2;
         uint32_t point = unit;
         if (unit >= 0xd800 && unit <= 0xdbff) {
-            if (!fits(string_size, cursor, 2)) {
+            if (!wm_resource_range_fits(string_size, cursor, 2)) {
                 set_error(error, error_capacity, "Truncated BMG surrogate pair.");
                 return false;
             }
-            uint16_t lower = read_be16(strings + cursor);
+            uint16_t lower = wm_resource_be16(strings + cursor);
             if (lower < 0xdc00 || lower > 0xdfff) {
                 set_error(error, error_capacity, "Invalid BMG surrogate pair.");
                 return false;
@@ -151,8 +141,8 @@ WmBmg *wm_bmg_parse(const uint8_t *data, size_t size, char *error,
         set_error(error, error_capacity, "Expected a big-endian UTF-16 BMG file.");
         return NULL;
     }
-    size_t total = read_be32(data + 8);
-    size_t sections = read_be32(data + 12);
+    size_t total = wm_resource_be32(data + 8);
+    size_t sections = wm_resource_be32(data + 12);
     if (total < BMG_HEADER_BYTES || total > size || sections == 0 ||
         sections > BMG_MAX_SECTIONS) {
         set_error(error, error_capacity, "Invalid BMG header bounds.");
@@ -176,13 +166,13 @@ WmBmg *wm_bmg_parse(const uint8_t *data, size_t size, char *error,
     bool has_info = false, has_data = false;
     size_t offset = BMG_HEADER_BYTES;
     for (size_t index = 0; index < sections; index++) {
-        if (!fits(total, offset, 8)) {
+        if (!wm_resource_range_fits(total, offset, 8)) {
             set_error(error, error_capacity, "Truncated BMG section.");
             wm_bmg_destroy(bmg);
             return NULL;
         }
-        size_t length = read_be32(bmg->source + offset + 4);
-        if (length < 8 || !fits(total, offset, length)) {
+        size_t length = wm_resource_be32(bmg->source + offset + 4);
+        if (length < 8 || !wm_resource_range_fits(total, offset, length)) {
             set_error(error, error_capacity, "Invalid BMG section size.");
             wm_bmg_destroy(bmg);
             return NULL;
@@ -215,8 +205,8 @@ WmBmg *wm_bmg_parse(const uint8_t *data, size_t size, char *error,
     }
     const uint8_t *info = bmg->source + info_offset;
     const uint8_t *strings = bmg->source + dat_offset;
-    size_t count = read_be16(info);
-    size_t stride = read_be16(info + 2);
+    size_t count = wm_resource_be16(info);
+    size_t stride = wm_resource_be16(info + 2);
     if (stride < 4 || count > (info_size - 8) / stride) {
         set_error(error, error_capacity, "Invalid BMG message records.");
         wm_bmg_destroy(bmg);
@@ -230,7 +220,7 @@ WmBmg *wm_bmg_parse(const uint8_t *data, size_t size, char *error,
     }
     size_t total_text_bytes = 0;
     for (size_t index = 0; index < count; index++) {
-        size_t start = read_be32(info + 8 + index * stride);
+        size_t start = wm_resource_be32(info + 8 + index * stride);
         size_t length = 0;
         if (!decode_message(strings, dat_size, start, NULL, &length, error,
                             error_capacity)) {
@@ -254,7 +244,7 @@ WmBmg *wm_bmg_parse(const uint8_t *data, size_t size, char *error,
     bmg->info_offset = info_offset + 8;
     bmg->info_stride = stride;
     for (size_t index = 0; index < count; index++) {
-        size_t start = read_be32(info + 8 + index * stride);
+        size_t start = wm_resource_be32(info + 8 + index * stride);
         bmg->texts[index] = malloc(message_lengths[index] + 1);
         if (!bmg->texts[index]) {
             set_error(error, error_capacity, "Out of memory parsing BMG.");

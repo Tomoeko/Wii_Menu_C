@@ -1,6 +1,8 @@
 #include "wii_menu/resources/resource_u8.h"
 #include "wii_menu/support/utf8.h"
 
+#include "resource_bytes.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,15 +13,6 @@ typedef struct WmU8Directory {
     size_t end_index;
     size_t node_index;
 } WmU8Directory;
-
-static uint32_t wm_read_be32(const uint8_t *bytes) {
-    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
-           ((uint32_t)bytes[2] << 8) | bytes[3];
-}
-
-static bool wm_range_fits(size_t size, size_t offset, size_t length) {
-    return offset <= size && length <= size - offset;
-}
 
 static void wm_error(char *error, size_t error_size, const char *message) {
     if (error != NULL && error_size != 0) {
@@ -151,18 +144,18 @@ bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive, char *e
     }
     *archive = (WmU8Archive){0};
 
-    size_t root = wm_read_be32(data + 4);
-    size_t header_size = wm_read_be32(data + 8);
-    size_t data_offset = wm_read_be32(data + 12);
-    if (root < 32 || !wm_range_fits(size, root, 12) ||
-        !wm_range_fits(size, root, header_size)) {
+    size_t root = wm_resource_be32(data + 4);
+    size_t header_size = wm_resource_be32(data + 8);
+    size_t data_offset = wm_resource_be32(data + 12);
+    if (root < 32 || !wm_resource_range_fits(size, root, 12) ||
+        !wm_resource_range_fits(size, root, header_size)) {
         wm_error(error, error_size, "Invalid U8 header bounds.");
         return false;
     }
 
-    uint32_t root_kind = wm_read_be32(data + root);
-    uint32_t root_parent = wm_read_be32(data + root + 4);
-    size_t node_count = wm_read_be32(data + root + 8);
+    uint32_t root_kind = wm_resource_be32(data + root);
+    uint32_t root_parent = wm_resource_be32(data + root + 4);
+    size_t node_count = wm_resource_be32(data + root + 8);
     if ((root_kind >> 24) != 1 || root_parent != 0 || node_count == 0 ||
         node_count > WM_U8_MAX_NODES || node_count > (size - root) / 12) {
         wm_error(error, error_size, "Invalid U8 root node.");
@@ -213,11 +206,11 @@ bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive, char *e
         }
 
         const uint8_t *node = data + root + index * 12;
-        uint32_t kind_name = wm_read_be32(node);
+        uint32_t kind_name = wm_resource_be32(node);
         uint32_t kind = kind_name >> 24;
         size_t name_offset = kind_name & 0x00ffffffu;
-        size_t offset = wm_read_be32(node + 4);
-        size_t length = wm_read_be32(node + 8);
+        size_t offset = wm_resource_be32(node + 4);
+        size_t length = wm_resource_be32(node + 8);
         if ((kind != 0 && kind != 1) || name_offset >= names_end - names_start) {
             wm_error(error, error_size, "Invalid U8 entry.");
             valid = false;
@@ -267,7 +260,7 @@ bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive, char *e
             directories[index] = true;
             stack[depth++] = (WmU8Directory){length, index};
         } else {
-            if (!wm_range_fits(size, offset, length)) {
+            if (!wm_resource_range_fits(size, offset, length)) {
                 wm_error(error, error_size, "Truncated U8 file.");
                 valid = false;
                 break;

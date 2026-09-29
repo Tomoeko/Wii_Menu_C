@@ -1,5 +1,7 @@
 #include "wii_menu/resources/resource_ash.h"
 
+#include "resource_bytes.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,11 +24,6 @@ typedef struct WmAshTree {
     WmAshNode *nodes;
     size_t count;
 } WmAshTree;
-
-static uint32_t wm_read_be32(const uint8_t *bytes) {
-    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
-           ((uint32_t)bytes[2] << 8) | bytes[3];
-}
 
 static void wm_error(char *error, size_t error_size, const char *message) {
     if (error != NULL && error_size != 0) {
@@ -123,8 +120,8 @@ bool wm_ash_decode(const uint8_t *data, size_t size, uint8_t **output,
         return false;
     }
 
-    size_t decoded_size = wm_read_be32(data + 4) & 0x00ffffffu;
-    size_t distance_offset = wm_read_be32(data + 8);
+    size_t decoded_size = wm_resource_be32(data + 4) & 0x00ffffffu;
+    size_t distance_offset = wm_resource_be32(data + 8);
     if (distance_offset >= size || size > SIZE_MAX / 8) {
         wm_error(error, error_size, "Invalid ASH bitstream offset.");
         return false;

@@ -1,4 +1,5 @@
 #include "resource_font_internal.h"
+#include "resource_bytes.h"
 #include "wii_menu/resources/resource_tpl.h"
 
 #include <stdio.h>
@@ -14,19 +15,6 @@ enum {
 static void font_error(char *error, size_t capacity, const char *message) {
     if (error && capacity)
         snprintf(error, capacity, "%s", message);
-}
-
-static bool range_fits(size_t size, size_t offset, size_t length) {
-    return offset <= size && length <= size - offset;
-}
-
-static uint16_t be16(const uint8_t *bytes) {
-    return (uint16_t)(((uint16_t)bytes[0] << 8) | bytes[1]);
-}
-
-static uint32_t be32(const uint8_t *bytes) {
-    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
-           ((uint32_t)bytes[2] << 8) | bytes[3];
 }
 
 static uint32_t le32(const uint8_t *bytes) {
@@ -60,13 +48,14 @@ static bool width_chain(WmFont *font, size_t start, bool fill, size_t *maximum) 
     size_t position = start;
     while (position) {
         if (count == WM_FONT_MAX_CHAINS || seen_offset(visited, count, position) ||
-            !range_fits(font->size, position, 8))
+            !wm_resource_range_fits(font->size, position, 8))
             return false;
         visited[count++] = position;
         const uint8_t *entry = font->data + position;
-        size_t begin = be16(entry), end = be16(entry + 2);
-        size_t next = be32(entry + 4);
-        if (end < begin || !range_fits(font->size, position + 8, (end - begin + 1) * 3))
+        size_t begin = wm_resource_be16(entry), end = wm_resource_be16(entry + 2);
+        size_t next = wm_resource_be32(entry + 4);
+        if (end < begin ||
+            !wm_resource_range_fits(font->size, position + 8, (end - begin + 1) * 3))
             return false;
         if (end > *maximum)
             *maximum = end;
@@ -91,42 +80,42 @@ static bool parse_character_maps(WmFont *font, size_t start) {
     size_t position = start;
     while (position) {
         if (count == WM_FONT_MAX_CHAINS || seen_offset(visited, count, position) ||
-            !range_fits(font->size, position, 12))
+            !wm_resource_range_fits(font->size, position, 12))
             return false;
         visited[count++] = position;
         const uint8_t *entry = font->data + position;
-        uint16_t begin = be16(entry), end = be16(entry + 2);
-        uint16_t method = be16(entry + 4);
-        size_t next = be32(entry + 8);
+        uint16_t begin = wm_resource_be16(entry), end = wm_resource_be16(entry + 2);
+        uint16_t method = wm_resource_be16(entry + 4);
+        size_t next = wm_resource_be32(entry + 8);
         if (end < begin)
             return false;
         size_t range = (size_t)end - begin + 1;
         if (method == 0) {
-            if (!range_fits(font->size, position + 12, 2))
+            if (!wm_resource_range_fits(font->size, position + 12, 2))
                 return false;
-            size_t first = be16(entry + 12);
+            size_t first = wm_resource_be16(entry + 12);
             if (first + range > 65536)
                 return false;
             for (size_t code = begin; code <= end; code++) {
                 font->characters[code] = (uint16_t)(first + code - begin);
             }
         } else if (method == 1) {
-            if (!range_fits(font->size, position + 12, range * 2))
+            if (!wm_resource_range_fits(font->size, position + 12, range * 2))
                 return false;
             for (size_t code = begin; code <= end; code++) {
-                uint16_t glyph = be16(entry + 12 + (code - begin) * 2);
+                uint16_t glyph = wm_resource_be16(entry + 12 + (code - begin) * 2);
                 if (glyph != UINT16_MAX)
                     font->characters[code] = glyph;
             }
         } else if (method == 2) {
-            if (!range_fits(font->size, position + 12, 2))
+            if (!wm_resource_range_fits(font->size, position + 12, 2))
                 return false;
-            size_t entries = be16(entry + 12);
-            if (!range_fits(font->size, position + 14, entries * 4))
+            size_t entries = wm_resource_be16(entry + 12);
+            if (!wm_resource_range_fits(font->size, position + 14, entries * 4))
                 return false;
             for (size_t index = 0; index < entries; index++) {
-                uint16_t code = be16(entry + 14 + index * 4);
-                uint16_t glyph = be16(entry + 16 + index * 4);
+                uint16_t code = wm_resource_be16(entry + 14 + index * 4);
+                uint16_t glyph = wm_resource_be16(entry + 16 + index * 4);
                 font->characters[code] = glyph;
             }
         } else {
@@ -146,17 +135,17 @@ static bool parse_sheets(WmFont *font, size_t image_offset, uint16_t width,
         sheet->info.height = height;
         sheet->info.format = (uint16_t)(format & 0x7fffu);
         if (font->compressed) {
-            if (!range_fits(font->size, cursor, 4))
+            if (!wm_resource_range_fits(font->size, cursor, 4))
                 return false;
-            size_t stored = be32(font->data + cursor);
+            size_t stored = wm_resource_be32(font->data + cursor);
             cursor += 4;
-            if (!stored || !range_fits(font->size, cursor, stored))
+            if (!stored || !wm_resource_range_fits(font->size, cursor, stored))
                 return false;
             sheet->offset = cursor;
             sheet->stored_size = stored;
             cursor += stored;
         } else {
-            if (!range_fits(font->size, cursor, font->sheet_size))
+            if (!wm_resource_range_fits(font->size, cursor, font->sheet_size))
                 return false;
             sheet->offset = cursor;
             sheet->stored_size = font->sheet_size;
@@ -176,9 +165,9 @@ WmFont *wm_font_decode(const uint8_t *data, size_t size, char *error,
                    "Expected bounded big-endian RFNT/RFNA font.");
         return NULL;
     }
-    size_t declared = be32(data + 8);
-    size_t offset = be16(data + 12);
-    size_t section_count = be16(data + 14);
+    size_t declared = wm_resource_be32(data + 8);
+    size_t offset = wm_resource_be16(data + 12);
+    size_t section_count = wm_resource_be16(data + 14);
     if (declared > size || offset < 16 || offset >= declared || section_count == 0 ||
         section_count > 1024) {
         font_error(error, error_capacity, "Invalid font section header.");
@@ -186,12 +175,12 @@ WmFont *wm_font_decode(const uint8_t *data, size_t size, char *error,
     }
     size_t finf = 0, finf_length = 0;
     for (size_t index = 0; index < section_count; index++) {
-        if (!range_fits(declared, offset, 8)) {
+        if (!wm_resource_range_fits(declared, offset, 8)) {
             font_error(error, error_capacity, "Truncated font section.");
             return NULL;
         }
-        size_t length = be32(data + offset + 4);
-        if (length < 8 || !range_fits(declared, offset, length)) {
+        size_t length = wm_resource_be32(data + offset + 4);
+        if (length < 8 || !wm_resource_range_fits(declared, offset, length)) {
             font_error(error, error_capacity, "Invalid font section size.");
             return NULL;
         }
@@ -201,7 +190,7 @@ WmFont *wm_font_decode(const uint8_t *data, size_t size, char *error,
         }
         offset += length;
     }
-    if (!finf || finf_length < 31 || !range_fits(declared, finf, 31)) {
+    if (!finf || finf_length < 31 || !wm_resource_range_fits(declared, finf, 31)) {
         font_error(error, error_capacity, "Font information section is missing.");
         return NULL;
     }
@@ -218,18 +207,18 @@ WmFont *wm_font_decode(const uint8_t *data, size_t size, char *error,
     font->size = declared;
     const uint8_t *info = font->data + finf;
     font->metrics.line_feed = (int8_t)info[9];
-    font->metrics.default_glyph = be16(info + 10);
+    font->metrics.default_glyph = wm_resource_be16(info + 10);
     font->metrics.encoding = info[15];
     font->metrics.height = info[28];
     font->metrics.width = info[29];
     font->metrics.ascent = info[30];
-    size_t glyph_offset = be32(info + 16);
-    size_t width_offset = be32(info + 20);
-    size_t map_offset = be32(info + 24);
+    size_t glyph_offset = wm_resource_be32(info + 16);
+    size_t width_offset = wm_resource_be32(info + 20);
+    size_t map_offset = wm_resource_be32(info + 24);
     if (glyph_offset < 8 || width_offset < 8 || map_offset < 8 ||
-        !range_fits(declared, glyph_offset, 24) ||
-        !range_fits(declared, width_offset, 8) ||
-        !range_fits(declared, map_offset, 12) ||
+        !wm_resource_range_fits(declared, glyph_offset, 24) ||
+        !wm_resource_range_fits(declared, width_offset, 8) ||
+        !wm_resource_range_fits(declared, map_offset, 12) ||
         memcmp(font->data + glyph_offset - 8, "TGLP", 4) != 0 ||
         memcmp(font->data + width_offset - 8, "CWDH", 4) != 0 ||
         memcmp(font->data + map_offset - 8, "CMAP", 4) != 0)
@@ -238,21 +227,21 @@ WmFont *wm_font_decode(const uint8_t *data, size_t size, char *error,
     font->metrics.cell_width = glyph_info[0];
     font->metrics.cell_height = glyph_info[1];
     font->metrics.baseline = (int8_t)glyph_info[2];
-    font->sheet_size = be32(glyph_info + 4);
-    font->sheet_count = be16(glyph_info + 8);
-    uint16_t format = be16(glyph_info + 10);
-    uint16_t columns = be16(glyph_info + 12);
-    uint16_t rows = be16(glyph_info + 14);
-    uint16_t sheet_width = be16(glyph_info + 16);
-    uint16_t sheet_height = be16(glyph_info + 18);
-    size_t image_offset = be32(glyph_info + 20);
+    font->sheet_size = wm_resource_be32(glyph_info + 4);
+    font->sheet_count = wm_resource_be16(glyph_info + 8);
+    uint16_t format = wm_resource_be16(glyph_info + 10);
+    uint16_t columns = wm_resource_be16(glyph_info + 12);
+    uint16_t rows = wm_resource_be16(glyph_info + 14);
+    uint16_t sheet_width = wm_resource_be16(glyph_info + 16);
+    uint16_t sheet_height = wm_resource_be16(glyph_info + 18);
+    size_t image_offset = wm_resource_be32(glyph_info + 20);
     font->compressed = (format & 0x8000u) != 0;
     if (!font->metrics.width || !font->metrics.height || !font->sheet_size ||
         font->sheet_size > 16u * 1024u * 1024u || font->sheet_count == 0 ||
         font->sheet_count > WM_FONT_MAX_SHEETS || !columns || !rows || !sheet_width ||
         !sheet_height || sheet_width > 4096 || sheet_height > 4096 ||
         (uint64_t)sheet_width * sheet_height * 4 > 64u * 1024u * 1024u ||
-        !range_fits(declared, image_offset, 1))
+        !wm_resource_range_fits(declared, image_offset, 1))
         goto invalid;
     font->sheets = calloc(font->sheet_count, sizeof(*font->sheets));
     font->characters = malloc(65536u * sizeof(*font->characters));
@@ -359,7 +348,7 @@ static bool decode_huffman(const uint8_t *stream, size_t size, uint8_t *output,
     size_t produced = 0;
     int lower_nibble = -1;
     while (produced < output_size) {
-        if (!range_fits(size, input, 4))
+        if (!wm_resource_range_fits(size, input, 4))
             return false;
         uint32_t word = le32(stream + input);
         input += 4;

@@ -1,4 +1,5 @@
 #include "resource_layout_internal.h"
+#include "resource_bytes.h"
 #include "wii_menu/support/utf8.h"
 
 #include <math.h>
@@ -9,7 +10,7 @@
 
 /* Bounds and JSON writing are shared by BRLAN and BRLYT exporters. */
 uint16_t wm_be16(const uint8_t *bytes) {
-    return (uint16_t)(((uint16_t)bytes[0] << 8) | bytes[1]);
+    return wm_resource_be16(bytes);
 }
 
 int16_t wm_signed_be16(const uint8_t *bytes) {
@@ -17,12 +18,11 @@ int16_t wm_signed_be16(const uint8_t *bytes) {
 }
 
 uint32_t wm_be32(const uint8_t *bytes) {
-    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
-           ((uint32_t)bytes[2] << 8) | bytes[3];
+    return wm_resource_be32(bytes);
 }
 
 bool wm_range(size_t size, size_t offset, size_t length) {
-    return offset <= size && length <= size - offset;
+    return wm_resource_range_fits(size, offset, length);
 }
 
 void wm_set_error(char *error, size_t error_size, const char *message) {

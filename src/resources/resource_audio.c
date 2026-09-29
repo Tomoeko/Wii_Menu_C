@@ -1,5 +1,7 @@
 #include "wii_menu/resources/resource_audio.h"
 
+#include "resource_bytes.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,21 +16,8 @@ static void audio_error(char *error, size_t capacity, const char *message) {
         snprintf(error, capacity, "%s", message);
 }
 
-static bool range_fits(size_t size, size_t offset, size_t length) {
-    return offset <= size && length <= size - offset;
-}
-
-static uint16_t be16(const uint8_t *bytes) {
-    return (uint16_t)(((uint16_t)bytes[0] << 8) | bytes[1]);
-}
-
-static uint32_t be32(const uint8_t *bytes) {
-    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
-           ((uint32_t)bytes[2] << 8) | bytes[3];
-}
-
 static int16_t signed_be16(const uint8_t *bytes) {
-    uint16_t bits = be16(bytes);
+    uint16_t bits = wm_resource_be16(bytes);
     int32_t value = bits < 0x8000u ? bits : (int32_t)bits - 0x10000;
     return (int16_t)value;
 }
@@ -47,7 +36,7 @@ static bool dsp_decode_channel(const uint8_t *data, size_t size, uint32_t sample
         return false;
     }
     size_t blocks = ((size_t)sample_count + 13) / 14;
-    if (blocks > SIZE_MAX / 8 || !range_fits(size, 0, blocks * 8)) {
+    if (blocks > SIZE_MAX / 8 || !wm_resource_range_fits(size, 0, blocks * 8)) {
         audio_error(error, error_capacity, "Truncated DSP ADPCM frames.");
         return false;
     }
@@ -115,20 +104,23 @@ bool wm_bns_decode(const uint8_t *data, size_t size, WmAudioPcm *output, char *e
         audio_error(error, error_capacity, "Expected bounded BNS 1.0 resource.");
         return false;
     }
-    if (be32(data + 8) != size || be16(data + 12) != 32 || be16(data + 14) != 2) {
+    if (wm_resource_be32(data + 8) != size || wm_resource_be16(data + 12) != 32 ||
+        wm_resource_be16(data + 14) != 2) {
         audio_error(error, error_capacity, "Invalid BNS header.");
         return false;
     }
-    size_t info_offset = be32(data + 16), info_length = be32(data + 20);
-    size_t data_offset = be32(data + 24), data_length = be32(data + 28);
+    size_t info_offset = wm_resource_be32(data + 16),
+           info_length = wm_resource_be32(data + 20);
+    size_t data_offset = wm_resource_be32(data + 24),
+           data_length = wm_resource_be32(data + 28);
     if (info_offset < 32 || data_offset < 32 || info_length < 8 || data_length < 8 ||
-        !range_fits(size, info_offset, info_length) ||
-        !range_fits(size, data_offset, data_length) || info_offset > data_offset ||
-        info_length > data_offset - info_offset ||
+        !wm_resource_range_fits(size, info_offset, info_length) ||
+        !wm_resource_range_fits(size, data_offset, data_length) ||
+        info_offset > data_offset || info_length > data_offset - info_offset ||
         memcmp(data + info_offset, "INFO", 4) != 0 ||
         memcmp(data + data_offset, "DATA", 4) != 0 ||
-        be32(data + info_offset + 4) != info_length ||
-        be32(data + data_offset + 4) != data_length) {
+        wm_resource_be32(data + info_offset + 4) != info_length ||
+        wm_resource_be32(data + data_offset + 4) != data_length) {
         audio_error(error, error_capacity, "Invalid BNS INFO/DATA blocks.");
         return false;
     }
@@ -142,13 +134,13 @@ bool wm_bns_decode(const uint8_t *data, size_t size, WmAudioPcm *output, char *e
         return false;
     }
     uint8_t channels = info[2];
-    uint32_t rate = be16(info + 4);
-    uint32_t loop_start = be32(info + 8);
-    uint32_t frames = be32(info + 12);
-    size_t table_offset = be32(info + 16);
+    uint32_t rate = wm_resource_be16(info + 4);
+    uint32_t loop_start = wm_resource_be32(info + 8);
+    uint32_t frames = wm_resource_be32(info + 12);
+    size_t table_offset = wm_resource_be32(info + 16);
     if (!rate || frames == 0 || frames > WM_AUDIO_MAX_FRAMES ||
         (info[1] && loop_start >= frames) ||
-        !range_fits(info_size, table_offset, (size_t)channels * 4)) {
+        !wm_resource_range_fits(info_size, table_offset, (size_t)channels * 4)) {
         audio_error(error, error_capacity, "Invalid BNS sample count, rate or loop.");
         return false;
     }
@@ -164,16 +156,16 @@ bool wm_bns_decode(const uint8_t *data, size_t size, WmAudioPcm *output, char *e
         return false;
     }
     for (size_t channel = 0; channel < channels; channel++) {
-        size_t entry_offset = be32(info + table_offset + channel * 4);
-        if (!range_fits(info_size, entry_offset, 12)) {
+        size_t entry_offset = wm_resource_be32(info + table_offset + channel * 4);
+        if (!wm_resource_range_fits(info_size, entry_offset, 12)) {
             audio_error(error, error_capacity, "Invalid BNS channel entry.");
             free(pcm);
             return false;
         }
-        size_t sample_offset = be32(info + entry_offset);
-        size_t context_offset = be32(info + entry_offset + 4);
-        if (!range_fits(info_size, context_offset, 48) ||
-            !range_fits(encoded_size, sample_offset, encoded_bytes)) {
+        size_t sample_offset = wm_resource_be32(info + entry_offset);
+        size_t context_offset = wm_resource_be32(info + entry_offset + 4);
+        if (!wm_resource_range_fits(info_size, context_offset, 48) ||
+            !wm_resource_range_fits(encoded_size, sample_offset, encoded_bytes)) {
             audio_error(error, error_capacity,
                         "Invalid BNS DSP context or sample range.");
             free(pcm);
