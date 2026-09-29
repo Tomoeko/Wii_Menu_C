@@ -71,6 +71,11 @@ int main(int argc, char **argv) {
     run(program, assets, "remove", vector_package, NULL, 0);
     run(program, assets, "restore", "Example Channel", NULL, 0);
     run(program, assets, "remove", "custom-example", NULL, 0);
+    join(path, assets, "custom-channels/custom-example/unowned.txt");
+    write_file(path, "keep this unowned file");
+    run(program, assets, "purge", "custom-example", "--yes", 1);
+    assert(exists(path));
+    assert(unlink(path) == 0);
     run(program, assets, "purge", "custom-example", "--yes", 0);
     join(path, assets, "custom-channels/custom-example");
     assert(!exists(path));

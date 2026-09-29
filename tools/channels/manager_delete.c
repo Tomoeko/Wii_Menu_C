@@ -14,6 +14,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+enum { WM_PURGE_MAX_OWNED_FILES = 35, WM_PURGE_FILENAME_CAPACITY = 128 };
+
 static bool has_suffix(const char *name, const char *suffix) {
     size_t name_length = strlen(name);
     size_t suffix_length = strlen(suffix);
@@ -131,6 +133,97 @@ static bool purge_imported_files(const char *assets, const char *id) {
     return !has_audio || unlink(audio) == 0;
 }
 
+static bool collect_owned_texture_files(
+    const char *path, const char *id,
+    char owned[WM_PURGE_MAX_OWNED_FILES][WM_PURGE_FILENAME_CAPACITY],
+    size_t *owned_count) {
+    static const char *const layouts[] = {"icon.json", "banner.json"};
+    for (size_t layout_index = 0; layout_index < 2; layout_index++) {
+        char source[4096];
+        WmJson json;
+        if (!wm_channels_join(source, path, layouts[layout_index]) ||
+            !wm_json_load(&json, source, 2 * 1024 * 1024))
+            return false;
+
+        size_t textures = wm_json_member(&json, 0, "textures");
+        bool okay = textures < json.count &&
+                    json.tokens[textures].type == WM_JSON_ARRAY &&
+                    json.tokens[textures].children <= 16;
+        for (size_t texture = 0; okay && texture < json.tokens[textures].children;
+             texture++) {
+            size_t entry = wm_json_index(&json, textures, texture);
+            char url[256], prefix[128];
+            int length = snprintf(prefix, sizeof(prefix), "custom-channels/%s/", id);
+            okay = length > 0 && (size_t)length < sizeof(prefix) &&
+                   wm_json_copy(&json, wm_json_member(&json, entry, "url"), url,
+                                sizeof(url)) &&
+                   strncmp(url, prefix, strlen(prefix)) == 0 &&
+                   wm_channels_texture_filename(url + strlen(prefix));
+            if (!okay)
+                break;
+
+            /* The filename validator limits names to 120 bytes. Replacing
+             * .png with .wmra adds one byte and still fits this buffer. */
+            char filename[WM_PURGE_FILENAME_CAPACITY];
+            strcpy(filename, url + strlen(prefix));
+            strcpy(filename + strlen(filename) - 4, ".wmra");
+            bool duplicate = false;
+            for (size_t previous = 0; previous < *owned_count; previous++) {
+                if (strcmp(owned[previous], filename) == 0)
+                    duplicate = true;
+            }
+            if (!duplicate) {
+                okay = *owned_count < WM_PURGE_MAX_OWNED_FILES;
+                if (okay)
+                    strcpy(owned[(*owned_count)++], filename);
+            }
+        }
+        wm_json_free(&json);
+        if (!okay)
+            return false;
+    }
+    return true;
+}
+
+static bool
+owned_directory_safe(int root,
+                     char owned[WM_PURGE_MAX_OWNED_FILES][WM_PURGE_FILENAME_CAPACITY],
+                     size_t owned_count) {
+    int listing_fd = dup(root);
+    if (listing_fd < 0)
+        return false;
+    DIR *listing = fdopendir(listing_fd);
+    if (!listing) {
+        close(listing_fd);
+        return false;
+    }
+    bool okay = true;
+    struct dirent *entry;
+    while ((entry = readdir(listing)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+        bool known = false;
+        for (size_t item = 0; item < owned_count; item++) {
+            if (strcmp(entry->d_name, owned[item]) == 0)
+                known = true;
+        }
+        struct stat metadata;
+        if (!known ||
+            fstatat(root, entry->d_name, &metadata, AT_SYMLINK_NOFOLLOW) != 0 ||
+            !S_ISREG(metadata.st_mode))
+            okay = false;
+    }
+    if (closedir(listing) != 0)
+        okay = false;
+    for (size_t item = 0; item < owned_count; item++) {
+        struct stat metadata;
+        if (fstatat(root, owned[item], &metadata, AT_SYMLINK_NOFOLLOW) != 0 ||
+            !S_ISREG(metadata.st_mode))
+            okay = false;
+    }
+    return okay;
+}
+
 int wm_channels_purge(const char *assets, WmLocalCatalog *local, const char *id) {
     size_t index = 0;
     while (index < local->channel_count && strcmp(local->channels[index].id, id) != 0)
@@ -163,71 +256,13 @@ int wm_channels_purge(const char *assets, WmLocalCatalog *local, const char *id)
         return 1;
     WmChannelPackage package;
     bool okay = wm_channels_package_read(path, &package) && strcmp(package.id, id) == 0;
-    char owned[35][128] = {"channel.json", "icon.json", "banner.json"};
+    char owned[WM_PURGE_MAX_OWNED_FILES][WM_PURGE_FILENAME_CAPACITY] = {
+        "channel.json", "icon.json", "banner.json"};
     size_t owned_count = 3;
-    static const char *const layouts[] = {"icon.json", "banner.json"};
-    for (size_t layout_index = 0; okay && layout_index < 2; layout_index++) {
-        char source[4096];
-        WmJson json;
-        okay = wm_channels_join(source, path, layouts[layout_index]) &&
-               wm_json_load(&json, source, 2 * 1024 * 1024);
-        if (!okay)
-            break;
-        size_t textures = wm_json_member(&json, 0, "textures");
-        okay = textures < json.count && json.tokens[textures].type == WM_JSON_ARRAY &&
-               json.tokens[textures].children <= 16;
-        for (size_t texture = 0; okay && texture < json.tokens[textures].children;
-             texture++) {
-            size_t entry = wm_json_index(&json, textures, texture);
-            char url[256], prefix[128];
-            int length = snprintf(prefix, sizeof(prefix), "custom-channels/%s/", id);
-            okay = length > 0 && (size_t)length < sizeof(prefix) &&
-                   wm_json_copy(&json, wm_json_member(&json, entry, "url"), url,
-                                sizeof(url)) &&
-                   strncmp(url, prefix, strlen(prefix)) == 0 &&
-                   wm_channels_texture_filename(url + strlen(prefix));
-            if (!okay)
-                break;
-            char filename[128];
-            strcpy(filename, url + strlen(prefix));
-            strcpy(filename + strlen(filename) - 4, ".wmra");
-            bool duplicate = false;
-            for (size_t previous = 0; previous < owned_count; previous++) {
-                if (strcmp(owned[previous], filename) == 0)
-                    duplicate = true;
-            }
-            if (!duplicate)
-                strcpy(owned[owned_count++], filename);
-        }
-        wm_json_free(&json);
-    }
-    DIR *listing = okay ? fdopendir(dup(root)) : NULL;
-    if (!listing)
-        okay = false;
-    if (listing) {
-        struct dirent *entry;
-        while ((entry = readdir(listing)) != NULL) {
-            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-                continue;
-            bool known = false;
-            for (size_t item = 0; item < owned_count; item++) {
-                if (strcmp(entry->d_name, owned[item]) == 0)
-                    known = true;
-            }
-            struct stat metadata;
-            if (!known ||
-                fstatat(root, entry->d_name, &metadata, AT_SYMLINK_NOFOLLOW) != 0 ||
-                !S_ISREG(metadata.st_mode))
-                okay = false;
-        }
-        closedir(listing);
-    }
-    for (size_t item = 0; okay && item < owned_count; item++) {
-        struct stat metadata;
-        if (fstatat(root, owned[item], &metadata, AT_SYMLINK_NOFOLLOW) != 0 ||
-            !S_ISREG(metadata.st_mode))
-            okay = false;
-    }
+    if (okay)
+        okay = collect_owned_texture_files(path, id, owned, &owned_count);
+    if (okay)
+        okay = owned_directory_safe(root, owned, owned_count);
     char audio_path[4096], relative[128];
     if (okay && package.has_audio) {
         int length = snprintf(relative, sizeof(relative), "channel-audio/%s.wav", id);
