@@ -51,6 +51,142 @@ static bool route_scene_pointer(WmAppRuntime *app, const WmEvent *event) {
     return false;
 }
 
+static void update_transition_pointer(WmPointer *pointer, const WmEvent *event) {
+    if (event->type == WM_EVENT_POINTER_MOVE)
+        wm_pointer_move(pointer, (float)event->x, (float)event->y);
+    if (event->type == WM_EVENT_POINTER_LEAVE)
+        wm_pointer_hide(pointer);
+}
+
+static void handle_home_event(WmAppRuntime *app, const WmEvent *event) {
+    WmHomeOverlay *home = app->resources->home;
+    WmAppInputState *input = app->input;
+    if (event->type == WM_EVENT_POINTER_MOVE || event->type == WM_EVENT_POINTER_DOWN ||
+        event->type == WM_EVENT_POINTER_UP)
+        wm_pointer_move(app->resources->pointer, (float)event->x, (float)event->y);
+    if (event->type == WM_EVENT_POINTER_MOVE) {
+        input->home_hovered = wm_home_overlay_hit(home, event->x, event->y);
+        wm_home_overlay_hover(home, input->home_hovered);
+    } else if (event->type == WM_EVENT_POINTER_DOWN) {
+        input->home_pressed = event->button == WM_POINTER_LEFT
+                                  ? wm_home_overlay_hit(home, event->x, event->y)
+                                  : WM_HOME_CONTROL_NONE;
+    } else if (event->type == WM_EVENT_POINTER_UP) {
+        input->home_hovered = wm_home_overlay_hit(home, event->x, event->y);
+        wm_home_overlay_hover(home, input->home_hovered);
+        if (event->button == WM_POINTER_LEFT &&
+            input->home_pressed != WM_HOME_CONTROL_NONE &&
+            input->home_pressed == input->home_hovered)
+            wm_home_overlay_activate(home, input->home_hovered);
+        input->home_pressed = WM_HOME_CONTROL_NONE;
+    } else if (event->type == WM_EVENT_POINTER_LEAVE) {
+        wm_pointer_hide(app->resources->pointer);
+        input->home_hovered = WM_HOME_CONTROL_NONE;
+        input->home_pressed = WM_HOME_CONTROL_NONE;
+        wm_home_overlay_hover(home, WM_HOME_CONTROL_NONE);
+    } else if (event->type == WM_EVENT_KEY_DOWN) {
+        if (event->key == WM_KEY_HOME || event->key == 'h' || event->key == 'H' ||
+            event->key == WM_KEY_ESCAPE || event->key == WM_KEY_BACKSPACE) {
+            wm_home_overlay_back(home);
+        } else if (event->key == WM_KEY_ENTER &&
+                   input->home_hovered != WM_HOME_CONTROL_NONE) {
+            wm_home_overlay_activate(home, input->home_hovered);
+        } else if (event->key == '1' || event->key == '2') {
+            wm_home_overlay_reconnect_key(home, (char)event->key, true);
+        }
+    }
+}
+
+static void handle_key_modifiers(WmAppRuntime *app, const WmEvent *event) {
+    WmMenu *menu = app->menu;
+    WmBoardScene *board = app->resources->board_scene;
+    WmOptionsScene *options = app->resources->options_scene;
+    bool editor_keyboard = (menu->screen == WM_SCREEN_BOARD && board &&
+                            wm_board_scene_compose_editor_active(board)) ||
+                           (menu->screen == WM_SCREEN_SETTINGS && options &&
+                            wm_options_scene_text_editing(options));
+    if (menu->screen == WM_SCREEN_BOARD && board)
+        wm_board_scene_keyboard_modifiers(board, event->shift_down,
+                                          event->caps_lock_on);
+    if (menu->screen == WM_SCREEN_SETTINGS && options)
+        wm_options_scene_keyboard_modifiers(options, event->shift_down,
+                                            event->caps_lock_on);
+    if (editor_keyboard && (event->key == WM_KEY_CAPS_LOCK ||
+                            (event->key == WM_KEY_SHIFT && event->shift_down)))
+        wm_audio_play(app->resources->audio, "WIPL_SE_SK_SWITCHING_02");
+}
+
+static void handle_nickname_key(WmOptionsScene *options, WmAudio *audio, int key) {
+    if (key == WM_KEY_ESCAPE || key == WM_KEY_ENTER) {
+        const char *cue = wm_options_scene_keyboard_close(options, key == WM_KEY_ENTER);
+        if (cue)
+            wm_audio_play(audio, cue);
+    } else if (key == WM_KEY_BACKSPACE) {
+        wm_audio_play(audio, wm_options_scene_backspace(options)
+                                 ? "WIPL_SE_CHAR_DELETE"
+                                 : "WIPL_SE_CHAR_DELETE_ERROR");
+    } else if (key == WM_KEY_LEFT || key == WM_KEY_RIGHT) {
+        wm_options_scene_move_nickname_caret(options, key == WM_KEY_LEFT ? -1 : 1);
+    } else if (key >= 32 && key <= 126) {
+        wm_audio_play(audio, wm_options_scene_type_ascii(options, (char)key)
+                                 ? "WIPL_SE_CHAR_INPUT"
+                                 : "WIPL_SE_CHAR_DELETE_ERROR");
+    }
+}
+
+static void handle_key_down(WmAppRuntime *app, const WmEvent *event,
+                            uint64_t frame_start) {
+    WmMenu *menu = app->menu;
+    WmAppResources *resources = app->resources;
+    WmAppInputState *input = app->input;
+    WmAppFlowState *flow = app->flow;
+    WmBoardScene *board = resources->board_scene;
+    WmOptionsScene *options = resources->options_scene;
+    WmAudio *audio = resources->audio;
+
+    input->keyboard_focus = true;
+    if (menu->screen == WM_SCREEN_BOARD && board)
+        wm_board_scene_keyboard_modifiers(board, event->shift_down,
+                                          event->caps_lock_on);
+    if (menu->screen == WM_SCREEN_SETTINGS && options)
+        wm_options_scene_keyboard_modifiers(options, event->shift_down,
+                                            event->caps_lock_on);
+    bool composing = menu->screen == WM_SCREEN_BOARD && board &&
+                     wm_board_scene_child(board) == WM_BOARD_CHILD_COMPOSE;
+    bool nickname_keyboard = menu->screen == WM_SCREEN_SETTINGS &&
+                             wm_options_scene_nickname_keyboard_visible(options);
+    if (event->key == WM_KEY_HOME || (!composing && !nickname_keyboard &&
+                                      (event->key == 'h' || event->key == 'H'))) {
+        if (wm_app_try_enter_home(app, frame_start)) {
+            input->menu_pointer.hovered = (WmHit){WM_HIT_NONE, -1};
+            input->menu_pointer.pressed = input->menu_pointer.hovered;
+            input->keyboard_focus = false;
+        }
+        return;
+    }
+    if (menu->screen == WM_SCREEN_SD && resources->sd_scene &&
+        (event->key == WM_KEY_ESCAPE || event->key == WM_KEY_BACKSPACE)) {
+        wm_sd_scene_back(resources->sd_scene);
+        return;
+    }
+    if (flow->active_storage &&
+        (event->key == WM_KEY_ESCAPE || event->key == WM_KEY_BACKSPACE)) {
+        if (wm_storage_scene_back(flow->active_storage))
+            wm_audio_play(audio, "WIPL_SE_CANCEL");
+        return;
+    }
+    if (menu->screen == WM_SCREEN_BOARD && board &&
+        wm_board_scene_child(board) == WM_BOARD_CHILD_COMPOSE &&
+        wm_app_board_compose_key(board, audio, event->key))
+        return;
+    if (nickname_keyboard) {
+        handle_nickname_key(options, audio, event->key);
+        return;
+    }
+    wm_app_handle_key(menu, audio, resources->resource_scene, board, options,
+                      &flow->fade, event->key, &input->focused_slot);
+}
+
 void wm_app_poll_events(WmAppRuntime *app, uint64_t frame_start, bool health_frame,
                         bool *running) {
     WmMenu *menu = app->menu;
@@ -111,56 +247,11 @@ void wm_app_poll_events(WmAppRuntime *app, uint64_t frame_start, bool health_fra
                 if (wm_health_scene_accept(health_scene))
                     wm_audio_play(audio, "click");
             }
-        } else if (flow->entrance_active) {
-            if (event.type == WM_EVENT_POINTER_MOVE)
-                wm_pointer_move(pointer, (float)event.x, (float)event.y);
-            if (event.type == WM_EVENT_POINTER_LEAVE)
-                wm_pointer_hide(pointer);
-        } else if (wm_scene_fader_active(&flow->fade.clock)) {
-            if (event.type == WM_EVENT_POINTER_MOVE)
-                wm_pointer_move(pointer, (float)event.x, (float)event.y);
-            if (event.type == WM_EVENT_POINTER_LEAVE)
-                wm_pointer_hide(pointer);
-        } else if (wm_menu_restart_active(&flow->restart)) {
-            if (event.type == WM_EVENT_POINTER_MOVE)
-                wm_pointer_move(pointer, (float)event.x, (float)event.y);
-            if (event.type == WM_EVENT_POINTER_LEAVE)
-                wm_pointer_hide(pointer);
+        } else if (flow->entrance_active || wm_scene_fader_active(&flow->fade.clock) ||
+                   wm_menu_restart_active(&flow->restart)) {
+            update_transition_pointer(pointer, &event);
         } else if (wm_home_overlay_active(home)) {
-            if (event.type == WM_EVENT_POINTER_MOVE) {
-                wm_pointer_move(pointer, (float)event.x, (float)event.y);
-                input->home_hovered = wm_home_overlay_hit(home, event.x, event.y);
-                wm_home_overlay_hover(home, input->home_hovered);
-            } else if (event.type == WM_EVENT_POINTER_DOWN) {
-                wm_pointer_move(pointer, (float)event.x, (float)event.y);
-                input->home_pressed = event.button == WM_POINTER_LEFT
-                                          ? wm_home_overlay_hit(home, event.x, event.y)
-                                          : WM_HOME_CONTROL_NONE;
-            } else if (event.type == WM_EVENT_POINTER_UP) {
-                wm_pointer_move(pointer, (float)event.x, (float)event.y);
-                input->home_hovered = wm_home_overlay_hit(home, event.x, event.y);
-                wm_home_overlay_hover(home, input->home_hovered);
-                if (event.button == WM_POINTER_LEFT &&
-                    input->home_pressed != WM_HOME_CONTROL_NONE &&
-                    input->home_pressed == input->home_hovered)
-                    wm_home_overlay_activate(home, input->home_hovered);
-                input->home_pressed = WM_HOME_CONTROL_NONE;
-            } else if (event.type == WM_EVENT_POINTER_LEAVE) {
-                wm_pointer_hide(pointer);
-                input->home_hovered = WM_HOME_CONTROL_NONE;
-                input->home_pressed = WM_HOME_CONTROL_NONE;
-                wm_home_overlay_hover(home, WM_HOME_CONTROL_NONE);
-            } else if (event.type == WM_EVENT_KEY_DOWN) {
-                if (event.key == WM_KEY_HOME || event.key == 'h' || event.key == 'H' ||
-                    event.key == WM_KEY_ESCAPE || event.key == WM_KEY_BACKSPACE) {
-                    wm_home_overlay_back(home);
-                } else if (event.key == WM_KEY_ENTER &&
-                           input->home_hovered != WM_HOME_CONTROL_NONE) {
-                    wm_home_overlay_activate(home, input->home_hovered);
-                } else if (event.key == '1' || event.key == '2') {
-                    wm_home_overlay_reconnect_key(home, (char)event.key, true);
-                }
-            }
+            handle_home_event(app, &event);
         } else if (event.type == WM_EVENT_POINTER_MOVE) {
             wm_pointer_move(pointer, (float)event.x, (float)event.y);
             if (menu->screen == WM_SCREEN_GRID && resource_scene)
@@ -213,89 +304,9 @@ void wm_app_poll_events(WmAppRuntime *app, uint64_t frame_start, bool health_fra
                     wm_options_scene_keyboard_modifiers(options_scene, false, false);
             }
         } else if (event.type == WM_EVENT_KEY_MODIFIERS) {
-            bool editor_keyboard =
-                (menu->screen == WM_SCREEN_BOARD && board_scene &&
-                 wm_board_scene_compose_editor_active(board_scene)) ||
-                (menu->screen == WM_SCREEN_SETTINGS && options_scene &&
-                 wm_options_scene_text_editing(options_scene));
-            if (menu->screen == WM_SCREEN_BOARD && board_scene)
-                wm_board_scene_keyboard_modifiers(board_scene, event.shift_down,
-                                                  event.caps_lock_on);
-            if (menu->screen == WM_SCREEN_SETTINGS && options_scene)
-                wm_options_scene_keyboard_modifiers(options_scene, event.shift_down,
-                                                    event.caps_lock_on);
-            if (editor_keyboard && (event.key == WM_KEY_CAPS_LOCK ||
-                                    (event.key == WM_KEY_SHIFT && event.shift_down)))
-                wm_audio_play(audio, "WIPL_SE_SK_SWITCHING_02");
+            handle_key_modifiers(app, &event);
         } else if (event.type == WM_EVENT_KEY_DOWN) {
-            input->keyboard_focus = true;
-            if (menu->screen == WM_SCREEN_BOARD && board_scene)
-                wm_board_scene_keyboard_modifiers(board_scene, event.shift_down,
-                                                  event.caps_lock_on);
-            if (menu->screen == WM_SCREEN_SETTINGS && options_scene)
-                wm_options_scene_keyboard_modifiers(options_scene, event.shift_down,
-                                                    event.caps_lock_on);
-            bool composing =
-                menu->screen == WM_SCREEN_BOARD && board_scene &&
-                wm_board_scene_child(board_scene) == WM_BOARD_CHILD_COMPOSE;
-            bool nickname_keyboard =
-                menu->screen == WM_SCREEN_SETTINGS &&
-                wm_options_scene_nickname_keyboard_visible(options_scene);
-            if (event.key == WM_KEY_HOME || (!composing && !nickname_keyboard &&
-                                             (event.key == 'h' || event.key == 'H'))) {
-                if (wm_app_try_enter_home(app, frame_start)) {
-                    input->menu_pointer.hovered = (WmHit){WM_HIT_NONE, -1};
-                    input->menu_pointer.pressed = input->menu_pointer.hovered;
-                    input->keyboard_focus = false;
-                }
-                continue;
-            }
-            if (menu->screen == WM_SCREEN_SD && sd_scene &&
-                (event.key == WM_KEY_ESCAPE || event.key == WM_KEY_BACKSPACE)) {
-                wm_sd_scene_back(sd_scene);
-                continue;
-            }
-            if (flow->active_storage &&
-                (event.key == WM_KEY_ESCAPE || event.key == WM_KEY_BACKSPACE)) {
-                if (wm_storage_scene_back(flow->active_storage))
-                    wm_audio_play(audio, "WIPL_SE_CANCEL");
-                continue;
-            }
-            if (menu->screen == WM_SCREEN_BOARD && board_scene &&
-                wm_board_scene_child(board_scene) == WM_BOARD_CHILD_COMPOSE &&
-                wm_app_board_compose_key(board_scene, audio, event.key)) {
-                continue;
-            }
-            if (nickname_keyboard) {
-                if (event.key == WM_KEY_ESCAPE || event.key == WM_KEY_ENTER) {
-                    const char *cue = wm_options_scene_keyboard_close(
-                        options_scene, event.key == WM_KEY_ENTER);
-                    if (cue)
-                        wm_audio_play(audio, cue);
-                    continue;
-                }
-                if (event.key == WM_KEY_BACKSPACE) {
-                    wm_audio_play(audio, wm_options_scene_backspace(options_scene)
-                                             ? "WIPL_SE_CHAR_DELETE"
-                                             : "WIPL_SE_CHAR_DELETE_ERROR");
-                    continue;
-                }
-                if (event.key == WM_KEY_LEFT || event.key == WM_KEY_RIGHT) {
-                    wm_options_scene_move_nickname_caret(
-                        options_scene, event.key == WM_KEY_LEFT ? -1 : 1);
-                    continue;
-                }
-                if (event.key >= 32 && event.key <= 126) {
-                    wm_audio_play(audio, wm_options_scene_type_ascii(options_scene,
-                                                                     (char)event.key)
-                                             ? "WIPL_SE_CHAR_INPUT"
-                                             : "WIPL_SE_CHAR_DELETE_ERROR");
-                    continue;
-                }
-                continue;
-            }
-            wm_app_handle_key(menu, audio, resource_scene, board_scene, options_scene,
-                              &flow->fade, event.key, &input->focused_slot);
+            handle_key_down(app, &event, frame_start);
         }
     }
 }
