@@ -340,26 +340,13 @@ static int command_preview(const char *program, const char *assets,
             }
         }
     }
-    char executable[4096], sibling[4096];
-    char *resolved = wm_app_resolve_executable(program);
-    if (!resolved || strlen(resolved) >= sizeof(executable)) {
-        free(resolved);
-        fputs("Could not locate this executable. Run wm-channels by path.\n", stderr);
-        return 1;
-    }
-    strcpy(executable, resolved);
-    free(resolved);
-    char *separator = strrchr(executable, '/');
-    if (!separator)
-        return 1;
-    *separator = '\0';
+    char sibling[4096];
 #if defined(__APPLE__)
     const char *relative = "wii-menu.app/Contents/MacOS/wii-menu";
 #else
     const char *relative = "wii-menu";
 #endif
-    if (!wm_channels_join(sibling, executable, relative) ||
-        !wm_channels_regular_file(sibling)) {
+    if (!wm_channels_sibling_tool(program, relative, sibling)) {
         fputs("Build wii-menu beside wm-channels before previewing.\n", stderr);
         return 1;
     }

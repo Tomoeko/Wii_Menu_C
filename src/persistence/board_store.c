@@ -3,6 +3,7 @@
 #include "wii_menu/persistence/board_store.h"
 
 #include "wii_menu/support/json.h"
+#include "wii_menu/support/utf8.h"
 
 #include "../support/atomic_file.h"
 #include "../support/regular_file.h"
@@ -117,46 +118,6 @@ static bool json_created_at(const WmJson *json, size_t token, int64_t *value) {
     return true;
 }
 
-static bool valid_utf8(const char *text) {
-    const unsigned char *bytes = (const unsigned char *)text;
-    size_t length = strlen(text);
-    for (size_t index = 0; index < length;) {
-        unsigned first = bytes[index];
-        if (first < 0x80) {
-            index++;
-            continue;
-        }
-        unsigned count, codepoint, minimum;
-        if (first >= 0xc2 && first <= 0xdf) {
-            count = 2;
-            codepoint = first & 0x1f;
-            minimum = 0x80;
-        } else if (first >= 0xe0 && first <= 0xef) {
-            count = 3;
-            codepoint = first & 0x0f;
-            minimum = 0x800;
-        } else if (first >= 0xf0 && first <= 0xf4) {
-            count = 4;
-            codepoint = first & 7;
-            minimum = 0x10000;
-        } else {
-            return false;
-        }
-        if (count > length - index)
-            return false;
-        for (unsigned byte = 1; byte < count; byte++) {
-            if ((bytes[index + byte] & 0xc0) != 0x80)
-                return false;
-            codepoint = (codepoint << 6) | (bytes[index + byte] & 0x3f);
-        }
-        if (codepoint < minimum || codepoint > 0x10ffff ||
-            (codepoint >= 0xd800 && codepoint <= 0xdfff))
-            return false;
-        index += count;
-    }
-    return true;
-}
-
 static char *copy_json_string(const WmJson *json, size_t token) {
     if (!token_is(json, token, WM_JSON_STRING))
         return NULL;
@@ -167,7 +128,8 @@ static char *copy_json_string(const WmJson *json, size_t token) {
     char *copy = malloc(raw_length + 1);
     if (!copy)
         return NULL;
-    if (!wm_json_copy_text(json, token, copy, raw_length + 1) || !valid_utf8(copy)) {
+    if (!wm_json_copy_text(json, token, copy, raw_length + 1) ||
+        !wm_utf8_cstr_valid(copy)) {
         free(copy);
         return NULL;
     }
@@ -336,11 +298,11 @@ bool wm_board_store_save(const char *path, const WmBoardScene *board, char *erro
     for (size_t index = 0; index < count; index++) {
         WmBoardMemo memo;
         if (!wm_board_scene_get_memo(board, index, &memo) || !memo.id || !memo.id[0] ||
-            !memo.text || !valid_utf8(memo.id) || !valid_utf8(memo.text) ||
-            !wm_board_date_valid(memo.date) || memo.created_at_ms < 0 ||
-            memo.created_at_ms > INT64_C(253402300799999) || !isfinite(memo.x) ||
-            !isfinite(memo.y) || memo.x < -230.0f || memo.x > 230.0f ||
-            memo.y < -80.0f || memo.y > 180.0f) {
+            !memo.text || !wm_utf8_cstr_valid(memo.id) ||
+            !wm_utf8_cstr_valid(memo.text) || !wm_board_date_valid(memo.date) ||
+            memo.created_at_ms < 0 || memo.created_at_ms > INT64_C(253402300799999) ||
+            !isfinite(memo.x) || !isfinite(memo.y) || memo.x < -230.0f ||
+            memo.x > 230.0f || memo.y < -80.0f || memo.y > 180.0f) {
             set_error(error, error_capacity, "Invalid Board memo");
             return false;
         }

@@ -33,8 +33,8 @@ bool wm_local_channel_id_valid(const char *id) {
     return true;
 }
 
-static bool native_id_valid(const char *id) {
-    if (strlen(id) != 16)
+bool wm_local_native_id_valid(const char *id) {
+    if (!id || strlen(id) != 16)
         return false;
     for (size_t index = 0; index < 16; index++) {
         if (!isxdigit((unsigned char)id[index]))
@@ -44,7 +44,7 @@ static bool native_id_valid(const char *id) {
 }
 
 static bool local_id_valid(const WmLocalChannel *channel) {
-    return channel->imported ? native_id_valid(channel->id)
+    return channel->imported ? wm_local_native_id_valid(channel->id)
                              : wm_local_channel_id_valid(channel->id);
 }
 
@@ -103,7 +103,7 @@ bool wm_local_catalog_load(const char *assets, WmLocalCatalog *catalog) {
     for (size_t index = 0; valid && index < json.tokens[hidden].children; index++) {
         size_t token = wm_json_index(&json, hidden, index);
         char *id = catalog->hidden[catalog->hidden_count];
-        valid = wm_json_copy(&json, token, id, 65) && native_id_valid(id);
+        valid = wm_json_copy(&json, token, id, 65) && wm_local_native_id_valid(id);
         if (!valid)
             break;
         for (size_t prior = 0; prior < catalog->hidden_count; prior++) {
@@ -163,7 +163,7 @@ bool wm_local_catalog_save(const char *assets, const WmLocalCatalog *catalog) {
     }
     okay = okay && fputs("\n    ],\n    \"hidden\": [", stream) >= 0;
     for (size_t index = 0; okay && index < catalog->hidden_count; index++) {
-        okay = native_id_valid(catalog->hidden[index]) &&
+        okay = wm_local_native_id_valid(catalog->hidden[index]) &&
                fputs(index ? ", " : "", stream) >= 0 &&
                write_string(stream, catalog->hidden[index]);
     }

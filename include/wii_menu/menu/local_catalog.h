@@ -21,6 +21,7 @@ typedef struct WmLocalCatalog {
 } WmLocalCatalog;
 
 bool wm_local_channel_id_valid(const char *id);
+bool wm_local_native_id_valid(const char *id);
 bool wm_local_catalog_load(const char *assets, WmLocalCatalog *catalog);
 bool wm_local_catalog_save(const char *assets, const WmLocalCatalog *catalog);
 

@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "board_contact_format.h"
+#include "wii_menu/support/utf8.h"
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -14,48 +15,8 @@ typedef struct JsonBuffer {
     size_t capacity;
 } JsonBuffer;
 
-static bool utf8_next(const unsigned char *text, size_t length, size_t *offset,
-                      uint32_t *codepoint, size_t *units) {
-    if (*offset >= length)
-        return false;
-    unsigned first = text[*offset];
-    size_t count = first < 0x80                     ? 1
-                   : first >= 0xC2 && first <= 0xDF ? 2
-                   : first >= 0xE0 && first <= 0xEF ? 3
-                   : first >= 0xF0 && first <= 0xF4 ? 4
-                                                    : 0;
-    if (count == 0 || count > length - *offset)
-        return false;
-    uint32_t value = first & (count == 1   ? 0x7Fu
-                              : count == 2 ? 0x1Fu
-                              : count == 3 ? 0x0Fu
-                                           : 0x07u);
-    for (size_t index = 1; index < count; index++) {
-        unsigned next = text[*offset + index];
-        if ((next & 0xC0u) != 0x80u)
-            return false;
-        value = (value << 6) | (next & 0x3Fu);
-    }
-    if ((count == 2 && value < 0x80u) || (count == 3 && value < 0x800u) ||
-        (count == 4 && value < 0x10000u) || value > 0x10FFFFu ||
-        (value >= 0xD800u && value <= 0xDFFFu)) {
-        return false;
-    }
-    *offset += count;
-    if (codepoint)
-        *codepoint = value;
-    if (units)
-        *units = count == 4 ? 2 : 1;
-    return true;
-}
-
 bool contact_json_utf8_valid(const char *text, size_t length) {
-    size_t offset = 0;
-    while (offset < length) {
-        if (!utf8_next((const unsigned char *)text, length, &offset, NULL, NULL))
-            return false;
-    }
-    return true;
+    return wm_utf8_valid((const uint8_t *)text, length);
 }
 
 static bool unicode_space(uint32_t codepoint) {
@@ -77,8 +38,8 @@ bool contact_nickname_valid(const char *text) {
     while (offset < length) {
         uint32_t codepoint;
         size_t character_units;
-        if (!utf8_next((const unsigned char *)text, length, &offset, &codepoint,
-                       &character_units))
+        if (!wm_utf8_next((const uint8_t *)text, length, &offset, &codepoint,
+                          &character_units))
             return false;
         if (codepoint == 0 || codepoint == '\r' || codepoint == '\n')
             return false;
@@ -113,8 +74,8 @@ bool contact_stored_address_valid(bool wii, const char *text) {
         uint32_t codepoint;
         size_t character_units;
         size_t start = offset;
-        if (!utf8_next((const unsigned char *)text, length, &offset, &codepoint,
-                       &character_units) ||
+        if (!wm_utf8_next((const uint8_t *)text, length, &offset, &codepoint,
+                          &character_units) ||
             codepoint == 0 || unicode_space(codepoint))
             return false;
         if (codepoint == '@') {

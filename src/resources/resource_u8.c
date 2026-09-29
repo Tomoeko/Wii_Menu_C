@@ -1,4 +1,5 @@
 #include "wii_menu/resources/resource_u8.h"
+#include "wii_menu/support/utf8.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -54,52 +55,6 @@ static uint64_t wm_path_hash(const char *path) {
     return hash;
 }
 
-static bool wm_valid_utf8(const uint8_t *bytes, size_t size) {
-    size_t index = 0;
-    while (index < size) {
-        uint8_t first = bytes[index];
-        if (first < 0x80) {
-            index++;
-            continue;
-        }
-
-        size_t continuation_count;
-        uint32_t codepoint;
-        uint32_t minimum;
-        if (first >= 0xc2 && first <= 0xdf) {
-            continuation_count = 1;
-            codepoint = first & 0x1f;
-            minimum = 0x80;
-        } else if (first >= 0xe0 && first <= 0xef) {
-            continuation_count = 2;
-            codepoint = first & 0x0f;
-            minimum = 0x800;
-        } else if (first >= 0xf0 && first <= 0xf4) {
-            continuation_count = 3;
-            codepoint = first & 0x07;
-            minimum = 0x10000;
-        } else {
-            return false;
-        }
-        if (continuation_count > size - index - 1) {
-            return false;
-        }
-        for (size_t part = 1; part <= continuation_count; part++) {
-            uint8_t value = bytes[index + part];
-            if ((value & 0xc0) != 0x80) {
-                return false;
-            }
-            codepoint = (codepoint << 6) | (value & 0x3f);
-        }
-        if (codepoint < minimum || codepoint > 0x10ffff ||
-            (codepoint >= 0xd800 && codepoint <= 0xdfff)) {
-            return false;
-        }
-        index += continuation_count + 1;
-    }
-    return true;
-}
-
 static bool wm_reserved_name(const uint8_t *name, size_t size) {
     size_t stem = 0;
     while (stem < size && name[stem] != '.') {
@@ -128,7 +83,7 @@ static bool wm_valid_name(const uint8_t *name, size_t size) {
     if (size == 0 || size > 255 || (size == 1 && name[0] == '.') ||
         (size == 2 && name[0] == '.' && name[1] == '.') || name[size - 1] == '.' ||
         name[size - 1] == ' ' || wm_reserved_name(name, size) ||
-        !wm_valid_utf8(name, size)) {
+        !wm_utf8_valid(name, size)) {
         return false;
     }
 

@@ -7,6 +7,10 @@ wm_add_test(wii-menu-asset-manifest
     SOURCES support/asset_manifest_test.c
     LIBRARIES wii_menu_core
 )
+wm_add_test(wii-menu-utf8
+    SOURCES support/utf8_test.c
+    LIBRARIES wii_menu_core
+)
 
 # Animation.
 wm_add_test(wii-menu-transition

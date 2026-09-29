@@ -13,6 +13,8 @@ typedef struct WmChannelPackage {
 bool wm_channels_join(char output[4096], const char *root, const char *leaf);
 bool wm_channels_regular_file(const char *path);
 bool wm_channels_directory(const char *path);
+bool wm_channels_sibling_tool(const char *program, const char *relative,
+                              char output[4096]);
 bool wm_channels_package_read(const char *folder, WmChannelPackage *package);
 bool wm_channels_texture_filename(const char *name);
 bool wm_channels_package_validate(const WmChannelPackage *package);

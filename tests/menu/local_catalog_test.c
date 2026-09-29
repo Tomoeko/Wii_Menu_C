@@ -34,6 +34,10 @@ static void write_base(const char *directory) {
 }
 
 int main(void) {
+    assert(wm_local_native_id_valid("0001000248414341"));
+    assert(!wm_local_native_id_valid("000100024841434G"));
+    assert(!wm_local_native_id_valid(NULL));
+
     char directory[] = "/tmp/wii-menu-local-catalog-XXXXXX";
     assert(mkdtemp(directory));
     write_base(directory);

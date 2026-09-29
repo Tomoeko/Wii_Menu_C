@@ -110,6 +110,7 @@ add_library(wii_menu_core STATIC
     support/json.c
     support/regular_file.c
     support/sha1.c
+    support/utf8.c
 )
 target_include_directories(wii_menu_core PUBLIC "${PROJECT_SOURCE_DIR}/include")
 wm_enable_warnings(wii_menu_core CONVERSION)

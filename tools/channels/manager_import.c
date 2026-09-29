@@ -4,7 +4,6 @@
 #include "manager_import.h"
 #include "manager_package.h"
 
-#include "asset_path.h"
 #include "preparation/prepare_fs.h"
 #include "wii_menu/support/json.h"
 
@@ -17,39 +16,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-
-static bool native_id(const char *id) {
-    if (strlen(id) != 16)
-        return false;
-    for (size_t index = 0; index < 16; index++) {
-        char character = id[index];
-        if (!((character >= '0' && character <= '9') ||
-              (character >= 'a' && character <= 'f')))
-            return false;
-    }
-    return true;
-}
-
-static bool regular(const char *path) {
-    struct stat metadata;
-    return lstat(path, &metadata) == 0 && S_ISREG(metadata.st_mode);
-}
-
-static bool sibling_tool(const char *program, const char *name,
-                         char output[PREPARE_PATH_CAPACITY]) {
-    char *executable = wm_app_resolve_executable(program);
-    if (!executable)
-        return false;
-    char *separator = strrchr(executable, '/');
-    bool valid = separator != NULL;
-    if (valid) {
-        *separator = '\0';
-        valid = path_join(output, PREPARE_PATH_CAPACITY, executable, name) &&
-                regular(output);
-    }
-    free(executable);
-    return valid;
-}
 
 static bool run_tool(const char *executable, const char *working_directory,
                      char *const arguments[]) {
@@ -106,7 +72,7 @@ static bool exported_channel(const char *stage, char id[65], char title[128]) {
         size_t entry = wm_json_index(&catalog, channels, 0);
         char icon[256], banner[256], expected_icon[256], expected_banner[256];
         valid = wm_json_copy(&catalog, wm_json_member(&catalog, entry, "id"), id, 65) &&
-                native_id(id) &&
+                wm_local_native_id_valid(id) &&
                 wm_json_copy_text(&catalog, wm_json_member(&catalog, entry, "title"),
                                   title, 128) &&
                 title[0] &&
@@ -142,7 +108,7 @@ static bool arrange_extracted_title(const char *stage,
     while ((entry = readdir(listing)) != NULL) {
         if (entry->d_name[0] == '.')
             continue;
-        if (!native_id(entry->d_name) || title_id[0]) {
+        if (!wm_local_native_id_valid(entry->d_name) || title_id[0]) {
             valid = false;
             break;
         }
@@ -184,9 +150,10 @@ bool wm_channels_import_wad(const char *program, const char *assets, const char 
     char *key_path = key_file ? realpath(key_file, NULL) : NULL;
     char extractor[PREPARE_PATH_CAPACITY], exporter[PREPARE_PATH_CAPACITY];
     bool valid = asset_root && wad_path && (!key_file || key_path) &&
-                 regular(wad_path) && (!key_path || regular(key_path)) &&
-                 sibling_tool(program, "wm-wad-extract", extractor) &&
-                 sibling_tool(program, "wm-channel-export", exporter);
+                 wm_channels_regular_file(wad_path) &&
+                 (!key_path || wm_channels_regular_file(key_path)) &&
+                 wm_channels_sibling_tool(program, "wm-wad-extract", extractor) &&
+                 wm_channels_sibling_tool(program, "wm-channel-export", exporter);
     if (!valid) {
         fputs("WAD, key, assets, or sibling extraction tools are unavailable.\n",
               stderr);
@@ -265,7 +232,7 @@ bool wm_channels_import_wad(const char *program, const char *assets, const char 
                               audio_name) &&
                     path_join(target_audio, sizeof(target_audio), audio_destination,
                               audio_name);
-        bool has_audio = valid && regular(source_audio);
+        bool has_audio = valid && wm_channels_regular_file(source_audio);
         struct stat metadata;
         if (valid)
             valid = lstat(destination, &metadata) != 0 && errno == ENOENT;

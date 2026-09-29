@@ -1,4 +1,5 @@
 #include "resource_layout_internal.h"
+#include "wii_menu/support/utf8.h"
 
 #include <math.h>
 #include <stdarg.h>
@@ -107,53 +108,8 @@ void wm_writer_indent(WmJsonWriter *writer, unsigned depth) {
     }
 }
 
-static bool wm_valid_utf8(const uint8_t *bytes, size_t length) {
-    size_t index = 0;
-    while (index < length) {
-        uint8_t first = bytes[index];
-        if (first < 0x80) {
-            index++;
-            continue;
-        }
-        size_t following;
-        uint32_t codepoint;
-        uint32_t minimum;
-        if (first >= 0xc2 && first <= 0xdf) {
-            following = 1;
-            codepoint = first & 0x1fu;
-            minimum = 0x80;
-        } else if (first >= 0xe0 && first <= 0xef) {
-            following = 2;
-            codepoint = first & 0x0fu;
-            minimum = 0x800;
-        } else if (first >= 0xf0 && first <= 0xf4) {
-            following = 3;
-            codepoint = first & 0x07u;
-            minimum = 0x10000;
-        } else {
-            return false;
-        }
-        if (following > length - index - 1) {
-            return false;
-        }
-        for (size_t part = 1; part <= following; part++) {
-            uint8_t value = bytes[index + part];
-            if ((value & 0xc0u) != 0x80u) {
-                return false;
-            }
-            codepoint = (codepoint << 6) | (value & 0x3fu);
-        }
-        if (codepoint < minimum || codepoint > 0x10ffffu ||
-            (codepoint >= 0xd800u && codepoint <= 0xdfffu)) {
-            return false;
-        }
-        index += following + 1;
-    }
-    return true;
-}
-
 void wm_writer_string(WmJsonWriter *writer, const uint8_t *bytes, size_t length) {
-    if (!wm_valid_utf8(bytes, length)) {
+    if (!wm_utf8_valid(bytes, length)) {
         writer->failed = true;
         return;
     }

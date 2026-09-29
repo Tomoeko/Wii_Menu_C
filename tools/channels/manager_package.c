@@ -3,6 +3,8 @@
 
 #include "manager_package.h"
 #include "png.h"
+#include "asset_path.h"
+#include "preparation/prepare_fs.h"
 #include "wii_menu/audio/audio_wave.h"
 #include "wii_menu/layout/layout_runtime.h"
 #include "wii_menu/menu/local_catalog.h"
@@ -21,8 +23,7 @@
 #include <unistd.h>
 
 bool wm_channels_join(char output[4096], const char *root, const char *leaf) {
-    int length = snprintf(output, 4096, "%s/%s", root, leaf);
-    return length > 0 && length < 4096;
+    return path_join(output, 4096, root, leaf);
 }
 
 bool wm_channels_regular_file(const char *path) {
@@ -33,6 +34,22 @@ bool wm_channels_regular_file(const char *path) {
 bool wm_channels_directory(const char *path) {
     struct stat metadata;
     return lstat(path, &metadata) == 0 && S_ISDIR(metadata.st_mode);
+}
+
+bool wm_channels_sibling_tool(const char *program, const char *relative,
+                              char output[4096]) {
+    char *executable = wm_app_resolve_executable(program);
+    if (!executable)
+        return false;
+    char *separator = strrchr(executable, '/');
+    bool valid = false;
+    if (separator) {
+        *separator = '\0';
+        valid = wm_channels_join(output, executable, relative) &&
+                wm_channels_regular_file(output);
+    }
+    free(executable);
+    return valid;
 }
 
 bool wm_channels_package_read(const char *folder, WmChannelPackage *package) {
