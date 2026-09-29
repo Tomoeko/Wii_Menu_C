@@ -129,6 +129,110 @@ static int compare_events(const void *left, const void *right) {
     return a->order < b->order ? -1 : a->order > b->order;
 }
 
+static bool decode_control(uint8_t command, uint8_t value, bool *note_wait,
+                           WmSequenceEvent *event, bool *emits_event) {
+    if (value > 127)
+        return false;
+    event->value = value;
+    *emits_event = true;
+    switch (command) {
+        case 0xc0:
+            event->kind = WM_SEQUENCE_PAN;
+            break;
+        case 0xc1:
+            event->kind = WM_SEQUENCE_VOLUME;
+            break;
+        case 0xc2:
+            event->kind = WM_SEQUENCE_MAIN_VOLUME;
+            break;
+        case 0xd0:
+            event->kind = WM_SEQUENCE_ATTACK;
+            break;
+        case 0xd1:
+            event->kind = WM_SEQUENCE_DECAY;
+            break;
+        case 0xd2:
+            event->kind = WM_SEQUENCE_SUSTAIN;
+            break;
+        case 0xd3:
+            event->kind = WM_SEQUENCE_RELEASE;
+            break;
+        case 0xd5:
+            event->kind = WM_SEQUENCE_VOLUME2;
+            break;
+        case 0xd9:
+            event->kind = WM_SEQUENCE_AUX_A;
+            break;
+        case 0xda:
+            event->kind = WM_SEQUENCE_AUX_B;
+            break;
+        case 0xdb:
+            event->kind = WM_SEQUENCE_MAIN_SEND;
+            break;
+        case 0xde:
+            event->kind = WM_SEQUENCE_AUX_C;
+            break;
+        case 0xb0:
+            *emits_event = false;
+            return value == 48;
+        case 0xc7:
+            *note_wait = value != 0;
+            *emits_event = false;
+            break;
+        case 0xb1:
+        case 0xc6:
+        case 0xca:
+        case 0xcb:
+        case 0xcc:
+        case 0xcd:
+        case 0xd7:
+        case 0xd8:
+            *emits_event = false;
+            break;
+        default:
+            return false;
+    }
+    return true;
+}
+
+static bool apply_variable_command(const WmRsarSequence *sequence, uint32_t *offset,
+                                   int16_t variables[256], bool *condition,
+                                   uint32_t *variable_epoch) {
+    uint8_t operation, variable, high, low;
+    if (!take_byte(sequence, offset, &operation) ||
+        !take_byte(sequence, offset, &variable) ||
+        !take_byte(sequence, offset, &high) || !take_byte(sequence, offset, &low))
+        return false;
+
+    int16_t operand = (int16_t)(((uint16_t)high << 8) | low);
+    int32_t next = variables[variable];
+    switch (operation) {
+        case 0x80:
+            next = operand;
+            break;
+        case 0x81:
+            next += operand;
+            break;
+        case 0x82:
+            next -= operand;
+            break;
+        case 0x92:
+            *condition = next > operand;
+            break;
+        case 0x94:
+            *condition = next < operand;
+            break;
+        default:
+            return false;
+    }
+    if (next < INT16_MIN || next > INT16_MAX)
+        return false;
+    variables[variable] = (int16_t)next;
+    if (operation == 0x80 || operation == 0x81 || operation == 0x82)
+        (*variable_epoch)++;
+    return true;
+}
+
 static bool scan_track(const WmRsarSequence *sequence, WmSequenceTimeline *timeline,
                        size_t *capacity, TrackStart start, TrackStart pending[16],
                        size_t *pending_count, bool seen_tracks[16], char *error,
@@ -328,110 +432,17 @@ static bool scan_track(const WmRsarSequence *sequence, WmSequenceTimeline *timel
             if (condition)
                 offset = address;
         } else if (command == 0xf0) {
-            uint8_t operation, variable, high, low;
-            if (!take_byte(sequence, &offset, &operation) ||
-                !take_byte(sequence, &offset, &variable) ||
-                !take_byte(sequence, &offset, &high) ||
-                !take_byte(sequence, &offset, &low)) {
+            if (!apply_variable_command(sequence, &offset, variables, &condition,
+                                        &variable_epoch)) {
                 valid = false;
                 break;
             }
-            int16_t operand = (int16_t)(((uint16_t)high << 8) | low);
-            int32_t next = variables[variable];
-            if (operation == 0x80)
-                next = operand;
-            else if (operation == 0x81)
-                next += operand;
-            else if (operation == 0x82)
-                next -= operand;
-            else if (operation == 0x92)
-                condition = next > operand;
-            else if (operation == 0x94)
-                condition = next < operand;
-            else {
-                valid = false;
-                break;
-            }
-            if (next < INT16_MIN || next > INT16_MAX) {
-                valid = false;
-                break;
-            }
-            variables[variable] = (int16_t)next;
-            if (operation == 0x80 || operation == 0x81 || operation == 0x82)
-                variable_epoch++;
         } else {
             uint8_t value;
-            if (!take_byte(sequence, &offset, &value)) {
-                valid = false;
-                break;
-            }
-            event.value = value;
-            switch (command) {
-                case 0xb0:
-                    if (value != 48)
-                        valid = false;
-                    break;
-                case 0xc0:
-                    event.kind = WM_SEQUENCE_PAN;
-                    break;
-                case 0xc1:
-                    event.kind = WM_SEQUENCE_VOLUME;
-                    break;
-                case 0xc2:
-                    event.kind = WM_SEQUENCE_MAIN_VOLUME;
-                    break;
-                case 0xc7:
-                    note_wait = value != 0;
-                    break;
-                case 0xd0:
-                    event.kind = WM_SEQUENCE_ATTACK;
-                    break;
-                case 0xd1:
-                    event.kind = WM_SEQUENCE_DECAY;
-                    break;
-                case 0xd2:
-                    event.kind = WM_SEQUENCE_SUSTAIN;
-                    break;
-                case 0xd3:
-                    event.kind = WM_SEQUENCE_RELEASE;
-                    break;
-                case 0xd5:
-                    event.kind = WM_SEQUENCE_VOLUME2;
-                    break;
-                case 0xd9:
-                    event.kind = WM_SEQUENCE_AUX_A;
-                    break;
-                case 0xda:
-                    event.kind = WM_SEQUENCE_AUX_B;
-                    break;
-                case 0xdb:
-                    event.kind = WM_SEQUENCE_MAIN_SEND;
-                    break;
-                case 0xde:
-                    event.kind = WM_SEQUENCE_AUX_C;
-                    break;
-                case 0xb1:
-                case 0xc6:
-                case 0xca:
-                case 0xcb:
-                case 0xcc:
-                case 0xcd:
-                case 0xd7:
-                case 0xd8:
-                    break;
-                default:
-                    valid = false;
-                    break;
-            }
-            if (value > 127)
-                valid = false;
-            if (!valid)
-                break;
-            if ((command == 0xc0 || command == 0xc1 || command == 0xc2 ||
-                 (command >= 0xd0 && command <= 0xd3) || command == 0xd5 ||
-                 command == 0xd9 || command == 0xda || command == 0xdb ||
-                 command == 0xde) &&
-                !append_event(timeline, capacity, event)) {
+            bool emits_event;
+            if (!take_byte(sequence, &offset, &value) ||
+                !decode_control(command, value, &note_wait, &event, &emits_event) ||
+                (emits_event && !append_event(timeline, capacity, event))) {
                 valid = false;
                 break;
             }
