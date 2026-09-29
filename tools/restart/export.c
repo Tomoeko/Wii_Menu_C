@@ -5,6 +5,7 @@
 #include "wii_menu/resources/resource_layout.h"
 #include "wii_menu/resources/resource_tpl.h"
 #include "wii_menu/resources/resource_u8.h"
+#include "wii_menu/support/endian.h"
 #include "wii_menu/support/regular_file.h"
 
 #include <stdbool.h>
@@ -20,11 +21,6 @@ static const char *const animation_member = "arc/anim/my_BackToWiiMenu.brlan";
 static const char *const texture_members[] = {"arc/timg/IplTopMask4x3.tpl",
                                               "arc/timg/my_WiiLogoWait.tpl"};
 
-static uint32_t read_be32(const uint8_t *bytes) {
-    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
-           ((uint32_t)bytes[2] << 8) | bytes[3];
-}
-
 static char *copy_string(const char *value) {
     size_t length = strlen(value) + 1;
     char *copy = malloc(length);
@@ -34,12 +30,12 @@ static char *copy_string(const char *value) {
 }
 
 static bool archive_extent(const uint8_t *data, size_t available, size_t *extent) {
-    if (available < 0x20 || read_be32(data) != UINT32_C(0x55aa382d))
+    if (available < 0x20 || wm_read_be32(data) != UINT32_C(0x55aa382d))
         return false;
-    size_t root = read_be32(data + 4);
+    size_t root = wm_read_be32(data + 4);
     if (root > available - 12)
         return false;
-    size_t count = read_be32(data + root + 8);
+    size_t count = wm_read_be32(data + root + 8);
     if (count == 0 || count > (available - root) / 12)
         return false;
     size_t end = root + count * 12;
@@ -47,8 +43,8 @@ static bool archive_extent(const uint8_t *data, size_t available, size_t *extent
         const uint8_t *node = data + root + index * 12;
         if (node[0] != 0)
             continue;
-        size_t start = read_be32(node + 4);
-        size_t length = read_be32(node + 8);
+        size_t start = wm_read_be32(node + 4);
+        size_t length = wm_read_be32(node + 8);
         if (start > available || length > available - start)
             return false;
         if (start + length > end)
@@ -63,8 +59,8 @@ static bool in_executable_section(const uint8_t *data, size_t size, size_t offse
     if (size < 0x100 || offset > size || length > size - offset)
         return false;
     for (size_t index = 0; index < 18; index++) {
-        size_t start = read_be32(data + index * 4);
-        size_t section_size = read_be32(data + 0x90 + index * 4);
+        size_t start = wm_read_be32(data + index * 4);
+        size_t section_size = wm_read_be32(data + 0x90 + index * 4);
         if (start >= 0x100 && start <= offset && section_size <= size - start &&
             offset - start <= section_size && length <= section_size - (offset - start))
             return true;
@@ -74,7 +70,7 @@ static bool in_executable_section(const uint8_t *data, size_t size, size_t offse
 
 static bool find_archive(const uint8_t *data, size_t size, WmU8Archive *archive) {
     for (size_t offset = 0x100; offset + 4 <= size; offset++) {
-        if (read_be32(data + offset) != UINT32_C(0x55aa382d))
+        if (wm_read_be32(data + offset) != UINT32_C(0x55aa382d))
             continue;
         size_t extent = 0;
         if (!archive_extent(data + offset, size - offset, &extent) ||

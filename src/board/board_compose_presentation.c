@@ -1,5 +1,6 @@
 #include "board_compose_internal.h"
 #include "board_compose_presentation.h"
+#include "board_body_pane.h"
 
 #include "wii_menu/input/source_hit.h"
 #include "wii_menu/layout/layout_present.h"
@@ -328,18 +329,6 @@ void board_compose_pose_body(WmBoardCompose *compose) {
     }
 }
 
-static bool body_row_pane(void *context, const WmLayoutPaneView *pane) {
-    (void)context;
-    static const char *const names[] = {
-        "RootPane",   "N_Memo",     "N_MemoRoot", "N_Body",   "Body_s", "Body3",
-        "Picture_11", "Picture_12", "Picture_13", "Body3_04", "B_Body"};
-    for (size_t index = 0; index < sizeof(names) / sizeof(names[0]); index++) {
-        if (strcmp(pane->name, names[index]) == 0)
-            return true;
-    }
-    return false;
-}
-
 static bool body_header_pane(void *context, const WmLayoutPaneView *pane) {
     (void)context;
     static const char *const names[] = {
@@ -370,9 +359,9 @@ static bool draw_body_rows(WmBoardCompose *compose) {
     wm_layout_present_filtered_with_fonts(compose->platform, compose->textures,
                                           compose->fonts, compose->body, true,
                                           WM_LAYOUT_IPL, NULL, body_header_pane, NULL);
-    wm_layout_present_filtered_with_fonts(compose->platform, compose->textures,
-                                          compose->fonts, compose->body, true,
-                                          WM_LAYOUT_IPL, NULL, body_row_pane, NULL);
+    wm_layout_present_filtered_with_fonts(
+        compose->platform, compose->textures, compose->fonts, compose->body, true,
+        WM_LAYOUT_IPL, NULL, wm_board_body_pane, NULL);
     float first_float = floorf((-rect.y - rect.height) / rect.height) - 1.0f;
     float last_float = ceilf((456.0f - rect.y) / rect.height) + 1.0f;
     if (last_float < 1.0f || first_float > (float)(lines - 1))
@@ -384,9 +373,9 @@ static bool draw_body_rows(WmBoardCompose *compose) {
                                        body.translation[1] -
                                            (float)row * compose->scroll.line_height,
                                        body.translation[2]);
-        wm_layout_present_filtered_with_fonts(compose->platform, compose->textures,
-                                              compose->fonts, compose->body, true,
-                                              WM_LAYOUT_IPL, NULL, body_row_pane, NULL);
+        wm_layout_present_filtered_with_fonts(
+            compose->platform, compose->textures, compose->fonts, compose->body, true,
+            WM_LAYOUT_IPL, NULL, wm_board_body_pane, NULL);
     }
     wm_layout_set_pane_translation(compose->body, "N_Body", body.translation[0],
                                    body.translation[1], body.translation[2]);

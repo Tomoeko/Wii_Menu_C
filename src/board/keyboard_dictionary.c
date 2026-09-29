@@ -1,4 +1,5 @@
 #include "wii_menu/board/keyboard_dictionary.h"
+#include "wii_menu/support/endian.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,15 +11,6 @@ enum {
     OEM_MAX_UTF16_UNITS = 64,
     OEM_MAX_UTF8_BYTES = OEM_MAX_UTF16_UNITS * 3
 };
-
-static uint16_t read_be16(const uint8_t *bytes) {
-    return (uint16_t)(((uint16_t)bytes[0] << 8) | bytes[1]);
-}
-
-static uint32_t read_be32(const uint8_t *bytes) {
-    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
-           ((uint32_t)bytes[2] << 8) | bytes[3];
-}
 
 static bool fail(char *error, size_t capacity, const char *message) {
     if (error && capacity)
@@ -62,7 +54,7 @@ bool wm_keyboard_oem_decode(const uint8_t *data, size_t size, WmKeyboardWordList
     *words = (WmKeyboardWordList){0};
     if (!data || size < 4 || size > OEM_MAX_FILE_BYTES)
         return fail(error, error_size, "Invalid OEM dictionary size.");
-    uint32_t count = read_be32(data);
+    uint32_t count = wm_read_be32(data);
     if (count > OEM_MAX_WORDS || count > (size - 4) / 4)
         return fail(error, error_size, "Truncated OEM offset table.");
     size_t table_end = 4 + (size_t)count * 4;
@@ -71,7 +63,7 @@ bool wm_keyboard_oem_decode(const uint8_t *data, size_t size, WmKeyboardWordList
         return fail(error, error_size, "Out of memory.");
     WmKeyboardWordList parsed = {.words = values};
     for (uint32_t index = 0; index < count; index++) {
-        size_t offset = read_be32(data + 4 + (size_t)index * 4);
+        size_t offset = wm_read_be32(data + 4 + (size_t)index * 4);
         if (offset < table_end || (offset & 1u) || offset >= size) {
             wm_keyboard_word_list_free(&parsed);
             return fail(error, error_size, "Invalid OEM word offset.");
@@ -80,7 +72,7 @@ bool wm_keyboard_oem_decode(const uint8_t *data, size_t size, WmKeyboardWordList
         size_t used = 0, units = 0;
         bool filtered = false, terminated = false;
         while (offset + 2 <= size) {
-            uint16_t first = read_be16(data + offset);
+            uint16_t first = wm_read_be16(data + offset);
             offset += 2;
             if (first == 0) {
                 terminated = true;
@@ -91,7 +83,7 @@ bool wm_keyboard_oem_decode(const uint8_t *data, size_t size, WmKeyboardWordList
             if (first >= 0xd800 && first <= 0xdbff) {
                 if (offset + 2 > size)
                     break;
-                uint16_t second = read_be16(data + offset);
+                uint16_t second = wm_read_be16(data + offset);
                 if (second < 0xdc00 || second > 0xdfff)
                     break;
                 offset += 2;

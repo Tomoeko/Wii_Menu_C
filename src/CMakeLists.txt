@@ -18,6 +18,7 @@ add_library(wii_menu_core STATIC
 
     board/board_address.c
     board/board_address_present.c
+    board/board_body_pane.c
     board/board_calendar.c
     board/board_calendar_present.c
     board/board_compose.c

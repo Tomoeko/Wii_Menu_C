@@ -1,4 +1,5 @@
 #include "wii_menu/fonts/outline_font.h"
+#include "wii_menu/support/endian.h"
 #include "wii_menu/support/regular_file.h"
 #include "cff_font.h"
 #include "outline_vector.h"
@@ -97,17 +98,8 @@ static bool fits(size_t size, size_t offset, size_t length) {
     return offset <= size && length <= size - offset;
 }
 
-static uint16_t be16(const uint8_t *bytes) {
-    return (uint16_t)(((unsigned)bytes[0] << 8) | bytes[1]);
-}
-
 static int16_t signed16(const uint8_t *bytes) {
-    return (int16_t)be16(bytes);
-}
-
-static uint32_t be32(const uint8_t *bytes) {
-    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
-           ((uint32_t)bytes[2] << 8) | bytes[3];
+    return (int16_t)wm_read_be16(bytes);
 }
 
 static bool tag_equals(const uint8_t *tag, const char name[4]) {
@@ -118,7 +110,7 @@ static bool find_table(const uint8_t *bytes, size_t size, size_t face,
                        const char name[4], FontTable *table) {
     if (!fits(size, face, 12))
         return false;
-    unsigned count = be16(bytes + face + 4);
+    unsigned count = wm_read_be16(bytes + face + 4);
     if (!count || count > OUTLINE_MAX_TABLES ||
         !fits(size, face + 12, (size_t)count * 16))
         return false;
@@ -126,8 +118,8 @@ static bool find_table(const uint8_t *bytes, size_t size, size_t face,
         const uint8_t *entry = bytes + face + 12 + (size_t)index * 16;
         if (!tag_equals(entry, name))
             continue;
-        size_t offset = be32(entry + 8);
-        size_t length = be32(entry + 12);
+        size_t offset = wm_read_be32(entry + 8);
+        size_t length = wm_read_be32(entry + 12);
         if (!length || !fits(size, offset, length))
             return false;
         *table = (FontTable){offset, length};
@@ -141,7 +133,7 @@ static bool select_cmap(WmOutlineFont *font) {
     FontTable table = font->cmap;
     if (table.size < 4)
         return false;
-    unsigned count = be16(bytes + table.offset + 2);
+    unsigned count = wm_read_be16(bytes + table.offset + 2);
     if (!count || count > 256 || table.size < 4 + (size_t)count * 8)
         return false;
     size_t chosen = 0;
@@ -149,18 +141,18 @@ static bool select_cmap(WmOutlineFont *font) {
     unsigned chosen_rank = 0;
     for (unsigned index = 0; index < count; index++) {
         const uint8_t *entry = bytes + table.offset + 4 + (size_t)index * 8;
-        unsigned platform = be16(entry);
-        unsigned encoding = be16(entry + 2);
-        size_t offset = be32(entry + 4);
+        unsigned platform = wm_read_be16(entry);
+        unsigned encoding = wm_read_be16(entry + 2);
+        size_t offset = wm_read_be32(entry + 4);
         if (offset > table.size || table.size - offset < 16)
             continue;
         size_t subtable = table.offset + offset;
-        if (be16(bytes + subtable) != 4)
+        if (wm_read_be16(bytes + subtable) != 4)
             continue;
-        size_t length = be16(bytes + subtable + 2);
+        size_t length = wm_read_be16(bytes + subtable + 2);
         if (length < 24 || length > table.size - offset)
             continue;
-        unsigned segments = be16(bytes + subtable + 6) / 2;
+        unsigned segments = wm_read_be16(bytes + subtable + 6) / 2;
         if (!segments || segments > 8192 || 16 + (size_t)segments * 8 > length)
             continue;
         unsigned rank = platform == 3 && encoding == 1 ? 2 : platform == 0 ? 1 : 0;
@@ -181,17 +173,17 @@ WmOutlineFont *wm_outline_font_decode(const uint8_t *bytes, size_t size,
         return NULL;
     size_t face = 0;
     if (memcmp(bytes, "ttcf", 4) == 0) {
-        unsigned count = be32(bytes + 8);
+        unsigned count = wm_read_be32(bytes + 8);
         if (!count || count > 16 || face_index >= count ||
             !fits(size, 12, (size_t)count * 4))
             return NULL;
-        face = be32(bytes + 12 + (size_t)face_index * 4);
+        face = wm_read_be32(bytes + 12 + (size_t)face_index * 4);
     } else if (face_index != 0) {
         return NULL;
     }
     if (!fits(size, face, 12))
         return NULL;
-    uint32_t sfnt_version = be32(bytes + face);
+    uint32_t sfnt_version = wm_read_be32(bytes + face);
     bool is_cff = sfnt_version == 0x4f54544fu; /* OTTO */
     if (!is_cff && sfnt_version != 0x00010000u)
         return NULL;
@@ -207,9 +199,9 @@ WmOutlineFont *wm_outline_font_decode(const uint8_t *bytes, size_t size,
         (is_cff && !find_table(bytes, size, face, "CFF ", &cff)) ||
         !find_table(bytes, size, face, "cmap", &cmap))
         return NULL;
-    unsigned units = be16(bytes + head.offset + 18);
-    unsigned glyphs = be16(bytes + maxp.offset + 4);
-    unsigned metrics = be16(bytes + hhea.offset + 34);
+    unsigned units = wm_read_be16(bytes + head.offset + 18);
+    unsigned glyphs = wm_read_be16(bytes + maxp.offset + 4);
+    unsigned metrics = wm_read_be16(bytes + hhea.offset + 34);
     int loca_format = signed16(bytes + head.offset + 50);
     if (units < 16 || units > 16384 || !glyphs || glyphs > OUTLINE_MAX_GLYPHS ||
         !metrics || metrics > glyphs ||
@@ -287,19 +279,19 @@ static unsigned glyph_for_codepoint(const WmOutlineFont *font, uint32_t codepoin
     if (codepoint > 0xffff || codepoint == 0xffff)
         return 0;
     const uint8_t *table = font->bytes + font->format4;
-    unsigned segments = be16(table + 6) / 2;
+    unsigned segments = wm_read_be16(table + 6) / 2;
     size_t start_array = 16 + (size_t)segments * 2;
     size_t delta_array = start_array + (size_t)segments * 2;
     size_t range_array = delta_array + (size_t)segments * 2;
     for (unsigned index = 0; index < segments; index++) {
-        unsigned end = be16(table + 14 + (size_t)index * 2);
+        unsigned end = wm_read_be16(table + 14 + (size_t)index * 2);
         if (codepoint > end)
             continue;
-        unsigned start = be16(table + start_array + (size_t)index * 2);
+        unsigned start = wm_read_be16(table + start_array + (size_t)index * 2);
         if (codepoint < start)
             return 0;
-        unsigned delta = be16(table + delta_array + (size_t)index * 2);
-        unsigned range = be16(table + range_array + (size_t)index * 2);
+        unsigned delta = wm_read_be16(table + delta_array + (size_t)index * 2);
+        unsigned range = wm_read_be16(table + range_array + (size_t)index * 2);
         unsigned glyph;
         if (!range) {
             glyph = (unsigned)((codepoint + delta) & 0xffffu);
@@ -308,7 +300,7 @@ static unsigned glyph_for_codepoint(const WmOutlineFont *font, uint32_t codepoin
                             (size_t)(codepoint - start) * 2;
             if (!fits(font->format4_size, offset, 2))
                 return 0;
-            glyph = be16(table + offset);
+            glyph = wm_read_be16(table + offset);
             if (glyph)
                 glyph = (glyph + delta) & 0xffffu;
         }
@@ -320,7 +312,7 @@ static unsigned glyph_for_codepoint(const WmOutlineFont *font, uint32_t codepoin
 static float glyph_advance(const WmOutlineFont *font, unsigned glyph, unsigned pixels) {
     unsigned metric =
         glyph < font->horizontal_metrics ? glyph : font->horizontal_metrics - 1;
-    unsigned width = be16(font->bytes + font->hmtx.offset + (size_t)metric * 4);
+    unsigned width = wm_read_be16(font->bytes + font->hmtx.offset + (size_t)metric * 4);
     return (float)width * pixels / font->units_per_em;
 }
 
@@ -330,12 +322,15 @@ static bool glyph_range(const WmOutlineFont *font, unsigned glyph, size_t *offse
         return false;
     size_t first, last;
     if (font->long_loca) {
-        first = be32(font->bytes + font->loca.offset + (size_t)glyph * 4);
-        last = be32(font->bytes + font->loca.offset + (size_t)(glyph + 1) * 4);
+        first = wm_read_be32(font->bytes + font->loca.offset + (size_t)glyph * 4);
+        last = wm_read_be32(font->bytes + font->loca.offset + (size_t)(glyph + 1) * 4);
     } else {
-        first = (size_t)be16(font->bytes + font->loca.offset + (size_t)glyph * 2) * 2;
-        last =
-            (size_t)be16(font->bytes + font->loca.offset + (size_t)(glyph + 1) * 2) * 2;
+        first =
+            (size_t)wm_read_be16(font->bytes + font->loca.offset + (size_t)glyph * 2) *
+            2;
+        last = (size_t)wm_read_be16(font->bytes + font->loca.offset +
+                                    (size_t)(glyph + 1) * 2) *
+               2;
     }
     if (last < first || last > font->glyf.size)
         return false;
@@ -352,12 +347,12 @@ static bool append_simple(const uint8_t *bytes, size_t length, unsigned contours
     if (length < 10 || contours > OUTLINE_MAX_CONTOURS - shape->contour_count ||
         !fits(length, 10, end_size + 2))
         return false;
-    unsigned points = be16(bytes + 10 + end_size - 2) + 1;
+    unsigned points = wm_read_be16(bytes + 10 + end_size - 2) + 1;
     if (!points || points > OUTLINE_MAX_POINTS - shape->point_count)
         return false;
     unsigned previous = 0;
     for (unsigned index = 0; index < contours; index++) {
-        unsigned end = be16(bytes + 10 + (size_t)index * 2);
+        unsigned end = wm_read_be16(bytes + 10 + (size_t)index * 2);
         if (end >= points || (index && end <= previous))
             return false;
         shape->end_points[shape->contour_count + index] =
@@ -365,7 +360,7 @@ static bool append_simple(const uint8_t *bytes, size_t length, unsigned contours
         previous = end;
     }
     size_t cursor = 10 + end_size;
-    unsigned instruction_size = be16(bytes + cursor);
+    unsigned instruction_size = wm_read_be16(bytes + cursor);
     cursor += 2;
     if (!fits(length, cursor, instruction_size))
         return false;
@@ -454,8 +449,8 @@ static bool append_glyph(const WmOutlineFont *font, unsigned glyph, OutlineShape
     do {
         if (!fits(length, cursor, 4) || ++components > 64)
             return false;
-        flags = be16(bytes + cursor);
-        unsigned child = be16(bytes + cursor + 2);
+        flags = wm_read_be16(bytes + cursor);
+        unsigned child = wm_read_be16(bytes + cursor + 2);
         cursor += 4;
         bool words = (flags & 0x0001) != 0;
         bool xy_values = (flags & 0x0002) != 0;
@@ -498,7 +493,7 @@ static bool append_glyph(const WmOutlineFont *font, unsigned glyph, OutlineShape
     if (flags & 0x0100) {
         if (!fits(length, cursor, 2))
             return false;
-        unsigned instructions = be16(bytes + cursor);
+        unsigned instructions = wm_read_be16(bytes + cursor);
         cursor += 2;
         if (!fits(length, cursor, instructions))
             return false;

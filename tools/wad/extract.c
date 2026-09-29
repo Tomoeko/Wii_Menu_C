@@ -3,6 +3,7 @@
 
 #include "crypto.h"
 #include "retail_keys.h"
+#include "wii_menu/support/endian.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -66,19 +67,6 @@ typedef struct WmOptions {
     bool key_index_explicit;
     bool verify_only;
 } WmOptions;
-
-static uint16_t read_be16(const uint8_t *bytes) {
-    return (uint16_t)(((uint16_t)bytes[0] << 8) | bytes[1]);
-}
-
-static uint32_t read_be32(const uint8_t *bytes) {
-    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
-           ((uint32_t)bytes[2] << 8) | bytes[3];
-}
-
-static uint64_t read_be64(const uint8_t *bytes) {
-    return ((uint64_t)read_be32(bytes) << 32) | read_be32(bytes + 4);
-}
 
 static bool aligned_size(size_t size, size_t alignment, size_t *aligned) {
     if (size > SIZE_MAX - (alignment - 1)) {
@@ -208,7 +196,7 @@ static bool signed_body(const WmWad *wad, WmSection section, const char *label,
         fprintf(stderr, "Truncated %s signature.\n", label);
         return false;
     }
-    uint32_t signature = read_be32(wad->bytes + section.offset);
+    uint32_t signature = wm_read_be32(wad->bytes + section.offset);
     size_t signature_size;
     switch (signature) {
         case 0x10000:
@@ -237,8 +225,8 @@ static bool parse_wad(WmWad *wad) {
         fputs("Truncated WAD header.\n", stderr);
         return false;
     }
-    uint32_t header_size = read_be32(wad->bytes);
-    uint16_t kind = read_be16(wad->bytes + 4);
+    uint32_t header_size = wm_read_be32(wad->bytes);
+    uint16_t kind = wm_read_be16(wad->bytes + 4);
     if (header_size < 32 || header_size > wad->size ||
         (kind != 0x4973 && kind != 0x6962)) {
         fputs("Invalid WAD header size or type.\n", stderr);
@@ -250,7 +238,7 @@ static bool parse_wad(WmWad *wad) {
         return false;
     }
     for (int section = 0; section < WM_SECTION_COUNT; ++section) {
-        size_t size = read_be32(wad->bytes + 8 + section * 4);
+        size_t size = wm_read_be32(wad->bytes + 8 + section * 4);
         size_t stride;
         if (!slice_fits(offset, size, wad->size) || !aligned_size(size, 64, &stride)) {
             fputs("Truncated or oversized WAD section.\n", stderr);
@@ -283,9 +271,9 @@ static bool parse_wad(WmWad *wad) {
         return false;
     }
     memcpy(wad->title_id, tmd + 0x4c, sizeof(wad->title_id));
-    wad->version = read_be16(tmd + 0x9c);
-    wad->content_count = read_be16(tmd + 0x9e);
-    wad->boot_index = read_be16(tmd + 0xa0);
+    wad->version = wm_read_be16(tmd + 0x9c);
+    wad->content_count = wm_read_be16(tmd + 0x9e);
+    wad->boot_index = wm_read_be16(tmd + 0xa0);
     wad->key_index = ticket[0xb1];
     if (wad->content_count == 0 || wad->content_count > WM_MAX_CONTENTS ||
         wad->content_count > (tmd_length - 0xa4) / 36) {
@@ -302,10 +290,10 @@ static bool parse_wad(WmWad *wad) {
     for (uint16_t index = 0; index < wad->content_count; ++index) {
         const uint8_t *record = tmd + 0xa4 + index * 36;
         WmContent *content = wad->contents + index;
-        content->id = read_be32(record);
-        content->index = read_be16(record + 4);
-        content->type = read_be16(record + 6);
-        content->size = read_be64(record + 8);
+        content->id = wm_read_be32(record);
+        content->index = wm_read_be16(record + 4);
+        content->type = wm_read_be16(record + 6);
+        content->size = wm_read_be64(record + 8);
         memcpy(content->sha1, record + 16, sizeof(content->sha1));
         for (uint16_t previous = 0; previous < index; ++previous) {
             if (wad->contents[previous].id == content->id ||

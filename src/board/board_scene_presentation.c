@@ -1,4 +1,5 @@
 #include "board_scene_internal.h"
+#include "board_body_pane.h"
 
 #include "wii_menu/layout/layout_present.h"
 
@@ -421,18 +422,6 @@ void board_scene_pose_reader(WmBoardScene *board) {
         wm_board_reader_scroll_footer_shift(&board->reader_scroll), 0.0f);
 }
 
-static bool reader_body_pane(void *context, const WmLayoutPaneView *pane) {
-    (void)context;
-    static const char *const names[] = {
-        "RootPane",   "N_Memo",     "N_MemoRoot", "N_Body",   "Body_s", "Body3",
-        "Picture_11", "Picture_12", "Picture_13", "Body3_04", "B_Body"};
-    for (size_t index = 0; index < sizeof(names) / sizeof(names[0]); index++) {
-        if (strcmp(pane->name, names[index]) == 0)
-            return true;
-    }
-    return false;
-}
-
 typedef enum ReaderDrawPart {
     READER_DRAW_HEADER_AND_BODY,
     READER_DRAW_REST
@@ -500,7 +489,7 @@ static void draw_reader_body_rows(WmBoardScene *board, const float matrix[12]) {
                                        -height * (float)row, 0.0f);
         wm_layout_present_filtered_with_fonts(
             board->platform, board->textures, board->fonts, board->reader, true,
-            WM_LAYOUT_IPL, matrix, reader_body_pane, NULL);
+            WM_LAYOUT_IPL, matrix, wm_board_body_pane, NULL);
     }
     wm_layout_set_pane_translation(board->reader, "N_Body", 0.0f, 0.0f, 0.0f);
 }

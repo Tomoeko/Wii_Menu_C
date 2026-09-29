@@ -1,14 +1,10 @@
 #include "wii_menu/support/sha1.h"
+#include "wii_menu/support/endian.h"
 
 #include <string.h>
 
 static uint32_t rotate_word(uint32_t value, unsigned distance) {
     return (value << distance) | (value >> (32 - distance));
-}
-
-static uint32_t read_be32(const uint8_t *bytes) {
-    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
-           ((uint32_t)bytes[2] << 8) | bytes[3];
 }
 
 static void write_be32(uint8_t *bytes, uint32_t value) {
@@ -21,7 +17,7 @@ static void write_be32(uint8_t *bytes, uint32_t value) {
 static void sha1_compress(WmSha1 *sha1, const uint8_t block[64]) {
     uint32_t words[80];
     for (int index = 0; index < 16; ++index) {
-        words[index] = read_be32(block + index * 4);
+        words[index] = wm_read_be32(block + index * 4);
     }
     for (int index = 16; index < 80; ++index) {
         words[index] = rotate_word(words[index - 3] ^ words[index - 8] ^

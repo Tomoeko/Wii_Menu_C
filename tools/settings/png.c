@@ -1,4 +1,5 @@
 #include "png.h"
+#include "wii_menu/support/endian.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -25,11 +26,6 @@ typedef struct HuffmanEntry {
 typedef struct Huffman {
     HuffmanEntry *entries;
 } Huffman;
-
-static uint32_t be32(const uint8_t *bytes) {
-    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
-           ((uint32_t)bytes[2] << 8) | bytes[3];
-}
 
 static uint32_t crc32_update(uint32_t crc, const uint8_t *data, size_t size) {
     for (size_t index = 0; index < size; index++) {
@@ -286,7 +282,8 @@ static bool inflate_zlib(const uint8_t *compressed, size_t size, uint8_t *output
             return false;
         }
     }
-    return used == expected && adler32(output, expected) == be32(compressed + size - 4);
+    return used == expected &&
+           adler32(output, expected) == wm_read_be32(compressed + size - 4);
 }
 
 static uint8_t paeth(uint8_t left, uint8_t above, uint8_t diagonal) {
@@ -338,20 +335,20 @@ bool wm_settings_png_decode(const uint8_t *data, size_t size, WmImage *image) {
     while (offset < size) {
         if (size - offset < 12)
             break;
-        size_t length = be32(data + offset);
+        size_t length = wm_read_be32(data + offset);
         if (length > size - offset - 12)
             break;
         const uint8_t *kind = data + offset + 4;
         const uint8_t *body = data + offset + 8;
         uint32_t checksum =
             crc32_update(UINT32_C(0xffffffff), kind, length + 4) ^ UINT32_C(0xffffffff);
-        if (checksum != be32(body + length))
+        if (checksum != wm_read_be32(body + length))
             break;
         if (memcmp(kind, "IHDR", 4) == 0) {
             if (header_seen || length != 13 || compressed_size)
                 break;
-            image->width = be32(body);
-            image->height = be32(body + 4);
+            image->width = wm_read_be32(body);
+            image->height = wm_read_be32(body + 4);
             if (!image->width || !image->height || image->width > PNG_MAX_DIMENSION ||
                 image->height > PNG_MAX_DIMENSION || body[8] != 8 || body[9] != 6 ||
                 body[10] || body[11] || body[12])

@@ -5,6 +5,7 @@
 
 #include "reader_internal.h"
 #include "../wad/crypto.h"
+#include "wii_menu/support/endian.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -30,10 +31,6 @@ void wm_nand_set_error(char *error, size_t capacity, const char *message) {
     if (error != NULL && capacity != 0) {
         snprintf(error, capacity, "%s", message);
     }
-}
-
-static uint16_t be16(const uint8_t *bytes) {
-    return (uint16_t)(((uint16_t)bytes[0] << 8) | bytes[1]);
 }
 
 static void write_be32(uint8_t *bytes, uint32_t value) {
@@ -366,8 +363,8 @@ static bool parse_entries(WmNandReader *reader, char *error, size_t error_capaci
         visited[index] = true;
         const uint8_t *node = reader->superblock + 0x1000c + (size_t)index * 32;
         uint8_t mode = node[12];
-        uint16_t first = be16(node + 14);
-        uint16_t sibling = be16(node + 16);
+        uint16_t first = wm_read_be16(node + 14);
+        uint16_t sibling = wm_read_be16(node + 16);
         bool directory = (mode & 3) == 2;
         if ((mode & 3) != 1 && !directory) {
             wm_nand_set_error(error, error_capacity,
@@ -457,7 +454,7 @@ static bool parse_entries(WmNandReader *reader, char *error, size_t error_capaci
                 used_clusters[cluster] = true;
                 entry->clusters[ordinal] = cluster;
                 entry->cluster_count++;
-                cluster = be16(reader->superblock + 12 + (size_t)cluster * 2);
+                cluster = wm_read_be16(reader->superblock + 12 + (size_t)cluster * 2);
             }
             if (!valid)
                 break;

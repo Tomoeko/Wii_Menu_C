@@ -1,4 +1,5 @@
 #include "cff_font.h"
+#include "wii_menu/support/endian.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -62,15 +63,6 @@ static bool fits(size_t size, size_t offset, size_t length) {
     return offset <= size && length <= size - offset;
 }
 
-static unsigned be16(const uint8_t *bytes) {
-    return ((unsigned)bytes[0] << 8) | bytes[1];
-}
-
-static uint32_t be32(const uint8_t *bytes) {
-    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
-           ((uint32_t)bytes[2] << 8) | bytes[3];
-}
-
 static bool offset_value(const uint8_t *bytes, size_t size, size_t position,
                          unsigned width, size_t *value) {
     if (width < 1 || width > 4 || !fits(size, position, width))
@@ -86,7 +78,7 @@ static bool parse_index(const uint8_t *bytes, size_t size, size_t offset,
                         CffIndex *index) {
     if (!fits(size, offset, 2))
         return false;
-    unsigned count = be16(bytes + offset);
+    unsigned count = wm_read_be16(bytes + offset);
     *index = (CffIndex){.count = count, .end = offset + 2};
     if (!count)
         return true;
@@ -151,17 +143,17 @@ static bool number(const uint8_t *bytes, size_t size, size_t *cursor, float *val
     } else if (first == 28) {
         if (!fits(size, *cursor, 2))
             return false;
-        *value = (float)(int16_t)be16(bytes + *cursor);
+        *value = (float)(int16_t)wm_read_be16(bytes + *cursor);
         *cursor += 2;
     } else if (first == 29) {
         if (!fits(size, *cursor, 4))
             return false;
-        *value = (float)(int32_t)be32(bytes + *cursor);
+        *value = (float)(int32_t)wm_read_be32(bytes + *cursor);
         *cursor += 4;
     } else if (first == 255) {
         if (!fits(size, *cursor, 4))
             return false;
-        *value = (float)(int32_t)be32(bytes + *cursor) / 65536.0f;
+        *value = (float)(int32_t)wm_read_be32(bytes + *cursor) / 65536.0f;
         *cursor += 4;
     } else if (first == 30) {
         /* Real numbers are used by FontMatrix, not the offsets we need. */
@@ -262,18 +254,18 @@ static bool parse_fd_select(WmCffFont *font, size_t offset) {
     } else if (format == 3) {
         if (!fits(size, offset, 2))
             return false;
-        unsigned ranges = be16(bytes + offset);
+        unsigned ranges = wm_read_be16(bytes + offset);
         offset += 2;
         if (!ranges || !fits(size, offset, (size_t)ranges * 3 + 2))
             return false;
-        unsigned previous = be16(bytes + offset);
+        unsigned previous = wm_read_be16(bytes + offset);
         if (previous != 0)
             return false;
         for (unsigned index = 0; index < ranges; index++) {
-            unsigned first = be16(bytes + offset + (size_t)index * 3);
-            unsigned next = be16(bytes + offset + (size_t)(index + 1) * 3);
+            unsigned first = wm_read_be16(bytes + offset + (size_t)index * 3);
+            unsigned next = wm_read_be16(bytes + offset + (size_t)(index + 1) * 3);
             if (index + 1 == ranges)
-                next = be16(bytes + offset + (size_t)ranges * 3);
+                next = wm_read_be16(bytes + offset + (size_t)ranges * 3);
             unsigned fd = bytes[offset + (size_t)index * 3 + 2];
             if (first != previous || next <= first || next > font->glyph_count ||
                 fd >= font->private_count)
