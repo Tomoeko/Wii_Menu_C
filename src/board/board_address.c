@@ -98,6 +98,31 @@ const char *wm_board_address_last_save_error(const WmBoardAddress *address) {
     return address ? address->save_error : NULL;
 }
 
+static void clear_book_focus(WmBoardAddress *address) {
+    address->hovered_entry = -1;
+    memset(address->entry_focus, 0, sizeof(address->entry_focus));
+    address->hovered_contact = WM_BOARD_ADDRESS_CONTACT_NONE;
+    memset(address->contact_focus, 0, sizeof(address->contact_focus));
+    memset(address->contact_focus_entering, 0, sizeof(address->contact_focus_entering));
+    memset(address->contact_focus_frame, 0, sizeof(address->contact_focus_frame));
+}
+
+static void clear_kind_focus(WmBoardAddress *address) {
+    address->hovered_kind = -1;
+    memset(address->kind_focus, 0, sizeof(address->kind_focus));
+    memset(address->kind_focus_entering, 0, sizeof(address->kind_focus_entering));
+    memset(address->kind_focus_frame, 0, sizeof(address->kind_focus_frame));
+}
+
+static void clear_contact_text(WmBoardAddress *address) {
+    address->text[0] = '\0';
+    address->text_bytes = 0;
+    address->text_units = 0;
+    address->nickname[0] = '\0';
+    address->nickname_bytes = 0;
+    address->nickname_units = 0;
+}
+
 void wm_board_address_reset(WmBoardAddress *address) {
     if (!address)
         return;
@@ -108,22 +133,9 @@ void wm_board_address_reset(WmBoardAddress *address) {
     address->selected_slot = SIZE_MAX;
     address->forward = true;
     address->wii_kind = true;
-    address->hovered_kind = -1;
-    address->hovered_entry = -1;
-    memset(address->entry_focus, 0, sizeof(address->entry_focus));
-    address->hovered_contact = WM_BOARD_ADDRESS_CONTACT_NONE;
-    memset(address->kind_focus, 0, sizeof(address->kind_focus));
-    memset(address->kind_focus_entering, 0, sizeof(address->kind_focus_entering));
-    memset(address->kind_focus_frame, 0, sizeof(address->kind_focus_frame));
-    memset(address->contact_focus, 0, sizeof(address->contact_focus));
-    memset(address->contact_focus_entering, 0, sizeof(address->contact_focus_entering));
-    memset(address->contact_focus_frame, 0, sizeof(address->contact_focus_frame));
-    address->text[0] = '\0';
-    address->text_bytes = 0;
-    address->text_units = 0;
-    address->nickname[0] = '\0';
-    address->nickname_bytes = 0;
-    address->nickname_units = 0;
+    clear_book_focus(address);
+    clear_kind_focus(address);
+    clear_contact_text(address);
     address->issue = WM_BOARD_ADDRESS_ISSUE_NONE;
     address->dialog_phase = ADDRESS_DIALOG_CLOSED;
     address->dialog_frame = 0.0f;
@@ -146,22 +158,9 @@ bool wm_board_address_open(WmBoardAddress *address) {
     address->phase = WM_BOARD_ADDRESS_ENTER;
     address->frame = 0.0f;
     address->wii_kind = true;
-    address->hovered_kind = -1;
-    address->hovered_entry = -1;
-    memset(address->entry_focus, 0, sizeof(address->entry_focus));
-    address->hovered_contact = WM_BOARD_ADDRESS_CONTACT_NONE;
-    memset(address->kind_focus, 0, sizeof(address->kind_focus));
-    memset(address->kind_focus_entering, 0, sizeof(address->kind_focus_entering));
-    memset(address->kind_focus_frame, 0, sizeof(address->kind_focus_frame));
-    memset(address->contact_focus, 0, sizeof(address->contact_focus));
-    memset(address->contact_focus_entering, 0, sizeof(address->contact_focus_entering));
-    memset(address->contact_focus_frame, 0, sizeof(address->contact_focus_frame));
-    address->text[0] = '\0';
-    address->text_bytes = 0;
-    address->text_units = 0;
-    address->nickname[0] = '\0';
-    address->nickname_bytes = 0;
-    address->nickname_units = 0;
+    clear_book_focus(address);
+    clear_kind_focus(address);
+    clear_contact_text(address);
     address->issue = WM_BOARD_ADDRESS_ISSUE_NONE;
     address->dialog_phase = ADDRESS_DIALOG_CLOSED;
     address->dialog_focus = false;
@@ -204,16 +203,8 @@ bool wm_board_address_register(WmBoardAddress *address) {
     address->frame = 0.0f;
     address->selected_slot = SIZE_MAX;
     address->wii_kind = true;
-    address->hovered_kind = -1;
-    memset(address->kind_focus, 0, sizeof(address->kind_focus));
-    memset(address->kind_focus_entering, 0, sizeof(address->kind_focus_entering));
-    memset(address->kind_focus_frame, 0, sizeof(address->kind_focus_frame));
-    address->text[0] = '\0';
-    address->text_bytes = 0;
-    address->text_units = 0;
-    address->nickname[0] = '\0';
-    address->nickname_bytes = 0;
-    address->nickname_units = 0;
+    clear_kind_focus(address);
+    clear_contact_text(address);
     address->issue = WM_BOARD_ADDRESS_ISSUE_NONE;
     address->dialog_phase = ADDRESS_DIALOG_CLOSED;
     address->dialog_focus = false;
