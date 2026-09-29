@@ -119,6 +119,7 @@ endif()
 if(WM_BUILD_APP)
     set(WM_APP_SOURCES
         app/app_resources.c
+        app/asset_path.c
         app/board_input.c
         app/board_update.c
         app/event_dispatch.c

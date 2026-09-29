@@ -1,3 +1,9 @@
+# Application startup.
+wm_add_test(wii-menu-default-assets
+    SOURCES app/asset_path_test.c "${PROJECT_SOURCE_DIR}/src/app/asset_path.c"
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/app"
+)
+
 # Animation.
 wm_add_test(wii-menu-transition
     SOURCES animation/menu_transition_test.c

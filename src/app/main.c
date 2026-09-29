@@ -2,6 +2,7 @@
 
 #include "app_resources.h"
 #include "app_runtime.h"
+#include "asset_path.h"
 #include "board_update.h"
 #include "event_dispatch.h"
 #include "frame_transitions.h"
@@ -36,6 +37,7 @@ static int print_usage(const char *program) {
             "       %s --layout JSON --raw-root DIRECTORY [--animation NAME] "
             "[--hide-masks]\n",
             program);
+    fprintf(stderr, "Default assets: searches for .local/native-assets.\n");
     fprintf(stderr, "Controls: pointer, arrow keys, Enter, Escape, H for HOME.\n");
     return 0;
 }
@@ -76,6 +78,17 @@ int main(int argc, char **argv) {
     if ((layout_path && !raw_root) || ((animation || hide_masks) && !layout_path)) {
         print_usage(argv[0]);
         return 2;
+    }
+
+    char default_assets[WM_APP_ASSET_PATH_CAPACITY];
+    if (!assets && !layout_path) {
+        if (wm_app_find_default_assets(argv[0], default_assets,
+                                        sizeof(default_assets))) {
+            assets = default_assets;
+        } else {
+            fprintf(stderr, "Could not find .local/native-assets; "
+                            "use --assets DIRECTORY to select prepared assets.\n");
+        }
     }
 
     WmMenu menu;

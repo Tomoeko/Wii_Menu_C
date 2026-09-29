@@ -52,14 +52,18 @@ For a fresh asset installation:
   --output .local/native-assets
 
 # macOS
-./build/wii-menu.app/Contents/MacOS/wii-menu --assets .local/native-assets
+./build/wii-menu.app/Contents/MacOS/wii-menu
 
 # Linux
-./build-gles2/wii-menu --assets .local/native-assets
+./build-gles2/wii-menu
 ```
 
 On Linux, use `./build-gles2/wm-prepare` if the GLES2 build directory is
 your only build. An ALSA-compatible default output device is needed for audio.
+
+Without `--assets`, the app searches for `.local/native-assets` in the current
+directory and its parents, then beside the executable and its parents. Use
+`--assets DIRECTORY` to select another prepared asset directory.
 
 Omit `--nand` to prepare only the System Menu. For an unsupported key index,
 use `--common-key-file FILE` and `--common-key-index N` to supply an override.
