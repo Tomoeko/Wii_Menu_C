@@ -387,6 +387,8 @@ static int run_command(const char *program, const char *command, const char *ass
                        WmLocalCatalog *local) {
     if (strcmp(command, "list") == 0)
         return command_list(assets, local);
+    if (!targets || target_count == 0 || !targets[0])
+        return usage(program, 2);
     if (strcmp(command, "validate") == 0) {
         WmChannelPackage package;
         bool valid = wm_channels_package_read(targets[0], &package) &&
@@ -427,7 +429,7 @@ int main(int argc, char **argv) {
     const char *key_file = NULL;
     const char *key_index = NULL;
     const char *command = NULL;
-    const char *targets[WM_LOCAL_CHANNEL_LIMIT];
+    const char *targets[WM_LOCAL_CHANNEL_LIMIT] = {0};
     size_t target_count = 0;
     bool confirmed = false;
     bool wad_option = false;

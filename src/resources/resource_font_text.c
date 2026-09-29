@@ -247,7 +247,6 @@ WmFontTextLayout *wm_font_layout_pane(const WmFont *font, const char *text,
                 goto invalid_layout;
             line_start = before;
             characters = 0;
-            width = 0;
             next_width = advance;
         }
         width = next_width;

@@ -5,6 +5,11 @@
 #include <string.h>
 
 static void test_palette_and_bounds(void) {
+    enum {
+        GIF_CANVAS_WIDTH_OFFSET = 6,
+        GIF_IMAGE_LEFT_OFFSET = 26,
+        GIF_IMAGE_WIDTH_OFFSET = 30
+    };
     static const uint8_t pixels[] = {
         'G', 'I', 'F', '8', '7', 'a', 2, 0, 2,  0,    0x81, 0,  0, 255, 0, 0,
         0,   255, 0,   0,   0,   255, 0, 0, 0,  0x2c, 0,    0,  0, 0,   2, 0,
@@ -21,7 +26,13 @@ static void test_palette_and_bounds(void) {
     assert(!wm_settings_gif_decode(pixels, 12, &image));
     uint8_t malformed[sizeof(pixels)];
     memcpy(malformed, pixels, sizeof(pixels));
-    malformed[6] = 0;
+    malformed[GIF_CANVAS_WIDTH_OFFSET] = 0;
+    assert(!wm_settings_gif_decode(malformed, sizeof(malformed), &image));
+    memcpy(malformed, pixels, sizeof(pixels));
+    malformed[GIF_IMAGE_WIDTH_OFFSET] = 3;
+    assert(!wm_settings_gif_decode(malformed, sizeof(malformed), &image));
+    memcpy(malformed, pixels, sizeof(pixels));
+    malformed[GIF_IMAGE_LEFT_OFFSET] = 1;
     assert(!wm_settings_gif_decode(malformed, sizeof(malformed), &image));
 }
 

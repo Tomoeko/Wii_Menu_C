@@ -56,6 +56,23 @@ static bool resolved_output(const char *requested, char *output, size_t capacity
     return okay;
 }
 
+static bool base_parent_path(const char *base_path, char *parent, size_t capacity) {
+    if (!base_path)
+        return false;
+    size_t length = strlen(base_path);
+    if (length >= capacity)
+        return false;
+    memcpy(parent, base_path, length + 1);
+    char *separator = strrchr(parent, '/');
+    if (!separator)
+        return false;
+    if (separator == parent)
+        separator[1] = '\0';
+    else
+        *separator = '\0';
+    return true;
+}
+
 static bool tool_path(char *result, size_t capacity, const char *binary_directory,
                       const char *name) {
     return path_join(result, capacity, binary_directory, name);
@@ -446,20 +463,9 @@ int main(int argc, char **argv) {
     char output[PREPARE_PATH_CAPACITY];
     char parent[PREPARE_PATH_CAPACITY];
     struct stat existing;
-    bool output_valid = true;
+    bool output_valid;
     if (plan) {
-        size_t base_length = strlen(base_path);
-        output_valid = base_length < sizeof(parent);
-        if (output_valid) {
-            memcpy(parent, base_path, base_length + 1);
-            char *separator = strrchr(parent, '/');
-            if (!separator)
-                output_valid = false;
-            else if (separator == parent)
-                separator[1] = '\0';
-            else
-                *separator = '\0';
-        }
+        output_valid = base_parent_path(base_path, parent, sizeof(parent));
     } else {
         output_valid =
             resolved_output(output_request, output, sizeof(output), parent,

@@ -243,9 +243,8 @@ bool wm_settings_gif_decode(const uint8_t *data, size_t size, WmImage *image) {
         unsigned top = little_u16(descriptor + 2);
         unsigned width = little_u16(descriptor + 4);
         unsigned height = little_u16(descriptor + 6);
-        if (!width || !height || left > canvas_width - width ||
-            top > canvas_height - height || width > canvas_width ||
-            height > canvas_height)
+        if (!width || !height || width > canvas_width || height > canvas_height ||
+            left > canvas_width - width || top > canvas_height - height)
             return false;
         unsigned local_colors =
             descriptor[8] & 0x80u ? 1u << ((descriptor[8] & 7u) + 1u) : 0;
