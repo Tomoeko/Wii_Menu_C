@@ -613,35 +613,31 @@ void wm_board_scene_set_menu_elapsed_seconds(WmBoardScene *board, float seconds)
     board->menu_arrow_clock_set = true;
 }
 
-void board_scene_pose_footer(WmBoardScene *board) {
-    WmLayoutClip clips[BOARD_CLIP_CAPACITY];
-    size_t count = 0;
-    append_clip(clips, &count, "my_IplTop_e", "G_SeenChange",
-                footer_scene_frame(board));
-    float arrow_loop_frame =
-        board->menu_arrow_clock_set
-            ? fmodf(floorf(board->menu_elapsed_seconds * 60.0f), 55.0f)
-            : fmodf(board->age, 55.0f);
-    append_clip(clips, &count, "my_IplTop_e", "G_ArwRoop", 10000.0f + arrow_loop_frame);
+static void append_footer_arrow_clips(const WmBoardScene *board,
+                                      WmLayoutClip clips[BOARD_CLIP_CAPACITY],
+                                      size_t *count) {
     static const char *const arrow_end_groups[2] = {"G_ArwL_End", "G_ArwR_End"};
     static const char *const arrow_tab_groups[2] = {"G_TabaL", "G_TabaR"};
     static const char *const arrow_focus_groups[2] = {"G_ArwL_Focus", "G_ArwR_Focus"};
     static const char *const arrow_press_groups[2] = {"G_ArwL_Ac", "G_ArwR_Ac"};
-    const WmBoardControl arrow_controls[2] = {WM_BOARD_CONTROL_PREVIOUS,
-                                              WM_BOARD_CONTROL_NEXT};
+    static const WmBoardControl arrow_controls[2] = {WM_BOARD_CONTROL_PREVIOUS,
+                                                     WM_BOARD_CONTROL_NEXT};
+    WmBoardDate arrow_date =
+        board->phase == WM_BOARD_EXIT && board->return_direction != 0 ? board->today
+                                                                      : board->date;
+    size_t page_count = wm_board_scene_memo_page_count(board);
+    bool previous_page = board->page < page_count - 1;
+    bool next_page = board->page > 0;
+    bool reader_opening = board->phase == WM_BOARD_MEMO_OPEN;
+    bool reader_closing = board->phase == WM_BOARD_MEMO_CLOSE;
+    bool reader_hidden = memo_reader_phase(board->phase) && !reader_closing;
     for (size_t arrow = 0; arrow < 2; arrow++) {
-        WmBoardDate arrow_date =
-            board->phase == WM_BOARD_EXIT && board->return_direction != 0 ? board->today
-                                                                          : board->date;
         bool hidden =
             arrow == 0
                 ? board_model_same_date(arrow_date, (WmBoardDate){2000, 1, 1}) &&
-                      board->page + 1 >= wm_board_scene_memo_page_count(board)
+                      !previous_page
                 : board_model_same_date(arrow_date, (WmBoardDate){2035, 12, 31}) &&
-                      board->page == 0;
-        bool reader_opening = board->phase == WM_BOARD_MEMO_OPEN;
-        bool reader_closing = board->phase == WM_BOARD_MEMO_CLOSE;
-        bool reader_hidden = memo_reader_phase(board->phase) && !reader_closing;
+                      !next_page;
         float arrow_frame = 10.0f;
         if (reader_opening || (reader_closing && !hidden)) {
             arrow_frame = board_scene_clamp_frame(board->phase_frame, 10.0f);
@@ -652,27 +648,30 @@ void board_scene_pose_footer(WmBoardScene *board) {
         } else if (board->mask_direction < 0 && !hidden) {
             arrow_frame = board_scene_clamp_frame(board->mask_age, 10.0f);
         }
-        append_clip(clips, &count, "my_IplTop_e", arrow_end_groups[arrow],
+        append_clip(clips, count, "my_IplTop_e", arrow_end_groups[arrow],
                     (board->phase == WM_BOARD_EXIT || hidden || reader_hidden
                          ? 10100.0f
                          : 10150.0f) +
                         arrow_frame);
-        bool memo_page = arrow == 0
-                             ? board->page + 1 < wm_board_scene_memo_page_count(board)
-                             : board->page > 0;
-        append_clip(clips, &count, "my_IplTop_e", arrow_tab_groups[arrow],
+        bool memo_page = arrow == 0 ? previous_page : next_page;
+        append_clip(clips, count, "my_IplTop_e", arrow_tab_groups[arrow],
                     memo_page && board->phase == WM_BOARD_READY ? 10.0f : 40.0f);
-        BoardFocus *focus = &board->button_focus[arrow_controls[arrow]];
-        append_clip(clips, &count, "my_IplTop_e", arrow_focus_groups[arrow],
+        const BoardFocus *focus = &board->button_focus[arrow_controls[arrow]];
+        append_clip(clips, count, "my_IplTop_e", arrow_focus_groups[arrow],
                     (focus->active && !focus->entering ? 10800.0f : 10600.0f) +
                         board_scene_clamp_frame(focus->frame, 15.0f));
         if (board->arrow_press[arrow] >= 0.0f) {
-            append_clip(clips, &count, "my_IplTop_e", arrow_press_groups[arrow],
+            append_clip(clips, count, "my_IplTop_e", arrow_press_groups[arrow],
                         10700.0f +
                             board_scene_clamp_frame(board->arrow_press[arrow], 30.0f));
         }
     }
-    const struct {
+}
+
+static void append_footer_button_clips(const WmBoardScene *board,
+                                       WmLayoutClip clips[BOARD_CLIP_CAPACITY],
+                                       size_t *count) {
+    static const struct {
         WmBoardControl control;
         const char *group;
         float enter;
@@ -683,10 +682,10 @@ void board_scene_pose_footer(WmBoardScene *board) {
                    {WM_BOARD_CONTROL_CALENDAR, "G_Cal", 1900, 1930, 6, 8},
                    {WM_BOARD_CONTROL_CREATE, "G_Add", 3900, 3930, 6, 8}};
     for (size_t index = 0; index < sizeof(buttons) / sizeof(buttons[0]); index++) {
-        BoardFocus *focus = &board->button_focus[buttons[index].control];
+        const BoardFocus *focus = &board->button_focus[buttons[index].control];
         if (!focus->active)
             continue;
-        append_clip(clips, &count, "my_IplTop_e", buttons[index].group,
+        append_clip(clips, count, "my_IplTop_e", buttons[index].group,
                     (focus->entering ? buttons[index].enter : buttons[index].leave) +
                         board_scene_clamp_frame(focus->frame,
                                                 focus->entering
@@ -694,7 +693,7 @@ void board_scene_pose_footer(WmBoardScene *board) {
                                                     : buttons[index].leave_frames));
     }
     if (memo_reader_phase(board->phase)) {
-        const struct {
+        static const struct {
             WmBoardControl control;
             const char *group;
             float enter_frames;
@@ -702,10 +701,11 @@ void board_scene_pose_footer(WmBoardScene *board) {
                               {WM_BOARD_CONTROL_MEMO_TRASH, "G_Dust", 9.0f}};
         for (size_t index = 0;
              index < sizeof(reader_buttons) / sizeof(reader_buttons[0]); index++) {
-            BoardFocus *focus = &board->button_focus[reader_buttons[index].control];
+            const BoardFocus *focus =
+                &board->button_focus[reader_buttons[index].control];
             if (!focus->active)
                 continue;
-            append_clip(clips, &count, "my_IplTop_e", reader_buttons[index].group,
+            append_clip(clips, count, "my_IplTop_e", reader_buttons[index].group,
                         (focus->entering ? 2900.0f : 2930.0f) +
                             board_scene_clamp_frame(
                                 focus->frame, focus->entering
@@ -714,33 +714,33 @@ void board_scene_pose_footer(WmBoardScene *board) {
         }
     }
     if (board->phase == WM_BOARD_MEMO_TRASH_SELECT) {
-        append_clip(clips, &count, "my_IplTop_e", "G_Dust",
+        append_clip(clips, count, "my_IplTop_e", "G_Dust",
                     2800.0f + board_scene_clamp_frame(board->phase_frame, 20.0f));
     }
     if (board->phase == WM_BOARD_MEMO_BACK_SELECT) {
-        append_clip(clips, &count, "my_IplTop_e", "G_CalExit",
+        append_clip(clips, count, "my_IplTop_e", "G_CalExit",
                     3000.0f + board_scene_clamp_frame(board->phase_frame, 20.0f));
     }
-    if ((board->phase == WM_BOARD_ENTER && board->phase_frame < 10.0f) ||
-        (board->phase == WM_BOARD_EXIT && board->phase_frame >= 20.0f)) {
-        bool entering_grid = board->phase == WM_BOARD_EXIT;
-        float grid_frame =
-            entering_grid ? board_scene_clamp_frame(board->phase_frame - 20.0f, 10.0f)
-                          : board_scene_clamp_frame(board->phase_frame, 10.0f);
-        append_clip(clips, &count, "my_IplTop_e", "G_ArwL_End",
-                    (board->grid_page > 0
-                         ? (entering_grid ? 10150.0f : 10100.0f) + grid_frame
-                         : 10110.0f));
-        append_clip(clips, &count, "my_IplTop_e", "G_ArwR_End",
-                    (board->grid_page < 3
-                         ? (entering_grid ? 10150.0f : 10100.0f) + grid_frame
-                         : 10110.0f));
-    }
-    unsigned badge = wm_board_scene_today_count(board);
-    append_clip(clips, &count, "my_IplTop_e", "G_BbsSignal",
-                badge ? 1.0f + fmodf(board->age, 399.0f) : 0.0f);
-    append_clip(clips, &count, "my_IplTop_e", "G_BbsSignal_new", 0.0f);
-    wm_layout_pose(board->footer, clips, count);
+}
+
+static void append_footer_grid_handoff(const WmBoardScene *board,
+                                       WmLayoutClip clips[BOARD_CLIP_CAPACITY],
+                                       size_t *count) {
+    bool leaving_grid = board->phase == WM_BOARD_ENTER && board->phase_frame < 10.0f;
+    bool entering_grid = board->phase == WM_BOARD_EXIT && board->phase_frame >= 20.0f;
+    if (!leaving_grid && !entering_grid)
+        return;
+    float grid_frame = entering_grid
+                           ? board_scene_clamp_frame(board->phase_frame - 20.0f, 10.0f)
+                           : board_scene_clamp_frame(board->phase_frame, 10.0f);
+    float arrow_frame = (entering_grid ? 10150.0f : 10100.0f) + grid_frame;
+    append_clip(clips, count, "my_IplTop_e", "G_ArwL_End",
+                board->grid_page > 0 ? arrow_frame : 10110.0f);
+    append_clip(clips, count, "my_IplTop_e", "G_ArwR_End",
+                board->grid_page < 3 ? arrow_frame : 10110.0f);
+}
+
+static void set_footer_text(WmBoardScene *board, unsigned badge) {
     bool reader = memo_reader_phase(board->phase);
     wm_layout_set_pose_text(board->footer, "T_CalAdd_R", "");
     wm_layout_set_pose_text(board->footer, "T_CalExit", reader ? "Back" : "");
@@ -750,6 +750,27 @@ void board_scene_pose_footer(WmBoardScene *board) {
     if (badge)
         snprintf(counter, sizeof(counter), "%u", badge);
     wm_layout_set_pose_text(board->footer, "T_BbsMark1", counter);
+}
+
+void board_scene_pose_footer(WmBoardScene *board) {
+    WmLayoutClip clips[BOARD_CLIP_CAPACITY];
+    size_t count = 0;
+    append_clip(clips, &count, "my_IplTop_e", "G_SeenChange",
+                footer_scene_frame(board));
+    float arrow_loop_frame =
+        board->menu_arrow_clock_set
+            ? fmodf(floorf(board->menu_elapsed_seconds * 60.0f), 55.0f)
+            : fmodf(board->age, 55.0f);
+    append_clip(clips, &count, "my_IplTop_e", "G_ArwRoop", 10000.0f + arrow_loop_frame);
+    append_footer_arrow_clips(board, clips, &count);
+    append_footer_button_clips(board, clips, &count);
+    append_footer_grid_handoff(board, clips, &count);
+    unsigned badge = wm_board_scene_today_count(board);
+    append_clip(clips, &count, "my_IplTop_e", "G_BbsSignal",
+                badge ? 1.0f + fmodf(board->age, 399.0f) : 0.0f);
+    append_clip(clips, &count, "my_IplTop_e", "G_BbsSignal_new", 0.0f);
+    wm_layout_pose(board->footer, clips, count);
+    set_footer_text(board, badge);
 }
 
 void wm_board_scene_draw_footer(WmBoardScene *board) {
