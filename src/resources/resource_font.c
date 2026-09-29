@@ -416,5 +416,17 @@ bool wm_font_decode_sheet(const WmFont *font, size_t sheet_index, WmImage *image
     image->pixels = decoded.images[0].rgba;
     decoded.images[0].rgba = NULL;
     wm_tpl_free(&decoded);
+    if (sheet->info.format == 0 || sheet->info.format == 1) {
+        /* GX I4/I8 font texels mask the requested text color. Preserve their
+         * intensity as coverage only; multiplying RGB by it as well darkens
+         * antialiased edges a second time during alpha blending. */
+        size_t pixel_count = (size_t)image->width * image->height;
+        for (size_t index = 0; index < pixel_count; index++) {
+            uint8_t *pixel = image->pixels + index * 4;
+            pixel[0] = 255;
+            pixel[1] = 255;
+            pixel[2] = 255;
+        }
+    }
     return true;
 }

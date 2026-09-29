@@ -95,9 +95,9 @@ static uint32_t create_emergency_text(WmPlatform *platform, const char *message)
                                 continue;
                             size_t offset = ((size_t)pixel_y * WIDTH +
                                              (size_t)pixel_x) * 4;
-                            pixels[offset] = 255;
-                            pixels[offset + 1] = 255;
-                            pixels[offset + 2] = 255;
+                            pixels[offset] = 204;
+                            pixels[offset + 1] = 204;
+                            pixels[offset + 2] = 204;
                             pixels[offset + 3] = 255;
                         }
                     }
@@ -126,15 +126,22 @@ static void font_quad(void *context, const WmFontQuad *quad) {
             .y = WM_FRAME_HEIGHT * 0.5f - quad->vertices[index].position[1],
             .u = quad->vertices[index].uv[0],
             .v = quad->vertices[index].uv[1],
-            .color = {1.0f, 1.0f, 1.0f, 1.0f}
+            .color = {
+                quad->vertices[index].color[0],
+                quad->vertices[index].color[1],
+                quad->vertices[index].color[2],
+                quad->vertices[index].color[3]
+            }
         };
     }
     wm_platform_draw_vertices(font->platform, vertices, quad->texture);
 }
 
 static void draw_wad_text(ScreenFont *screen_font, const char *message) {
-    /* Keep the longest message line near half the 640-pixel logical screen. */
-    const float text_height = 19.0f;
+    /* The 16:9 presentation stretches the 640 x 456 logical frame. Scale the
+     * font's two axes separately to retain the source image's glyph shape. */
+    const float text_width = 19.6f;
+    const float text_height = 26.4f;
     const WmFont *font = wm_cached_font_resource(screen_font->face);
     const WmFontMetrics *metrics = wm_font_metrics(font);
     if (!metrics || !metrics->height) return;
@@ -148,12 +155,12 @@ static void draw_wad_text(ScreenFont *screen_font, const char *message) {
         buffer[length] = '\0';
         WmFontDrawOptions options = {
             .x = 0.0f,
-            .y = WM_FRAME_HEIGHT * 0.5f - (180.0f + 32.0f * row),
-            .size = {text_height * metrics->width / metrics->height,
+            .y = WM_FRAME_HEIGHT * 0.5f - (188.0f + 28.0f * row),
+            .size = {text_width * metrics->width / metrics->height,
                      text_height},
             .alpha = 1.0f,
-            .top_color = {255, 255, 255, 255},
-            .bottom_color = {255, 255, 255, 255},
+            .top_color = {204, 204, 204, 255},
+            .bottom_color = {204, 204, 204, 255},
             .align = WM_FONT_ALIGN_CENTER,
             .sheet_provider = font_sheet,
             .on_quad = font_quad,

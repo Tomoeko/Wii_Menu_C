@@ -118,6 +118,54 @@ static float render_first_sample(void) {
     return samples[0];
 }
 
+static void test_manifest_audio_alias(void) {
+    char directory[] = "/tmp/wm-audio-alias-XXXXXX";
+    int temporary = mkstemp(directory);
+    assert(temporary >= 0);
+    assert(close(temporary) == 0);
+    assert(unlink(directory) == 0);
+    assert(mkdir(directory, 0700) == 0);
+    char audio_directory[256], source_path[256], alias_path[256], manifest_path[256];
+    assert(snprintf(audio_directory, sizeof(audio_directory), "%s/audio",
+                    directory) < (int)sizeof(audio_directory));
+    assert(snprintf(source_path, sizeof(source_path), "%s/WIPL_BGM_MENU.wav",
+                    audio_directory) < (int)sizeof(source_path));
+    assert(snprintf(alias_path, sizeof(alias_path), "%s/background.wav",
+                    audio_directory) < (int)sizeof(alias_path));
+    assert(snprintf(manifest_path, sizeof(manifest_path),
+                    "%s/audio-sequence.json", directory) < (int)sizeof(manifest_path));
+    assert(mkdir(audio_directory, 0700) == 0);
+    write_tone(source_path, 1000);
+    FILE *manifest = fopen(manifest_path, "wb");
+    assert(manifest);
+    assert(fputs("{\"background\":{\"sourceSymbol\":\"WIPL_BGM_MENU\","
+                 "\"gain\":0.25},"
+                 "\"invalid\":{\"sourceSymbol\":\"../outside\"}}\n",
+                 manifest) >= 0);
+    assert(fclose(manifest) == 0);
+
+    WmAudio *audio = wm_audio_create(directory);
+    assert(audio && device);
+    WmAudioClip *clip = wm_audio_load_clip(audio, "background", "audio");
+    assert(clip && clip->pcm.samples[0] == 1000 && clip->gain == 0.25f);
+    assert(!wm_audio_load_clip(audio, "invalid", "audio"));
+    wm_audio_destroy(audio);
+
+    /* Older exports and intentional local overrides may still have an alias WAV. */
+    write_tone(alias_path, 2000);
+    audio = wm_audio_create(directory);
+    assert(audio && device);
+    clip = wm_audio_load_clip(audio, "background", "audio");
+    assert(clip && clip->pcm.samples[0] == 2000 && clip->gain == 0.25f);
+    wm_audio_destroy(audio);
+
+    assert(unlink(alias_path) == 0);
+    assert(unlink(source_path) == 0);
+    assert(unlink(manifest_path) == 0);
+    assert(rmdir(audio_directory) == 0);
+    assert(rmdir(directory) == 0);
+}
+
 int main(void) {
     char directory[] = "/tmp/wm-audio-restart-XXXXXX";
     int temporary = mkstemp(directory);
@@ -245,6 +293,7 @@ int main(void) {
     assert(unlink(click_path) == 0);
     assert(rmdir(audio_directory) == 0);
     assert(rmdir(directory) == 0);
+    test_manifest_audio_alias();
     puts("audio restart tests passed");
     return 0;
 }

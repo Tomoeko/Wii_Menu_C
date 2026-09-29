@@ -71,6 +71,7 @@ static void make_font(uint8_t bytes[TEST_FONT_SIZE]) {
     write_be16(bytes + TGLP + 26, 8);
     write_be32(bytes + TGLP + 28, TGLP + 32);
     memset(bytes + TGLP + 32, 0xff, 32);
+    bytes[TGLP + 32] = 0x8f;
 
     memcpy(bytes + CWDH, "CWDH", 4);
     write_be32(bytes + CWDH + 4, 19);
@@ -136,7 +137,9 @@ int main(void) {
     WmImage image;
     assert(wm_font_decode_sheet(font, 0, &image, error, sizeof(error)));
     assert(image.width == 8 && image.height == 8);
-    for (size_t index = 0; index < 8 * 8 * 4; index++) {
+    assert(image.pixels[0] == 255 && image.pixels[1] == 255 &&
+           image.pixels[2] == 255 && image.pixels[3] == 136);
+    for (size_t index = 4; index < 8 * 8 * 4; index++) {
         assert(image.pixels[index] == 255);
     }
     wm_image_free(&image);

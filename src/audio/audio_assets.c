@@ -135,56 +135,65 @@ WmAudioClip *wm_audio_load_clip(WmAudio *audio, const char *name,
         return NULL;
     WmAudioClip *clip = &audio->clips[audio->clip_count++];
     strcpy(clip->name, name);
+    const WmJson *manifest = NULL;
+    size_t entry = strcmp(directory, "audio") == 0
+        ? wm_audio_manifest_entry(audio, name, &manifest) : WM_JSON_INVALID;
     char path[4096], error[128];
-    if (!path_for(path, audio->assets, directory, name) ||
-        !wm_audio_wav_read(path, &clip->pcm, error, sizeof(error))) {
+    bool loaded = path_for(path, audio->assets, directory, name) &&
+                  wm_audio_wav_read(path, &clip->pcm, error, sizeof(error));
+    if (!loaded && entry != WM_JSON_INVALID) {
+        char source[sizeof(clip->name)];
+        size_t token = wm_json_member(manifest, entry, "sourceSymbol");
+        if (wm_json_copy_text(manifest, token, source, sizeof(source)) &&
+            wm_audio_safe_name(source) && strcmp(source, name) != 0 &&
+            path_for(path, audio->assets, directory, source)) {
+            loaded = wm_audio_wav_read(path, &clip->pcm, error, sizeof(error));
+        }
+    }
+    if (!loaded) {
         clip->missing = true;
         fprintf(stderr, "Audio cue unavailable: %s\n", name);
         return NULL;
     }
     clip->gain = 1.0f;
-    if (strcmp(directory, "audio") == 0) {
-        const WmJson *manifest = NULL;
-        size_t entry = wm_audio_manifest_entry(audio, name, &manifest);
-        if (entry != WM_JSON_INVALID) {
-            clip->gain =
-                json_number(manifest, wm_json_member(manifest, entry, "gain"), 1.0f);
-            float loop_start = json_number(
-                manifest, wm_json_member(manifest, entry, "loopStart"), -1.0f);
-            float loop_end = json_number(
-                manifest, wm_json_member(manifest, entry, "loopEnd"), -1.0f);
-            size_t loop_flag = wm_json_member(manifest, entry, "loop");
-            if (loop_flag != WM_JSON_INVALID &&
-                manifest->tokens[loop_flag].type == WM_JSON_BOOLEAN &&
-                manifest->source[manifest->tokens[loop_flag].start] == 't' &&
-                loop_start >= 0.0f && loop_end > loop_start &&
-                (double)loop_end * clip->pcm.sample_rate <
-                    (double)clip->pcm.frame_count + 1.0) {
-                /* Round the same float products as before, but validate the
-                 * rounded values before narrowing to uint32_t. */
-                float first_frame = roundf(loop_start * clip->pcm.sample_rate);
-                float end_frame = roundf(loop_end * clip->pcm.sample_rate);
-                if (isfinite(first_frame) && isfinite(end_frame) &&
-                    first_frame >= 0.0f && first_frame < end_frame &&
-                    (double)end_frame <= clip->pcm.frame_count) {
-                    clip->pcm.looping = true;
-                    clip->pcm.loop_start = (uint32_t)first_frame;
-                    clip->pcm.loop_end = (uint32_t)end_frame;
-                }
+    if (entry != WM_JSON_INVALID) {
+        clip->gain =
+            json_number(manifest, wm_json_member(manifest, entry, "gain"), 1.0f);
+        float loop_start = json_number(
+            manifest, wm_json_member(manifest, entry, "loopStart"), -1.0f);
+        float loop_end = json_number(
+            manifest, wm_json_member(manifest, entry, "loopEnd"), -1.0f);
+        size_t loop_flag = wm_json_member(manifest, entry, "loop");
+        if (loop_flag != WM_JSON_INVALID &&
+            manifest->tokens[loop_flag].type == WM_JSON_BOOLEAN &&
+            manifest->source[manifest->tokens[loop_flag].start] == 't' &&
+            loop_start >= 0.0f && loop_end > loop_start &&
+            (double)loop_end * clip->pcm.sample_rate <
+                (double)clip->pcm.frame_count + 1.0) {
+            /* Round the same float products as before, but validate the
+             * rounded values before narrowing to uint32_t. */
+            float first_frame = roundf(loop_start * clip->pcm.sample_rate);
+            float end_frame = roundf(loop_end * clip->pcm.sample_rate);
+            if (isfinite(first_frame) && isfinite(end_frame) &&
+                first_frame >= 0.0f && first_frame < end_frame &&
+                (double)end_frame <= clip->pcm.frame_count) {
+                clip->pcm.looping = true;
+                clip->pcm.loop_start = (uint32_t)first_frame;
+                clip->pcm.loop_end = (uint32_t)end_frame;
             }
-            size_t symbol = wm_json_member(manifest, entry, "sourceSymbol");
-            int profile = wm_json_equals(manifest, symbol, "WIPL_SE_CH_DRAG")      ? 0
-                          : wm_json_equals(manifest, symbol, "WIPL_SE_BOARD_DRAG") ? 1
-                                                                                   : -1;
-            if (profile >= 0 && clip->pcm.looping && clip->pcm.channels == 1 &&
-                clip->pcm.sample_rate == WM_AUDIO_HELD_RATE) {
-                if (audio->has_held_profiles) {
-                    clip->held_profile = &audio->held_profiles[profile];
-                } else if (!audio->warned_held_profiles) {
-                    fprintf(stderr, "Drag envelope metadata unavailable; re-export "
-                                    "audio for held-voice playback.\n");
-                    audio->warned_held_profiles = true;
-                }
+        }
+        size_t symbol = wm_json_member(manifest, entry, "sourceSymbol");
+        int profile = wm_json_equals(manifest, symbol, "WIPL_SE_CH_DRAG")      ? 0
+                      : wm_json_equals(manifest, symbol, "WIPL_SE_BOARD_DRAG") ? 1
+                                                                               : -1;
+        if (profile >= 0 && clip->pcm.looping && clip->pcm.channels == 1 &&
+            clip->pcm.sample_rate == WM_AUDIO_HELD_RATE) {
+            if (audio->has_held_profiles) {
+                clip->held_profile = &audio->held_profiles[profile];
+            } else if (!audio->warned_held_profiles) {
+                fprintf(stderr, "Drag envelope metadata unavailable; re-export "
+                                "audio for held-voice playback.\n");
+                audio->warned_held_profiles = true;
             }
         }
     }

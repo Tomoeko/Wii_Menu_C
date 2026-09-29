@@ -276,14 +276,11 @@ static bool export_sequences(const WmRsar *archive,
              alias < sizeof(sequence_aliases) / sizeof(sequence_aliases[0]);
              alias++) {
             if (strcmp(sequence_aliases[alias].symbol, symbol) != 0) continue;
-            if (!audio_filename(destination, output,
-                                sequence_aliases[alias].name) ||
-                !wm_audio_wav_write(destination, &pcm,
-                                    error, sizeof(error)) ||
-                !write_sequence_entry(manifest, sequence_aliases[alias].name,
+            /* Alias metadata points at the already exported source WAV. */
+            if (!write_sequence_entry(manifest, sequence_aliases[alias].name,
                                       symbol, &pcm, gain, false)) {
-                fprintf(stderr, "Could not export sequence alias %s: %s\n",
-                        sequence_aliases[alias].name, error);
+                fprintf(stderr, "Could not record sequence alias %s.\n",
+                        sequence_aliases[alias].name);
                 valid = false;
                 break;
             }
