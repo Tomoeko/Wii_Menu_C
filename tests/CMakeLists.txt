@@ -198,6 +198,20 @@ wm_add_test(wii-menu-catalog-saved
     LIBRARIES wii_menu_core
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
 )
+wm_add_test(wii-menu-local-catalog
+    SOURCES menu/local_catalog_test.c
+    LIBRARIES wii_menu_core m
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+)
+add_executable(wii-menu-channel-manager-test menu/channel_manager_test.c)
+wm_enable_warnings(wii-menu-channel-manager-test ERROR)
+add_dependencies(wii-menu-channel-manager-test wm-channels)
+add_test(NAME wii-menu-channel-manager
+    COMMAND wii-menu-channel-manager-test
+        "$<TARGET_FILE:wm-channels>"
+        "${PROJECT_SOURCE_DIR}/examples/custom-channels/custom-example"
+        "${PROJECT_SOURCE_DIR}/examples/custom-channels/custom-studio-channel-9899b686"
+)
 wm_add_test(wii-menu-restart
     SOURCES menu/menu_restart_test.c
     LIBRARIES wii_menu_core m

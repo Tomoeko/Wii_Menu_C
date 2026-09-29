@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "audio_internal.h"
+#include "wii_menu/menu/local_catalog.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -8,31 +9,31 @@
 #include <string.h>
 #include <time.h>
 
-static uint64_t monotonic_nanoseconds(void)
-{
+static uint64_t monotonic_nanoseconds(void) {
     struct timespec time;
     clock_gettime(CLOCK_MONOTONIC, &time);
     return (uint64_t)time.tv_sec * 1000000000u + (uint64_t)time.tv_nsec;
 }
 
-static WmAudioVoiceControl *voice_by_kind(WmAudio *audio, WmVoiceKind kind)
-{
+static WmAudioVoiceControl *voice_by_kind(WmAudio *audio, WmVoiceKind kind) {
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
         WmAudioVoiceControl *voice = &audio->controls[index];
-        if (voice->active && voice->kind == kind) return voice;
+        if (voice->active && voice->kind == kind)
+            return voice;
     }
     return NULL;
 }
 
 static WmAudioVoiceControl *new_voice(WmAudio *audio, const WmAudioClip *clip,
-                               WmVoiceKind kind)
-{
+                                      WmVoiceKind kind) {
     size_t clip_index = (size_t)(clip - audio->clips);
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
         WmAudioVoiceControl *voice = &audio->controls[index];
-        if (voice->active) continue;
+        if (voice->active)
+            continue;
         uint64_t generation = voice->generation + 1;
-        if (!generation) generation = 1;
+        if (!generation)
+            generation = 1;
         *voice = (WmAudioVoiceControl){
             .clip_index = clip_index,
             .kind = kind,
@@ -43,16 +44,15 @@ static WmAudioVoiceControl *new_voice(WmAudio *audio, const WmAudioClip *clip,
             .pan_right = 1.0f,
             .pitch = 1.0f,
             .active = true,
-            .paused = audio->menu_paused && kind != WM_VOICE_HOME
-        };
+            .paused = audio->menu_paused && kind != WM_VOICE_HOME};
         return voice;
     }
     return NULL;
 }
 
-static void fade_voice(WmAudioVoiceControl *voice, size_t frames)
-{
-    if (!voice || !voice->active) return;
+static void fade_voice(WmAudioVoiceControl *voice, size_t frames) {
+    if (!voice || !voice->active)
+        return;
     if (!frames) {
         voice->active = false;
         return;
@@ -62,13 +62,13 @@ static void fade_voice(WmAudioVoiceControl *voice, size_t frames)
     voice->paused = false;
 }
 
-WmAudio *wm_audio_create(const char *assets_directory)
-{
+WmAudio *wm_audio_create(const char *assets_directory) {
     if (!assets_directory || !*assets_directory ||
         strlen(assets_directory) >= sizeof(((WmAudio *)0)->assets))
         return NULL;
     WmAudio *audio = calloc(1, sizeof(*audio));
-    if (!audio) return NULL;
+    if (!audio)
+        return NULL;
     strcpy(audio->assets, assets_directory);
     audio->master_volume = 1.0f;
     audio->mixer_volume = 1.0f;
@@ -78,22 +78,31 @@ WmAudio *wm_audio_create(const char *assets_directory)
         return NULL;
     }
     char path[4096];
-    int length = snprintf(path, sizeof(path), "%s/audio-direct.json",
-                          audio->assets);
+    int length = snprintf(path, sizeof(path), "%s/audio-direct.json", audio->assets);
     if (length > 0 && length < (int)sizeof(path))
         wm_json_load(&audio->direct_manifest, path, 1024 * 1024);
     length = snprintf(path, sizeof(path), "%s/audio-sequence.json", audio->assets);
     if (length > 0 && length < (int)sizeof(path))
         wm_json_load(&audio->sequence_manifest, path, 1024 * 1024);
     wm_audio_load_held_profiles(audio);
-    static const char *const startup_cues[] = {
-        "background", "backgroundIntro", "hover", "buttonHover",
-        "WIPL_SE_BOARD_FOCUS", "WIPL_SE_MSG_DISP", "WIPL_SE_MSG_HOUSE",
-        "select", "click", "back", "page", "confirm", "cancel",
-        "discPreview", "HOMESE_HOME_BUTTON", "HOMESE_FOCUS"
-    };
-    for (size_t index = 0;
-         index < sizeof(startup_cues) / sizeof(startup_cues[0]); index++) {
+    static const char *const startup_cues[] = {"background",
+                                               "backgroundIntro",
+                                               "hover",
+                                               "buttonHover",
+                                               "WIPL_SE_BOARD_FOCUS",
+                                               "WIPL_SE_MSG_DISP",
+                                               "WIPL_SE_MSG_HOUSE",
+                                               "select",
+                                               "click",
+                                               "back",
+                                               "page",
+                                               "confirm",
+                                               "cancel",
+                                               "discPreview",
+                                               "HOMESE_HOME_BUTTON",
+                                               "HOMESE_FOCUS"};
+    for (size_t index = 0; index < sizeof(startup_cues) / sizeof(startup_cues[0]);
+         index++) {
         const WmJson *manifest = NULL;
         if (wm_audio_manifest_entry(audio, startup_cues[index], &manifest) !=
             WM_JSON_INVALID) {
@@ -107,9 +116,9 @@ WmAudio *wm_audio_create(const char *assets_directory)
     return audio;
 }
 
-void wm_audio_destroy(WmAudio *audio)
-{
-    if (!audio) return;
+void wm_audio_destroy(WmAudio *audio) {
+    if (!audio)
+        return;
     wm_audio_device_close(audio->device);
     for (size_t index = 0; index < audio->clip_count; index++)
         wm_audio_pcm_free(&audio->clips[index].pcm);
@@ -119,20 +128,19 @@ void wm_audio_destroy(WmAudio *audio)
     free(audio);
 }
 
-bool wm_audio_play(WmAudio *audio, const char *name)
-{
+bool wm_audio_play(WmAudio *audio, const char *name) {
     return wm_audio_play_panned(audio, name, 0.0f);
 }
 
-bool wm_audio_play_panned(WmAudio *audio, const char *name, float pan)
-{
+bool wm_audio_play_panned(WmAudio *audio, const char *name, float pan) {
     if (!audio || !audio->device || !wm_audio_safe_name(name) || !isfinite(pan))
         return false;
     pan = fminf(fmaxf(pan, -1.0f), 1.0f);
     pthread_mutex_lock(&audio->mutex);
     bool muted = audio->muted;
     pthread_mutex_unlock(&audio->mutex);
-    if (muted) return false;
+    if (muted)
+        return false;
     if (strcmp(name, "hover") == 0) {
         uint64_t now = monotonic_nanoseconds();
         if (audio->last_hover_ns && now - audio->last_hover_ns < 45000000u)
@@ -140,10 +148,12 @@ bool wm_audio_play_panned(WmAudio *audio, const char *name, float pan)
         audio->last_hover_ns = now;
     }
     WmAudioClip *clip = wm_audio_load_clip(audio, name, "audio");
-    if (!clip) return false;
-    WmVoiceKind kind = strncmp(name, "HOMESE_", 7) == 0 ||
-                       strncmp(name, "HOME_SPEAKER_", 13) == 0
-                           ? WM_VOICE_HOME : WM_VOICE_EFFECT;
+    if (!clip)
+        return false;
+    WmVoiceKind kind =
+        strncmp(name, "HOMESE_", 7) == 0 || strncmp(name, "HOME_SPEAKER_", 13) == 0
+            ? WM_VOICE_HOME
+            : WM_VOICE_EFFECT;
     pthread_mutex_lock(&audio->mutex);
     WmAudioVoiceControl *voice = audio->muted ? NULL : new_voice(audio, clip, kind);
     if (voice) {
@@ -155,11 +165,12 @@ bool wm_audio_play_panned(WmAudio *audio, const char *name, float pan)
     return voice != NULL;
 }
 
-bool wm_audio_start_loop(WmAudio *audio, const char *name)
-{
-    if (!audio || !audio->device || !wm_audio_safe_name(name)) return false;
+bool wm_audio_start_loop(WmAudio *audio, const char *name) {
+    if (!audio || !audio->device || !wm_audio_safe_name(name))
+        return false;
     WmAudioClip *clip = wm_audio_load_clip(audio, name, "audio");
-    if (!clip || !clip->pcm.looping) return false;
+    if (!clip || !clip->pcm.looping)
+        return false;
     size_t clip_index = (size_t)(clip - audio->clips);
     pthread_mutex_lock(&audio->mutex);
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
@@ -175,8 +186,7 @@ bool wm_audio_start_loop(WmAudio *audio, const char *name)
 }
 
 static void set_loop_controls(WmAudioVoiceControl *voice, const WmAudioClip *clip,
-                              float gain, float pan, float pitch)
-{
+                              float gain, float pan, float pitch) {
     voice->gain = clip->gain * fminf(fmaxf(gain, 0.0f), 2.0f);
     voice->pan = fminf(fmaxf(pan, -1.0f), 1.0f);
     voice->pitch = fminf(fmaxf(pitch, 0.25f), 4.0f);
@@ -185,13 +195,14 @@ static void set_loop_controls(WmAudioVoiceControl *voice, const WmAudioClip *cli
     voice->pan_right = voice->pan < 0.0f ? 1.0f + voice->pan : 1.0f;
 }
 
-bool wm_audio_hold_loop(WmAudio *audio, const char *name,
-                        float gain, float pan, float pitch)
-{
-    if (!audio || !audio->device || !wm_audio_safe_name(name) ||
-        !isfinite(gain) || !isfinite(pan) || !isfinite(pitch)) return false;
+bool wm_audio_hold_loop(WmAudio *audio, const char *name, float gain, float pan,
+                        float pitch) {
+    if (!audio || !audio->device || !wm_audio_safe_name(name) || !isfinite(gain) ||
+        !isfinite(pan) || !isfinite(pitch))
+        return false;
     WmAudioClip *clip = wm_audio_load_clip(audio, name, "audio");
-    if (!clip || !clip->pcm.looping) return false;
+    if (!clip || !clip->pcm.looping)
+        return false;
     size_t clip_index = (size_t)(clip - audio->clips);
     pthread_mutex_lock(&audio->mutex);
     WmAudioVoiceControl *held = NULL;
@@ -202,20 +213,23 @@ bool wm_audio_hold_loop(WmAudio *audio, const char *name,
             break;
         }
     }
-    if (!held) held = new_voice(audio, clip, WM_VOICE_EFFECT);
-    if (held) set_loop_controls(held, clip, gain, pan, pitch);
+    if (!held)
+        held = new_voice(audio, clip, WM_VOICE_EFFECT);
+    if (held)
+        set_loop_controls(held, clip, gain, pan, pitch);
     pthread_mutex_unlock(&audio->mutex);
     return held != NULL;
 }
 
-void wm_audio_stop_loop(WmAudio *audio, const char *name)
-{
-    if (!audio || !wm_audio_safe_name(name)) return;
+void wm_audio_stop_loop(WmAudio *audio, const char *name) {
+    if (!audio || !wm_audio_safe_name(name))
+        return;
     pthread_mutex_lock(&audio->mutex);
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
         WmAudioVoiceControl *voice = &audio->controls[index];
         if (!voice->active || voice->releasing ||
-            strcmp(audio->clips[voice->clip_index].name, name) != 0) continue;
+            strcmp(audio->clips[voice->clip_index].name, name) != 0)
+            continue;
         if (audio->clips[voice->clip_index].held_profile) {
             voice->releasing = true;
         } else {
@@ -225,43 +239,46 @@ void wm_audio_stop_loop(WmAudio *audio, const char *name)
     pthread_mutex_unlock(&audio->mutex);
 }
 
-void wm_audio_set_loop(WmAudio *audio, const char *name,
-                       float gain, float pan, float pitch)
-{
-    if (!audio || !wm_audio_safe_name(name) || !isfinite(gain) ||
-        !isfinite(pan) || !isfinite(pitch)) return;
+void wm_audio_set_loop(WmAudio *audio, const char *name, float gain, float pan,
+                       float pitch) {
+    if (!audio || !wm_audio_safe_name(name) || !isfinite(gain) || !isfinite(pan) ||
+        !isfinite(pitch))
+        return;
     pthread_mutex_lock(&audio->mutex);
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
         WmAudioVoiceControl *voice = &audio->controls[index];
         if (!voice->active || voice->releasing ||
-            strcmp(audio->clips[voice->clip_index].name, name) != 0) continue;
+            strcmp(audio->clips[voice->clip_index].name, name) != 0)
+            continue;
         const WmAudioClip *clip = &audio->clips[voice->clip_index];
         set_loop_controls(voice, clip, gain, pan, pitch);
     }
     pthread_mutex_unlock(&audio->mutex);
 }
 
-void wm_audio_set_volume(WmAudio *audio, float volume)
-{
-    if (!audio || !isfinite(volume)) return;
-    if (volume < 0.0f) volume = 0.0f;
-    if (volume > 1.0f) volume = 1.0f;
+void wm_audio_set_volume(WmAudio *audio, float volume) {
+    if (!audio || !isfinite(volume))
+        return;
+    if (volume < 0.0f)
+        volume = 0.0f;
+    if (volume > 1.0f)
+        volume = 1.0f;
     pthread_mutex_lock(&audio->mutex);
     audio->master_volume = volume;
     pthread_mutex_unlock(&audio->mutex);
 }
 
-void wm_audio_set_muted(WmAudio *audio, bool muted)
-{
-    if (!audio) return;
+void wm_audio_set_muted(WmAudio *audio, bool muted) {
+    if (!audio)
+        return;
     pthread_mutex_lock(&audio->mutex);
     audio->muted = muted;
     pthread_mutex_unlock(&audio->mutex);
 }
 
-void wm_audio_reset_all(WmAudio *audio)
-{
-    if (!audio) return;
+void wm_audio_reset_all(WmAudio *audio) {
+    if (!audio)
+        return;
     pthread_mutex_lock(&audio->mutex);
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++)
         audio->controls[index].active = false;
@@ -273,22 +290,23 @@ void wm_audio_reset_all(WmAudio *audio)
     pthread_mutex_unlock(&audio->mutex);
 }
 
-static void set_paused(WmAudio *audio, WmVoiceKind kind, bool paused)
-{
+static void set_paused(WmAudio *audio, WmVoiceKind kind, bool paused) {
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
         WmAudioVoiceControl *voice = &audio->controls[index];
-        if (voice->active && voice->kind == kind) voice->paused = paused;
+        if (voice->active && voice->kind == kind)
+            voice->paused = paused;
     }
 }
 
-static void update_background(WmAudio *audio, bool paused)
-{
+static void update_background(WmAudio *audio, bool paused) {
     if (!audio->background_started) {
         WmAudioClip *background = wm_audio_load_clip(audio, "background", "audio");
         WmAudioClip *intro = wm_audio_load_clip(audio, "backgroundIntro", "audio");
         pthread_mutex_lock(&audio->mutex);
-        if (background) new_voice(audio, background, WM_VOICE_BACKGROUND);
-        if (intro) new_voice(audio, intro, WM_VOICE_INTRO);
+        if (background)
+            new_voice(audio, background, WM_VOICE_BACKGROUND);
+        if (intro)
+            new_voice(audio, intro, WM_VOICE_INTRO);
         audio->background_started = true;
         pthread_mutex_unlock(&audio->mutex);
     }
@@ -299,40 +317,45 @@ static void update_background(WmAudio *audio, bool paused)
     pthread_mutex_unlock(&audio->mutex);
 }
 
-static bool safe_channel_id(const char *id)
-{
-    if (!wm_audio_safe_name(id)) return false;
+static bool safe_channel_id(const char *id) {
+    if (!wm_audio_safe_name(id))
+        return false;
+    if (wm_local_channel_id_valid(id))
+        return true;
+    if (strlen(id) != 16)
+        return false;
     for (const char *digit = id; *digit; digit++) {
-        if ((*digit < '0' || *digit > '9') &&
-            (*digit < 'a' || *digit > 'f') &&
-            (*digit < 'A' || *digit > 'F')) return false;
+        if ((*digit < '0' || *digit > '9') && (*digit < 'a' || *digit > 'f') &&
+            (*digit < 'A' || *digit > 'F'))
+            return false;
     }
     return true;
 }
 
-static void update_preview(WmAudio *audio, const WmMenu *menu)
-{
-    bool has_preview = menu->screen == WM_SCREEN_PREVIEW &&
-                       menu->selected >= 0 && menu->selected < WM_SLOT_COUNT;
-    bool change_in = menu->transition == WM_TRANSITION_PREVIEW &&
-                     wm_menu_preview_presentation(menu).phase ==
-                         WM_PREVIEW_PHASE_CHANGE_IN;
+static void update_preview(WmAudio *audio, const WmMenu *menu) {
+    bool has_preview = menu->screen == WM_SCREEN_PREVIEW && menu->selected >= 0 &&
+                       menu->selected < WM_SLOT_COUNT;
+    bool change_in =
+        menu->transition == WM_TRANSITION_PREVIEW &&
+        wm_menu_preview_presentation(menu).phase == WM_PREVIEW_PHASE_CHANGE_IN;
     bool change_out = menu->transition == WM_TRANSITION_PREVIEW && !change_in;
-    if (change_in) return;
-    if (change_out || !has_preview ||
-        menu->transition == WM_TRANSITION_SELECT) {
+    if (change_in)
+        return;
+    if (change_out || !has_preview || menu->transition == WM_TRANSITION_SELECT) {
         if (audio->active_preview >= 0) {
             pthread_mutex_lock(&audio->mutex);
             fade_voice(voice_by_kind(audio, WM_VOICE_CHANNEL),
-                       menu->transition == WM_TRANSITION_BACK ?
-                           (size_t)(28 * WM_AUDIO_RATE / 60) : 0);
+                       menu->transition == WM_TRANSITION_BACK
+                           ? (size_t)(28 * WM_AUDIO_RATE / 60)
+                           : 0);
             pthread_mutex_unlock(&audio->mutex);
             audio->active_preview = -1;
         }
         return;
     }
     if (audio->active_preview == menu->selected ||
-        menu->transition != WM_TRANSITION_NONE) return;
+        menu->transition != WM_TRANSITION_NONE)
+        return;
     const WmChannel *channel = &menu->slots[menu->selected];
     WmAudioClip *clip = NULL;
     if (strcmp(channel->id, "disc") == 0) {
@@ -341,16 +364,17 @@ static void update_preview(WmAudio *audio, const WmMenu *menu)
         clip = wm_audio_load_clip(audio, channel->id, "channel-audio");
     }
     audio->active_preview = menu->selected;
-    if (!clip) return;
+    if (!clip)
+        return;
     pthread_mutex_lock(&audio->mutex);
     fade_voice(voice_by_kind(audio, WM_VOICE_CHANNEL), 0);
     new_voice(audio, clip, WM_VOICE_CHANNEL);
     pthread_mutex_unlock(&audio->mutex);
 }
 
-void wm_audio_sync(WmAudio *audio, const WmMenu *menu)
-{
-    if (!audio || !menu || !audio->device) return;
+void wm_audio_sync(WmAudio *audio, const WmMenu *menu) {
+    if (!audio || !menu || !audio->device)
+        return;
     bool home_paused;
     if (menu->transition == WM_TRANSITION_HOME) {
         home_paused = menu->transition_from_home_open;
@@ -364,8 +388,8 @@ void wm_audio_sync(WmAudio *audio, const WmMenu *menu)
         set_paused(audio, WM_VOICE_CHANNEL, home_paused);
         pthread_mutex_unlock(&audio->mutex);
     }
-    bool background_paused = menu->screen == WM_SCREEN_PREVIEW ||
-                             menu->transition == WM_TRANSITION_BACK;
+    bool background_paused =
+        menu->screen == WM_SCREEN_PREVIEW || menu->transition == WM_TRANSITION_BACK;
     update_background(audio, background_paused);
     update_preview(audio, menu);
 }

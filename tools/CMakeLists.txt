@@ -110,6 +110,24 @@ target_include_directories(wm-channel-export PRIVATE
 )
 wm_enable_warnings(wm-channel-export ERROR)
 
+add_executable(wm-channels
+    channels/manager.c
+    channels/manager_delete.c
+    channels/manager_import.c
+    channels/manager_package.c
+    "${PROJECT_SOURCE_DIR}/src/app/asset_path.c"
+    preparation/prepare_fs.c
+    settings/png.c
+)
+target_include_directories(wm-channels PRIVATE
+    "${PROJECT_SOURCE_DIR}/src/app"
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/settings"
+)
+target_link_libraries(wm-channels PRIVATE wii_menu_core)
+add_dependencies(wm-channels wm-wad-extract wm-channel-export)
+wm_enable_warnings(wm-channels ERROR)
+
 # Preparing assets invokes these tools next to the wm-prepare executable.
 add_dependencies(wm-prepare
     wm-wad-extract

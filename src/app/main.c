@@ -34,7 +34,10 @@ static void sleep_nanoseconds(uint64_t duration) {
 }
 
 static int print_usage(const char *program) {
-    fprintf(stderr, "Usage: %s [--assets DIRECTORY] [--bypass]\n", program);
+    fprintf(stderr,
+            "Usage: %s [--assets DIRECTORY] [--bypass] "
+            "[--preview-channel ID-OR-NAME]\n",
+            program);
     fprintf(stderr,
             "       %s --layout JSON --raw-root DIRECTORY [--animation NAME] "
             "[--hide-masks]\n",
@@ -50,6 +53,7 @@ int main(int argc, char **argv) {
     const char *layout_path = NULL;
     const char *raw_root = NULL;
     const char *animation = NULL;
+    const char *preview_channel = NULL;
     bool hide_masks = false;
     bool bypass = false;
     for (int index = 1; index < argc; index++) {
@@ -72,6 +76,10 @@ int main(int argc, char **argv) {
             animation = argv[++index];
             continue;
         }
+        if (strcmp(argv[index], "--preview-channel") == 0 && index + 1 < argc) {
+            preview_channel = argv[++index];
+            continue;
+        }
         if (strcmp(argv[index], "--hide-masks") == 0) {
             hide_masks = true;
             continue;
@@ -83,7 +91,8 @@ int main(int argc, char **argv) {
         print_usage(argv[0]);
         return 2;
     }
-    if ((layout_path && !raw_root) || ((animation || hide_masks) && !layout_path)) {
+    if ((layout_path && !raw_root) || ((animation || hide_masks) && !layout_path) ||
+        (preview_channel && layout_path)) {
         print_usage(argv[0]);
         return 2;
     }
@@ -91,7 +100,7 @@ int main(int argc, char **argv) {
     char default_assets[WM_APP_ASSET_PATH_CAPACITY];
     if (!assets && !layout_path) {
         if (wm_app_find_default_assets(argv[0], default_assets,
-                                        sizeof(default_assets))) {
+                                       sizeof(default_assets))) {
             assets = default_assets;
         } else {
             fprintf(stderr, "Could not find .local/native-assets; "
@@ -103,8 +112,9 @@ int main(int argc, char **argv) {
         const char *root = assets ? assets : ".local/native-assets";
         unsigned issues = 0;
         if (!wm_asset_manifest_verify(root, stderr, &issues)) {
-            fprintf(stderr, "Prepared assets at %s have %u integrity issue(s).\n"
-                            "Use --bypass only if these files were intentionally edited.\n",
+            fprintf(stderr,
+                    "Prepared assets at %s have %u integrity issue(s).\n"
+                    "Use --bypass only if these files were intentionally edited.\n",
                     root, issues);
             return wm_app_show_corruption_screen(assets);
         }
@@ -115,6 +125,31 @@ int main(int argc, char **argv) {
     WmAppResources resources;
     if (!wm_app_resources_create(&resources, &menu, assets, layout_path, raw_root)) {
         return 1;
+    }
+    if (preview_channel) {
+        int match = -1;
+        for (int slot = 1; slot < WM_SLOT_COUNT; slot++) {
+            const WmChannel *channel = &menu.slots[slot];
+            if (!channel->occupied || (strcmp(channel->id, preview_channel) != 0 &&
+                                       strcmp(channel->title, preview_channel) != 0))
+                continue;
+            if (match >= 0) {
+                fprintf(stderr, "Ambiguous channel name: %s; use its ID.\n",
+                        preview_channel);
+                wm_app_resources_destroy(&resources);
+                return 2;
+            }
+            match = slot;
+        }
+        if (match < 0) {
+            fprintf(stderr, "Channel is not visible: %s\n", preview_channel);
+            wm_app_resources_destroy(&resources);
+            return 2;
+        }
+        wm_health_scene_reset(resources.health_scene, false);
+        menu.screen = WM_SCREEN_PREVIEW;
+        menu.page = match / WM_CHANNELS_PER_PAGE;
+        menu.selected = match;
     }
     WmLayout *layout = resources.layout;
     WmPlatform *platform = resources.platform;
@@ -282,16 +317,15 @@ int main(int argc, char **argv) {
             profile_frame_count++;
             profile_frame_total += frame_end - frame_start;
             profile_draw_total += draw_time;
-            if (draw_time > profile_draw_max) profile_draw_max = draw_time;
+            if (draw_time > profile_draw_max)
+                profile_draw_max = draw_time;
             if (profile_frame_count == 120) {
-                WmTextureCacheStats textures =
-                    wm_texture_cache_stats(scene_textures);
+                WmTextureCacheStats textures = wm_texture_cache_stats(scene_textures);
                 fprintf(stderr,
                         "Frame timing: screen=%d, frame=%.2f ms, draw=%.2f ms, "
                         "max draw=%.2f ms, textures=%zu/%zu MiB, "
                         "evictions=%llu (120 frames)\n",
-                        (int)menu.screen,
-                        (double)profile_frame_total / 120000000.0,
+                        (int)menu.screen, (double)profile_frame_total / 120000000.0,
                         (double)profile_draw_total / 120000000.0,
                         (double)profile_draw_max / 1000000.0,
                         textures.resident_bytes / (1024u * 1024u),

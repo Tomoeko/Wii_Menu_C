@@ -54,6 +54,7 @@ add_library(wii_menu_core STATIC
     layout/layout_runtime.c
 
     menu/catalog.c
+    menu/local_catalog.c
     menu/menu.c
     menu/menu_restart.c
 

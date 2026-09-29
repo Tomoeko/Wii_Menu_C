@@ -9,14 +9,13 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static bool search_parents(char *directory, char *result, size_t result_size)
-{
+static bool search_parents(char *directory, char *result, size_t result_size) {
     static const char suffix[] = ".local/native-assets";
     for (;;) {
         char candidate[WM_APP_ASSET_PATH_CAPACITY];
         const char *separator = strcmp(directory, "/") == 0 ? "" : "/";
-        int length = snprintf(candidate, sizeof(candidate), "%s%s%s",
-                              directory, separator, suffix);
+        int length = snprintf(candidate, sizeof(candidate), "%s%s%s", directory,
+                              separator, suffix);
         if (length > 0 && (size_t)length < sizeof(candidate) &&
             (size_t)length < result_size) {
             struct stat status;
@@ -26,16 +25,20 @@ static bool search_parents(char *directory, char *result, size_t result_size)
             }
         }
         char *slash = strrchr(directory, '/');
-        if (!slash || strcmp(directory, "/") == 0) return false;
-        if (slash == directory) slash[1] = '\0';
-        else *slash = '\0';
+        if (!slash || strcmp(directory, "/") == 0)
+            return false;
+        if (slash == directory)
+            slash[1] = '\0';
+        else
+            *slash = '\0';
     }
 }
 
-static char *resolve_executable(const char *executable)
-{
-    if (!executable || !executable[0]) return NULL;
-    if (strchr(executable, '/')) return realpath(executable, NULL);
+char *wm_app_resolve_executable(const char *executable) {
+    if (!executable || !executable[0])
+        return NULL;
+    if (strchr(executable, '/'))
+        return realpath(executable, NULL);
 
     /* argv[0] may be a bare command name when launched through PATH. */
     const char *entry = getenv("PATH");
@@ -48,13 +51,15 @@ static char *resolve_executable(const char *executable)
             name_length < sizeof(candidate) - length - 1) {
             memcpy(candidate, entry, length);
             size_t offset = length;
-            if (length) candidate[offset++] = '/';
+            if (length)
+                candidate[offset++] = '/';
             memcpy(candidate + offset, executable, name_length + 1);
             struct stat status;
             if (stat(candidate, &status) == 0 && S_ISREG(status.st_mode) &&
                 access(candidate, X_OK) == 0) {
                 char *resolved = realpath(candidate, NULL);
-                if (resolved) return resolved;
+                if (resolved)
+                    return resolved;
             }
         }
         entry = end ? end + 1 : NULL;
@@ -63,24 +68,28 @@ static char *resolve_executable(const char *executable)
 }
 
 bool wm_app_find_default_assets(const char *executable, char *result,
-                                 size_t result_size)
-{
-    if (!result || result_size == 0) return false;
+                                size_t result_size) {
+    if (!result || result_size == 0)
+        return false;
     result[0] = '\0';
     char directory[WM_APP_ASSET_PATH_CAPACITY];
     if (getcwd(directory, sizeof(directory)) &&
-        search_parents(directory, result, result_size)) return true;
+        search_parents(directory, result, result_size))
+        return true;
 
-    char *resolved = resolve_executable(executable);
-    if (!resolved) return false;
+    char *resolved = wm_app_resolve_executable(executable);
+    if (!resolved)
+        return false;
     bool found = false;
     size_t length = strlen(resolved);
     if (length < sizeof(directory)) {
         memcpy(directory, resolved, length + 1);
         char *slash = strrchr(directory, '/');
         if (slash) {
-            if (slash == directory) slash[1] = '\0';
-            else *slash = '\0';
+            if (slash == directory)
+                slash[1] = '\0';
+            else
+                *slash = '\0';
             found = search_parents(directory, result, result_size);
         }
     }

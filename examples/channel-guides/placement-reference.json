@@ -1,0 +1,52 @@
+{
+    "schemaVersion": 1,
+    "purpose": "Authoring alignment guide; the source WAD remains the rendering oracle.",
+    "coordinateSystem": {
+        "logicalCanvas": [608, 456],
+        "origin": "center",
+        "positiveY": "up",
+        "rasterToLayout": [
+            "layoutX = rasterX - canvasWidth / 2",
+            "layoutY = canvasHeight / 2 - rasterY"
+        ]
+    },
+    "sourceLayout": "layouts/chanTtl/my_ChTop_a.json",
+    "sourceMaskTextureDimensions": {
+        "4:3": {
+            "corner": [64, 64],
+            "sideTexture": [64, 160],
+            "sidePane": [64, 164],
+            "topAndBottom": [240, 16]
+        },
+        "16:9": {
+            "corner": [88, 64],
+            "side": [88, 164],
+            "topAndBottom": [336, 16],
+            "wholeMask": [832, 456]
+        }
+    },
+    "authoringSurfaces": {
+        "4:3": {
+            "canvas": [608, 456],
+            "iconSlot": [240, 180, 128, 96],
+            "bannerBody": [0, 0, 608, 339]
+        },
+        "16:9": {
+            "canvas": [832, 456],
+            "iconSlot": [331, 180, 170, 96],
+            "bannerBody": [0, 0, 832, 339]
+        }
+    },
+    "workflow": [
+        "Compose on the matching SVG canvas at its declared pixel size.",
+        "Keep the guide in a separate, hidden layer when exporting final artwork.",
+        "Use a transparent, non-interlaced RGBA PNG with declared dimensions matching the channel layout.",
+        "Validate with wm-channels validate FOLDER, install with wm-channels add FOLDER, and inspect with wm-channels preview ID.",
+        "Compare a rendered frame with the same aspect ratio and frame of the source WAD before claiming one-to-one fidelity."
+    ],
+    "limitations": [
+        "The red rounded paths are alignment overlays, not extracted mask textures.",
+        "Custom channel logic and native module scripts are not reproduced by the authored layout format.",
+        "The C runtime accepts vector panes and non-interlaced RGBA PNG textures; SVG is an authoring guide, not a runtime texture."
+    ]
+}
