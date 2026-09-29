@@ -1403,6 +1403,131 @@ bool wm_board_compose_scroll_state(const WmBoardCompose *compose,
                                                  compose->frame, state);
 }
 
+static WmBoardComposeControl keyboard_hit_control(WmBoardCompose *compose, int x,
+                                                  int y) {
+    WmBoardKeyboardControl key = wm_board_keyboard_hit(compose->keyboard, x, y);
+    return key == WM_KEYBOARD_NONE
+               ? WM_COMPOSE_CONTROL_NONE
+               : (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST + key - 1);
+}
+
+static WmBoardComposeControl edit_hit(WmBoardCompose *compose, int x, int y) {
+    bool symbols = wm_board_keyboard_symbols_visible(compose->keyboard);
+    if (!symbols)
+        board_compose_pose_body(compose);
+    if (!symbols &&
+        compose->scroll.arrows[COMPOSE_SCROLL_EDITOR][COMPOSE_SCROLL_UP].visible &&
+        board_compose_hit_pane(compose->body, "B_txtScrll_UP", x, y)) {
+        return WM_COMPOSE_CONTROL_SCROLL_UP;
+    }
+    if (!symbols &&
+        compose->scroll.arrows[COMPOSE_SCROLL_EDITOR][COMPOSE_SCROLL_DOWN].visible &&
+        board_compose_hit_pane(compose->body, "B_txtScrll_DOWN", x, y)) {
+        return WM_COMPOSE_CONTROL_SCROLL_DOWN;
+    }
+    WmBoardComposeControl key = keyboard_hit_control(compose, x, y);
+    if (key == WM_COMPOSE_CONTROL_NONE && !symbols &&
+        board_compose_hit_memo_caret(compose, x, y)) {
+        compose->draft.pointer_caret_valid = true;
+        return WM_COMPOSE_CONTROL_EDIT;
+    }
+    return key;
+}
+
+static bool address_phase_accepts_input(WmBoardAddressPhase phase) {
+    switch (phase) {
+        case WM_BOARD_ADDRESS_READY:
+        case WM_BOARD_ADDRESS_KIND_READY:
+        case WM_BOARD_ADDRESS_FORM_READY:
+        case WM_BOARD_ADDRESS_NICKNAME_READY:
+        case WM_BOARD_ADDRESS_MII_READY:
+        case WM_BOARD_ADDRESS_REVIEW_READY:
+        case WM_BOARD_ADDRESS_CONTACT_READY:
+            return true;
+        default:
+            return false;
+    }
+}
+
+static WmBoardComposeControl address_hit(WmBoardCompose *compose,
+                                         WmBoardAddressPhase phase, int x, int y) {
+    if (phase == WM_BOARD_ADDRESS_READY) {
+        if (board_compose_hit_pane(compose->footer, "B_ArwL", x, y))
+            return WM_COMPOSE_CONTROL_ADDRESS_PREVIOUS;
+        if (board_compose_hit_pane(compose->footer, "B_ArwR", x, y))
+            return WM_COMPOSE_CONTROL_ADDRESS_NEXT;
+        if (board_compose_hit_pane(compose->footer, "B_Add_R", x, y))
+            return WM_COMPOSE_CONTROL_POST;
+        unsigned row;
+        if (wm_board_address_entry_hit(compose->address, x, y, &row))
+            return (WmBoardComposeControl)(WM_COMPOSE_CONTROL_ADDRESS_ENTRY_FIRST +
+                                           row);
+    } else if (phase == WM_BOARD_ADDRESS_KIND_READY) {
+        bool wii = false;
+        if (wm_board_address_kind_hit(compose->address, x, y, &wii))
+            return wii ? WM_COMPOSE_CONTROL_ADDRESS_WII
+                       : WM_COMPOSE_CONTROL_ADDRESS_OTHERS;
+    } else if (phase == WM_BOARD_ADDRESS_FORM_READY ||
+               phase == WM_BOARD_ADDRESS_NICKNAME_READY) {
+        if (wm_board_address_field_valid(compose->address) &&
+            board_compose_hit_pane(compose->footer, "B_Add_R", x, y))
+            return WM_COMPOSE_CONTROL_POST;
+        if (wm_board_address_form_hit(compose->address, x, y))
+            return WM_COMPOSE_CONTROL_ADDRESS_EDIT;
+    } else if (phase == WM_BOARD_ADDRESS_MII_READY) {
+        if (board_compose_hit_pane(compose->footer, "B_Add_R", x, y))
+            return WM_COMPOSE_CONTROL_POST;
+        if (wm_board_address_form_hit(compose->address, x, y))
+            return WM_COMPOSE_CONTROL_ADDRESS_MII;
+    } else if (phase == WM_BOARD_ADDRESS_REVIEW_READY) {
+        if (board_compose_hit_pane(compose->footer, "B_Add_R", x, y))
+            return WM_COMPOSE_CONTROL_POST;
+        if (wm_board_address_review_hit(compose->address, x, y))
+            return WM_COMPOSE_CONTROL_ADDRESS_INFO;
+    } else if (phase == WM_BOARD_ADDRESS_CONTACT_READY) {
+        WmBoardAddressContactAction action;
+        if (wm_board_address_contact_hit(compose->address, x, y, &action)) {
+            if (action == WM_BOARD_ADDRESS_CONTACT_CHANGE_NICKNAME)
+                return WM_COMPOSE_CONTROL_ADDRESS_CHANGE_NICKNAME;
+            if (action == WM_BOARD_ADDRESS_CONTACT_ERASE)
+                return WM_COMPOSE_CONTROL_ADDRESS_ERASE;
+            return WM_COMPOSE_CONTROL_ADDRESS_INFO;
+        }
+    }
+    return WM_COMPOSE_CONTROL_NONE;
+}
+
+static WmBoardComposeControl selector_hit(WmBoardCompose *compose, int x, int y) {
+    board_compose_pose_selector(compose);
+    if (board_compose_hit_pane(compose->selector, "B_MailIn", x, y))
+        return WM_COMPOSE_CONTROL_MEMO;
+    if (board_compose_hit_pane(compose->selector, "B_LetterIn", x, y))
+        return WM_COMPOSE_CONTROL_LETTER;
+    if (board_compose_hit_pane(compose->selector, "B_AdressIn", x, y))
+        return WM_COMPOSE_CONTROL_ADDRESS;
+    return WM_COMPOSE_CONTROL_NONE;
+}
+
+static WmBoardComposeControl memo_hit(WmBoardCompose *compose, int x, int y) {
+    if (board_compose_hit_pane(compose->footer, "B_Add_R", x, y))
+        return WM_COMPOSE_CONTROL_POST;
+    board_compose_pose_body(compose);
+    if (board_compose_hit_pane(compose->body, "B_Nigaoe", x, y))
+        return WM_COMPOSE_CONTROL_MII;
+    if (compose->scroll.arrows[COMPOSE_SCROLL_DISPLAY][COMPOSE_SCROLL_UP].visible &&
+        board_compose_hit_pane(compose->body, "B_ArwR", x, y))
+        return WM_COMPOSE_CONTROL_SCROLL_UP;
+    if (compose->scroll.arrows[COMPOSE_SCROLL_DISPLAY][COMPOSE_SCROLL_DOWN].visible &&
+        board_compose_hit_pane(compose->body, "B_ArwL", x, y))
+        return WM_COMPOSE_CONTROL_SCROLL_DOWN;
+    if (board_compose_hit_pane(compose->body, "B_2l_TextBox", x, y)) {
+        compose->draft.pointer_caret_valid =
+            board_compose_hit_memo_caret(compose, x, y);
+        return WM_COMPOSE_CONTROL_EDIT;
+    }
+    return WM_COMPOSE_CONTROL_NONE;
+}
+
 WmBoardComposeControl wm_board_compose_hit(WmBoardCompose *compose, int x, int y) {
     if (compose)
         compose->draft.pointer_caret_valid = false;
@@ -1420,37 +1545,10 @@ WmBoardComposeControl wm_board_compose_hit(WmBoardCompose *compose, int x, int y
             return WM_COMPOSE_CONTROL_NETWORK_SETTINGS;
         return WM_COMPOSE_CONTROL_NONE;
     }
-    if (compose->phase == WM_COMPOSE_EDIT) {
-        bool symbols = wm_board_keyboard_symbols_visible(compose->keyboard);
-        if (!symbols)
-            board_compose_pose_body(compose);
-        if (!symbols &&
-            compose->scroll.arrows[COMPOSE_SCROLL_EDITOR][COMPOSE_SCROLL_UP].visible &&
-            board_compose_hit_pane(compose->body, "B_txtScrll_UP", x, y)) {
-            return WM_COMPOSE_CONTROL_SCROLL_UP;
-        }
-        if (!symbols &&
-            compose->scroll.arrows[COMPOSE_SCROLL_EDITOR][COMPOSE_SCROLL_DOWN]
-                .visible &&
-            board_compose_hit_pane(compose->body, "B_txtScrll_DOWN", x, y)) {
-            return WM_COMPOSE_CONTROL_SCROLL_DOWN;
-        }
-        WmBoardKeyboardControl key = wm_board_keyboard_hit(compose->keyboard, x, y);
-        if (key == WM_KEYBOARD_NONE && !symbols &&
-            board_compose_hit_memo_caret(compose, x, y)) {
-            compose->draft.pointer_caret_valid = true;
-            return WM_COMPOSE_CONTROL_EDIT;
-        }
-        return key == WM_KEYBOARD_NONE
-                   ? WM_COMPOSE_CONTROL_NONE
-                   : (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST + key - 1);
-    }
-    if (compose->address_keyboard_open) {
-        WmBoardKeyboardControl key = wm_board_keyboard_hit(compose->keyboard, x, y);
-        return key == WM_KEYBOARD_NONE
-                   ? WM_COMPOSE_CONTROL_NONE
-                   : (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST + key - 1);
-    }
+    if (compose->phase == WM_COMPOSE_EDIT)
+        return edit_hit(compose, x, y);
+    if (compose->address_keyboard_open)
+        return keyboard_hit_control(compose, x, y);
     if (wm_board_address_dialog_active(compose->address)) {
         bool yes = false;
         if (wm_board_address_dialog_choice_hit(compose->address, x, y, &yes)) {
@@ -1464,97 +1562,19 @@ WmBoardComposeControl wm_board_compose_hit(WmBoardCompose *compose, int x, int y
     WmBoardAddressPhase address_phase = WM_BOARD_ADDRESS_CLOSED;
     if (compose->phase == WM_COMPOSE_ADDRESS) {
         address_phase = wm_board_address_phase(compose->address);
-        if (address_phase != WM_BOARD_ADDRESS_READY &&
-            address_phase != WM_BOARD_ADDRESS_KIND_READY &&
-            address_phase != WM_BOARD_ADDRESS_FORM_READY &&
-            address_phase != WM_BOARD_ADDRESS_NICKNAME_READY &&
-            address_phase != WM_BOARD_ADDRESS_MII_READY &&
-            address_phase != WM_BOARD_ADDRESS_REVIEW_READY &&
-            address_phase != WM_BOARD_ADDRESS_CONTACT_READY)
+        if (!address_phase_accepts_input(address_phase))
             return WM_COMPOSE_CONTROL_NONE;
     }
     board_compose_pose_footer(compose);
     if (board_compose_hit_pane(compose->footer, "B_CalExit", x, y)) {
         return WM_COMPOSE_CONTROL_BACK;
     }
-    if (compose->phase == WM_COMPOSE_ADDRESS) {
-        if (address_phase == WM_BOARD_ADDRESS_READY) {
-            if (board_compose_hit_pane(compose->footer, "B_ArwL", x, y))
-                return WM_COMPOSE_CONTROL_ADDRESS_PREVIOUS;
-            if (board_compose_hit_pane(compose->footer, "B_ArwR", x, y))
-                return WM_COMPOSE_CONTROL_ADDRESS_NEXT;
-            if (board_compose_hit_pane(compose->footer, "B_Add_R", x, y))
-                return WM_COMPOSE_CONTROL_POST;
-            unsigned row;
-            if (wm_board_address_entry_hit(compose->address, x, y, &row))
-                return (WmBoardComposeControl)(WM_COMPOSE_CONTROL_ADDRESS_ENTRY_FIRST +
-                                               row);
-        } else if (address_phase == WM_BOARD_ADDRESS_KIND_READY) {
-            bool wii = false;
-            if (wm_board_address_kind_hit(compose->address, x, y, &wii))
-                return wii ? WM_COMPOSE_CONTROL_ADDRESS_WII
-                           : WM_COMPOSE_CONTROL_ADDRESS_OTHERS;
-        } else if (address_phase == WM_BOARD_ADDRESS_FORM_READY ||
-                   address_phase == WM_BOARD_ADDRESS_NICKNAME_READY) {
-            if (wm_board_address_field_valid(compose->address) &&
-                board_compose_hit_pane(compose->footer, "B_Add_R", x, y))
-                return WM_COMPOSE_CONTROL_POST;
-            if (wm_board_address_form_hit(compose->address, x, y))
-                return WM_COMPOSE_CONTROL_ADDRESS_EDIT;
-        } else if (address_phase == WM_BOARD_ADDRESS_MII_READY) {
-            if (board_compose_hit_pane(compose->footer, "B_Add_R", x, y))
-                return WM_COMPOSE_CONTROL_POST;
-            if (wm_board_address_form_hit(compose->address, x, y))
-                return WM_COMPOSE_CONTROL_ADDRESS_MII;
-        } else if (address_phase == WM_BOARD_ADDRESS_REVIEW_READY) {
-            if (board_compose_hit_pane(compose->footer, "B_Add_R", x, y))
-                return WM_COMPOSE_CONTROL_POST;
-            if (wm_board_address_review_hit(compose->address, x, y))
-                return WM_COMPOSE_CONTROL_ADDRESS_INFO;
-        } else if (address_phase == WM_BOARD_ADDRESS_CONTACT_READY) {
-            WmBoardAddressContactAction action;
-            if (wm_board_address_contact_hit(compose->address, x, y, &action)) {
-                if (action == WM_BOARD_ADDRESS_CONTACT_CHANGE_NICKNAME)
-                    return WM_COMPOSE_CONTROL_ADDRESS_CHANGE_NICKNAME;
-                if (action == WM_BOARD_ADDRESS_CONTACT_ERASE)
-                    return WM_COMPOSE_CONTROL_ADDRESS_ERASE;
-                return WM_COMPOSE_CONTROL_ADDRESS_INFO;
-            }
-        }
-    } else if (compose->phase == WM_COMPOSE_SELECTOR) {
-        board_compose_pose_selector(compose);
-        if (board_compose_hit_pane(compose->selector, "B_MailIn", x, y)) {
-            return WM_COMPOSE_CONTROL_MEMO;
-        }
-        if (board_compose_hit_pane(compose->selector, "B_LetterIn", x, y)) {
-            return WM_COMPOSE_CONTROL_LETTER;
-        }
-        if (board_compose_hit_pane(compose->selector, "B_AdressIn", x, y)) {
-            return WM_COMPOSE_CONTROL_ADDRESS;
-        }
-    } else if (compose->phase == WM_COMPOSE_MEMO) {
-        if (board_compose_hit_pane(compose->footer, "B_Add_R", x, y)) {
-            return WM_COMPOSE_CONTROL_POST;
-        }
-        board_compose_pose_body(compose);
-        if (board_compose_hit_pane(compose->body, "B_Nigaoe", x, y)) {
-            return WM_COMPOSE_CONTROL_MII;
-        }
-        if (compose->scroll.arrows[COMPOSE_SCROLL_DISPLAY][COMPOSE_SCROLL_UP].visible &&
-            board_compose_hit_pane(compose->body, "B_ArwR", x, y)) {
-            return WM_COMPOSE_CONTROL_SCROLL_UP;
-        }
-        if (compose->scroll.arrows[COMPOSE_SCROLL_DISPLAY][COMPOSE_SCROLL_DOWN]
-                .visible &&
-            board_compose_hit_pane(compose->body, "B_ArwL", x, y)) {
-            return WM_COMPOSE_CONTROL_SCROLL_DOWN;
-        }
-        if (board_compose_hit_pane(compose->body, "B_2l_TextBox", x, y)) {
-            compose->draft.pointer_caret_valid =
-                board_compose_hit_memo_caret(compose, x, y);
-            return WM_COMPOSE_CONTROL_EDIT;
-        }
-    }
+    if (compose->phase == WM_COMPOSE_ADDRESS)
+        return address_hit(compose, address_phase, x, y);
+    if (compose->phase == WM_COMPOSE_SELECTOR)
+        return selector_hit(compose, x, y);
+    if (compose->phase == WM_COMPOSE_MEMO)
+        return memo_hit(compose, x, y);
     return WM_COMPOSE_CONTROL_NONE;
 }
 
