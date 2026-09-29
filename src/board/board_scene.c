@@ -1107,6 +1107,124 @@ static void advance_board_focus(WmBoardScene *board, float frames) {
     }
 }
 
+static float board_phase_duration(WmBoardPhase phase) {
+    switch (phase) {
+        case WM_BOARD_ENTER:
+        case WM_BOARD_EXIT:
+            return 40.0f;
+        case WM_BOARD_DATE_SCROLL:
+        case WM_BOARD_MEMO_BACK_SELECT:
+            return 20.0f;
+        case WM_BOARD_MEMO_PAGE:
+            return 15.0f;
+        case WM_BOARD_MEMO_OPEN:
+        case WM_BOARD_MEMO_CLOSE:
+            return 26.0f;
+        case WM_BOARD_MEMO_TRASH_SELECT:
+            return 33.0f;
+        case WM_BOARD_MEMO_TRASH_CANCEL:
+            return 13.0f;
+        case WM_BOARD_MEMO_ERASE_CLOSE:
+            return 17.0f;
+        case WM_BOARD_CLOSED:
+        case WM_BOARD_READY:
+        case WM_BOARD_MEMO_READ:
+        case WM_BOARD_MEMO_DIALOG:
+            return 0.0f;
+    }
+    return 0.0f;
+}
+
+static bool finish_board_phase(WmBoardScene *board, float remaining) {
+    switch (board->phase) {
+        case WM_BOARD_ENTER:
+            board->phase = WM_BOARD_READY;
+            break;
+        case WM_BOARD_EXIT:
+            board->date = board->next_date;
+            board->page = 0;
+            update_visible(board);
+            board->return_direction = 0;
+            board->phase = WM_BOARD_CLOSED;
+            board->pending_action = WM_BOARD_ACTION_EXITED;
+            break;
+        case WM_BOARD_DATE_SCROLL:
+            board->date = board->next_date;
+            board->page = 0;
+            board->pending_posted_memo = SIZE_MAX;
+            update_visible(board);
+            memset(board->card_focus, 0, sizeof(board->card_focus));
+            board->phase = WM_BOARD_READY;
+            break;
+        case WM_BOARD_MEMO_PAGE:
+            if (board->direction < 0)
+                board->page++;
+            else if (board->page > 0)
+                board->page--;
+            board->pending_posted_memo = SIZE_MAX;
+            update_visible(board);
+            start_date_arrivals(board, board->date, board->page, false, remaining);
+            memset(board->card_focus, 0, sizeof(board->card_focus));
+            board->phase = WM_BOARD_READY;
+            break;
+        case WM_BOARD_MEMO_OPEN:
+            board->phase = WM_BOARD_MEMO_READ;
+            wm_board_reader_scroll_set_active(&board->reader_scroll, true);
+            break;
+        case WM_BOARD_MEMO_BACK_SELECT:
+            board->phase = WM_BOARD_MEMO_CLOSE;
+            wm_board_reader_scroll_set_active(&board->reader_scroll, false);
+            board->hover = (WmBoardHit){WM_BOARD_CONTROL_NONE, SIZE_MAX};
+            memset(board->button_focus, 0, sizeof(board->button_focus));
+            break;
+        case WM_BOARD_MEMO_CLOSE:
+            board->phase = WM_BOARD_READY;
+            board->selected = SIZE_MAX;
+            wm_board_reader_scroll_reset(&board->reader_scroll);
+            break;
+        case WM_BOARD_MEMO_TRASH_SELECT:
+            if (wm_board_erase_open(board->erase)) {
+                board->phase = WM_BOARD_MEMO_DIALOG;
+                board->pending_reader_cue = "WIPL_SE_INFO_WINDOW";
+                if (remaining > 0.0f)
+                    wm_board_erase_advance(board->erase, remaining);
+            } else {
+                board->phase = WM_BOARD_MEMO_READ;
+                wm_board_reader_scroll_set_active(&board->reader_scroll, true);
+            }
+            return false;
+        case WM_BOARD_MEMO_TRASH_CANCEL:
+            board->phase = WM_BOARD_MEMO_READ;
+            wm_board_reader_scroll_set_active(&board->reader_scroll, true);
+            break;
+        case WM_BOARD_MEMO_ERASE_CLOSE:
+            board->phase =
+                finish_memo_erase(board) ? WM_BOARD_READY : WM_BOARD_MEMO_TRASH_CANCEL;
+            break;
+        case WM_BOARD_CLOSED:
+        case WM_BOARD_READY:
+        case WM_BOARD_MEMO_READ:
+        case WM_BOARD_MEMO_DIALOG:
+            break;
+    }
+    board->phase_frame = 0.0f;
+    return true;
+}
+
+static void advance_board_phase(WmBoardScene *board, float frames) {
+    float remaining = frames;
+    while (remaining > 0.0f) {
+        float duration = board_phase_duration(board->phase);
+        if (duration == 0.0f)
+            return;
+        float amount = fminf(remaining, duration - board->phase_frame);
+        board->phase_frame += amount;
+        remaining -= amount;
+        if (board->phase_frame < duration || !finish_board_phase(board, remaining))
+            return;
+    }
+}
+
 void wm_board_scene_advance(WmBoardScene *board, float frames) {
     if (!board || board->phase == WM_BOARD_CLOSED || !isfinite(frames) ||
         frames <= 0.0f)
@@ -1126,122 +1244,7 @@ void wm_board_scene_advance(WmBoardScene *board, float frames) {
     if (advance_erase_child(board, frames))
         return;
     advance_board_focus(board, frames);
-    float remaining = phase_frames;
-    while (remaining > 0.0f) {
-        float duration = 0.0f;
-        switch (board->phase) {
-            case WM_BOARD_ENTER:
-            case WM_BOARD_EXIT:
-                duration = 40.0f;
-                break;
-            case WM_BOARD_DATE_SCROLL:
-                duration = 20.0f;
-                break;
-            case WM_BOARD_MEMO_PAGE:
-                duration = 15.0f;
-                break;
-            case WM_BOARD_MEMO_OPEN:
-            case WM_BOARD_MEMO_CLOSE:
-                duration = 26.0f;
-                break;
-            case WM_BOARD_MEMO_BACK_SELECT:
-                duration = 20.0f;
-                break;
-            case WM_BOARD_MEMO_TRASH_SELECT:
-                duration = 33.0f;
-                break;
-            case WM_BOARD_MEMO_TRASH_CANCEL:
-                duration = 13.0f;
-                break;
-            case WM_BOARD_MEMO_ERASE_CLOSE:
-                duration = 17.0f;
-                break;
-            case WM_BOARD_CLOSED:
-                return;
-            case WM_BOARD_READY:
-            case WM_BOARD_MEMO_READ:
-            case WM_BOARD_MEMO_DIALOG:
-                return;
-        }
-        float amount = fminf(remaining, duration - board->phase_frame);
-        board->phase_frame += amount;
-        remaining -= amount;
-        if (board->phase_frame < duration)
-            return;
-        switch (board->phase) {
-            case WM_BOARD_ENTER:
-                board->phase = WM_BOARD_READY;
-                break;
-            case WM_BOARD_EXIT:
-                board->date = board->next_date;
-                board->page = 0;
-                update_visible(board);
-                board->return_direction = 0;
-                board->phase = WM_BOARD_CLOSED;
-                board->pending_action = WM_BOARD_ACTION_EXITED;
-                break;
-            case WM_BOARD_DATE_SCROLL:
-                board->date = board->next_date;
-                board->page = 0;
-                board->pending_posted_memo = SIZE_MAX;
-                update_visible(board);
-                memset(board->card_focus, 0, sizeof(board->card_focus));
-                board->phase = WM_BOARD_READY;
-                break;
-            case WM_BOARD_MEMO_PAGE:
-                if (board->direction < 0)
-                    board->page++;
-                else if (board->page > 0)
-                    board->page--;
-                board->pending_posted_memo = SIZE_MAX;
-                update_visible(board);
-                start_date_arrivals(board, board->date, board->page, false, remaining);
-                memset(board->card_focus, 0, sizeof(board->card_focus));
-                board->phase = WM_BOARD_READY;
-                break;
-            case WM_BOARD_MEMO_OPEN:
-                board->phase = WM_BOARD_MEMO_READ;
-                wm_board_reader_scroll_set_active(&board->reader_scroll, true);
-                break;
-            case WM_BOARD_MEMO_BACK_SELECT:
-                board->phase = WM_BOARD_MEMO_CLOSE;
-                wm_board_reader_scroll_set_active(&board->reader_scroll, false);
-                board->hover = (WmBoardHit){WM_BOARD_CONTROL_NONE, SIZE_MAX};
-                memset(board->button_focus, 0, sizeof(board->button_focus));
-                break;
-            case WM_BOARD_MEMO_CLOSE:
-                board->phase = WM_BOARD_READY;
-                board->selected = SIZE_MAX;
-                wm_board_reader_scroll_reset(&board->reader_scroll);
-                break;
-            case WM_BOARD_MEMO_TRASH_SELECT:
-                if (wm_board_erase_open(board->erase)) {
-                    board->phase = WM_BOARD_MEMO_DIALOG;
-                    board->pending_reader_cue = "WIPL_SE_INFO_WINDOW";
-                    if (remaining > 0.0f) {
-                        wm_board_erase_advance(board->erase, remaining);
-                    }
-                } else {
-                    board->phase = WM_BOARD_MEMO_READ;
-                    wm_board_reader_scroll_set_active(&board->reader_scroll, true);
-                }
-                return;
-            case WM_BOARD_MEMO_TRASH_CANCEL:
-                board->phase = WM_BOARD_MEMO_READ;
-                wm_board_reader_scroll_set_active(&board->reader_scroll, true);
-                break;
-            case WM_BOARD_MEMO_ERASE_CLOSE:
-                board->phase = finish_memo_erase(board) ? WM_BOARD_READY
-                                                        : WM_BOARD_MEMO_TRASH_CANCEL;
-                break;
-            case WM_BOARD_CLOSED:
-            case WM_BOARD_READY:
-            case WM_BOARD_MEMO_READ:
-            case WM_BOARD_MEMO_DIALOG:
-                break;
-        }
-        board->phase_frame = 0.0f;
-    }
+    advance_board_phase(board, phase_frames);
 }
 
 static bool same_hit(WmBoardHit first, WmBoardHit second) {
