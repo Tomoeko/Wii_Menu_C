@@ -139,74 +139,57 @@ static WmSettingsControl choice_at(int local_x, int y, int first_y, int count) {
     return WM_SETTINGS_CONTROL_NONE;
 }
 
-static WmSettingsControl category_hit(const WmSettingsScene *scene, int x, int y) {
-    if (x < 16 || y < 0 || x >= 624 || y >= WM_FRAME_HEIGHT)
-        return WM_SETTINGS_CONTROL_NONE;
-    int local_x = x - 16;
-    if (scene->active_category == SETTINGS_NICKNAME &&
-        within(x, y, SETTINGS_NICKNAME_FIELD_X, SETTINGS_NICKNAME_FIELD_Y,
-               SETTINGS_NICKNAME_FIELD_WIDTH, SETTINGS_NICKNAME_FIELD_HEIGHT))
-        return WM_SETTINGS_CONTROL_NICKNAME_FIELD;
-    bool sensitivity_meter = scene->active_category == 6 && scene->detail == 2 &&
-                             !scene->sensitivity_instructions;
-    /* The meter has no footer; its instruction line accepts a pointer click
-     * in place of the Wii Remote A press. */
-    if (sensitivity_meter && within(local_x, y, 24, 344, 560, 95))
-        return WM_SETTINGS_CONTROL_NEXT;
-    if (within(local_x, y, 28, 371, 272, 72) && !sensitivity_meter &&
-        !(scene->active_category == SETTINGS_INTERNET &&
-          (scene->detail == INTERNET_WIRED_PROMPT ||
-           scene->detail == INTERNET_ACCESS_POINT_SEARCH ||
-           scene->detail == INTERNET_NO_ACCESS_POINT)) &&
-        !(scene->active_category == SETTINGS_FORMAT && scene->detail == 3))
-        return WM_SETTINGS_CONTROL_BACK;
-    bool choices =
-        scene->active_category == 4 || scene->active_category == 9 ||
-        (scene->detail != 0 && scene->active_category != SETTINGS_INTERNET) ||
-        (scene->active_category == SETTINGS_INTERNET &&
-         (scene->detail == 3 || scene->detail == INTERNET_WIRED_PROMPT ||
-          scene->detail == INTERNET_NO_ACCESS_POINT ||
-          scene->detail == INTERNET_USB_INSTRUCTIONS ||
-          scene->detail == INTERNET_USB_EXISTING_CONNECTOR)) ||
-        scene->active_category == SETTINGS_NICKNAME ||
-        scene->active_category == SETTINGS_PARENTAL ||
-        scene->active_category == SETTINGS_COUNTRY ||
-        scene->active_category == SETTINGS_UPDATE ||
-        scene->active_category == SETTINGS_FORMAT;
-    if (choices && !sensitivity_meter && within(local_x, y, 308, 371, 272, 72))
-        return WM_SETTINGS_CONTROL_NEXT; /* Confirm or OK. */
+static bool category_has_next_action(const WmSettingsScene *scene) {
+    return scene->active_category == SETTINGS_SOUND ||
+           scene->active_category == SETTINGS_LANGUAGE ||
+           (scene->detail != 0 && scene->active_category != SETTINGS_INTERNET) ||
+           (scene->active_category == SETTINGS_INTERNET &&
+            (scene->detail == 3 || scene->detail == INTERNET_WIRED_PROMPT ||
+             scene->detail == INTERNET_NO_ACCESS_POINT ||
+             scene->detail == INTERNET_USB_INSTRUCTIONS ||
+             scene->detail == INTERNET_USB_EXISTING_CONNECTOR)) ||
+           scene->active_category == SETTINGS_NICKNAME ||
+           scene->active_category == SETTINGS_PARENTAL ||
+           scene->active_category == SETTINGS_COUNTRY ||
+           scene->active_category == SETTINGS_UPDATE ||
+           scene->active_category == SETTINGS_FORMAT;
+}
 
-    if (!scene->detail) {
-        if (scene->active_category == 3) {
-            for (int item = 0; item < 4; item++) {
-                if (within(local_x, y, 104, 78 + item * 72, 400, 60))
-                    return (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 + item);
-            }
-        } else if (scene->active_category == 4 || scene->active_category == 9) {
-            return choice_at(local_x, y, 85, 3);
-        } else if (scene->active_category == 2 || scene->active_category == 6) {
-            return choice_at(local_x, y, 133, 2);
-        } else if (scene->active_category == SETTINGS_INTERNET ||
-                   scene->active_category == SETTINGS_CONNECT24) {
-            if (scene->active_category == SETTINGS_CONNECT24 &&
-                !scene->connect24_enabled)
-                return choice_at(local_x, y, 85, 1);
-            return choice_at(local_x, y, 85, 3);
-        } else if (scene->active_category == SETTINGS_COUNTRY) {
-            if (scene->country_page > 0 && within(local_x, y, 528, 76, 72, 72))
-                return WM_SETTINGS_CONTROL_PREVIOUS;
-            if (scene->country_page < 9 && within(local_x, y, 528, 282, 72, 72))
-                return WM_SETTINGS_CONTROL_ITEM_6;
-            unsigned count =
-                scene->country_page == 0 || scene->country_page == 9 ? 4 : 5;
-            int first_y = scene->country_page == 0 ? 132 : 76;
-            for (unsigned item = 0; item < count; item++) {
-                if (within(local_x, y, 88, first_y + (int)item * 56, 432, 56))
-                    return (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 + item);
-            }
+static WmSettingsControl category_overview_hit(const WmSettingsScene *scene,
+                                               int local_x, int y) {
+    if (scene->active_category == SETTINGS_SCREEN) {
+        for (int item = 0; item < 4; item++) {
+            if (within(local_x, y, 104, 78 + item * 72, 400, 60))
+                return (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 + item);
         }
-        return WM_SETTINGS_CONTROL_NONE;
+    } else if (scene->active_category == SETTINGS_SOUND ||
+               scene->active_category == SETTINGS_LANGUAGE) {
+        return choice_at(local_x, y, 85, 3);
+    } else if (scene->active_category == SETTINGS_CALENDAR ||
+               scene->active_category == SETTINGS_SENSOR) {
+        return choice_at(local_x, y, 133, 2);
+    } else if (scene->active_category == SETTINGS_INTERNET ||
+               scene->active_category == SETTINGS_CONNECT24) {
+        if (scene->active_category == SETTINGS_CONNECT24 && !scene->connect24_enabled)
+            return choice_at(local_x, y, 85, 1);
+        return choice_at(local_x, y, 85, 3);
+    } else if (scene->active_category == SETTINGS_COUNTRY) {
+        if (scene->country_page > 0 && within(local_x, y, 528, 76, 72, 72))
+            return WM_SETTINGS_CONTROL_PREVIOUS;
+        if (scene->country_page < 9 && within(local_x, y, 528, 282, 72, 72))
+            return WM_SETTINGS_CONTROL_ITEM_6;
+        unsigned count = scene->country_page == 0 || scene->country_page == 9 ? 4 : 5;
+        int first_y = scene->country_page == 0 ? 132 : 76;
+        for (unsigned item = 0; item < count; item++) {
+            if (within(local_x, y, 88, first_y + (int)item * 56, 432, 56))
+                return (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 + item);
+        }
     }
+    return WM_SETTINGS_CONTROL_NONE;
+}
+
+static WmSettingsControl category_detail_hit(const WmSettingsScene *scene, int local_x,
+                                             int y) {
     if (scene->active_category == SETTINGS_INTERNET) {
         if (scene->detail == 1)
             return choice_at(local_x, y, 85, 3);
@@ -227,7 +210,7 @@ static WmSettingsControl category_hit(const WmSettingsScene *scene, int x, int y
         return choice_at(local_x, y, scene->detail == 3 ? 85 : 133,
                          scene->detail == 3 ? 3 : 2);
     }
-    if (scene->active_category == 2 && scene->detail == 1) {
+    if (scene->active_category == SETTINGS_CALENDAR && scene->detail == 1) {
         /* The USA English stylesheet moves Year to the right of Month/Day.
          * The common stylesheet's positions are different. */
         const int arrow_x[6] = {400, 400, 88, 88, 224, 224};
@@ -236,26 +219,26 @@ static WmSettingsControl category_hit(const WmSettingsScene *scene, int x, int y
             if (within(local_x, y, arrow_x[index], arrow_y[index], 72, 72))
                 return (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 + index);
         }
-    } else if (scene->active_category == 2 && scene->detail == 2) {
+    } else if (scene->active_category == SETTINGS_CALENDAR && scene->detail == 2) {
         const int arrow_x[4] = {200, 200, 336, 336};
         const int arrow_y[4] = {108, 253, 108, 253};
         for (unsigned index = 0; index < 4; index++) {
             if (within(local_x, y, arrow_x[index], arrow_y[index], 64, 64))
                 return (WmSettingsControl)(WM_SETTINGS_CONTROL_ITEM_1 + index);
         }
-    } else if (scene->active_category == 6 && scene->detail == 2) {
+    } else if (scene->active_category == SETTINGS_SENSOR && scene->detail == 2) {
         if (scene->sensitivity_instructions)
             return WM_SETTINGS_CONTROL_NONE;
         if (within(local_x, y, 24, 296, 132, 48))
             return WM_SETTINGS_CONTROL_ITEM_1;
         if (within(local_x, y, 452, 296, 132, 48))
             return WM_SETTINGS_CONTROL_ITEM_2;
-    } else if (scene->active_category == 3 && scene->detail == 1) {
+    } else if (scene->active_category == SETTINGS_SCREEN && scene->detail == 1) {
         if (within(local_x, y, 160, 180, 64, 64))
             return WM_SETTINGS_CONTROL_ITEM_1;
         if (within(local_x, y, 376, 180, 64, 64))
             return WM_SETTINGS_CONTROL_ITEM_2;
-    } else if (scene->active_category == 3 && scene->detail == 2) {
+    } else if (scene->active_category == SETTINGS_SCREEN && scene->detail == 2) {
         if (within(local_x, y, 48, 146, 200, 140))
             return WM_SETTINGS_CONTROL_ITEM_1;
         if (within(local_x, y, 296, 146, 264, 140))
@@ -264,6 +247,34 @@ static WmSettingsControl category_hit(const WmSettingsScene *scene, int x, int y
         return choice_at(local_x, y, 133, 2);
     }
     return WM_SETTINGS_CONTROL_NONE;
+}
+
+static WmSettingsControl category_hit(const WmSettingsScene *scene, int x, int y) {
+    if (x < 16 || y < 0 || x >= 624 || y >= WM_FRAME_HEIGHT)
+        return WM_SETTINGS_CONTROL_NONE;
+    int local_x = x - 16;
+    if (scene->active_category == SETTINGS_NICKNAME &&
+        within(x, y, SETTINGS_NICKNAME_FIELD_X, SETTINGS_NICKNAME_FIELD_Y,
+               SETTINGS_NICKNAME_FIELD_WIDTH, SETTINGS_NICKNAME_FIELD_HEIGHT))
+        return WM_SETTINGS_CONTROL_NICKNAME_FIELD;
+    bool sensitivity_meter = scene->active_category == SETTINGS_SENSOR &&
+                             scene->detail == 2 && !scene->sensitivity_instructions;
+    /* The meter has no footer; its instruction line accepts a pointer click
+     * in place of the Wii Remote A press. */
+    if (sensitivity_meter && within(local_x, y, 24, 344, 560, 95))
+        return WM_SETTINGS_CONTROL_NEXT;
+    if (within(local_x, y, 28, 371, 272, 72) && !sensitivity_meter &&
+        !(scene->active_category == SETTINGS_INTERNET &&
+          (scene->detail == INTERNET_WIRED_PROMPT ||
+           scene->detail == INTERNET_ACCESS_POINT_SEARCH ||
+           scene->detail == INTERNET_NO_ACCESS_POINT)) &&
+        !(scene->active_category == SETTINGS_FORMAT && scene->detail == 3))
+        return WM_SETTINGS_CONTROL_BACK;
+    if (category_has_next_action(scene) && !sensitivity_meter &&
+        within(local_x, y, 308, 371, 272, 72))
+        return WM_SETTINGS_CONTROL_NEXT; /* Confirm or OK. */
+    return scene->detail ? category_detail_hit(scene, local_x, y)
+                         : category_overview_hit(scene, local_x, y);
 }
 
 WmSettingsScene *wm_settings_scene_create(WmPlatform *platform,
