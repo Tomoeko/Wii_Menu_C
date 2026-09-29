@@ -680,6 +680,141 @@ void wm_board_keyboard_hover(WmBoardKeyboard *keyboard,
     }
 }
 
+static WmBoardKeyboardAction activate_symbol_key(WmBoardKeyboard *keyboard,
+                                                 WmBoardKeyboardControl control,
+                                                 char utf8[5]) {
+    start_press(keyboard, control);
+    keyboard->symbols_dirty = true;
+    if (control >= WM_KEYBOARD_SYMBOL_FIRST && control <= WM_KEYBOARD_SYMBOL_LAST) {
+        snprintf(utf8, 5, "%s",
+                 wm_board_keyboard_symbols[keyboard->symbol_page]
+                                          [control - WM_KEYBOARD_SYMBOL_FIRST]);
+        return WM_KEYBOARD_ACTION_INSERT;
+    }
+    if (control == WM_KEYBOARD_SYMBOL_CLOSE) {
+        keyboard->symbol_phase = SYMBOL_LEAVING;
+        keyboard->symbol_frame = 0.0f;
+        wm_board_keyboard_hover(keyboard, WM_KEYBOARD_NONE);
+        return WM_KEYBOARD_ACTION_SYMBOL_CLOSE;
+    }
+    keyboard->symbol_target_page =
+        control == WM_KEYBOARD_SYMBOL_PREV
+            ? (keyboard->symbol_page + SYMBOL_PAGE_COUNT - 1) % SYMBOL_PAGE_COUNT
+            : (keyboard->symbol_page + 1) % SYMBOL_PAGE_COUNT;
+    keyboard->symbol_phase =
+        control == WM_KEYBOARD_SYMBOL_PREV ? SYMBOL_SCROLL_PREV : SYMBOL_SCROLL_NEXT;
+    keyboard->symbol_frame = 0.0f;
+    return WM_KEYBOARD_ACTION_SYMBOL_PAGE;
+}
+
+static WmBoardKeyboardAction activate_phone_prediction(WmBoardKeyboard *keyboard,
+                                                       unsigned index) {
+    size_t digits = strlen(keyboard->phone_prediction_digits);
+    if (digits >= 32)
+        return WM_KEYBOARD_ACTION_PHONE_BOUNDARY;
+    memcpy(keyboard->phone_prediction_previous_digits,
+           keyboard->phone_prediction_digits,
+           sizeof(keyboard->phone_prediction_digits));
+    keyboard->phone_prediction_previous_bytes = keyboard->phone_prediction_bytes;
+    if (digits == 0)
+        keyboard->phone_prediction_uppercase =
+            wm_board_keyboard_prediction_phone_uppercase(keyboard);
+    keyboard->phone_prediction_digits[digits] = (char)('1' + index);
+    keyboard->phone_prediction_digits[digits + 1] = '\0';
+    keyboard->accepted_prefix_bytes = keyboard->phone_prediction_bytes;
+    wm_board_keyboard_prediction_phone_value(keyboard, keyboard->accepted_candidate);
+    keyboard->phone_prediction_bytes = strlen(keyboard->accepted_candidate);
+    keyboard->phone_prediction_awaiting_edit = true;
+    keyboard->prediction_dirty = true;
+    return WM_KEYBOARD_ACTION_PREDICT_PHONE;
+}
+
+static WmBoardKeyboardAction activate_phone_key(WmBoardKeyboard *keyboard,
+                                                WmBoardKeyboardControl control,
+                                                bool reverse, char utf8[5]) {
+    unsigned index = (unsigned)(control - WM_KEYBOARD_PHONE_FIRST);
+    keyboard->pressed_phone_hover =
+        keyboard->hovered == control ? control : WM_KEYBOARD_NONE;
+    if (keyboard->phone_mode == 3) {
+        char label_buffer[16];
+        const char *label =
+            wm_board_keyboard_phone_label(keyboard, index, label_buffer);
+        if (label[0] == '\0')
+            return WM_KEYBOARD_ACTION_NONE;
+        utf8[0] = label[0];
+        return WM_KEYBOARD_ACTION_INSERT;
+    }
+    if (keyboard->prediction_enabled && index >= 1 && index <= 8 &&
+        keyboard->profile == WM_BOARD_KEYBOARD_MEMO)
+        return activate_phone_prediction(keyboard, index);
+    keyboard->phone_prediction_digits[0] = '\0';
+    keyboard->phone_prediction_bytes = 0;
+    const char *cycle = wm_board_keyboard_prediction_phone_cycle(index);
+    size_t length = strlen(cycle);
+    if (length == 0)
+        return WM_KEYBOARD_ACTION_NONE;
+    bool continuing = keyboard->phone_pending && keyboard->phone_pending_index == index;
+    if (continuing) {
+        keyboard->phone_cycle_position =
+            (keyboard->phone_cycle_position + length + (reverse ? length - 1 : 1)) %
+            length;
+    } else {
+        keyboard->phone_cycle_position = reverse ? length - 1 : 0;
+        keyboard->phone_pending_uppercase =
+            wm_board_keyboard_prediction_phone_uppercase(keyboard);
+    }
+    char value = cycle[keyboard->phone_cycle_position];
+    if (keyboard->phone_pending_uppercase && value >= 'a' && value <= 'z')
+        value = (char)(value - 'a' + 'A');
+    utf8[0] = value;
+    keyboard->phone_pending = true;
+    keyboard->phone_pending_index = index;
+    keyboard->phone_pending_frames = 0.0f;
+    keyboard->phone_dirty = true;
+    return continuing ? WM_KEYBOARD_ACTION_REPLACE_LAST : WM_KEYBOARD_ACTION_INSERT;
+}
+
+static WmBoardKeyboardAction activate_candidate(WmBoardKeyboard *keyboard,
+                                                WmBoardKeyboardControl control) {
+    wm_board_keyboard_pose_prediction(keyboard);
+    unsigned slot = control - WM_KEYBOARD_CANDIDATE_FIRST;
+    unsigned index = keyboard->candidate_pane_indices[slot];
+    if (index >= keyboard->candidate_count)
+        return WM_KEYBOARD_ACTION_NONE;
+    snprintf(keyboard->accepted_candidate, sizeof(keyboard->accepted_candidate), "%s",
+             keyboard->candidates[index]);
+    keyboard->accepted_prefix_bytes = keyboard->phone_prediction_digits[0]
+                                          ? keyboard->phone_prediction_bytes
+                                          : keyboard->candidate_prefix_bytes;
+    start_press(keyboard, control);
+    keyboard->prediction_dirty = true;
+    return WM_KEYBOARD_ACTION_ACCEPT_CANDIDATE;
+}
+
+static WmBoardKeyboardAction activate_layout_tab(WmBoardKeyboard *keyboard,
+                                                 WmBoardKeyboardControl control) {
+    bool next_phone = control == WM_KEYBOARD_PHONE;
+    if (next_phone == keyboard->phone_layout) {
+        keyboard->press[control].active = false;
+        keyboard->pressed = WM_KEYBOARD_NONE;
+        return WM_KEYBOARD_ACTION_NONE;
+    }
+    keyboard->phone_layout = next_phone;
+    if (keyboard->profile == WM_BOARD_KEYBOARD_MEMO)
+        keyboard->memo_phone_layout = next_phone;
+    keyboard->toolbar_dirty = true;
+    keyboard->keytop_dirty = true;
+    keyboard->phone_dirty = true;
+    wm_board_keyboard_hover(keyboard, WM_KEYBOARD_NONE);
+    /* Both layout tabs share one toggle animation. An old hover on the
+     * formerly selected tab must not return when it becomes unselected. */
+    keyboard->focus[WM_KEYBOARD_QWERTY] = (KeyboardFocus){0};
+    keyboard->focus[WM_KEYBOARD_PHONE] = (KeyboardFocus){0};
+    keyboard->toolbar_dirty = true;
+    return next_phone ? WM_KEYBOARD_ACTION_LAYOUT_PHONE
+                      : WM_KEYBOARD_ACTION_LAYOUT_QWERTY;
+}
+
 WmBoardKeyboardAction wm_board_keyboard_activate(WmBoardKeyboard *keyboard,
                                                  WmBoardKeyboardControl control,
                                                  bool reverse, char utf8[5]) {
@@ -715,29 +850,7 @@ WmBoardKeyboardAction wm_board_keyboard_activate(WmBoardKeyboard *keyboard,
         if (keyboard->symbol_phase != SYMBOL_OPEN || !is_symbol(control)) {
             return WM_KEYBOARD_ACTION_NONE;
         }
-        start_press(keyboard, control);
-        keyboard->symbols_dirty = true;
-        if (control >= WM_KEYBOARD_SYMBOL_FIRST && control <= WM_KEYBOARD_SYMBOL_LAST) {
-            snprintf(utf8, 5, "%s",
-                     wm_board_keyboard_symbols[keyboard->symbol_page]
-                                              [control - WM_KEYBOARD_SYMBOL_FIRST]);
-            return WM_KEYBOARD_ACTION_INSERT;
-        }
-        if (control == WM_KEYBOARD_SYMBOL_CLOSE) {
-            keyboard->symbol_phase = SYMBOL_LEAVING;
-            keyboard->symbol_frame = 0.0f;
-            wm_board_keyboard_hover(keyboard, WM_KEYBOARD_NONE);
-            return WM_KEYBOARD_ACTION_SYMBOL_CLOSE;
-        }
-        keyboard->symbol_target_page =
-            control == WM_KEYBOARD_SYMBOL_PREV
-                ? (keyboard->symbol_page + SYMBOL_PAGE_COUNT - 1) % SYMBOL_PAGE_COUNT
-                : (keyboard->symbol_page + 1) % SYMBOL_PAGE_COUNT;
-        keyboard->symbol_phase = control == WM_KEYBOARD_SYMBOL_PREV
-                                     ? SYMBOL_SCROLL_PREV
-                                     : SYMBOL_SCROLL_NEXT;
-        keyboard->symbol_frame = 0.0f;
-        return WM_KEYBOARD_ACTION_SYMBOL_PAGE;
+        return activate_symbol_key(keyboard, control, utf8);
     }
     bool phone_key =
         control >= WM_KEYBOARD_PHONE_FIRST && control <= WM_KEYBOARD_PHONE_LAST;
@@ -771,22 +884,8 @@ WmBoardKeyboardAction wm_board_keyboard_activate(WmBoardKeyboard *keyboard,
         start_press(keyboard, control);
         return WM_KEYBOARD_ACTION_CANDIDATE_PAGE;
     }
-    if (control >= WM_KEYBOARD_CANDIDATE_FIRST &&
-        control <= WM_KEYBOARD_CANDIDATE_LAST) {
-        wm_board_keyboard_pose_prediction(keyboard);
-        unsigned slot = control - WM_KEYBOARD_CANDIDATE_FIRST;
-        unsigned index = keyboard->candidate_pane_indices[slot];
-        if (index >= keyboard->candidate_count)
-            return WM_KEYBOARD_ACTION_NONE;
-        snprintf(keyboard->accepted_candidate, sizeof(keyboard->accepted_candidate),
-                 "%s", keyboard->candidates[index]);
-        keyboard->accepted_prefix_bytes = keyboard->phone_prediction_digits[0]
-                                              ? keyboard->phone_prediction_bytes
-                                              : keyboard->candidate_prefix_bytes;
-        start_press(keyboard, control);
-        keyboard->prediction_dirty = true;
-        return WM_KEYBOARD_ACTION_ACCEPT_CANDIDATE;
-    }
+    if (control >= WM_KEYBOARD_CANDIDATE_FIRST && control <= WM_KEYBOARD_CANDIDATE_LAST)
+        return activate_candidate(keyboard, control);
     if (!phone_key) {
         wm_board_keyboard_clear_phone_pending(keyboard);
         keyboard->phone_prediction_digits[0] = '\0';
@@ -794,28 +893,8 @@ WmBoardKeyboardAction wm_board_keyboard_activate(WmBoardKeyboard *keyboard,
     }
     start_press(keyboard, control);
     mark_dirty(keyboard, control);
-    if (control == WM_KEYBOARD_QWERTY || control == WM_KEYBOARD_PHONE) {
-        bool next_phone = control == WM_KEYBOARD_PHONE;
-        if (next_phone == keyboard->phone_layout) {
-            keyboard->press[control].active = false;
-            keyboard->pressed = WM_KEYBOARD_NONE;
-            return WM_KEYBOARD_ACTION_NONE;
-        }
-        keyboard->phone_layout = next_phone;
-        if (keyboard->profile == WM_BOARD_KEYBOARD_MEMO)
-            keyboard->memo_phone_layout = next_phone;
-        keyboard->toolbar_dirty = true;
-        keyboard->keytop_dirty = true;
-        keyboard->phone_dirty = true;
-        wm_board_keyboard_hover(keyboard, WM_KEYBOARD_NONE);
-        /* Both layout tabs share one toggle animation. An old hover on the
-         * formerly selected tab must not return when it becomes unselected. */
-        keyboard->focus[WM_KEYBOARD_QWERTY] = (KeyboardFocus){0};
-        keyboard->focus[WM_KEYBOARD_PHONE] = (KeyboardFocus){0};
-        keyboard->toolbar_dirty = true;
-        return next_phone ? WM_KEYBOARD_ACTION_LAYOUT_PHONE
-                          : WM_KEYBOARD_ACTION_LAYOUT_QWERTY;
-    }
+    if (control == WM_KEYBOARD_QWERTY || control == WM_KEYBOARD_PHONE)
+        return activate_layout_tab(keyboard, control);
     if (phone_tab) {
         keyboard->phone_mode = (unsigned)(control - WM_KEYBOARD_PHONE_MODE_FIRST);
         if (keyboard->profile == WM_BOARD_KEYBOARD_MEMO)
@@ -824,69 +903,8 @@ WmBoardKeyboardAction wm_board_keyboard_activate(WmBoardKeyboard *keyboard,
         keyboard->phone_dirty = true;
         return WM_KEYBOARD_ACTION_PHONE_MODE;
     }
-    if (phone_key) {
-        unsigned index = (unsigned)(control - WM_KEYBOARD_PHONE_FIRST);
-        keyboard->pressed_phone_hover =
-            keyboard->hovered == control ? control : WM_KEYBOARD_NONE;
-        if (keyboard->phone_mode == 3) {
-            char label_buffer[16];
-            const char *label =
-                wm_board_keyboard_phone_label(keyboard, index, label_buffer);
-            if (label[0] == '\0')
-                return WM_KEYBOARD_ACTION_NONE;
-            utf8[0] = label[0];
-            return WM_KEYBOARD_ACTION_INSERT;
-        }
-        if (keyboard->prediction_enabled && index >= 1 && index <= 8 &&
-            keyboard->profile == WM_BOARD_KEYBOARD_MEMO) {
-            size_t digits = strlen(keyboard->phone_prediction_digits);
-            if (digits >= 32)
-                return WM_KEYBOARD_ACTION_PHONE_BOUNDARY;
-            memcpy(keyboard->phone_prediction_previous_digits,
-                   keyboard->phone_prediction_digits,
-                   sizeof(keyboard->phone_prediction_digits));
-            keyboard->phone_prediction_previous_bytes =
-                keyboard->phone_prediction_bytes;
-            if (digits == 0)
-                keyboard->phone_prediction_uppercase =
-                    wm_board_keyboard_prediction_phone_uppercase(keyboard);
-            keyboard->phone_prediction_digits[digits] = (char)('1' + index);
-            keyboard->phone_prediction_digits[digits + 1] = '\0';
-            keyboard->accepted_prefix_bytes = keyboard->phone_prediction_bytes;
-            wm_board_keyboard_prediction_phone_value(keyboard,
-                                                     keyboard->accepted_candidate);
-            keyboard->phone_prediction_bytes = strlen(keyboard->accepted_candidate);
-            keyboard->phone_prediction_awaiting_edit = true;
-            keyboard->prediction_dirty = true;
-            return WM_KEYBOARD_ACTION_PREDICT_PHONE;
-        }
-        keyboard->phone_prediction_digits[0] = '\0';
-        keyboard->phone_prediction_bytes = 0;
-        const char *cycle = wm_board_keyboard_prediction_phone_cycle(index);
-        size_t length = strlen(cycle);
-        if (length == 0)
-            return WM_KEYBOARD_ACTION_NONE;
-        bool continuing =
-            keyboard->phone_pending && keyboard->phone_pending_index == index;
-        if (continuing) {
-            keyboard->phone_cycle_position =
-                (keyboard->phone_cycle_position + length + (reverse ? length - 1 : 1)) %
-                length;
-        } else {
-            keyboard->phone_cycle_position = reverse ? length - 1 : 0;
-            keyboard->phone_pending_uppercase =
-                wm_board_keyboard_prediction_phone_uppercase(keyboard);
-        }
-        char value = cycle[keyboard->phone_cycle_position];
-        if (keyboard->phone_pending_uppercase && value >= 'a' && value <= 'z')
-            value = (char)(value - 'a' + 'A');
-        utf8[0] = value;
-        keyboard->phone_pending = true;
-        keyboard->phone_pending_index = index;
-        keyboard->phone_pending_frames = 0.0f;
-        keyboard->phone_dirty = true;
-        return continuing ? WM_KEYBOARD_ACTION_REPLACE_LAST : WM_KEYBOARD_ACTION_INSERT;
-    }
+    if (phone_key)
+        return activate_phone_key(keyboard, control, reverse, utf8);
     if (qwerty_key) {
         utf8[0] = wm_board_keyboard_key_character(
             keyboard, (unsigned)control - WM_KEYBOARD_CHARACTER_FIRST);
