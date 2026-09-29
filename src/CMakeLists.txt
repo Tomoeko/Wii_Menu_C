@@ -37,6 +37,7 @@ add_library(wii_menu_core STATIC
     board/keyboard_text.c
 
     fonts/font_cache.c
+    fonts/cff_font.c
     fonts/outline_font.c
     fonts/shared_font_export.c
 

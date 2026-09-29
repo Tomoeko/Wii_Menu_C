@@ -10,6 +10,7 @@ enum { WM_CORRUPTION_OUTLINE_LINES = 3 };
 
 typedef struct WmCorruptionOutline {
     uint32_t textures[WM_CORRUPTION_OUTLINE_LINES];
+    bool use_font_weight;
 } WmCorruptionOutline;
 
 bool wm_corruption_outline_create(WmCorruptionOutline *outline,

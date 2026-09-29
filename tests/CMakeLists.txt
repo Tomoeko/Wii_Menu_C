@@ -131,6 +131,11 @@ wm_add_test(wii-menu-outline-font
     SOURCES fonts/outline_font_test.c
     LIBRARIES wii_menu_core m
 )
+wm_add_test(wii-menu-cff-font
+    SOURCES fonts/cff_font_test.c
+    LIBRARIES wii_menu_core m
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/fonts"
+)
 wm_add_test(wii-menu-font-presentation
     SOURCES fonts/font_presentation_test.c
     LIBRARIES wii_menu_core m

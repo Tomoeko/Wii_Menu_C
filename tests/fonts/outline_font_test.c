@@ -202,6 +202,27 @@ int main(void) {
                                          true));
         wm_outline_font_destroy(original, &platform);
     }
+    const char *cff_font = getenv("WM_CFF_TEST_FONT");
+    if (cff_font && cff_font[0]) {
+        WmOutlineFont *otf = wm_outline_font_load(cff_font, 0);
+        assert(otf);
+        const char *message =
+            "The system files are corrupted. Please refer to the Wii "
+            "Operations Manual for help troubleshooting.";
+        for (const unsigned char *cursor =
+                 (const unsigned char *)message; *cursor; cursor++) {
+            WmOutlineBitmap bitmap = {0};
+            if (!wm_outline_font_raster(otf, *cursor, 94, &bitmap)) {
+                fprintf(stderr, "CFF glyph U+%04X failed.\n", *cursor);
+                abort();
+            }
+            if (*cursor != ' ') assert(bitmap.width && bitmap.height);
+            wm_outline_bitmap_free(&bitmap);
+        }
+        assert(wm_outline_font_text_width(otf, "The system files", 94)
+               > 500.0f);
+        wm_outline_font_destroy(otf, NULL);
+    }
     puts("Outline SFNT parsing, simple/compound raster, and atlas reuse passed.");
     return 0;
 }

@@ -8,9 +8,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Rasterize from the prepared Wii outline font at the supplied still's
- * 3840 x 2160 resolution. Scaling a 32-pixel bitmap font to that size makes
- * its texture filtering visible across several output pixels. */
+/* Rasterize from a local outline font at the supplied still's 3840 x 2160
+ * resolution. The optional Rodin DB face already has the proper stroke
+ * weight; the prepared TTC needs a small synthetic expansion. */
 enum {
     REFERENCE_WIDTH = 3840,
     REFERENCE_HEIGHT = 2160,
@@ -18,7 +18,7 @@ enum {
     LINE_TEXTURE_HEIGHT = 128,
     FONT_PIXEL_SIZE = 94,
     LINE_BASELINE = 84,
-    FIRST_LINE_TOP = 902,
+    FIRST_LINE_TOP = 894,
     LINE_SPACING = 134
 };
 
@@ -83,7 +83,7 @@ static uint8_t bold_coverage(const uint8_t *coverage, int x, int y) {
 
 static uint32_t create_line_texture(WmPlatform *platform,
                                     const WmOutlineFont *font,
-                                    const char *line) {
+                                    const char *line, bool synthetic_bold) {
     size_t pixels = (size_t)LINE_TEXTURE_WIDTH * LINE_TEXTURE_HEIGHT;
     uint8_t *coverage = calloc(pixels, 1);
     uint8_t *rgba = malloc(pixels * 4);
@@ -98,7 +98,8 @@ static uint32_t create_line_texture(WmPlatform *platform,
             rgba[index * 4] = 255;
             rgba[index * 4 + 1] = 255;
             rgba[index * 4 + 2] = 255;
-            rgba[index * 4 + 3] = bold_coverage(coverage, x, y);
+            rgba[index * 4 + 3] = synthetic_bold
+                ? bold_coverage(coverage, x, y) : coverage[index];
         }
     }
     uint32_t texture = wm_platform_create_texture(
@@ -108,18 +109,9 @@ static uint32_t create_line_texture(WmPlatform *platform,
     return texture;
 }
 
-bool wm_corruption_outline_create(WmCorruptionOutline *outline,
-                                  WmPlatform *platform,
-                                  const char *assets_root,
-                                  const char *message) {
-    if (!outline || !platform || !assets_root || !message) return false;
-    memset(outline, 0, sizeof(*outline));
-    char path[4096];
-    int length = snprintf(path, sizeof(path), "%s/fonts/settings-latin.ttc",
-                          assets_root);
-    if (length < 0 || length >= (int)sizeof(path)) return false;
-    WmOutlineFont *font = wm_outline_font_load(path, 1);
-    if (!font) return false;
+static bool create_with_font(WmCorruptionOutline *outline,
+                             WmPlatform *platform, WmOutlineFont *font,
+                             const char *message, bool use_font_weight) {
     const char *cursor = message;
     bool complete = true;
     for (int row = 0; row < WM_CORRUPTION_OUTLINE_LINES; row++) {
@@ -128,24 +120,52 @@ bool wm_corruption_outline_create(WmCorruptionOutline *outline,
             complete = false;
             break;
         }
-        outline->textures[row] = create_line_texture(platform, font, line);
+        outline->textures[row] = create_line_texture(platform, font, line,
+                                                     !use_font_weight);
         if (!outline->textures[row]) {
             complete = false;
             break;
         }
     }
-    wm_outline_font_destroy(font, NULL);
     if (!complete || *cursor) {
         wm_corruption_outline_destroy(outline, platform);
         return false;
     }
+    outline->use_font_weight = use_font_weight;
     return true;
+}
+
+bool wm_corruption_outline_create(WmCorruptionOutline *outline,
+                                  WmPlatform *platform,
+                                  const char *assets_root,
+                                  const char *message) {
+    if (!outline || !platform || !assets_root || !message) return false;
+    memset(outline, 0, sizeof(*outline));
+    char path[4096];
+    int length = snprintf(path, sizeof(path),
+                          "%s/fonts/corruption-rodin.otf", assets_root);
+    if (length < 0 || length >= (int)sizeof(path)) return false;
+    WmOutlineFont *font = wm_outline_font_load(path, 0);
+    if (font) {
+        bool ready = create_with_font(outline, platform, font, message, true);
+        wm_outline_font_destroy(font, NULL);
+        if (ready) return true;
+    }
+    length = snprintf(path, sizeof(path), "%s/fonts/settings-latin.ttc",
+                      assets_root);
+    if (length < 0 || length >= (int)sizeof(path)) return false;
+    font = wm_outline_font_load(path, 1);
+    if (!font) return false;
+    bool ready = create_with_font(outline, platform, font, message, false);
+    wm_outline_font_destroy(font, NULL);
+    return ready;
 }
 
 void wm_corruption_outline_draw(const WmCorruptionOutline *outline,
                                 WmPlatform *platform) {
     if (!outline || !platform) return;
-    const float width = LINE_TEXTURE_WIDTH * 1.06f *
+    const float width = LINE_TEXTURE_WIDTH *
+                        (outline->use_font_weight ? 1.0f : 1.06f) *
                         WM_FRAME_WIDTH / REFERENCE_WIDTH;
     const float height = LINE_TEXTURE_HEIGHT *
                          WM_FRAME_HEIGHT / REFERENCE_HEIGHT;

@@ -19,9 +19,10 @@ typedef struct WmOutlineBitmap {
     float advance;
 } WmOutlineBitmap;
 
-/* The input may be an SFNT or a TrueType collection. The decoder copies the
- * bounded source bytes and retains no pointer into the caller's buffer.
- * Only Unicode BMP format-4 cmap, TrueType glyf outlines and hmtx are used. */
+/* The input may be a TrueType SFNT/collection or an OpenType/CFF SFNT.
+ * The decoder copies bounded source bytes and retains no caller pointer.
+ * It reads Unicode BMP format-4 cmap and hmtx; unsupported CFF instructions
+ * fail closed so the caller can select its prepared-font fallback. */
 WmOutlineFont *wm_outline_font_decode(const uint8_t *bytes, size_t size,
                                       unsigned face_index);
 WmOutlineFont *wm_outline_font_load(const char *path, unsigned face_index);
