@@ -1,36 +1,32 @@
-# Local menu audio export
+# Local audio export
 
-`wm-audio-export` reads the System Menu resource content and executable from
-your own extracted USA v4.3 WAD. It extracts `sound/IplSound.brsar` in C, decodes
-the original direct waves, and synthesizes RSEQ sounds using the executable's
-audio lookup tables. It writes WAV files and sound metadata under the ignored
-asset directory. The same resource content supplies the five original HOME
-remote-speaker PCM cues:
+`wm-audio-export` reads the resource content and executable from an extracted
+USA 4.3 System Menu WAD. It decodes direct waves and HOME remote-speaker PCM,
+then renders RSEQ cues using the executable's audio tables. Prefer
+[wm-prepare](../../README.md#prepare-assets) to create complete assets with
+integrity metadata.
+
+For a separate export, run from the repository root. On Linux, replace
+`./build/` with `./build-gles2/`:
 
 ```sh
 ./build/wm-audio-export \
-  .local/wad/0000000100000002/content/00000097.app \
-  .local/wad/0000000100000002/content/00000098.app \
-  .local/native-assets
+    .local/wad/0000000100000002/content/00000097.app \
+    .local/wad/0000000100000002/content/00000098.app \
+    .local/audio-export
 ```
 
-`wm-channel-export` separately decodes installed channels' `meta/sound.bin`
-BNS audio into `channel-audio/`. The app loads these local WAV files once on
-first use and mixes them in C. Apple output uses CoreAudio; Linux uses the
-system ALSA runtime when available. Both backends use the same event and
-playback logic.
+The output contains WAVs and playback metadata. Drag cues use raw looping PCM,
+archive gain in `audio-sequence.json`, and envelope/pan tables in
+`audio-held.json`. Keep these files together; older held assets use approximate
+playback and request re-export. Unsupported exports are reported.
 
-Direct wave and channel BNS sample decoding retains the original PCM. The
-RSEQ renderer follows the original sequence and lookup tables, while native AX
-mix and effects still need complete capture comparison before any 1:1 audio
-claim. Unsupported sequence commands are reported during export and never
-replaced with another cue.
+`wm-channel-export` separately decodes supported BNS channel audio into
+`channel-audio/`. The app loads clips on first use and mixes them through shared
+C playback logic; macOS uses CoreAudio and Linux uses the system ALSA runtime.
+Remote-speaker cues play through host output as a local substitute.
 
-Channel and memo drag sounds are exported as raw looping PCM with archive gain
-in the sequence manifest. `audio-held.json` contains the locally extracted
-USA 4.3 envelope and pan tables used by the runtime's held voices. Copy that
-metadata together with the newly exported drag WAVs and sequence manifest;
-older assets use approximate playback and print a re-export notice.
-Regenerate existing assets with the command above while the app is closed.
-The held path still uses linear interpolation instead of exact AX source
-filtering. See [audio evidence and limits](../../docs/audio-accuracy.md).
+Held playback uses linear source interpolation; AX filtering and shared
+effects are incomplete. See [audio details](../../docs/audio-accuracy.md).
+Manual changes to a sealed asset directory trigger its startup integrity check;
+reprepare a new complete directory or use `--bypass` for intentional edits.

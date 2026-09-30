@@ -1,102 +1,73 @@
 # Source organization
 
-The portable runtime is built as `wii_menu_core`. Public headers under
-`include/wii_menu/` follow the same responsibility groups as the C sources.
-Include a header by its full module path, for example
-`wii_menu/resources/resource_u8.h` or `wii_menu/board/board_scene.h`.
+`wii_menu_core` contains the portable runtime. Public headers under
+`include/wii_menu/` mirror the source groups; include them by full module path,
+such as `wii_menu/resources/resource_u8.h`. Private helpers stay beside their
+owning implementation.
 
 | Folder in `src/` | Responsibility |
 | --- | --- |
-| `animation/` | Channel animation, menu transitions, and scene fade timing |
-| `audio/` | Playback, sequence interpretation, wave data, and audio cues |
-| `board/` | Message board interaction, calendar, composition, address book, and keyboard |
-| `fonts/` | Font caching, outline font interpretation, and shared font export |
-| `input/` | Pointer state, hit testing, arrows, and channel dragging |
-| `layout/` | Layout runtime, pane traversal, and presentation |
-| `menu/` | Menu state, channel catalog, and restart behavior |
-| `persistence/` | Saved channel layout and board records |
-| `render/` | Shared geometry, images, texture caching, material preparation, and fallback UI |
-| `resources/` | Resource format decoding, independent of graphics APIs |
-| `scenes/` | Grid, channel preview, health, HOME, options, settings, storage, and SD scenes |
-| `support/` | JSON tokenization, value conversion, checked regular-file reads, and atomic file replacement |
+| `animation/` | Channel animation and menu transition curves |
+| `audio/` | Asset loading, sequences, PCM rendering, voice control, and mixing |
+| `board/` | Message board, calendar, Memo editing, address book, and keyboard |
+| `fonts/` | Font parsing, metrics, rasterization, and caches |
+| `input/` | Pointer, hit testing, arrows, and channel dragging |
+| `layout/` | Layout import, runtime posing, and ordered pane traversal |
+| `menu/` | Menu state, base/local channel catalogs, and restart behavior |
+| `persistence/` | Saved channel placement, Board records, and contacts |
+| `render/` | Shared draw data, geometry, textures, materials, and frame damage |
+| `resources/` | Resource decoding independent of graphics APIs |
+| `scenes/` | Grid, Preview, Settings, Storage, SD, HOME, Options, and Health |
+| `support/` | JSON, checked conversions, regular-file reads, and atomic replacement |
+| `app/` | Startup, events, scene updates, transitions, and frame orchestration |
+| `platform/` | Windowing, graphics submission, and audio devices |
 
-`src/app/main.c` coordinates the frame loop. Private input, event dispatch,
-update, and transition modules route scenes and the Board;
-`menu_pointer` owns pointer-specific behavior, `app_resources` owns startup
-and teardown, and `frame_render` owns draw order and the retained HOME target.
-The Board's private `board_model` owns memo
-copies and ordering, `board_text` owns strict text validation and bounded Memo
-edits, `board_keyboard_prediction` owns candidate matching and reset, and
-`board_calendar_present` owns calendar posing and draw order.
-Board editors and the Options, Preview, Settings, Storage, SD, HOME, and
-resource scenes keep their presentation in private modules beside state and
-interaction code. The shared
-`scenes/scene_assets` helper checks layout paths and preserves each scene's
-missing-asset diagnostics.
-Settings category activation and Back handling have a private input module;
-the scene keeps category selection, transitions, and lifetime state.
+## Runtime boundaries
 
-`src/platform/gles2/` and `src/platform/metal/` implement
-the common contract in `include/wii_menu/platform/platform.h`. The adapters
-consume shared logical draw data and geometry; API objects and GPU calls stay
-inside their respective backends. The GLES2 private `host` module owns X11/EGL
-window and event handling, while its `shaders` module owns shader sources,
-program compilation, and the TEV cache. The private `render/frame_damage` module
-owns two fixed-capacity command lists and computes changed pixel regions without
-API types. GLES2's `retained_frame` replays intersecting commands in their original
-order into an EGL-preserved window buffer. Resize, texture replacement, captured
-scene changes, and failed presentation invalidate the retained contents. Command
-storage overflow materializes the recorded draws before returning to direct
-rendering; no per-frame allocation or readback is needed. This path is enabled
-by default only on supported Mesa software renderers. The Metal adapter separates
-window/events, GPU submission, and shader sources. Apple and Linux audio
-devices live in
-`src/platform/apple/` and `src/platform/linux/`, behind the private
-`src/audio/audio_platform.h` interface. Sequence parsing and PCM rendering
-also have separate source files under `src/audio/`. Private sequence modules
-load the driver tables and extract the held drag source; the scheduler retains
-event ordering and voice ownership. A shared material-blend helper validates
-blend factors before either graphics backend changes draw state.
+`app/main.c` coordinates the frame loop. Private modules own input dispatch,
+scene updates, transitions, resource lifetime, pointer routing, and frame draw
+order. Board editors and resource-backed scenes separate state/input from
+presentation. Shared scene-asset checks preserve each scene's diagnostics.
 
-The audio callback owns playback cursors and envelopes. `audio_control` adopts
-UI control snapshots through a nonblocking lock and identifies reused voice
-slots by generation. A busy UI update delays control changes without stopping
-the current audio stream. Asset decoding remains on the UI thread, and decoded
-clips stay immutable until the audio device has been closed.
+Layout traversal produces backend-neutral rendering decisions. GLES2 and
+Metal implement `wii_menu/platform/platform.h`; graphics API types and calls
+stay in their own backends. Both validate blend factors through the shared
+material helper. GLES2 separates X11/EGL hosting, shaders, retained frames,
+and submission. Metal separates window/events, shaders, and GPU submission.
 
-Private helpers stay with their owning implementations. Geometry, image
-decoding, and texture source validation belong to rendering. The texture cache
-keeps an open asset-root directory, then reads each image header and payload
-from one regular-file descriptor. Checked regular-file reads and atomic
-replacement belong to `support/` and are shared
-by persistence and exporters.
-They are not installed public interfaces.
+`render/frame_damage` compares fixed-capacity command lists and identifies
+changed regions. On supported Mesa software renderers, GLES2 replays affected
+commands in order into an EGL-preserved buffer. Resize, texture changes,
+scene captures, and failed presentation invalidate it. Overflow falls back to
+direct rendering. See [performance checks](ubuntu-gles2-performance.md).
 
-## Build and tests
+The audio callback owns playback cursors and envelopes. `audio_control`
+adopts UI snapshots through a nonblocking lock and identifies voice reuse by
+generation. Decoding happens on the UI thread; decoded clips remain immutable
+until the device closes. Apple and Linux device code sits behind the private
+`audio/audio_platform.h` interface.
 
-The root `CMakeLists.txt` selects options and delegates target definitions to
-`src/`, `tools/`, and `tests/`. Shared build helpers live in `cmake/`.
-Source lists are explicit so adding a file requires a visible build change.
-Apple frameworks and Objective-C compilation are conditional on building
-the Metal application. `WM_BUILD_APP=OFF` builds the core, tools, and tests
-without a platform adapter.
+The texture cache holds an open asset-root directory and validates each image
+from one regular-file descriptor before bounded decoding. Persistence and
+exporters share checked reads and atomic replacement in `support/`.
 
-Tests are grouped by module under `tests/`. Synthetic JSON fixtures live in
-`tests/fixtures/`; extracted resources and optional local comparison inputs
-remain in ignored local storage. Test registration preserves assertions in
-Release builds. Commands to build, prepare assets, and run tests are in
-[README.md](../README.md).
+## Tools and build
 
-Preparation commands keep their existing executable names. Source folders
-under `tools/` distinguish preparation orchestration, WAD and NAND readers,
-and the layout, channel, audio, font, settings, keyboard, and restart exporters.
-Private preparation modules separate filesystem staging and recovery from
-update orchestration. Channel resource export, channel manifest publication,
-NAND reader discovery, and NAND extraction also have focused source files.
-Exporters share a private directory helper that rejects pre-existing symlinks
-for the selected output root and child directories. Ancestors of the selected
-root may be symlinks. The checks do not protect a later path-based write from
-a concurrent directory replacement.
+`tools/` groups preparation orchestration, WAD/NAND readers, channel management,
+and layout, audio, font, Settings, keyboard, and restart exports. Preparation
+filesystem staging, recovery, and update selection have private modules.
+The channel manager separates package validation/install, WAD import, and
+managed deletion. Exporters share directory checks; path-based writes still
+require care around concurrent directory replacement.
 
-[The whole-tree refactor audit](refactor-audit.md) records current module
-boundaries without treating file size or source moves as fidelity evidence.
+The root `CMakeLists.txt` delegates targets to `src/`, `tools/`, and `tests/`;
+shared helpers live in `cmake/`. Source lists are explicit. Apple frameworks
+and Objective-C are conditional on the Metal app. `WM_BUILD_APP=OFF` omits the
+application and graphics adapter.
+
+Tests follow module groups under `tests/`; synthetic fixtures live in
+`tests/fixtures/`. Assertions remain enabled in Release tests. Private source
+resources and comparison inputs stay in ignored local storage.
+
+See [README.md](../README.md) for commands and [STYLE.md](../STYLE.md) for
+source conventions.

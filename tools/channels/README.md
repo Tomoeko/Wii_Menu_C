@@ -1,41 +1,181 @@
-# Installed channel resource converter
+# Channels
 
-`wm-channel-export` converts already decrypted installed title content into
-native menu assets. It reads the extracted title directory produced by
-`wm-nand-extract`; it does not read or decrypt a raw NAND dump.
+Use `wm-channels` to install and manage channels in the C app. Build and prepare
+assets first; see the [README](../../README.md). Close the menu before making
+changes and restart it afterward.
 
-Build and run from the repository root:
+Run from the repository root. On Linux, replace `./build/` with `./build-gles2/`.
+For a different asset directory, add `--assets DIRECTORY` before the command:
 
 ```sh
-cmake -S . -B build
-cmake --build build --target wm-channel-export
-./build/wm-channel-export .local/nand-extracted .local/native-assets ENG
+./build/wm-channels --assets .local/native-assets-next list
 ```
 
-The input must contain `title/<8-hex>/<8-hex>/content/title.tmd` and the
-corresponding decrypted `<content-id>.app` files. The optional
-`title/00000001/00000002/data/iplsave.bin` is copied to the output root only
-after its RIPL v3 checksum and structure are validated. The output root should
-remain under `.local/` or another ignored private directory. This converter
-does not place source content or personal titles in the tracked repository.
+## Install
 
-The converter selects TMD-active nonshared content with an IMET header,
-validates its TMD SHA-1 digest, and exports `meta/icon.bin` and
-`meta/banner.bin` resources. IMD5, LZ77, ASH0, U8, TPL, BRLYT, and BRLAN
-resources use the first-party C decoders in this repository. It writes
-`channels.json`, root-relative layout JSON under `channel-layouts/`, and
-parallel `.wmra` RGBA textures. The layout JSON retains `.png` texture URLs
-for compatibility with the prepared asset schema; the native texture cache
-resolves these to the `.wmra` files. Every available layout is listed in the
-manifest, and the layout named `icon` or `banner` is selected as the default.
+```sh
+./build/wm-channels validate examples/custom-channels/custom-example
+./build/wm-channels add examples/custom-channels/custom-example
+./build/wm-channels add .local/input/channel.wad
+./build/wm-channels list
+```
 
-The manifest uses schema version 1. Each channel has an ID, localized titles,
-`iconLayout`, `bannerLayout`, `resources.icon.layouts`, and
-`resources.banner.layouts`. `defaultOrder` follows a valid `iplsave.bin` when
-present; `savedLayout` remains `null` because the runtime reads the validated
-binary save directly. Each `source` record includes the active content's
-TMD-validated SHA-1 and a SHA-1 of the original TMD bytes for reviewed
-updates. All paths in the generated JSON are relative to the output root.
-The C converter does not execute native channel modules or channel scripts.
-It verifies content hashes recorded in the TMD, but it does not verify
-Nintendo's TMD signature or attest the extracted NAND source.
+`validate` checks a custom folder without installing it. It needs prepared
+assets. `add` copies the channel files; it keeps the source folder or WAD.
+WAD import also needs `wm-wad-extract` and `wm-channel-export` beside the
+manager; the normal build includes them. Unsupported WAD key indices need
+`--common-key-file FILE`. Imported WAD titles use English metadata.
+
+## Preview
+
+```sh
+./build/wm-channels preview "Example Channel"
+```
+
+This opens the banner in the app. The channel must be installed and visible,
+and the app must be built beside the manager. Restore a removed channel first.
+
+## Remove and restore
+
+`remove` hides a channel without deleting files. These examples remove the
+same custom channel by ID, name, or source folder:
+
+```sh
+./build/wm-channels remove custom-example
+./build/wm-channels remove "Example Channel"
+./build/wm-channels remove examples/custom-channels/custom-example
+```
+
+Quote names or paths with spaces. If a name matches several channels, use
+its ID from `list`. WAD paths work only with `add`; use the installed ID or
+name afterward. A folder needs its `channel.json` to identify the channel.
+
+To remove several channels at once:
+
+```sh
+./build/wm-channels remove "Example Channel" "Studio Channel"
+```
+
+All targets are checked before saving. Repeated IDs are rejected.
+To restore a channel using its installed files:
+
+```sh
+./build/wm-channels restore custom-example
+```
+
+## Permanently delete
+
+Remove the channel first, then run purge with `--yes`:
+
+```sh
+./build/wm-channels remove custom-example
+./build/wm-channels purge custom-example --yes
+```
+
+Purge deletes the installed layouts, textures, audio, and local catalog entry.
+It keeps the source folder or WAD. To delete that too, check its contents and
+remove it with your file manager. Keep the source if you want to reinstall.
+
+Purge only accepts channels added with `wm-channels`. Channels included by
+`wm-prepare` can be hidden and restored. Missing files, unexpected files,
+or symlinks can block purge. An I/O failure can leave a partly deleted copy;
+purge has no undo.
+
+## Create a custom channel
+
+Copy the vector example into local storage:
+
+```sh
+mkdir -p .local/custom-channels
+cp -R examples/custom-channels/custom-example .local/custom-channels/my-channel
+```
+
+Edit the copied `channel.json`, `icon.json`, and `banner.json`. Use a new ID
+and title in `channel.json`; change the displayed text in both layouts too.
+For PNG artwork, start with `examples/custom-channels/custom-studio-channel-9899b686`.
+
+```json
+{
+    "schemaVersion": 1,
+    "id": "custom-my-channel",
+    "title": "My Channel",
+    "iconLayout": "icon.json",
+    "bannerLayout": "banner.json"
+}
+```
+
+Custom IDs start with `custom-` and contain 8–63 characters: lowercase letters,
+digits, `_`, or `-`. The first character after `custom-` must be a letter or
+digit. Titles must be nonempty and fit in 127 UTF-8 bytes.
+
+The layouts define panes, materials, textures, and animation. Use the examples
+as templates. Animation names are `icon`, `banner_Start`, and `banner_Loop`.
+SVG guides are in [examples/channel-guides](../../examples/channel-guides/).
+Hide their overlays before exporting artwork. The red outlines are approximate
+alignment guides. See the
+[placement reference](../../examples/channel-guides/placement-reference.json)
+for coordinates and sizes.
+
+Keep PNGs beside the layouts. Use names such as `icon.png`, without subfolders;
+letters, digits, `_`, and `-` are allowed before `.png`. PNGs must be
+non-interlaced, 8-bit RGBA, at most 4096 pixels per dimension and 8 MiB per file.
+Their dimensions must match the layout. Each layout supports up to 16 texture
+entries; omit `resourceTextures` or leave it empty.
+
+For sound, include a mono or stereo PCM16 `sound.wav` under 8 MiB without loop
+metadata. Add this member to `channel.json`:
+
+```json
+{
+    "audio": {
+        "src": "sound.wav",
+        "loop": false
+    }
+}
+```
+
+Validate the folder, install it, then preview it:
+
+```sh
+./build/wm-channels validate .local/custom-channels/my-channel
+./build/wm-channels add .local/custom-channels/my-channel
+./build/wm-channels preview custom-my-channel
+```
+
+Custom channels provide artwork, animation, and sound; they do not run native
+channel programs.
+
+## Update or replace a channel
+
+`add` rejects active duplicate IDs. Adding a removed channel with the same
+ID and title restores the installed copy; it does not copy edited source files.
+To install a revised copy, remove and purge the old one, then add the folder
+or WAD again. Use [wm-prepare updates](../../docs/preparation-updates.md) for
+channels from another NAND.
+
+## Storage and limits
+
+`channels.local.json` stores additions and removal flags. The base
+`channels.json` and integrity manifest stay unchanged. Installed files use
+`custom-channels/<id>/` for authored packages, `channel-layouts/<id>/` for WAD
+imports, and `channel-audio/<id>.wav` for audio. PNGs become `.wmra` textures.
+
+The menu has four pages of twelve slots; the Disc Channel owns the first slot.
+New channels fill the first free slot. Add and restore fail when the menu is
+full. There is no command-line placement option. The local catalog holds up
+to 48 entries, including removed channels; purge old copies to free entries.
+
+## Export decrypted NAND titles
+
+`wm-channel-export` reads an extracted NAND title tree, not a raw dump. Use
+`wm-prepare` for complete app assets. To make a separate export:
+
+```sh
+./build/wm-channel-export .local/nand-extracted .local/channel-export ENG
+```
+
+Input titles need `title/<8-hex>/<8-hex>/content/title.tmd` and the matching
+decrypted `<content-id>.app` files. The exporter checks content SHA-1 against
+the TMD, then writes the channel catalog, layouts, textures, and supported BNS
+audio. A valid `iplsave.bin` supplies placement. Nintendo signatures are not
+verified.

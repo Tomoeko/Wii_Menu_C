@@ -14,6 +14,7 @@ rendering decisions so that visual and input behavior do not diverge.
 
 ## Source quality and organization
 
+- Follow `STYLE.md` for source layout, helper design, comments, and review.
 - Never author minified code, including shaders, generated-looking tables,
   examples, scripts, and configuration. Use descriptive names and ordinary
   multiline formatting.
@@ -66,22 +67,13 @@ contain original spelling errors. Keep the 4:3 and 16:9 logical projections,
 framebuffer size, and displayed aspect ratio distinct. Make unsupported
 resource variants and simulated console services visible in documentation.
 
-## Validation and privacy
+## Privacy and documentation
 
-- Add focused tests for parsers, animation curves, scene transitions,
-  backend-neutral render commands, resource lifetime, and persistence when
-  those components are implemented. Use rendered comparisons for visual
-  claims and check both backends when backend behavior changes.
-- Test the core GLES2 path without relying on extensions. Verify that Metal
-  platform code builds on a supported Apple host when it changes.
-- Profile representative startup, idle, page change, channel preview, and
-  HOME flows before making performance claims about the PowerVR target.
-- Before sharing or publishing, inspect source, logs, manifests, and generated
-  metadata for home directory paths, account names, console identifiers,
-  private content, and extracted assets. Use relative project paths and
-  logical input names in public examples.
+Before sharing or publishing, inspect source, logs, manifests, and generated
+metadata for home directory paths, account names, console identifiers,
+private content, and extracted assets. Use relative project paths and
+logical input names in public examples.
 
-Keep user-facing build and status instructions in `README.md`. Describe only
-features that are implemented and verified in this repository.
-Use `PARITY.md` to track reported fidelity gaps. Record source provenance,
-sampled frames, and current-build verification before marking one complete.
+Keep user-facing build and status instructions in `README.md`. Document
+implemented features and keep fidelity gaps in the relevant feature document
+under `docs/`.

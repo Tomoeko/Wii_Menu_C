@@ -1,56 +1,57 @@
 # Wii Menu in C
 
-Disclaimer: This project heavily utilizes Codex/ChatGPT.
-
-This is a first-party C implementation of Wii Menu presentation and local
-interactions.
-The current renderer targets OpenGL ES 2.0; Apple builds use a separate Metal
-adapter.
+Wii Menu presentation and local interactions in C11, using Metal on macOS
+and OpenGL ES 2.0 on Linux. This project uses Codex/ChatGPT extensively.
 
 ## Build
 
+Run commands from the repository root. Use CMake 3.20 or newer and a C11
+compiler. macOS needs the Xcode command-line tools.
+
+### macOS
+
 ```sh
-# macOS
-cmake -S . -B build -DWM_BACKEND=metal
+cmake -S . -B build -DWM_BACKEND=metal -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
+```
 
-# Ubuntu (X11, EGL, and OpenGL ES development headers)
+### Ubuntu / Linux
+
+```sh
 sudo apt install build-essential cmake libx11-dev libegl-dev libgles-dev
 cmake -S . -B build-gles2 -DWM_BACKEND=gles2 -DCMAKE_BUILD_TYPE=Release
 cmake --build build-gles2 --parallel
 ctest --test-dir build-gles2 --output-on-failure
 ```
 
-Use `-DWM_BUILD_APP=OFF` to build the portable core, preparation tools, and
-tests without a windowing or graphics SDK. Executables keep their existing
-names and locations under the build directory.
+Linux needs an X11 display and an ALSA-compatible audio output.
+Use `-DWM_BUILD_APP=OFF` to build only the core, tools, and tests.
 
-## Source layout
+## Prepare assets
 
-Runtime implementations live in `src/`, grouped by responsibility, with
-matching public headers under `include/wii_menu/`. The app entry point and
-platform adapters have their own folders. Tests follow the same module groups,
-and synthetic input fixtures live in `tests/fixtures/`.
-
-See [source organization](docs/architecture.md) for module boundaries and
-the build structure. Preparation utilities are grouped by input or export
-format under `tools/`.
-The [C style and safety guide](docs/c-style-and-safety.md) records the
-repository's review conventions and validation approach.
-
-## Prepare and run
-
-Keep your WAD and optional BootMii NAND dump in ignored `.local/` storage.
-Preparation selects the built-in retail common key from the WAD ticket; a
-separate common-key file is not required.
-For a fresh asset installation:
+Use your own USA 4.3 System Menu WAD. Keep inputs and assets in ignored
+`.local/` storage. Run:
 
 ```sh
 ./build/wm-prepare --wad .local/input/menu.wad \
-  --nand .local/input/nand.bin \
-  --output .local/native-assets
+    --output .local/native-assets
+```
 
+The output directory must be new. Add `--nand .local/input/nand.bin` to include
+installed channels and shared fonts. The NAND dump needs its matching BootMii
+key footer or `--nand-keys .local/input/keys.bin`.
+
+Retail WAD common keys are selected automatically. Unsupported key indices
+need `--common-key-file FILE`; `--common-key-index N` requires a particular
+index. See [NAND updates and recovery](docs/preparation-updates.md) for later
+imports.
+
+On Linux, use `./build-gles2/` instead of `./build/` for all tools below.
+
+## Run
+
+```sh
 # macOS
 ./build/wii-menu.app/Contents/MacOS/wii-menu
 
@@ -58,50 +59,60 @@ For a fresh asset installation:
 ./build-gles2/wii-menu
 ```
 
-On Linux, use `./build-gles2/wm-prepare` if the GLES2 build directory is
-your only build. An ALSA-compatible default output device is needed for audio.
+The app finds `.local/native-assets` in the current directory or its parents,
+then beside the executable or its parents. Use `--assets DIRECTORY` for a
+different location.
 
-Without `--assets`, the app searches for `.local/native-assets` in the current
-directory and its parents, then beside the executable and its parents. Use
-`--assets DIRECTORY` to select another prepared asset directory.
-Preparation seals its output with `asset-manifest.sha1`. On startup, the app
-checks the prepared files and lists missing or mismatched paths in the terminal
-while showing the WAD's system-files-corrupted message. Reprepare older asset
-directories that have no manifest. Use `--bypass` to run with intentionally
-modified files without this check.
-The corruption prompt's vector glyphs are compiled into the app. No separate
-OTF file is needed; the prepared Wii outline font remains the fallback.
+Use the pointer, arrow keys, Enter, Escape, or H for HOME. Run with `--help`
+to see the command-line options.
 
-Omit `--nand` to prepare only the System Menu. For an unsupported key index,
-use `--common-key-file FILE` and `--common-key-index N` to supply an override.
-A NAND dump needs its matching
-BootMii key footer or `--nand-keys` file for installed channels and shared
-fonts. The WAD also supplies the local Wii Settings outline font. Preparation
-extracts the software keyboard's OEM word containers into ignored local assets
-when present. The keyboard retains its built-in word list if they are absent;
-the containers do not implement Zi8's candidate algorithm. Preparation
-publishes to a new directory and never replaces an existing one.
+## Channels
 
-To add channels from another local NAND, preview the changes and publish a
-new asset directory:
+Close the menu before changing channels. Restart it afterward.
 
 ```sh
-./build/wm-prepare --plan --update-from .local/native-assets \
-  --nand .local/input/newer-nand.bin \
-  > .local/channel-update-plan.json
-./build/wm-prepare --update-from .local/native-assets \
-  --nand .local/input/newer-nand.bin \
-  --expect-plan .local/channel-update-plan.json \
-  --output .local/native-assets-next
+./build/wm-channels add examples/custom-channels/custom-example
+./build/wm-channels add .local/input/channel.wad
+./build/wm-channels list
+./build/wm-channels preview "Example Channel"
+./build/wm-channels remove custom-example
+./build/wm-channels restore custom-example
 ```
 
-Existing channels are kept by default. See [prepared channel updates](docs/preparation-updates.md)
-for explicit replacement options and current limits. An interrupted update
-cleans its owned staging on the next run for the same output; use
-`./build/wm-prepare --recover --output .local/native-assets-next` to clean it
-without repeating extraction.
+`remove` hides the channel and keeps its files. To delete the installed copy:
 
-See [WAD notes](tools/wad/README.md), [channel notes](tools/channels/README.md),
-[parity status](PARITY.md), and [development guide](AGENTS.md). Nintendo
-resources, console-specific keys, NAND data, and user state are never bundled
-here. The retail WAD common-key defaults are built into the preparation tool.
+```sh
+./build/wm-channels remove custom-example
+./build/wm-channels purge custom-example --yes
+```
+
+Purge keeps the original folder or WAD. See the [channel guide](tools/channels/README.md)
+for custom channel creation, removal by name or folder, and deletion limits.
+
+## Missing or changed assets
+
+The app checks files listed in `asset-manifest.sha1`. It prints missing or
+changed paths in the terminal and shows the system-files-corrupted message.
+Reprepare assets if the manifest is missing. No external OTF is needed for
+the message.
+
+Use `--bypass` when you intentionally edit prepared files:
+
+```sh
+./build/wii-menu.app/Contents/MacOS/wii-menu --bypass
+```
+
+On Linux, run `./build-gles2/wii-menu --bypass`. Normal `wm-channels` changes
+do not need this option.
+
+## Documentation
+
+- [Channels](tools/channels/README.md) and [NAND updates](docs/preparation-updates.md)
+- [WAD extraction](tools/wad/README.md) and [audio export](tools/audio/README.md)
+- [Settings](docs/settings-rendering.md), [Memo keyboard](docs/board-keyboard.md),
+  and [audio accuracy](docs/audio-accuracy.md)
+- [GLES2 performance](docs/ubuntu-gles2-performance.md)
+- [Architecture](docs/architecture.md), [C style](STYLE.md), and [development](AGENTS.md)
+
+Private WADs, NAND data, console keys, extracted resources, captures, and user
+state are not included.

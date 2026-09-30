@@ -2,9 +2,7 @@
 
 This is the working style guide for the C runtime and tools. It applies to new
 code and to code being refactored. Preserve existing behavior, resource names,
-animation timing, draw order, and platform portability while improving source
-quality. A clean build and formatter result do not, by themselves, establish
-that a function is readable or that native Wii behavior is accurate.
+animation timing, draw order, and platform portability.
 
 ## Reference and precedence
 
@@ -161,14 +159,3 @@ header when two modules genuinely share it.
   startup, idle, page changes, preview, and HOME on representative scenes.
   Report the platform, backend, scene, frame time, and memory before making
   a performance claim. Keep the GLES2 core path correct without extensions.
-
-## Review and validation
-
-Before a refactor is called complete, check the affected call sites, pointer
-lifetimes, failure exits, integer bounds, and platform guards. Compare the
-before/after behavior of state machines, scene transitions, render commands,
-and audio cues. Run the build, `wm-check-format`, the relevant focused tests,
-and the full test suite for a broad change. Test both graphics backends when
-backend behavior changes. A passing suite verifies this implementation; any
-claim of native visual or timing parity also needs independently retained
-source evidence and a rendered comparison.

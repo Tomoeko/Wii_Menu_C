@@ -1,32 +1,6 @@
 # Audio accuracy investigation
 
-## Evidence and scope
-
-The reported difference is the scratching sound while dragging a channel or
-memo, compared with the original menu running in Dolphin. No retained hardware
-capture was supplied. This investigation therefore establishes resource and
-executable behavior, with emulator output still requiring comparison. It does
-not establish exact console output.
-
-Inputs audited on 2026-09-26:
-
-| Logical input | Region/version | SHA-256 |
-| --- | --- | --- |
-| Menu resource content `00000097.app` | USA 4.3 | `64bc053c764d5be5107b03675ee487a8f83258e9f5518b5df10a135d23ded237` |
-| Menu executable `00000098.app` | USA 4.3 | `47b9c1bb0ba1890256fb368b1b3272e33ea2467feadf39d20ce469d6de6e6c43` |
-| Extracted `sound/IplSound.brsar` | USA 4.3 | `78c62ce1df5198bd4bb87284c6a8943ff5bb6fca7de7805080271d534d52bd78` |
-
-The reported comparison was against Dolphin rather than a console recording;
-its DSP backend and ROM identities were not retained. The C baseline for this
-investigation was `0129b91`. No aligned C-versus-Dolphin capture ranges were
-retained, and native console fidelity remains unverified.
-
-Private inputs and generated lookup tables stay in ignored storage. Temporary
-Binary Ninja analysis used a private slice of the executable and temporary
-function definitions. The original executable was not patched or saved as a
-modified analysis database.
-
-## What changed for drag playback
+## Drag playback
 
 Both `WIPL_SE_CH_DRAG` and `WIPL_SE_BOARD_DRAG` select program 10, key 60,
 velocity 127, and bank 1 wave 13. The sample is looping mono DSP ADPCM at
@@ -34,12 +8,10 @@ velocity 127, and bank 1 wave 13. The sample is looping mono DSP ADPCM at
 unity pitch, centered pan, volume 127, and ADSR bytes `104/127/127/125`.
 Archive volume is `96/127`.
 
-The previous exporter wrote an unchanging loop with archive gain baked into
-the PCM. This skipped the instrument envelope. The new exporter writes the
-raw decoded loop, keeps archive gain in `audio-sequence.json`, and writes the
-locally extracted envelope and pan values to `audio-held.json`. The runtime
-applies the envelope to the held voice, rather than restarting a baked attack
-every time the sample loops.
+The exporter writes the raw decoded loop, archive gain in
+`audio-sequence.json`, and extracted envelope/pan values in `audio-held.json`.
+The runtime applies the envelope to the held voice without restarting its
+attack at each sample loop.
 
 The executable's attack multiplier for value 104 is `0.8998029232025146`.
 Starting at -904 tenths of a decibel, three float32 multiplications advance
@@ -51,14 +23,11 @@ envelope calculation, rather than measured end-to-end output latency.
 
 The runtime also applies the original decibel and pan tables and integer
 volume stages. Native 32 kHz blocks and the host 48 kHz adapter retain their
-phase across callbacks. Starting a held voice and applying its motion controls
-now occur together, preventing a callback from playing the initial loop at
-full motion gain. A regrab starts a new attack while the prior release drains.
+phase across callbacks. Voice start and motion controls are applied together.
+A regrab starts a new attack while the prior release drains.
 
-The channel controller previously reset pitch to one whenever motion fell
-below the pitch threshold. The memo controller always supplied pitch one.
-Both now retain the last applied pitch during slow motion and reset it on a
-new grab. Memo hold and release cues also use their queued pan positions.
+Channel and Memo controllers retain the last pitch during slow motion and
+reset it on a new grab. Memo hold and release cues use their queued pan positions.
 
 `System::holdSEwithPosDis` at `0x8136B8A0` was independently checked against
 the supplied executable's PPC instructions. Its branch at `0x8136B9AC` skips
@@ -96,50 +65,15 @@ artwork. The executable's sound dispatcher at `0x813F9834` maps ID 1 to
 The audio exporter already produces these sequences as
 `audio/WIPL_SE_BT_PUSH.wav`, `audio/WIPL_SE_CHOICE_CHG.wav`, and
 `audio/WIPL_SE_BT_TARGETTING.wav` from the user's local sound archive; no
-sound file is bundled. The C scene now uses the source symbols for Settings
-arrow presses and held Calendar repeats. Its prior generic `page`, `confirm`,
-and `click` routes selected other sounds in these contexts. This mapping was
-checked against the original resource control handlers, the executable's
-dispatch table, and the local export manifest. It has not been validated by
-an aligned Dolphin or console audio capture.
+sound file is bundled. Settings uses these symbols for arrow presses and held
+Calendar repeats.
 
 The same resource handlers request ID 3 for Settings OK and Confirm actions
 and ID 4 for No and Cancel actions. Paired prompts with a left Yes (or the
 final Format action) use ID 3 on the left and ID 4 on the right. The
 executable maps those IDs to `WIPL_SE_DECIDE` and `WIPL_SE_CANCEL`. Country
 list rows instead request exceptional ID 5 (`WIPL_SE_CHOICE_CHG`) when a
-country is selected, while their scroll arrows request ID 1. The C Settings
-scene now owns these cue choices. Previously, most right footer actions fell
-through to the unrelated `page` cue (`WSD_SELECT`), and Country choices used
-the generic `confirm` cue. This is a resource-and-dispatch mapping, not a
-claim of sample-aligned output fidelity.
-
-## Checks completed
-
-- Independent vgmstream decoding matched all 886,661 compared PCM values
-  across 49 RSAR wave channels, including the drag wave. The tested CLI was
-  r2083, with SHA-256
-  `67bfabe694758aba7b132ed164c3992e45e6a579137d0d70f7af5907006418fa`.
-  This checks ADPCM decoding, not DSP filtering or mixing.
-- Fresh export produced 79 sequences, 15 aliases, and 19 direct/speaker sounds
-  with zero unsupported exports for this archive. All 110 other WAVs were
-  byte-identical to a rebuilt baseline exporter. Exactly three WAVs changed:
-  the two drag resource identifiers and their `drag` alias.
-- The new drag WAVs match the raw decoded sample. All 965 decibel and 257 pan
-  values round-trip through JSON exactly as float32.
-- All 60 CTest tests passed on the Metal build. New kernel and mocked-device
-  tests cover envelope progression, pitch, gain, pan, release, overlapping
-  regrabs, arbitrary callback sizes, manifest-supplied loop points, malformed
-  metadata, and 64 voice-retirement cycles. Strict warnings and targeted
-  address/undefined-behavior sanitizer checks passed.
-- A separate sanitizer probe loaded the refreshed original drag assets through
-  the runtime, produced finite samples for both cues, and drained their release
-  tails to silence. The three drag WAVs and their manifest entries were installed
-  in the ignored local asset set with a backup; other local audio entries were
-  preserved.
-
-These are implementation checks. No audible or sample-aligned comparison of
-the changed C build with a retained Dolphin or hardware capture has occurred.
+country is selected, while their scroll arrows request ID 1.
 
 ## Exact DSP filtering and Dolphin
 
@@ -211,31 +145,3 @@ No LFO or low-pass-filter instructions were found in the parsed paths of all
 79 RSEQ cues in this supplied archive;
 the cancel-family auxiliary B sends appear inactive under the audited menu
 initialization. Full final-output comparisons are still needed for all cues.
-
-## Reproducible comparison without hardware
-
-1. Record the menu version and input hashes, Dolphin build/commit, HLE or LLE
-   interpreter selection, DSP microcode identity, loaded ROM/coefficient hashes,
-   output rate, DMA volume, stereo mode, and silence-skipping settings. Identify
-   bundled replacements explicitly. Start from a cold boot rather than sharing
-   save states between DSP backends.
-2. Replay the same timed pointer trace in the original menu and C build. Include
-   stationary hold, slow motion, the 30-unit threshold, faster motion, release,
-   rapid regrab, and HOME interruption for both channels and memos. Record both
-   logical projections, framebuffer sizes, displayed aspect ratios, and source
-   and current-build frame ranges.
-3. Retain Dolphin's DSP output dump before host resampling or time stretching.
-   Its dump path applies DMA channel volume and channel ordering; account for
-   those operations explicitly. See
-   [wave output](https://github.com/dolphin-emu/dolphin/blob/465c652da1dc0b3048089701a1885084821c9574/Source/Core/AudioCommon/WaveFile.cpp)
-   and [mixer dumping](https://github.com/dolphin-emu/dolphin/blob/465c652da1dc0b3048089701a1885084821c9574/Source/Core/AudioCommon/Mixer.cpp).
-4. Compare at an agreed digital boundary and rate. Use one recorded alignment
-   offset, report sample error and envelope/pitch/loop-boundary differences,
-   and avoid fitting separate gains or time offsets to hide local errors.
-5. Repeat under HLE and LLE. Classify agreement using replacement ROMs as
-   emulator parity. Original-ROM agreement increases confidence in digital
-   behavior; reserve console-output claims for a retained native capture or
-   independently hardware-validated behavior.
-
-No captured Nintendo audio, original ROM data, or private analysis slices are
-included in the repository.

@@ -1,82 +1,71 @@
 # Prepared channel updates
 
-`wm-prepare` can add channels from another local BootMii NAND dump to an
-existing prepared asset directory. The source directory remains untouched.
-Each update publishes a **new** output directory only after extraction,
-conversion, selection, and catalog validation succeed.
+`wm-prepare` adds or replaces channels from a BootMii NAND dump while keeping
+the prepared source directory intact. It publishes a new output only after
+extraction, conversion, and catalog validation succeed. For authored folders,
+channel WADs, removal, and deletion, use [wm-channels](../tools/channels/README.md).
+
+Commands below run from the repository root. On Linux, substitute
+`./build-gles2/wm-prepare` for `./build/wm-prepare`.
+
+## Plan and publish
 
 ```sh
 ./build/wm-prepare --plan \
     --update-from .local/native-assets \
     --nand .local/input/newer-nand.bin \
-    --replace-channel 0001000148414241 \
     > .local/channel-update-plan.json
 
 ./build/wm-prepare \
     --update-from .local/native-assets \
     --nand .local/input/newer-nand.bin \
-    --replace-channel 0001000148414241 \
     --expect-plan .local/channel-update-plan.json \
     --output .local/native-assets-next
 ```
 
-Use `--nand-keys FILE` if the dump has no appended key footer. The NAND
-extractor validates the supported BootMii format before the output can be
-published. The new output contains the prior menu assets, saved channel
-placement, previously installed channels, and selected new channel exports.
-Only the channel layout and audio files for selected replacements are changed.
+Review the generated plan before publishing. `--expect-plan` refuses the
+update if inputs or choices have changed. Use the same tool build and selection
+flags for both commands; regenerate the plan after changing either.
 
-Existing title IDs are kept by default; new IDs are added. Repeat
-`--replace-channel ID` to replace particular IDs, or use `--nand-policy replace`
-to replace every matching installed ID. Repeat `--keep-channel ID` to retain an
-installed copy or skip a new ID, including under the bulk replacement policy.
-Selected IDs must be present in the incoming NAND and cannot be both kept and
-replaced. IDs are 16 hexadecimal characters, accepted in either case. The
-catalog language is inherited from the existing assets.
+Use `--nand-keys FILE` if the dump has no matching appended key footer. The
+output must not exist or be nested inside the source tree. Source trees with
+symlinks or special files are rejected. Keep inputs, plans, and outputs under
+ignored local storage. Select the result with the app's
+`--assets .local/native-assets-next` option.
 
-The read-only `--plan` emits one JSON object with title IDs, TMD versions when
-recorded by the channel exporter, default or selected actions, SHA-1 hashes
-of each exported channel record, layout tree, and channel audio, and
-`inputNandSha1` for the **entire raw NAND file**. Each incoming title also
-records `incomingContentSha1` for its TMD-validated active `.app` bytes and
-`incomingTmdSha1` for its original TMD bytes. The content hash covers the
-content length declared by the TMD; the exporter validates it against the
-TMD's own SHA-1 before recording it. Existing source hashes are shown when
-the installed catalog recorded them; older catalogs may show `null` because
-they do not retain original channel content. The `ExportSha1` fields describe
-prepared exports separately. The whole-file NAND hash still requires a new
-review if unrelated NAND bytes change. These SHA-1 fingerprints detect
-accidental input changes; they do not defend against deliberately constructed
-collisions. Redirect the complete JSON plan to a local file and pass it with
-`--expect-plan` when publishing. The tool recomputes the plan from the copied
-installed assets and newly converted NAND assets before changing the staged
-catalog. It refuses to
-publish when any planned channel export or selected action differs. Use the
-same selection flags for the plan and update. The guard compares the exact
-plan emitted by this build, including its formatting, so regenerate the plan
-after changing tool versions. The plan file must be a regular file and is not
-included in the published output.
+## Choose channels
 
-The C preparer writes a private recovery journal before creating its random
-staging directory. A matching ownership marker is written inside that stage
-before extraction starts. Preparations sharing an output parent use an OS-held
-lock, so the next run for the same output can safely remove a stage left by
-an interrupted process. Recovery never removes an existing output; publication
-remains a single no-replace directory rename. Use
-`wm-prepare --recover --output DIRECTORY` to clean an interrupted output
-preparation without repeating extraction. For an interrupted read-only plan,
-use `wm-prepare --recover --plan --update-from DIRECTORY` with the same source
-asset directory. A journal for a different output, a mismatched or missing
-ownership marker, and any other ambiguous stage are preserved for manual
-inspection. An interruption before the stage marker is complete can leave an
-empty private stage that needs manual inspection. The source directory and
-previously published outputs remain untouched.
+| Option | Effect |
+| --- | --- |
+| Default | Keep existing IDs and add new IDs. |
+| `--replace-channel ID` | Replace one matching installed ID; repeat for more. |
+| `--nand-policy replace` | Replace all matching installed IDs. |
+| `--keep-channel ID` | Retain an installed copy or skip a new ID, including under bulk replacement. |
 
-The update path accepts a raw BootMii dump; extracted NAND directories,
-multiple NAND inputs, channel WAD updates, removals, and in-place replacement
-are not implemented. Existing shared fonts are retained. A fresh installation
-from the System Menu WAD can still export fonts from its optional NAND input.
-The update rejects symlinks and special files in the prepared source tree,
-rejects output paths nested inside it, and refuses any pre-existing output
-directory. Keep all prepared resources and NAND inputs in ignored local
-storage; they are never part of the source repository.
+Explicit IDs must occur in the incoming NAND, contain 16 hexadecimal
+characters, and cannot be both kept and replaced. Either case is accepted.
+Use the same selection flags for planning and publishing.
+
+Updates preserve saved placement, retained channels, menu assets, and shared
+fonts. Selected replacements change their channel layout and audio exports.
+Catalog language is inherited from the source assets. The update path accepts
+one raw BootMii dump; extracted directories, channel WAD updates, removal,
+and in-place replacement are not supported here.
+
+## Recover interrupted preparation
+
+Preparation uses a private staging directory, recovery journal, ownership
+marker, and OS-held lock. A subsequent run for the same output can clean a
+matching interrupted stage. To recover without repeating extraction:
+
+```sh
+./build/wm-prepare --recover --output .local/native-assets-next
+
+# For an interrupted plan, use the same source asset directory.
+./build/wm-prepare --recover --plan --update-from .local/native-assets
+```
+
+Recovery preserves published outputs and the source. A different journal
+owner, a missing or mismatched marker, or another ambiguous stage requires
+manual inspection. Publication uses one directory rename that refuses to
+replace an existing output.

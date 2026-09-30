@@ -1,120 +1,70 @@
 # Memo software keyboard
 
-Create Message → Memo → Write a memo opens the first-party QWERTY keyboard.
-The C scene loads the `fs_VK_ascii_keytop_a`, `fs_VK_toolbar_a`,
-`fs_VK_predictInput_a`, and `fs_signWindow_a` layouts from locally prepared
-USA v4.3 resources. Its letter and number keys, Shift, Caps, Space, Return,
-Delete, Back, OK, and More use the original pane hit areas. Back and OK both
-keep the draft; they close through the 30-frame keyboard and editor
-transition and use the same key cue as Space. The memo's scroll offset eases to
-its display bounds during that descent, including when dismissal interrupts an
-editor scroll. Enter markers
-remain visible with the unposted draft after the keyboard closes. The Memo
-scroll arrows become interactive after the keyboard
-finishes entering and fade with its exit.
+Create Message → Memo → Write a memo opens the source-backed QWERTY keyboard.
+It also supports the telephone layout, four Latin modes, symbols, dictionary
+controls, pointer caret selection, and physical keyboard input.
 
-More opens the ten US symbol pages after the source 18-frame entrance.
-Twenty symbols, Close, and both page arrows use the WAD hit areas and focus
-and pushed clips. The page arrows use the WAD's inverse-named 20-frame scroll
-clips, including wraparound; Close and physical Back use the 13-frame exit.
-The source `WSD_SELECT` cue plays on a page flip, with the matching symbol
-open, character input, close, and arrow hover cues. The second set of twenty
-WAD text panes shows the incoming page during a scroll. UTF-8 symbol input
-and deletion operate on whole Unicode characters. The symbol panel is modal:
-the underlying Memo scroll arrows and physical text input are inactive until
-it closes.
+## Editing and transitions
 
-The C scene uses the prepared 16:9 layout geometry for key hit areas and
-draws the keytop, toolbar, prediction strip, and Memo body in an explicit
-order. Resource-backed render tests check the relevant C geometry and draw
-commands. A 1920 × 1080 Metal check exercised on-screen QWERTY typing, Shift,
-and OK. No aligned native Wii capture comparison has been made.
+Back and OK keep the draft and close through the thirty-frame keyboard/editor
+transition. Both use the Space key cue. The Memo scroll offset eases into its
+display bounds during descent, including when dismissal interrupts scrolling.
+Enter markers remain visible in unposted text. Memo scroll arrows become
+interactive after keyboard entry and fade with exit.
 
-The C keyboard also exposes the telephone layout, its four Latin modes,
-forward and reverse multi-tap, and the QWERTY and telephone dictionary
-controls. Moving focus away from a phone key commits its pending character;
-the source private-use marker for a pending literal space is presented as
-U+2423 Open Box while the stored draft retains an ordinary space. The C font
-decoder maps U+2423 to the original marker glyph. Focus entrance settles to
-the source Roll_over clip, and focused key branches move to the front of their
-layout's draw order. Each key retains its own press pose. Moving the pointer
-away immediately interrupts the click pulse and starts focus exit from the
-current pose; the clicked key stays above its neighbors until settled. Rapid
-clicks preserve earlier keys' return motion, and outgoing prediction words
-keep their foreground pass until settled.
-Click exits sample the authored eight-frame focus exit, or seven frames for
-prediction controls, with scale and color blended from the interrupted pose
-for continuity. Toolbar buttons rise only within their control group, leaving
-the wide toolbar backgrounds behind the keyboard layout selectors.
-Resource-backed tests cover the press/exit handoff, overlapping pulses, draw
-order, telephone Eng hit area,
-hover geometry, multi-tap, commitment, and marker mapping. Draw-order checks
-cover Back/Quit and OK during hover, press, and exit in both layouts for Memo
-and Console Nickname.
+Clicking visible text in an unposted Memo opens the keyboard at the nearest
+UTF-8 insertion boundary. Text can also be selected while the keyboard is open.
+Physical arrow keys move across characters or adjacent rendered lines.
+Insertion, deletion, multi-tap, and completion preserve text after the caret.
+The editor follows the caret into its two-line window; movement that starts
+scrolling uses `WIPL_SE_LINE_SCROLL`. Visible caret selections are silent.
+A pending completion is committed by the first text click; a fresh click then
+moves the caret.
 
-Binary Ninja inspection of the USA v4.3 executable confirms that an ordinary
-key in Pushed state 4 handles pointer-leave event 2 by selecting state 2
-(`0x81415e6c`–`0x81415e88`). The setter at `0x81415cb4` selects animation 2;
-the table at `0x816595a0` binds that animation to Focus-OUT. The controller at
-`0x814370c0` disables the prior animation and starts its replacement at frame
-zero, without a minimum click delay. The eight-frame OUT resource is sampled
-at frames 0, 1, 4, 7, and 8 in the 16:9 C render-command checks; its scale
-briefly dips below neutral before settling. This verifies the native state
-policy and resource curves, not the C continuity blend or rendered pixels
-against a native capture. Input provenance: title `0000000100000002`, version
-513, boot content `00000098`, SHA-1
-`26116613f624061ba99c8d1a299aaa6efa85670d`; the derived section-mapped ELF used
-for analysis has SHA-256
-`8dd9464451b7565ffd5b9f17511088c93731a614757a99e60a6fe6c1115d3abd`.
+Physical Shift and Caps Lock update keytops while held or latched. Their focus
+poses ease in and out. On-screen modifier presses are ignored while the matching
+physical modifier is active. Layout, phone mode, dictionary state, and language
+survive a keyboard reset within the current session.
 
-The dictionary button opens the three-language source selector. The default
-prediction state is off. Turning it on shows local completion candidates for
-the current non-whitespace run, including digits and punctuation, and uses
-local phone digit prediction. Preparation reads the OEM word containers from
-the user's WAD into ignored local assets. At startup the keyboard adds their
-validated UTF-16BE words after the built-in fallback list; complete words
-from the current draft take priority. Missing or invalid OEM containers leave
-the built-in vocabulary available. This local fallback does not implement
-Zi8's candidate-generation algorithm. A predictive run starts at newly typed
-text, ends on a delimiter or explicit
-completion, and does not recompose text that was already present when the
-dictionary was enabled. Phone digit matching recognizes common accented Latin
-letters. When there is no completion, the typed run remains a selectable
-literal. The candidate strip
-uses the WAD's previous/next arrow hit areas and focus/pushed clips. Pages
-overlap the partially visible last word, animate with the reference 15-frame
-smoothstep, and accept another page at frame 16. A held arrow requests another
-page on each update except every twentieth; the strip ignores requests while
-already moving. Candidate text is clipped to the source text area while the
-prediction window draws once. The C scene can map forty candidate values onto
-the twenty authored text panes, though this local word-list provider returns
-at most twenty completions. Resource-backed tests cover the arrow boundaries,
-focus continuity, movement lockout, source text-area clip, learned words,
-accented phone typing, and prepared OEM loading. Synthetic parser tests cover
-malformed offsets, UTF-16 termination and surrogates, and C word filtering.
+## Hover, press, and draw order
 
-Keyboard layout, phone mode, dictionary state, and language survive a Memo
-keyboard reset in the current session. Clicking visible text in an unposted
-Memo selects the nearest UTF-8 insertion boundary and opens the keyboard at
-that position. Physical arrow keys move the caret across UTF-8 characters or
-adjacent rendered lines. Physical Shift and Caps Lock update the visible keytop
-state while held or latched, with focus easing into and out of each state. The
-matching on-screen modifier ignores pointer presses while its physical key is
-active, then works normally once the physical modifier is released. The
-editor follows the selected caret into its two-line window with
-`WIPL_SE_LINE_SCROLL` whenever following starts page movement. Visible caret
-selections stay silent, and typing sounds remain intact when a key also starts
-scrolling. Insertion, deletion, phone multi-tap, and completion retain text
-after the caret. Text can also be selected while the keyboard is open. If a
-completion is pending, the first text click commits it and a fresh click moves
-the caret.
-The top toolbar strip remains visible during its downward entrance, using
-the same smooth progress and opacity as the bottom toolbar. Focused
-render-command and editing tests cover these flows. Native Zi8 working-memory
-behavior and durable keyboard preferences remain unverified. A live
-1920 × 1080 Metal check showed
-the More panel on page 1/10, page 2/10 after the next arrow, `[` inserted
-into Memo text, and Close returning to QWERTY; it predates the dictionary and
-telephone changes. Keyboard text, glyphs, hover phases, and candidate
-presentation still need aligned frame and pixel comparisons with native
-captures, including 4:3; native fidelity remains unverified.
+Each key keeps its own focus and press pose. Pointer exit interrupts the click
+pulse and begins focus exit from the current pose. The key stays above its
+neighbors until settled; rapid clicks retain earlier return motion. Exit uses
+the authored eight-frame curve, or seven frames for prediction controls, with
+scale/color blended from the interrupted pose for continuity.
+
+Focused key branches draw at the front of their layout. Toolbar buttons rise
+within their group, leaving the wide background behind the layout selectors.
+The upper strip moves and fades with the keyboard entrance.
+
+Telephone keys support forward/reverse multi-tap; leaving a key commits its
+pending character. A pending space displays the source marker through U+2423
+Open Box while the stored text retains an ordinary space.
+
+## Symbols and prediction
+
+More opens ten US symbol pages through an eighteen-frame entrance. Twenty
+symbols, Close, and page arrows use source hit areas and focus/press clips.
+Arrows use the inverse-named twenty-frame scroll clips, including wraparound;
+Close and physical Back use the thirteen-frame exit. Page flips play
+`WSD_SELECT`. The modal symbol panel blocks underlying Memo arrows and physical
+text input; insertion and deletion operate on complete UTF-8 characters.
+
+Prediction defaults to off. When enabled, it offers local completions for the
+current non-whitespace run and digit matching for telephone input. Preparation
+extracts OEM word containers; validated words augment the built-in fallback
+list, and words from the draft take priority. Missing or invalid containers
+leave the fallback available. This provider does not implement Zi8's algorithm.
+
+A prediction run begins with new input and ends on a delimiter or completion;
+enabling the dictionary does not recompose existing text. Digits, punctuation,
+and common accented Latin letters participate in matching. Without a completion,
+the typed run remains selectable.
+
+Candidate pages overlap the partially visible last word, move over fifteen
+frames, and accept another page at frame sixteen. Held arrows request another
+page each update except every twentieth; requests during movement are ignored.
+Text is clipped to the source area and the prediction window draws once.
+The presentation supports forty candidate values over twenty source panes;
+the local provider returns at most twenty completions.
