@@ -331,13 +331,12 @@ void wm_settings_scene_destroy(WmSettingsScene *scene) {
     free(scene);
 }
 
-bool wm_settings_scene_open(WmSettingsScene *scene) {
-    if (!scene)
-        return false;
+static void reset_settings_presentation(WmSettingsScene *scene, WmSettingsPhase phase,
+                                        float frame) {
     scene->page = 1;
     scene->previous_page = 1;
-    scene->phase = WM_SETTINGS_APPEAR;
-    scene->phase_frame = -1.0f;
+    scene->phase = phase;
+    scene->phase_frame = frame;
     scene->hover = WM_SETTINGS_CONTROL_NONE;
     scene->nickname_keyboard_phase = SETTINGS_NICKNAME_KEYBOARD_CLOSED;
     scene->nickname_keyboard_frame = 0.0f;
@@ -356,6 +355,12 @@ bool wm_settings_scene_open(WmSettingsScene *scene) {
     scene->page_frame = 20.0f;
     scene->draw_opacity = 1.0f;
     scene->direct_entry = false;
+}
+
+bool wm_settings_scene_open(WmSettingsScene *scene) {
+    if (!scene)
+        return false;
+    reset_settings_presentation(scene, WM_SETTINGS_APPEAR, -1.0f);
     return true;
 }
 
@@ -380,28 +385,7 @@ bool wm_settings_scene_open_connect24(WmSettingsScene *scene) {
 void wm_settings_scene_reset(WmSettingsScene *scene) {
     if (!scene)
         return;
-    scene->page = 1;
-    scene->previous_page = 1;
-    scene->phase = WM_SETTINGS_CLOSED;
-    scene->phase_frame = 0.0f;
-    scene->hover = WM_SETTINGS_CONTROL_NONE;
-    scene->nickname_keyboard_phase = SETTINGS_NICKNAME_KEYBOARD_CLOSED;
-    scene->nickname_keyboard_frame = 0.0f;
-    clear_hover_presentation(scene);
-    scene->pending_category = 0;
-    scene->active_category = 0;
-    scene->detail = 0;
-    scene->connection_search_frames = 0.0f;
-    scene->selection = 0;
-    scene->sensitivity_instructions = false;
-    scene->held_control = WM_SETTINGS_CONTROL_NONE;
-    scene->repeat_cue_pending = false;
-    scene->direction = 0;
-    scene->page_crossfade = false;
-    scene->page_frame = 20.0f;
-    scene->draw_opacity = 1.0f;
-    scene->exit_pending = false;
-    scene->direct_entry = false;
+    reset_settings_presentation(scene, WM_SETTINGS_CLOSED, 0.0f);
 }
 
 void wm_settings_scene_advance(WmSettingsScene *scene, float frames) {
