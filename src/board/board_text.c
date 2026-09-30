@@ -1,5 +1,7 @@
 #include "board_text.h"
 
+#include "wii_menu/support/utf8.h"
+
 #include <stdint.h>
 #include <string.h>
 
@@ -15,36 +17,12 @@ bool wm_board_text_character(const char *text, size_t remaining, size_t *bytes,
         return true;
     }
 
-    size_t length;
-    uint32_t point;
-    if (lead >= 0xc2u && lead <= 0xdfu) {
-        length = 2;
-        point = lead & 0x1fu;
-    } else if (lead >= 0xe0u && lead <= 0xefu) {
-        length = 3;
-        point = lead & 0x0fu;
-    } else if (lead >= 0xf0u && lead <= 0xf4u) {
-        length = 4;
-        point = lead & 0x07u;
-    } else {
+    size_t offset = 0;
+    size_t units;
+    if (!wm_utf8_next((const uint8_t *)text, remaining, &offset, NULL, &units))
         return false;
-    }
-    if (length > remaining)
-        return false;
-    for (size_t index = 1; index < length; index++) {
-        unsigned char tail = (unsigned char)text[index];
-        if ((tail & 0xc0u) != 0x80u)
-            return false;
-        point = (point << 6) | (tail & 0x3fu);
-    }
-
-    if ((length == 2 && point < 0x80u) || (length == 3 && point < 0x800u) ||
-        (length == 4 && point < 0x10000u) || point > 0x10ffffu ||
-        (point >= 0xd800u && point <= 0xdfffu)) {
-        return false;
-    }
-    *bytes = length;
-    *utf16_units = length == 4 ? 2 : 1;
+    *bytes = offset;
+    *utf16_units = units;
     return true;
 }
 
