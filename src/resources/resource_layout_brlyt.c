@@ -26,19 +26,33 @@ static bool wm_writer_srt(WmJsonWriter *writer, const uint8_t *bytes, size_t siz
     return !writer->failed;
 }
 
-static bool wm_writer_rgba_rows(WmJsonWriter *writer, const uint8_t *bytes, size_t size,
-                                size_t offset, size_t rows) {
-    if (rows > (size - (offset <= size ? offset : size)) / 4 || offset > size) {
+static bool wm_writer_byte_rows(WmJsonWriter *writer, const uint8_t *bytes, size_t size,
+                                size_t offset, size_t rows, size_t row_size) {
+    if (offset > size || row_size == 0 || rows > (size - offset) / row_size)
         return false;
-    }
     wm_writer_text(writer, "[");
     for (size_t index = 0; index < rows; index++) {
-        if (index != 0) {
+        if (index != 0)
             wm_writer_text(writer, ", ");
-        }
-        if (!wm_writer_bytes_array(writer, bytes, size, offset + index * 4, 4)) {
+        if (!wm_writer_bytes_array(writer, bytes, size, offset + index * row_size,
+                                   row_size))
             return false;
-        }
+    }
+    wm_writer_text(writer, "]");
+    return !writer->failed;
+}
+
+static bool wm_writer_srt_rows(WmJsonWriter *writer, const uint8_t *bytes, size_t size,
+                               size_t offset, size_t rows) {
+    const size_t row_size = 20;
+    if (offset > size || rows > (size - offset) / row_size)
+        return false;
+    wm_writer_text(writer, "[");
+    for (size_t index = 0; index < rows; index++) {
+        if (index != 0)
+            wm_writer_text(writer, ", ");
+        if (!wm_writer_srt(writer, bytes, size, offset + index * row_size))
+            return false;
     }
     wm_writer_text(writer, "]");
     return !writer->failed;
@@ -79,7 +93,7 @@ static bool wm_writer_material(WmJsonWriter *writer, const uint8_t *block, size_
     wm_writer_text(writer, "],");
     wm_writer_indent(writer, depth + 1);
     wm_writer_text(writer, "\"konstColors\": ");
-    if (!wm_writer_rgba_rows(writer, block, size, base + 44, 4)) {
+    if (!wm_writer_byte_rows(writer, block, size, base + 44, 4, 4)) {
         return false;
     }
     wm_writer_format(writer, ",\n%*s\"flags\": %u,", (int)((depth + 1) * 2), "", flags);
@@ -108,16 +122,10 @@ static bool wm_writer_material(WmJsonWriter *writer, const uint8_t *block, size_
         return false;
     }
     wm_writer_indent(writer, depth + 1);
-    wm_writer_text(writer, "\"textureSRTs\": [");
-    for (size_t index = 0; index < count; index++) {
-        if (index != 0) {
-            wm_writer_text(writer, ", ");
-        }
-        if (!wm_writer_srt(writer, block, size, cursor + index * 20)) {
-            return false;
-        }
-    }
-    wm_writer_text(writer, "],");
+    wm_writer_text(writer, "\"textureSRTs\": ");
+    if (!wm_writer_srt_rows(writer, block, size, cursor, count))
+        return false;
+    wm_writer_text(writer, ",");
     cursor += count * 20;
 
     count = (flags >> 8) & 15u;
@@ -171,16 +179,10 @@ static bool wm_writer_material(WmJsonWriter *writer, const uint8_t *block, size_
         return false;
     }
     wm_writer_indent(writer, depth + 1);
-    wm_writer_text(writer, "\"indirectSRTs\": [");
-    for (size_t index = 0; index < count; index++) {
-        if (index != 0) {
-            wm_writer_text(writer, ", ");
-        }
-        if (!wm_writer_srt(writer, block, size, cursor + index * 20)) {
-            return false;
-        }
-    }
-    wm_writer_text(writer, "],");
+    wm_writer_text(writer, "\"indirectSRTs\": ");
+    if (!wm_writer_srt_rows(writer, block, size, cursor, count))
+        return false;
+    wm_writer_text(writer, ",");
     cursor += count * 20;
 
     count = (flags >> 15) & 7u;
@@ -188,16 +190,10 @@ static bool wm_writer_material(WmJsonWriter *writer, const uint8_t *block, size_
         return false;
     }
     wm_writer_indent(writer, depth + 1);
-    wm_writer_text(writer, "\"indirectStages\": [");
-    for (size_t index = 0; index < count; index++) {
-        if (index != 0) {
-            wm_writer_text(writer, ", ");
-        }
-        if (!wm_writer_bytes_array(writer, block, size, cursor + index * 4, 4)) {
-            return false;
-        }
-    }
-    wm_writer_text(writer, "],");
+    wm_writer_text(writer, "\"indirectStages\": ");
+    if (!wm_writer_byte_rows(writer, block, size, cursor, count, 4))
+        return false;
+    wm_writer_text(writer, ",");
     cursor += count * 4;
 
     count = (flags >> 18) & 31u;
@@ -205,16 +201,9 @@ static bool wm_writer_material(WmJsonWriter *writer, const uint8_t *block, size_
         return false;
     }
     wm_writer_indent(writer, depth + 1);
-    wm_writer_text(writer, "\"tevStages\": [");
-    for (size_t index = 0; index < count; index++) {
-        if (index != 0) {
-            wm_writer_text(writer, ", ");
-        }
-        if (!wm_writer_bytes_array(writer, block, size, cursor + index * 16, 16)) {
-            return false;
-        }
-    }
-    wm_writer_text(writer, "]");
+    wm_writer_text(writer, "\"tevStages\": ");
+    if (!wm_writer_byte_rows(writer, block, size, cursor, count, 16))
+        return false;
     cursor += count * 16;
 
     if ((flags & (1u << 23)) != 0) {
@@ -248,7 +237,7 @@ static bool wm_writer_picture(WmJsonWriter *writer, const uint8_t *block, size_t
     }
     wm_writer_indent(writer, depth);
     wm_writer_text(writer, ",\"vertexColors\": ");
-    if (!wm_writer_rgba_rows(writer, block, size, offset, 4)) {
+    if (!wm_writer_byte_rows(writer, block, size, offset, 4, 4)) {
         return false;
     }
     wm_writer_format(writer, ",\n%*s\"material\": %u,", (int)(depth * 2), "",
@@ -337,6 +326,83 @@ static bool wm_writer_utf16(WmJsonWriter *writer, const uint8_t *bytes, size_t s
     return !writer->failed;
 }
 
+static bool wm_writer_text_pane(WmJsonWriter *writer, const uint8_t *block, size_t size,
+                                unsigned depth) {
+    if (!wm_range(size, 76, 40)) {
+        return false;
+    }
+    size_t length = wm_be16(block + 78);
+    size_t text_offset = wm_be32(block + 88);
+    wm_writer_format(writer,
+                     "\n%*s,\"material\": %u, \"font\": %u, \"textPosition\": %u,",
+                     (int)((depth + 1) * 2), "", (unsigned)wm_be16(block + 80),
+                     (unsigned)wm_be16(block + 82), (unsigned)block[84]);
+    wm_writer_indent(writer, depth + 1);
+    wm_writer_text(writer, "\"text\": ");
+    if (!wm_writer_utf16(writer, block, size, text_offset, length)) {
+        return false;
+    }
+    wm_writer_indent(writer, depth + 1);
+    wm_writer_text(writer, ",\"textColors\": ");
+    if (!wm_writer_byte_rows(writer, block, size, 92, 2, 4)) {
+        return false;
+    }
+    wm_writer_indent(writer, depth + 1);
+    wm_writer_text(writer, ",\"fontSize\": ");
+    if (!wm_writer_floats(writer, block, size, 100, 2)) {
+        return false;
+    }
+    float char_space;
+    float line_space;
+    if (!wm_float(block, size, 108, &char_space) ||
+        !wm_float(block, size, 112, &line_space)) {
+        return false;
+    }
+    wm_writer_indent(writer, depth + 1);
+    wm_writer_text(writer, ",\"charSpace\": ");
+    wm_writer_float(writer, char_space);
+    wm_writer_indent(writer, depth + 1);
+    wm_writer_text(writer, ",\"lineSpace\": ");
+    wm_writer_float(writer, line_space);
+    return !writer->failed;
+}
+
+static bool wm_writer_window_pane(WmJsonWriter *writer, const uint8_t *block,
+                                  size_t size, unsigned depth) {
+    if (!wm_range(size, 76, 28)) {
+        return false;
+    }
+    wm_writer_indent(writer, depth + 1);
+    wm_writer_text(writer, ",\"inflation\": ");
+    if (!wm_writer_floats(writer, block, size, 76, 4)) {
+        return false;
+    }
+    size_t frame_count = block[92];
+    size_t content_offset = wm_be32(block + 96);
+    size_t frames_offset = wm_be32(block + 100);
+    if (!wm_writer_picture(writer, block, size, content_offset, depth + 1) ||
+        frame_count > WM_RESOURCE_MAX_ITEMS ||
+        !wm_range(size, frames_offset, frame_count * 4)) {
+        return false;
+    }
+    wm_writer_indent(writer, depth + 1);
+    wm_writer_text(writer, ",\"frames\": [");
+    for (size_t frame = 0; frame < frame_count; frame++) {
+        size_t frame_offset = wm_be32(block + frames_offset + frame * 4);
+        if (!wm_range(size, frame_offset, 3)) {
+            return false;
+        }
+        if (frame != 0) {
+            wm_writer_text(writer, ", ");
+        }
+        wm_writer_format(writer, "{\"material\": %u, \"flip\": %u}",
+                         (unsigned)wm_be16(block + frame_offset),
+                         (unsigned)block[frame_offset + 2]);
+    }
+    wm_writer_text(writer, "]");
+    return !writer->failed;
+}
+
 static bool wm_writer_pane(WmJsonWriter *writer, const WmPaneRecord *panes,
                            size_t pane_count, int index, unsigned depth) {
     if (index < 0 || (size_t)index >= pane_count || depth > WM_RESOURCE_MAX_PANES) {
@@ -383,74 +449,11 @@ static bool wm_writer_pane(WmJsonWriter *writer, const WmPaneRecord *panes,
             return false;
         }
     } else if (strcmp(section->kind, "txt1") == 0) {
-        if (!wm_range(size, 76, 40)) {
+        if (!wm_writer_text_pane(writer, block, size, depth))
             return false;
-        }
-        size_t length = wm_be16(block + 78);
-        size_t text_offset = wm_be32(block + 88);
-        wm_writer_format(writer,
-                         "\n%*s,\"material\": %u, \"font\": %u, \"textPosition\": %u,",
-                         (int)((depth + 1) * 2), "", (unsigned)wm_be16(block + 80),
-                         (unsigned)wm_be16(block + 82), (unsigned)block[84]);
-        wm_writer_indent(writer, depth + 1);
-        wm_writer_text(writer, "\"text\": ");
-        if (!wm_writer_utf16(writer, block, size, text_offset, length)) {
-            return false;
-        }
-        wm_writer_indent(writer, depth + 1);
-        wm_writer_text(writer, ",\"textColors\": ");
-        if (!wm_writer_rgba_rows(writer, block, size, 92, 2)) {
-            return false;
-        }
-        wm_writer_indent(writer, depth + 1);
-        wm_writer_text(writer, ",\"fontSize\": ");
-        if (!wm_writer_floats(writer, block, size, 100, 2)) {
-            return false;
-        }
-        float char_space;
-        float line_space;
-        if (!wm_float(block, size, 108, &char_space) ||
-            !wm_float(block, size, 112, &line_space)) {
-            return false;
-        }
-        wm_writer_indent(writer, depth + 1);
-        wm_writer_text(writer, ",\"charSpace\": ");
-        wm_writer_float(writer, char_space);
-        wm_writer_indent(writer, depth + 1);
-        wm_writer_text(writer, ",\"lineSpace\": ");
-        wm_writer_float(writer, line_space);
     } else if (strcmp(section->kind, "wnd1") == 0) {
-        if (!wm_range(size, 76, 28)) {
+        if (!wm_writer_window_pane(writer, block, size, depth))
             return false;
-        }
-        wm_writer_indent(writer, depth + 1);
-        wm_writer_text(writer, ",\"inflation\": ");
-        if (!wm_writer_floats(writer, block, size, 76, 4)) {
-            return false;
-        }
-        size_t frame_count = block[92];
-        size_t content_offset = wm_be32(block + 96);
-        size_t frames_offset = wm_be32(block + 100);
-        if (!wm_writer_picture(writer, block, size, content_offset, depth + 1) ||
-            frame_count > WM_RESOURCE_MAX_ITEMS ||
-            !wm_range(size, frames_offset, frame_count * 4)) {
-            return false;
-        }
-        wm_writer_indent(writer, depth + 1);
-        wm_writer_text(writer, ",\"frames\": [");
-        for (size_t frame = 0; frame < frame_count; frame++) {
-            size_t frame_offset = wm_be32(block + frames_offset + frame * 4);
-            if (!wm_range(size, frame_offset, 3)) {
-                return false;
-            }
-            if (frame != 0) {
-                wm_writer_text(writer, ", ");
-            }
-            wm_writer_format(writer, "{\"material\": %u, \"flip\": %u}",
-                             (unsigned)wm_be16(block + frame_offset),
-                             (unsigned)block[frame_offset + 2]);
-        }
-        wm_writer_text(writer, "]");
     }
 
     wm_writer_indent(writer, depth + 1);
@@ -686,6 +689,70 @@ static bool wm_writer_animations(WmJsonWriter *writer,
     return true;
 }
 
+typedef struct WmBrlytIndex {
+    const WmSection *header;
+    const WmSection *textures;
+    const WmSection *fonts;
+    const WmSection *materials;
+    WmPaneRecord *panes; /* Borrowed storage owned by the export operation. */
+    size_t pane_count;
+    int root;
+} WmBrlytIndex;
+
+static bool wm_index_layout_sections(const WmSection *sections, size_t section_count,
+                                     int *stack, WmBrlytIndex *layout) {
+    size_t depth = 0;
+    int last = -1;
+    for (size_t index = 0; index < section_count; index++) {
+        const WmSection *section = &sections[index];
+        if (strcmp(section->kind, "lyt1") == 0) {
+            layout->header = section;
+        } else if (strcmp(section->kind, "txl1") == 0) {
+            layout->textures = section;
+        } else if (strcmp(section->kind, "fnl1") == 0) {
+            layout->fonts = section;
+        } else if (strcmp(section->kind, "mat1") == 0) {
+            layout->materials = section;
+        } else if (strcmp(section->kind, "pan1") == 0 ||
+                   strcmp(section->kind, "bnd1") == 0 ||
+                   strcmp(section->kind, "pic1") == 0 ||
+                   strcmp(section->kind, "txt1") == 0 ||
+                   strcmp(section->kind, "wnd1") == 0) {
+            if (layout->pane_count >= WM_RESOURCE_MAX_PANES) {
+                return false;
+            }
+            int current = (int)layout->pane_count++;
+            layout->panes[current].section = *section;
+            layout->panes[current].first_child = -1;
+            layout->panes[current].last_child = -1;
+            layout->panes[current].next_sibling = -1;
+            if (depth == 0) {
+                layout->root = current;
+            } else {
+                WmPaneRecord *parent = &layout->panes[stack[depth - 1]];
+                if (parent->last_child >= 0) {
+                    layout->panes[parent->last_child].next_sibling = current;
+                } else {
+                    parent->first_child = current;
+                }
+                parent->last_child = current;
+            }
+            last = current;
+        } else if (strcmp(section->kind, "pas1") == 0) {
+            if (last < 0 || depth >= WM_RESOURCE_MAX_PANES) {
+                return false;
+            }
+            stack[depth++] = last;
+        } else if (strcmp(section->kind, "pae1") == 0) {
+            if (depth == 0) {
+                return false;
+            }
+            depth--;
+        }
+    }
+    return depth == 0;
+}
+
 bool wm_brlyt_to_json_with_source(const uint8_t *data, size_t size, const char *name,
                                   const char *package, const char *source,
                                   const WmResourceTexture *textures,
@@ -708,91 +775,34 @@ bool wm_brlyt_to_json_with_source(const uint8_t *data, size_t size, const char *
     WmPaneRecord *panes = calloc(WM_RESOURCE_MAX_PANES, sizeof(*panes));
     int *stack = calloc(WM_RESOURCE_MAX_PANES, sizeof(*stack));
     WmJsonWriter writer = {0};
+    bool exported = false;
     if (sections == NULL || panes == NULL || stack == NULL) {
         wm_set_error(error, error_size, "Out of memory reading BRLYT layout.");
-        goto fail;
+        goto release_layout;
     }
     size_t section_count = 0;
     if (!wm_read_sections(data, size, "RLYT", sections, &section_count)) {
         wm_set_error(error, error_size, "Invalid BRLYT section table.");
-        goto fail;
+        goto release_layout;
     }
 
-    const WmSection *layout_header = NULL;
-    const WmSection *texture_table = NULL;
-    const WmSection *font_table = NULL;
-    const WmSection *material_table = NULL;
-    size_t pane_count = 0;
-    size_t depth = 0;
-    int last = -1;
-    int root = -1;
-    bool valid = true;
-    for (size_t index = 0; index < section_count; index++) {
-        const WmSection *section = &sections[index];
-        if (strcmp(section->kind, "lyt1") == 0) {
-            layout_header = section;
-        } else if (strcmp(section->kind, "txl1") == 0) {
-            texture_table = section;
-        } else if (strcmp(section->kind, "fnl1") == 0) {
-            font_table = section;
-        } else if (strcmp(section->kind, "mat1") == 0) {
-            material_table = section;
-        } else if (strcmp(section->kind, "pan1") == 0 ||
-                   strcmp(section->kind, "bnd1") == 0 ||
-                   strcmp(section->kind, "pic1") == 0 ||
-                   strcmp(section->kind, "txt1") == 0 ||
-                   strcmp(section->kind, "wnd1") == 0) {
-            if (pane_count >= WM_RESOURCE_MAX_PANES) {
-                valid = false;
-                break;
-            }
-            int current = (int)pane_count++;
-            panes[current].section = *section;
-            panes[current].first_child = -1;
-            panes[current].last_child = -1;
-            panes[current].next_sibling = -1;
-            if (depth == 0) {
-                root = current;
-            } else {
-                WmPaneRecord *parent = &panes[stack[depth - 1]];
-                if (parent->last_child >= 0) {
-                    panes[parent->last_child].next_sibling = current;
-                } else {
-                    parent->first_child = current;
-                }
-                parent->last_child = current;
-            }
-            last = current;
-        } else if (strcmp(section->kind, "pas1") == 0) {
-            if (last < 0 || depth >= WM_RESOURCE_MAX_PANES) {
-                valid = false;
-                break;
-            }
-            stack[depth++] = last;
-        } else if (strcmp(section->kind, "pae1") == 0) {
-            if (depth == 0) {
-                valid = false;
-                break;
-            }
-            depth--;
-        }
-    }
-    if (!valid || depth != 0) {
+    WmBrlytIndex layout = {.panes = panes, .root = -1};
+    if (!wm_index_layout_sections(sections, section_count, stack, &layout)) {
         wm_set_error(error, error_size, "Invalid BRLYT pane hierarchy.");
-        goto fail;
+        goto release_layout;
     }
 
     float width = 0;
     float height = 0;
     unsigned origin_type = 1;
-    if (layout_header != NULL) {
-        if (!wm_range(layout_header->size, 8, 12) ||
-            !wm_float(layout_header->bytes, layout_header->size, 12, &width) ||
-            !wm_float(layout_header->bytes, layout_header->size, 16, &height)) {
+    if (layout.header != NULL) {
+        if (!wm_range(layout.header->size, 8, 12) ||
+            !wm_float(layout.header->bytes, layout.header->size, 12, &width) ||
+            !wm_float(layout.header->bytes, layout.header->size, 16, &height)) {
             wm_set_error(error, error_size, "Invalid BRLYT layout dimensions.");
-            goto fail;
+            goto release_layout;
         }
-        origin_type = layout_header->bytes[8];
+        origin_type = layout.header->bytes[8];
     }
 
     wm_writer_text(&writer, "{\n  \"name\": ");
@@ -809,58 +819,57 @@ bool wm_brlyt_to_json_with_source(const uint8_t *data, size_t size, const char *
     wm_writer_float(&writer, height);
     wm_writer_format(&writer,
                      ",\n  \"originType\": %u,\n  \"textures\": ", origin_type);
-    if (!wm_writer_name_table(&writer, texture_table, textures, texture_count, true)) {
+    if (!wm_writer_name_table(&writer, layout.textures, textures, texture_count,
+                              true)) {
         wm_set_error(error, error_size, "Invalid BRLYT texture table.");
-        goto fail;
+        goto release_layout;
     }
     wm_writer_text(&writer, ",\n  \"resourceTextures\": ");
     wm_writer_resource_textures(&writer, textures, texture_count);
     wm_writer_text(&writer, ",\n  \"fonts\": ");
-    if (!wm_writer_name_table(&writer, font_table, NULL, 0, false)) {
+    if (!wm_writer_name_table(&writer, layout.fonts, NULL, 0, false)) {
         wm_set_error(error, error_size, "Invalid BRLYT font table.");
-        goto fail;
+        goto release_layout;
     }
     wm_writer_text(&writer, ",\n  \"materials\": ");
-    if (!wm_writer_material_table(&writer, material_table)) {
+    if (!wm_writer_material_table(&writer, layout.materials)) {
         wm_set_error(error, error_size, "Invalid BRLYT material table.");
-        goto fail;
+        goto release_layout;
     }
     wm_writer_text(&writer, ",\n  \"groups\": ");
     if (!wm_writer_groups(&writer, sections, section_count)) {
         wm_set_error(error, error_size, "Invalid BRLYT group table.");
-        goto fail;
+        goto release_layout;
     }
     wm_writer_text(&writer, ",\n  \"root\": ");
-    if (root >= 0) {
-        if (!wm_writer_pane(&writer, panes, pane_count, root, 1)) {
+    if (layout.root >= 0) {
+        if (!wm_writer_pane(&writer, layout.panes, layout.pane_count, layout.root, 1)) {
             wm_set_error(error, error_size, "Invalid BRLYT pane content.");
-            goto fail;
+            goto release_layout;
         }
     } else {
         wm_writer_text(&writer, "null");
     }
     wm_writer_text(&writer, ",\n  \"animations\": ");
     if (!wm_writer_animations(&writer, animations, animation_count, error, error_size))
-        goto fail;
+        goto release_layout;
     wm_writer_text(&writer, "\n}\n");
     if (writer.failed) {
         wm_set_error(error, error_size, "BRLYT JSON exceeds the memory limit.");
-        goto fail;
+        goto release_layout;
     }
     wm_normalize_commas(&writer);
     *json = writer.text;
     *json_size = writer.length;
-    free(sections);
-    free(panes);
-    free(stack);
-    return true;
+    writer.text = NULL; /* Ownership passes to the caller. */
+    exported = true;
 
-fail:
+release_layout:
     free(writer.text);
     free(sections);
     free(panes);
     free(stack);
-    return false;
+    return exported;
 }
 
 bool wm_brlyt_to_json(const uint8_t *data, size_t size, const char *name,
