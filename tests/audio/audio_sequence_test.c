@@ -94,6 +94,48 @@ static void variable_counted_phrase(void) {
     wm_sequence_timeline_free(&timeline);
 }
 
+static void subroutine_clocks(void) {
+    /* Nested calls share the track clock and return to the instruction after each call.
+     */
+    const uint8_t sequence[] = {0x8a, 0x00, 0x00, 0x0c, 0x3c, 0x64, 0x01,
+                                0xff, 0xff, 0xff, 0xff, 0xff, 0x3e, 0x64,
+                                0x02, 0x8a, 0x00, 0x00, 0x18, 0x40, 0x64,
+                                0x03, 0xfd, 0xff, 0x41, 0x64, 0x04, 0xfd};
+    const uint8_t keys[] = {62, 65, 64, 60};
+    const uint32_t ticks[] = {0, 2, 6, 9};
+    WmSequenceTimeline timeline = parse(sequence, sizeof(sequence));
+    assert(timeline.count == 4);
+    assert(!timeline.looping);
+    for (size_t index = 0; index < timeline.count; index++) {
+        assert(timeline.events[index].kind == WM_SEQUENCE_NOTE);
+        assert(timeline.events[index].key == keys[index]);
+        assert(timeline.events[index].tick == ticks[index]);
+    }
+    wm_sequence_timeline_free(&timeline);
+}
+
+static void reject_control_flow(const uint8_t *data, size_t size) {
+    WmRsarSequence source = {.data = data, .size = size};
+    WmSequenceTimeline timeline = {0};
+    char error[160] = {0};
+    assert(!wm_sequence_parse(&source, &timeline, error, sizeof(error)));
+    assert(error[0] != '\0');
+    assert(timeline.events == NULL);
+    assert(timeline.count == 0);
+}
+
+static void bounded_control_flow(void) {
+    const uint8_t recursion[] = {0x8a, 0x00, 0x00, 0x00};
+    const uint8_t short_call[] = {0x8a, 0x00, 0x00};
+    const uint8_t duplicate_track[] = {0x88, 0x00, 0x00, 0x00, 0x05, 0xff};
+    const uint8_t stalled_loop[] = {0xc7, 0x00, 0x3c, 0x7f, 0x01,
+                                    0x89, 0x00, 0x00, 0x00};
+    reject_control_flow(recursion, sizeof(recursion));
+    reject_control_flow(short_call, sizeof(short_call));
+    reject_control_flow(duplicate_track, sizeof(duplicate_track));
+    reject_control_flow(stalled_loop, sizeof(stalled_loop));
+}
+
 static void synthetic_voice_pcm(void) {
     /* Interpolation and two fixed-point gain stages preserve the source's
      * floor-toward-negative-infinity behavior for negative samples. */
@@ -233,6 +275,8 @@ int main(void) {
     loop_and_note_wait();
     centered_random_and_rejection();
     variable_counted_phrase();
+    subroutine_clocks();
+    bounded_control_flow();
     synthetic_voice_pcm();
     synthetic_reverb_impulse();
     driver_table_loading();
