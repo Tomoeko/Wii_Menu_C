@@ -1,0 +1,7 @@
+{
+    "schemaVersion": 1,
+    "id": "custom-svg-guide",
+    "title": "SVG Guide Channel",
+    "iconLayout": "icon.json",
+    "bannerLayout": "banner.json"
+}

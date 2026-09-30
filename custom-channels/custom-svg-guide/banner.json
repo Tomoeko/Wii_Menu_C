@@ -1,0 +1,227 @@
+{
+    "width": 608,
+    "height": 456,
+    "originType": 1,
+    "name": "banner",
+    "textures": [
+        {
+            "name": "banner-guide",
+            "url": "banner.png",
+            "width": 832,
+            "height": 456
+        }
+    ],
+    "fonts": [],
+    "materials": [
+        {
+            "name": "Background",
+            "colors": [
+                [
+                    0,
+                    0,
+                    0,
+                    0
+                ],
+                [
+                    255,
+                    255,
+                    255,
+                    255
+                ],
+                [
+                    255,
+                    255,
+                    255,
+                    255
+                ]
+            ],
+            "textureMaps": []
+        },
+        {
+            "name": "Guide",
+            "colors": [
+                [
+                    0,
+                    0,
+                    0,
+                    0
+                ],
+                [
+                    255,
+                    255,
+                    255,
+                    255
+                ],
+                [
+                    255,
+                    255,
+                    255,
+                    255
+                ]
+            ],
+            "textureMaps": [
+                {
+                    "texture": 0,
+                    "wrapS": 0,
+                    "wrapT": 0
+                }
+            ]
+        }
+    ],
+    "groups": {},
+    "root": {
+        "name": "RootPane",
+        "type": "pan1",
+        "flags": 1,
+        "origin": 4,
+        "alpha": 255,
+        "translation": [
+            0,
+            0,
+            0
+        ],
+        "rotation": [
+            0,
+            0,
+            0
+        ],
+        "scale": [
+            1,
+            1
+        ],
+        "size": [
+            608,
+            456
+        ],
+        "children": [
+            {
+                "name": "Background",
+                "type": "pic1",
+                "flags": 5,
+                "origin": 4,
+                "alpha": 255,
+                "translation": [
+                    0,
+                    0,
+                    0
+                ],
+                "rotation": [
+                    0,
+                    0,
+                    0
+                ],
+                "scale": [
+                    1,
+                    1
+                ],
+                "size": [
+                    832,
+                    456
+                ],
+                "children": [],
+                "material": 0,
+                "vertexColors": [
+                    [
+                        23,
+                        54,
+                        87,
+                        255
+                    ],
+                    [
+                        23,
+                        54,
+                        87,
+                        255
+                    ],
+                    [
+                        23,
+                        54,
+                        87,
+                        255
+                    ],
+                    [
+                        23,
+                        54,
+                        87,
+                        255
+                    ]
+                ],
+                "texCoords": []
+            },
+            {
+                "name": "SVGGuide",
+                "type": "pic1",
+                "flags": 5,
+                "origin": 4,
+                "alpha": 255,
+                "translation": [
+                    0,
+                    0,
+                    0
+                ],
+                "rotation": [
+                    0,
+                    0,
+                    0
+                ],
+                "scale": [
+                    1,
+                    1
+                ],
+                "size": [
+                    832,
+                    456
+                ],
+                "children": [],
+                "material": 1,
+                "vertexColors": [
+                    [
+                        255,
+                        255,
+                        255,
+                        255
+                    ],
+                    [
+                        255,
+                        255,
+                        255,
+                        255
+                    ],
+                    [
+                        255,
+                        255,
+                        255,
+                        255
+                    ],
+                    [
+                        255,
+                        255,
+                        255,
+                        255
+                    ]
+                ],
+                "texCoords": [
+                    [
+                        [
+                            0,
+                            0
+                        ],
+                        [
+                            1,
+                            0
+                        ],
+                        [
+                            0,
+                            1
+                        ],
+                        [
+                            1,
+                            1
+                        ]
+                    ]
+                ]
+            }
+        ]
+    },
+    "animations": {}
+}
