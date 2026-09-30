@@ -15,6 +15,10 @@ wm_add_test(wii-menu-ascii
     SOURCES support/ascii_test.c
     LIBRARIES wii_menu_core
 )
+wm_add_test(wii-menu-portable-path
+    SOURCES support/portable_path_test.c
+    LIBRARIES wii_menu_core
+)
 wm_add_test(wii-menu-regular-file
     SOURCES support/regular_file_test.c
     LIBRARIES wii_menu_core

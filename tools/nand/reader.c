@@ -5,10 +5,9 @@
 
 #include "reader_internal.h"
 #include "../wad/crypto.h"
-#include "wii_menu/support/ascii.h"
+#include "wii_menu/support/portable_path.h"
 #include "wii_menu/support/endian.h"
 
-#include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -225,40 +224,13 @@ void wm_nand_close_reader(WmNandReader *reader) {
     memset(reader, 0, sizeof(*reader));
 }
 
-static bool reserved_name(const uint8_t *name, size_t length) {
-    size_t stem = 0;
-    while (stem < length && name[stem] != '.')
-        stem++;
-    if (stem == 3) {
-        static const char *const reserved[] = {"CON", "PRN", "AUX", "NUL"};
-        for (size_t index = 0; index < sizeof(reserved) / sizeof(reserved[0]);
-             index++) {
-            bool same = true;
-            for (size_t byte = 0; byte < 3; byte++) {
-                if (toupper(name[byte]) != reserved[index][byte])
-                    same = false;
-            }
-            if (same)
-                return true;
-        }
-    }
-    if (stem == 4 && name[3] >= '1' && name[3] <= '9') {
-        bool com = toupper(name[0]) == 'C' && toupper(name[1]) == 'O' &&
-                   toupper(name[2]) == 'M';
-        bool lpt = toupper(name[0]) == 'L' && toupper(name[1]) == 'P' &&
-                   toupper(name[2]) == 'T';
-        return com || lpt;
-    }
-    return false;
-}
-
 static bool valid_component(const uint8_t name[12], size_t *length) {
     size_t size = 0;
     while (size < 12 && name[size] != 0)
         size++;
     if (size == 0 || (size == 1 && name[0] == '.') ||
         (size == 2 && name[0] == '.' && name[1] == '.') || name[size - 1] == '.' ||
-        name[size - 1] == ' ' || reserved_name(name, size)) {
+        name[size - 1] == ' ' || wm_path_reserved_component(name, size)) {
         return false;
     }
     for (size_t index = 0; index < size; index++) {
@@ -269,23 +241,6 @@ static bool valid_component(const uint8_t name[12], size_t *length) {
     }
     *length = size;
     return true;
-}
-
-static char *join_path(const char *parent, const uint8_t *name, size_t size) {
-    size_t parent_size = strlen(parent);
-    size_t separator = parent_size != 0 ? 1 : 0;
-    if (parent_size > WM_NAND_PATH_CAPACITY - separator - size - 1) {
-        return NULL;
-    }
-    char *path = malloc(parent_size + separator + size + 1);
-    if (path == NULL)
-        return NULL;
-    memcpy(path, parent, parent_size);
-    if (separator != 0)
-        path[parent_size] = '/';
-    memcpy(path + parent_size + separator, name, size);
-    path[parent_size + separator + size] = '\0';
-    return path;
 }
 
 static bool insert_unique_path(uint16_t hashes[WM_NAND_PATH_HASH_SLOTS],
@@ -414,7 +369,9 @@ static bool parse_entries(WmNandReader *reader, char *error, size_t error_capaci
                 valid = false;
                 break;
             }
-            entry->path = join_path(reader->entries[task.parent].path, node, name_size);
+            entry->path =
+                wm_path_join_component(reader->entries[task.parent].path, node,
+                                       name_size, WM_NAND_PATH_CAPACITY);
             if (entry->path != NULL &&
                 !insert_unique_path(hashes, reader->entries, index)) {
                 wm_nand_set_error(error, error_capacity,

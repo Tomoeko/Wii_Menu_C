@@ -1,5 +1,5 @@
 #include "wii_menu/resources/resource_u8.h"
-#include "wii_menu/support/ascii.h"
+#include "wii_menu/support/portable_path.h"
 #include "wii_menu/support/utf8.h"
 #include "wii_menu/support/error.h"
 
@@ -15,34 +15,10 @@ typedef struct WmU8Directory {
     size_t node_index;
 } WmU8Directory;
 
-static bool wm_reserved_name(const uint8_t *name, size_t size) {
-    size_t stem = 0;
-    while (stem < size && name[stem] != '.') {
-        stem++;
-    }
-    if (stem == 3) {
-        static const char *const reserved[] = {"con", "prn", "aux", "nul"};
-        for (size_t index = 0; index < sizeof(reserved) / sizeof(reserved[0]);
-             index++) {
-            if (wm_ascii_lower(name[0]) == (unsigned char)reserved[index][0] &&
-                wm_ascii_lower(name[1]) == (unsigned char)reserved[index][1] &&
-                wm_ascii_lower(name[2]) == (unsigned char)reserved[index][2]) {
-                return true;
-            }
-        }
-    }
-    return stem == 4 &&
-           ((wm_ascii_lower(name[0]) == 'c' && wm_ascii_lower(name[1]) == 'o' &&
-             wm_ascii_lower(name[2]) == 'm') ||
-            (wm_ascii_lower(name[0]) == 'l' && wm_ascii_lower(name[1]) == 'p' &&
-             wm_ascii_lower(name[2]) == 't')) &&
-           name[3] >= '1' && name[3] <= '9';
-}
-
 static bool wm_valid_name(const uint8_t *name, size_t size) {
     if (size == 0 || size > 255 || (size == 1 && name[0] == '.') ||
         (size == 2 && name[0] == '.' && name[1] == '.') || name[size - 1] == '.' ||
-        name[size - 1] == ' ' || wm_reserved_name(name, size) ||
+        name[size - 1] == ' ' || wm_path_reserved_component(name, size) ||
         !wm_utf8_valid(name, size)) {
         return false;
     }
@@ -54,26 +30,6 @@ static bool wm_valid_name(const uint8_t *name, size_t size) {
         }
     }
     return true;
-}
-
-static char *wm_join_path(const char *parent, const uint8_t *name, size_t name_size) {
-    size_t parent_size = strlen(parent);
-    size_t separator = parent_size != 0 ? 1 : 0;
-    if (parent_size + separator + name_size > WM_U8_MAX_PATH) {
-        return NULL;
-    }
-
-    char *path = malloc(parent_size + separator + name_size + 1);
-    if (path == NULL) {
-        return NULL;
-    }
-    memcpy(path, parent, parent_size);
-    if (separator != 0) {
-        path[parent_size] = '/';
-    }
-    memcpy(path + parent_size + separator, name, name_size);
-    path[parent_size + separator + name_size] = '\0';
-    return path;
 }
 
 void wm_u8_free(WmU8Archive *archive) {
@@ -198,7 +154,8 @@ bool wm_u8_parse(const uint8_t *data, size_t size, WmU8Archive *archive, char *e
 
         const char *parent = paths[stack[depth - 1].node_index];
         paths[index] =
-            wm_join_path(parent != NULL ? parent : "", data + name_start, name_size);
+            wm_path_join_component(parent != NULL ? parent : "", data + name_start,
+                                   name_size, WM_U8_MAX_PATH + 1);
         if (paths[index] == NULL) {
             wm_error_set(error, error_size,
                          "U8 path is too long or memory is exhausted.");
