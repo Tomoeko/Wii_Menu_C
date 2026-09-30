@@ -210,6 +210,197 @@ static int wm_compare_layouts(const void *left, const void *right) {
     return strcmp(a->name, b->name);
 }
 
+typedef struct ChannelResourceExport {
+    const char *output;
+    const char *channel_id;
+    const char *kind;
+    const char *source_file;
+    char *default_layout;
+    unsigned *texture_count;
+    WmResourceTexture *textures;
+    WmResourceAnimation *animations;
+    WmLayoutPath *layouts;
+    size_t textures_found;
+    size_t animations_found;
+    size_t layouts_found;
+} ChannelResourceExport;
+
+/* The export owns metadata strings; resource bytes stay borrowed from the archive. */
+static void release_resource_export(ChannelResourceExport *export) {
+    for (size_t index = 0; index < export->textures_found; index++) {
+        free((char *)export->textures[index].name);
+        free((char *)export->textures[index].url);
+        free((char *)export->textures[index].source);
+    }
+    for (size_t index = 0; index < export->animations_found; index++)
+        free((char *)export->animations[index].name);
+    free(export->textures);
+    free(export->animations);
+    free(export->layouts);
+}
+
+static bool append_animation(ChannelResourceExport *export, const WmU8Entry *item,
+                             const char *stem) {
+    char *name = wm_copy(stem);
+    if (!name)
+        return false;
+    export->animations[export->animations_found++] =
+        (WmResourceAnimation){name, item->data, item->size};
+    return true;
+}
+
+static bool export_texture_images(const ChannelResourceExport *export, const WmTpl *tpl,
+                                  const char *stem) {
+    for (size_t image = 0; image < tpl->count; image++) {
+        char relative[WM_PATH_CAP];
+        char destination[WM_PATH_CAP];
+        int length = snprintf(relative, sizeof(relative),
+                              image == 0 ? "channel-layouts/%s/%s/textures/%s.wmra"
+                                         : "channel-layouts/%s/%s/textures/%s-%zu.wmra",
+                              export->channel_id, export->kind, stem, image);
+        int full = snprintf(destination, sizeof(destination), "%s/%s", export->output,
+                            relative);
+        WmImage converted = {tpl->images[image].width, tpl->images[image].height,
+                             tpl->images[image].rgba};
+        if (length < 0 || length >= (int)sizeof(relative) || full < 0 ||
+            full >= (int)sizeof(destination) || !wm_output_parent(destination) ||
+            !wm_output_target_safe(destination) ||
+            !wm_image_write(destination, &converted))
+            return false;
+    }
+    return true;
+}
+
+static bool append_texture(ChannelResourceExport *export, const WmU8Entry *item,
+                           const WmTpl *tpl, const char *stem, const char *basename) {
+    char relative[WM_PATH_CAP];
+    char source[WM_PATH_CAP];
+    int url_size =
+        snprintf(relative, sizeof(relative), "channel-layouts/%s/%s/textures/%s.png",
+                 export->channel_id, export->kind, stem);
+    int source_size = snprintf(source, sizeof(source), "%s/meta/%s.bin/%s",
+                               export->source_file, export->kind, item->path);
+    if (url_size < 0 || url_size >= (int)sizeof(relative) || source_size < 0 ||
+        source_size >= (int)sizeof(source))
+        return false;
+
+    char *name = wm_copy(basename);
+    char *url = wm_copy(relative);
+    char *origin = wm_copy(source);
+    if (!name || !url || !origin) {
+        free(name);
+        free(url);
+        free(origin);
+        return false;
+    }
+    export->textures[export->textures_found++] =
+        (WmResourceTexture){.name = name,
+                            .url = url,
+                            .width = tpl->images[0].width,
+                            .height = tpl->images[0].height,
+                            .format = tpl->images[0].format,
+                            .source = origin};
+    (*export->texture_count)++;
+    return true;
+}
+
+static bool export_texture(ChannelResourceExport *export, const WmU8Entry *item,
+                           const char *stem, const char *basename) {
+    for (size_t previous = 0; previous < export->textures_found; previous++) {
+        if (strcmp(export->textures[previous].name, basename) == 0) {
+            fprintf(stderr, "Ambiguous channel texture basename.\n");
+            return false;
+        }
+    }
+    WmTpl tpl = {0};
+    char error[160] = {0};
+    if (!wm_tpl_decode(item->data, item->size, &tpl, error, sizeof(error))) {
+        fprintf(stderr, "Channel TPL decode: %s\n", error);
+        return false;
+    }
+    bool valid = export_texture_images(export, &tpl, stem) &&
+                 (tpl.count == 0 || append_texture(export, item, &tpl, stem, basename));
+    wm_tpl_free(&tpl);
+    return valid;
+}
+
+static bool collect_resources(ChannelResourceExport *export,
+                              const WmU8Archive *archive) {
+    for (size_t index = 0; index < archive->count; index++) {
+        const WmU8Entry *item = &archive->entries[index];
+        char stem[128];
+        char basename[128];
+        if (wm_stem(item->path, ".brlan", stem, basename)) {
+            if (!append_animation(export, item, stem))
+                return false;
+        } else if (wm_stem(item->path, ".tpl", stem, basename)) {
+            if (!export_texture(export, item, stem, basename))
+                return false;
+        }
+    }
+    return true;
+}
+
+static bool export_layout(ChannelResourceExport *export, const WmU8Entry *item,
+                          const char *stem) {
+    for (size_t previous = 0; previous < export->layouts_found; previous++) {
+        if (strcmp(export->layouts[previous].name, stem) == 0) {
+            fprintf(stderr, "Ambiguous channel layout basename.\n");
+            return false;
+        }
+    }
+    char package[128];
+    char source[WM_PATH_CAP];
+    int package_size = snprintf(package, sizeof(package), "channel-%s-%s",
+                                export->channel_id, export->kind);
+    int source_size = snprintf(source, sizeof(source), "%s/meta/%s.bin/%s",
+                               export->source_file, export->kind, item->path);
+    char *json = NULL;
+    size_t json_size = 0;
+    char error[160] = {0};
+    if (package_size < 0 || package_size >= (int)sizeof(package) || source_size < 0 ||
+        source_size >= (int)sizeof(source) ||
+        !wm_brlyt_to_json_with_source(item->data, item->size, stem, package, source,
+                                      export->textures, export->textures_found,
+                                      export->animations, export->animations_found,
+                                      &json, &json_size, error, sizeof(error))) {
+        fprintf(stderr, "Channel BRLYT export: %s\n", error);
+        free(json);
+        return false;
+    }
+    char relative[WM_PATH_CAP];
+    char destination[WM_PATH_CAP];
+    int path_size =
+        snprintf(relative, sizeof(relative), "channel-layouts/%s/%s/%s.json",
+                 export->channel_id, export->kind, stem);
+    int full =
+        snprintf(destination, sizeof(destination), "%s/%s", export->output, relative);
+    bool valid = path_size >= 0 && path_size < (int)sizeof(relative) && full >= 0 &&
+                 full < (int)sizeof(destination) &&
+                 wm_output_write_file(destination, json, json_size);
+    free(json);
+    if (!valid)
+        return false;
+    WmLayoutPath *layout = &export->layouts[export->layouts_found++];
+    strcpy(layout->name, stem);
+    strcpy(layout->path, relative);
+    if (strcmp(stem, export->kind) == 0)
+        strcpy(export->default_layout, relative);
+    return true;
+}
+
+static bool export_layouts(ChannelResourceExport *export, const WmU8Archive *archive) {
+    for (size_t index = 0; index < archive->count; index++) {
+        const WmU8Entry *item = &archive->entries[index];
+        char stem[128];
+        char basename[128];
+        if (wm_stem(item->path, ".brlyt", stem, basename) &&
+            !export_layout(export, item, stem))
+            return false;
+    }
+    return true;
+}
+
 bool wm_export_resource(const WmU8Entry *entry, const char *output,
                         const char *channel_id, const char *kind,
                         const char *source_file, WmLayoutPath **layout_paths,
@@ -222,178 +413,36 @@ bool wm_export_resource(const WmU8Entry *entry, const char *output,
         return false;
     }
     WmU8Archive archive = {0};
+    ChannelResourceExport export = {.output = output,
+                                    .channel_id = channel_id,
+                                    .kind = kind,
+                                    .source_file = source_file,
+                                    .default_layout = default_layout,
+                                    .texture_count = texture_count};
+    bool valid = false;
     char error[160] = {0};
     if (!wm_u8_parse(decoded, decoded_size, &archive, error, sizeof(error))) {
         fprintf(stderr, "Channel resource archive: %s\n", error);
-        free(decoded);
-        return false;
+        goto release_export;
     }
-    WmResourceTexture *textures = calloc(archive.count + 1, sizeof(*textures));
-    WmResourceAnimation *animations = calloc(archive.count + 1, sizeof(*animations));
-    WmLayoutPath *layouts = calloc(archive.count + 1, sizeof(*layouts));
-    if (!textures || !animations || !layouts) {
-        free(textures);
-        free(animations);
-        free(layouts);
-        wm_u8_free(&archive);
-        free(decoded);
-        return false;
-    }
-    size_t textures_found = 0;
-    size_t animations_found = 0;
-    size_t layouts_found = 0;
-    bool valid = true;
-    char relative[WM_PATH_CAP];
-    char destination[WM_PATH_CAP];
-    char source[WM_PATH_CAP];
-    for (size_t index = 0; index < archive.count && valid; ++index) {
-        const WmU8Entry *item = &archive.entries[index];
-        char stem[128];
-        char basename[128];
-        if (wm_stem(item->path, ".brlan", stem, basename)) {
-            animations[animations_found].name = wm_copy(stem);
-            if (!animations[animations_found].name) {
-                valid = false;
-                break;
-            }
-            animations[animations_found].data = item->data;
-            animations[animations_found].size = item->size;
-            animations_found++;
-        } else if (wm_stem(item->path, ".tpl", stem, basename)) {
-            for (size_t previous = 0; previous < textures_found; ++previous) {
-                if (strcmp(textures[previous].name, basename) == 0) {
-                    fprintf(stderr, "Ambiguous channel texture basename.\n");
-                    valid = false;
-                }
-            }
-            if (!valid)
-                break;
-            WmTpl tpl = {0};
-            if (!wm_tpl_decode(item->data, item->size, &tpl, error, sizeof(error))) {
-                fprintf(stderr, "Channel TPL decode: %s\n", error);
-                valid = false;
-                break;
-            }
-            for (size_t image = 0; image < tpl.count && valid; ++image) {
-                int length =
-                    snprintf(relative, sizeof(relative),
-                             image == 0 ? "channel-layouts/%s/%s/textures/%s.wmra"
-                                        : "channel-layouts/%s/%s/textures/%s-%zu.wmra",
-                             channel_id, kind, stem, image);
-                int full = snprintf(destination, sizeof(destination), "%s/%s", output,
-                                    relative);
-                WmImage converted = {tpl.images[image].width, tpl.images[image].height,
-                                     tpl.images[image].rgba};
-                if (length < 0 || length >= (int)sizeof(relative) || full < 0 ||
-                    full >= (int)sizeof(destination) ||
-                    !wm_output_parent(destination) ||
-                    !wm_output_target_safe(destination) ||
-                    !wm_image_write(destination, &converted)) {
-                    valid = false;
-                }
-            }
-            if (valid && tpl.count > 0) {
-                int url_size = snprintf(relative, sizeof(relative),
-                                        "channel-layouts/%s/%s/textures/%s.png",
-                                        channel_id, kind, stem);
-                int source_size = snprintf(source, sizeof(source), "%s/meta/%s.bin/%s",
-                                           source_file, kind, item->path);
-                if (url_size < 0 || url_size >= (int)sizeof(relative) ||
-                    source_size < 0 || source_size >= (int)sizeof(source)) {
-                    valid = false;
-                } else {
-                    char *name = wm_copy(basename);
-                    char *url = wm_copy(relative);
-                    char *origin = wm_copy(source);
-                    if (!name || !url || !origin) {
-                        free(name);
-                        free(url);
-                        free(origin);
-                        valid = false;
-                    } else {
-                        textures[textures_found++] =
-                            (WmResourceTexture){name,
-                                                url,
-                                                tpl.images[0].width,
-                                                tpl.images[0].height,
-                                                tpl.images[0].format,
-                                                origin};
-                        (*texture_count)++;
-                    }
-                }
-            }
-            wm_tpl_free(&tpl);
-        }
-    }
-    for (size_t index = 0; index < archive.count && valid; ++index) {
-        const WmU8Entry *item = &archive.entries[index];
-        char stem[128];
-        char basename[128];
-        if (!wm_stem(item->path, ".brlyt", stem, basename))
-            continue;
-        for (size_t previous = 0; previous < layouts_found; ++previous) {
-            if (strcmp(layouts[previous].name, stem) == 0) {
-                fprintf(stderr, "Ambiguous channel layout basename.\n");
-                valid = false;
-            }
-        }
-        if (!valid)
-            break;
-        char package[128];
-        int package_size =
-            snprintf(package, sizeof(package), "channel-%s-%s", channel_id, kind);
-        int source_size = snprintf(source, sizeof(source), "%s/meta/%s.bin/%s",
-                                   source_file, kind, item->path);
-        char *json = NULL;
-        size_t json_size = 0;
-        if (package_size < 0 || package_size >= (int)sizeof(package) ||
-            source_size < 0 || source_size >= (int)sizeof(source) ||
-            !wm_brlyt_to_json_with_source(item->data, item->size, stem, package, source,
-                                          textures, textures_found, animations,
-                                          animations_found, &json, &json_size, error,
-                                          sizeof(error))) {
-            fprintf(stderr, "Channel BRLYT export: %s\n", error);
-            valid = false;
-            free(json);
-            break;
-        }
-        int path_size =
-            snprintf(relative, sizeof(relative), "channel-layouts/%s/%s/%s.json",
-                     channel_id, kind, stem);
-        int full =
-            snprintf(destination, sizeof(destination), "%s/%s", output, relative);
-        if (path_size < 0 || path_size >= (int)sizeof(relative) || full < 0 ||
-            full >= (int)sizeof(destination) ||
-            !wm_output_write_file(destination, json, json_size)) {
-            valid = false;
-        }
-        free(json);
-        if (!valid)
-            break;
-        strcpy(layouts[layouts_found].name, stem);
-        strcpy(layouts[layouts_found].path, relative);
-        layouts_found++;
-        if (strcmp(stem, kind) == 0)
-            strcpy(default_layout, relative);
-    }
-    if (valid) {
-        qsort(layouts, layouts_found, sizeof(*layouts), wm_compare_layouts);
-        *layout_paths = layouts;
-        *layout_count = layouts_found;
-        *animation_count = (unsigned)animations_found;
-    } else {
-        free(layouts);
-    }
-    for (size_t index = 0; index < textures_found; ++index) {
-        free((char *)textures[index].name);
-        free((char *)textures[index].url);
-        free((char *)textures[index].source);
-    }
-    for (size_t index = 0; index < animations_found; ++index) {
-        free((char *)animations[index].name);
-    }
-    free(textures);
-    free(animations);
+    export.textures = calloc(archive.count + 1, sizeof(*export.textures));
+    export.animations = calloc(archive.count + 1, sizeof(*export.animations));
+    export.layouts = calloc(archive.count + 1, sizeof(*export.layouts));
+    if (!export.textures || !export.animations || !export.layouts)
+        goto release_export;
+    if (!collect_resources(&export, &archive) || !export_layouts(&export, &archive))
+        goto release_export;
+
+    qsort(export.layouts, export.layouts_found, sizeof(*export.layouts),
+          wm_compare_layouts);
+    *layout_paths = export.layouts; /* Ownership passes to the channel record. */
+    export.layouts = NULL;
+    *layout_count = export.layouts_found;
+    *animation_count = (unsigned)export.animations_found;
+    valid = true;
+
+release_export:
+    release_resource_export(&export);
     wm_u8_free(&archive);
     free(decoded);
     return valid;
