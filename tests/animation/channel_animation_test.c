@@ -93,6 +93,59 @@ static void test_base_intro_and_loop(const WmLayout *layout) {
     expect_clip(&plan, 0, "icon_Start", 9, "");
 }
 
+typedef struct ExampleMarkPose {
+    bool seen;
+    float angle;
+    float alpha;
+} ExampleMarkPose;
+
+static bool capture_example_mark(void *context, const WmLayoutPaneView *pane) {
+    if (strcmp(pane->name, "Mark") != 0)
+        return true;
+    ExampleMarkPose *pose = context;
+    pose->seen = true;
+    pose->angle =
+        atan2f(pane->matrix[4], pane->matrix[0]) * 180.0f / 3.14159265358979323846f;
+    pose->alpha = pane->alpha;
+    return true;
+}
+
+static void test_custom_example_banner(void) {
+    WmLayout *layout = wm_layout_load_json(
+        "examples/custom-channels/custom-example/banner.json", NULL, 0);
+    assert(layout);
+    static const struct {
+        float frame;
+        float angle;
+        float alpha;
+    } samples[] = {
+        {.frame = 0, .angle = -6, .alpha = 0},
+        {.frame = 15, .angle = -5.111111f, .alpha = 0.5f},
+        {.frame = 30, .angle = -2.888889f, .alpha = 1},
+        {.frame = 90, .angle = 6, .alpha = 1},
+        {.frame = 179, .angle = -5.995588f, .alpha = 1},
+        {.frame = 180, .angle = -6, .alpha = 1},
+        {.frame = 181, .angle = -5.995588f, .alpha = 1},
+        {.frame = 270, .angle = 6, .alpha = 1},
+        {.frame = 359, .angle = -5.995588f, .alpha = 1},
+        {.frame = 360, .angle = -6, .alpha = 1},
+        {.frame = 375, .angle = -5.111111f, .alpha = 1},
+    };
+    /* Sample the visible fade and both sides of the Start/Loop handoff. */
+    for (size_t index = 0; index < sizeof(samples) / sizeof(samples[0]); index++) {
+        assert(wm_channel_animation_pose(layout, "custom-example", WM_CHANNEL_BANNER,
+                                         samples[index].frame, NULL));
+        ExampleMarkPose pose = {0};
+        WmLayoutDrawOptions draw = {
+            .alpha = 1, .on_pane = capture_example_mark, .context = &pose};
+        wm_layout_draw(layout, &draw);
+        assert(pose.seen);
+        assert(near(pose.angle, samples[index].angle));
+        assert(near(pose.alpha, samples[index].alpha));
+    }
+    wm_layout_destroy(layout);
+}
+
 typedef struct PositionCapture {
     bool selected_seen;
     bool unrelated_seen;
@@ -592,6 +645,7 @@ int main(void) {
     test_language_group_mask(layout);
     test_invalid_id(layout);
     wm_layout_destroy(layout);
+    test_custom_example_banner();
     test_native_banner_fades();
     test_native_message_window_geometry();
     return 0;
