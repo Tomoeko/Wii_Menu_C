@@ -154,138 +154,124 @@ typedef enum {
 
 static PrepareParseResult parse_options(int argc, char **argv,
                                         PrepareOptions *options) {
-    const char *wad = NULL, *common_key = NULL, *nand = NULL;
-    const char *common_key_index = NULL;
-    const char *nand_keys = NULL, *output_request = NULL;
-    const char *update_from = NULL, *language = NULL;
-    const char *expected_plan = NULL;
-    bool replace_all = false, policy_set = false;
-    bool plan = false, recover = false;
-    PrepareChoices replace_ids = {0};
-    PrepareChoices keep_ids = {0};
+    PrepareOptions parsed = {0};
+    bool policy_set = false;
     for (int index = 1; index < argc; index++) {
         const char *option = argv[index];
         if (strcmp(option, "--help") == 0)
             return PREPARE_PARSE_HELP;
         if (strcmp(option, "--plan") == 0) {
-            if (plan)
+            if (parsed.plan)
                 return PREPARE_PARSE_INVALID;
-            plan = true;
+            parsed.plan = true;
             continue;
         }
         if (strcmp(option, "--recover") == 0) {
-            if (recover)
+            if (parsed.recover)
                 return PREPARE_PARSE_INVALID;
-            recover = true;
+            parsed.recover = true;
             continue;
         }
         if (index + 1 >= argc)
             return PREPARE_PARSE_INVALID;
         const char *value = argv[++index];
         if (strcmp(option, "--wad") == 0) {
-            if (wad)
+            if (parsed.wad)
                 return PREPARE_PARSE_INVALID;
-            wad = value;
+            parsed.wad = value;
         } else if (strcmp(option, "--common-key-file") == 0) {
-            if (common_key)
+            if (parsed.common_key)
                 return PREPARE_PARSE_INVALID;
-            common_key = value;
+            parsed.common_key = value;
         } else if (strcmp(option, "--common-key-index") == 0) {
-            if (common_key_index)
+            if (parsed.common_key_index)
                 return PREPARE_PARSE_INVALID;
             char *end = NULL;
-            unsigned long parsed = strtoul(value, &end, 10);
-            if (end == value || *end != '\0' || parsed > 255)
+            unsigned long key_index = strtoul(value, &end, 10);
+            if (end == value || *end != '\0' || key_index > 255)
                 return PREPARE_PARSE_INVALID;
-            common_key_index = value;
+            parsed.common_key_index = value;
         } else if (strcmp(option, "--nand") == 0) {
-            if (nand)
+            if (parsed.nand)
                 return PREPARE_PARSE_INVALID;
-            nand = value;
+            parsed.nand = value;
         } else if (strcmp(option, "--nand-keys") == 0) {
-            if (nand_keys)
+            if (parsed.nand_keys)
                 return PREPARE_PARSE_INVALID;
-            nand_keys = value;
+            parsed.nand_keys = value;
         } else if (strcmp(option, "--output") == 0) {
-            if (output_request)
+            if (parsed.output_request)
                 return PREPARE_PARSE_INVALID;
-            output_request = value;
+            parsed.output_request = value;
         } else if (strcmp(option, "--language") == 0) {
-            if (language)
+            if (parsed.language)
                 return PREPARE_PARSE_INVALID;
-            language = value;
+            parsed.language = value;
         } else if (strcmp(option, "--update-from") == 0) {
-            if (update_from)
+            if (parsed.update_from)
                 return PREPARE_PARSE_INVALID;
-            update_from = value;
+            parsed.update_from = value;
         } else if (strcmp(option, "--expect-plan") == 0) {
-            if (expected_plan)
+            if (parsed.expected_plan)
                 return PREPARE_PARSE_INVALID;
-            expected_plan = value;
+            parsed.expected_plan = value;
         } else if (strcmp(option, "--nand-policy") == 0) {
             if (policy_set)
                 return PREPARE_PARSE_INVALID;
             policy_set = true;
             if (strcmp(value, "keep") == 0)
-                replace_all = false;
+                parsed.replace_all = false;
             else if (strcmp(value, "replace") == 0)
-                replace_all = true;
+                parsed.replace_all = true;
             else
                 return PREPARE_PARSE_INVALID;
         } else if (strcmp(option, "--replace-channel") == 0) {
-            if (!prepare_add_choice(&replace_ids, value))
+            if (!prepare_add_choice(&parsed.replace_ids, value))
                 return PREPARE_PARSE_INVALID;
         } else if (strcmp(option, "--keep-channel") == 0) {
-            if (!prepare_add_choice(&keep_ids, value))
+            if (!prepare_add_choice(&parsed.keep_ids, value))
                 return PREPARE_PARSE_INVALID;
         } else
             return PREPARE_PARSE_INVALID;
     }
     bool invalid_recovery =
-        recover &&
-        (wad || common_key || common_key_index || nand || nand_keys || expected_plan ||
-         language || replace_ids.count || keep_ids.count || policy_set ||
-         (plan ? (!update_from || output_request) : (!output_request || update_from)));
+        parsed.recover &&
+        (parsed.wad || parsed.common_key || parsed.common_key_index || parsed.nand ||
+         parsed.nand_keys || parsed.expected_plan || parsed.language ||
+         parsed.replace_ids.count || parsed.keep_ids.count || policy_set ||
+         (parsed.plan ? (!parsed.update_from || parsed.output_request)
+                      : (!parsed.output_request || parsed.update_from)));
     bool invalid_preparation =
-        !recover &&
-        ((plan ? output_request != NULL : output_request == NULL) ||
-         (plan && (!update_from || expected_plan)) || (expected_plan && !update_from) ||
-         (nand_keys && !nand) ||
-         (update_from ? (!nand || wad || common_key || common_key_index)
-                      : (!wad || replace_ids.count || keep_ids.count || policy_set)));
+        !parsed.recover &&
+        ((parsed.plan ? parsed.output_request != NULL
+                      : parsed.output_request == NULL) ||
+         (parsed.plan && (!parsed.update_from || parsed.expected_plan)) ||
+         (parsed.expected_plan && !parsed.update_from) ||
+         (parsed.nand_keys && !parsed.nand) ||
+         (parsed.update_from ? (!parsed.nand || parsed.wad || parsed.common_key ||
+                                parsed.common_key_index)
+                             : (!parsed.wad || parsed.replace_ids.count ||
+                                parsed.keep_ids.count || policy_set)));
     if (invalid_recovery || invalid_preparation) {
         return PREPARE_PARSE_INVALID;
     }
-    if (language) {
-        if (strlen(language) != 3)
+    if (parsed.language) {
+        if (strlen(parsed.language) != 3)
             return PREPARE_PARSE_INVALID;
         for (size_t index = 0; index < 3; index++) {
-            char character = language[index];
+            char character = parsed.language[index];
             if (character < 'A' || character > 'Z')
                 return PREPARE_PARSE_INVALID;
         }
     }
-    for (size_t index = 0; index < keep_ids.count; index++) {
-        if (prepare_choice_contains(&replace_ids, keep_ids.ids[index])) {
+    for (size_t index = 0; index < parsed.keep_ids.count; index++) {
+        if (prepare_choice_contains(&parsed.replace_ids, parsed.keep_ids.ids[index])) {
             fputs("A title cannot be both kept and replaced.\n", stderr);
             return PREPARE_PARSE_CONFLICT;
         }
     }
 
-    options->wad = wad;
-    options->common_key = common_key;
-    options->common_key_index = common_key_index;
-    options->nand = nand;
-    options->nand_keys = nand_keys;
-    options->output_request = output_request;
-    options->update_from = update_from;
-    options->language = language;
-    options->expected_plan = expected_plan;
-    options->replace_all = replace_all;
-    options->plan = plan;
-    options->recover = recover;
-    options->replace_ids = replace_ids;
-    options->keep_ids = keep_ids;
+    *options = parsed;
     return PREPARE_PARSE_READY;
 }
 
