@@ -438,11 +438,7 @@ static void mark_dirty(WmBoardKeyboard *keyboard, WmBoardKeyboardControl control
         keyboard->keytop_dirty = true;
 }
 
-unsigned wm_board_keyboard_advance(WmBoardKeyboard *keyboard, float frames) {
-    if (!keyboard || !isfinite(frames) || frames <= 0.0f)
-        return 0;
-    if (keyboard->caret_visible)
-        keyboard->caret_age += frames;
+static void advance_physical_modifiers(WmBoardKeyboard *keyboard, float frames) {
     /* Physical modifiers drive their own focus clips. Pointer focus may move
      * independently while a key is held, and release must ease back to idle. */
     float caps_target = keyboard->physical_caps_press_remaining > 0.0f ? 5.0f : 0.0f;
@@ -460,13 +456,9 @@ unsigned wm_board_keyboard_advance(WmBoardKeyboard *keyboard, float frames) {
         keyboard->keytop_dirty = true;
     keyboard->physical_caps_press_remaining =
         fmaxf(0.0f, keyboard->physical_caps_press_remaining - frames);
-    if (keyboard->phone_pending &&
-        keyboard->hovered == (WmBoardKeyboardControl)(WM_KEYBOARD_PHONE_FIRST +
-                                                      keyboard->phone_pending_index)) {
-        keyboard->phone_pending_frames += frames;
-        if (keyboard->phone_pending_frames >= 90.0f)
-            wm_board_keyboard_clear_phone_pending(keyboard);
-    }
+}
+
+static void advance_key_interactions(WmBoardKeyboard *keyboard, float frames) {
     for (unsigned index = 1; index <= WM_KEYBOARD_CONTROL_LAST; index++) {
         WmBoardKeyboardControl control = (WmBoardKeyboardControl)index;
         KeyboardPress *press = &keyboard->press[index];
@@ -509,6 +501,9 @@ unsigned wm_board_keyboard_advance(WmBoardKeyboard *keyboard, float frames) {
             mark_dirty(keyboard, control);
         }
     }
+}
+
+static void advance_keyboard_windows(WmBoardKeyboard *keyboard, float frames) {
     if (keyboard->symbol_phase != SYMBOL_CLOSED &&
         keyboard->symbol_phase != SYMBOL_OPEN) {
         float limit = keyboard->symbol_phase == SYMBOL_ENTERING  ? 18.0f
@@ -538,6 +533,9 @@ unsigned wm_board_keyboard_advance(WmBoardKeyboard *keyboard, float frames) {
                                            ? LANGUAGE_OPEN
                                            : LANGUAGE_CLOSED;
     }
+}
+
+static void advance_prediction_animation(WmBoardKeyboard *keyboard, float frames) {
     if (keyboard->prediction_animating) {
         keyboard->prediction_frame = fminf(12.0f, keyboard->prediction_frame + frames);
         keyboard->prediction_dirty = true;
@@ -569,6 +567,24 @@ unsigned wm_board_keyboard_advance(WmBoardKeyboard *keyboard, float frames) {
                 wm_board_keyboard_hover(keyboard, WM_KEYBOARD_NONE);
         }
     }
+}
+
+unsigned wm_board_keyboard_advance(WmBoardKeyboard *keyboard, float frames) {
+    if (!keyboard || !isfinite(frames) || frames <= 0.0f)
+        return 0;
+    if (keyboard->caret_visible)
+        keyboard->caret_age += frames;
+    advance_physical_modifiers(keyboard, frames);
+    if (keyboard->phone_pending &&
+        keyboard->hovered == (WmBoardKeyboardControl)(WM_KEYBOARD_PHONE_FIRST +
+                                                      keyboard->phone_pending_index)) {
+        keyboard->phone_pending_frames += frames;
+        if (keyboard->phone_pending_frames >= 90.0f)
+            wm_board_keyboard_clear_phone_pending(keyboard);
+    }
+    advance_key_interactions(keyboard, frames);
+    advance_keyboard_windows(keyboard, frames);
+    advance_prediction_animation(keyboard, frames);
     return held_repeats(keyboard, frames);
 }
 

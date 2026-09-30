@@ -1108,68 +1108,64 @@ static bool hit_pane(WmLayout *layout, const char *name, int x, int y) {
            (float)y < rect.y + rect.height;
 }
 
-WmBoardKeyboardControl wm_board_keyboard_hit_unfiltered(WmBoardKeyboard *keyboard,
-                                                        int x, int y) {
-    if (!keyboard)
+static bool hit_indexed_pane(WmLayout *layout, const char *pattern, unsigned index,
+                             int x, int y) {
+    char name[24];
+    int length = snprintf(name, sizeof(name), pattern, index);
+    return length >= 0 && (size_t)length < sizeof(name) && hit_pane(layout, name, x, y);
+}
+
+static WmBoardKeyboardControl hit_language_keys(WmBoardKeyboard *keyboard, int x,
+                                                int y) {
+    pose_language(keyboard);
+    position_layout(keyboard->language, 0.0f);
+    if (keyboard->language_phase != LANGUAGE_OPEN)
         return WM_KEYBOARD_NONE;
-    if (keyboard->language_phase != LANGUAGE_CLOSED) {
-        pose_language(keyboard);
-        position_layout(keyboard->language, 0.0f);
-        if (keyboard->language_phase != LANGUAGE_OPEN)
-            return WM_KEYBOARD_NONE;
-        static const char *const panes[3] = {"B_PRDC_US_US", "B_PRDC_US_Fre",
-                                             "B_PRDC_US_Spa"};
-        for (unsigned index = 0; index < 3; index++)
-            if (hit_pane(keyboard->language, panes[index], x, y))
-                return (WmBoardKeyboardControl)(WM_KEYBOARD_LANGUAGE_ENGLISH + index);
-        return WM_KEYBOARD_NONE;
-    }
-    if (keyboard->symbol_phase != SYMBOL_CLOSED) {
-        pose_symbols(keyboard);
-        position_layout(keyboard->symbols, 0.0f);
-        if (keyboard->symbol_phase != SYMBOL_OPEN) {
-            if ((keyboard->symbol_phase == SYMBOL_SCROLL_PREV ||
-                 keyboard->symbol_phase == SYMBOL_SCROLL_NEXT) &&
-                (keyboard->hovered == WM_KEYBOARD_SYMBOL_PREV ||
-                 keyboard->hovered == WM_KEYBOARD_SYMBOL_NEXT)) {
-                const char *pane = keyboard->hovered == WM_KEYBOARD_SYMBOL_PREV
-                                       ? "B_SGNkey_prev"
-                                       : "B_SGNkey_next";
-                return hit_pane(keyboard->symbols, pane, x, y) ? keyboard->hovered
-                                                               : WM_KEYBOARD_NONE;
-            }
-            return WM_KEYBOARD_NONE;
-        }
-        static const struct {
-            WmBoardKeyboardControl control;
-            const char *pane;
-        } actions[] = {{WM_KEYBOARD_SYMBOL_CLOSE, "B_SGNkey_close"},
-                       {WM_KEYBOARD_SYMBOL_PREV, "B_SGNkey_prev"},
-                       {WM_KEYBOARD_SYMBOL_NEXT, "B_SGNkey_next"}};
-        for (size_t index = 0; index < sizeof(actions) / sizeof(actions[0]); index++) {
-            if (hit_pane(keyboard->symbols, actions[index].pane, x, y)) {
-                return actions[index].control;
-            }
-        }
-        for (unsigned index = 0; index < SYMBOLS_PER_PAGE; index++) {
-            char pane[24];
-            snprintf(pane, sizeof(pane), "B_SGNkey_%02u", index);
-            if (hit_pane(keyboard->symbols, pane, x, y)) {
-                return (WmBoardKeyboardControl)(WM_KEYBOARD_SYMBOL_FIRST + index);
-            }
+    static const char *const panes[3] = {"B_PRDC_US_US", "B_PRDC_US_Fre",
+                                         "B_PRDC_US_Spa"};
+    for (unsigned index = 0; index < 3; index++)
+        if (hit_pane(keyboard->language, panes[index], x, y))
+            return (WmBoardKeyboardControl)(WM_KEYBOARD_LANGUAGE_ENGLISH + index);
+    return WM_KEYBOARD_NONE;
+}
+
+static WmBoardKeyboardControl hit_symbol_keys(WmBoardKeyboard *keyboard, int x, int y) {
+    pose_symbols(keyboard);
+    position_layout(keyboard->symbols, 0.0f);
+    if (keyboard->symbol_phase != SYMBOL_OPEN) {
+        if ((keyboard->symbol_phase == SYMBOL_SCROLL_PREV ||
+             keyboard->symbol_phase == SYMBOL_SCROLL_NEXT) &&
+            (keyboard->hovered == WM_KEYBOARD_SYMBOL_PREV ||
+             keyboard->hovered == WM_KEYBOARD_SYMBOL_NEXT)) {
+            const char *pane = keyboard->hovered == WM_KEYBOARD_SYMBOL_PREV
+                                   ? "B_SGNkey_prev"
+                                   : "B_SGNkey_next";
+            return hit_pane(keyboard->symbols, pane, x, y) ? keyboard->hovered
+                                                           : WM_KEYBOARD_NONE;
         }
         return WM_KEYBOARD_NONE;
     }
-    if (keyboard->phone_layout)
-        pose_phone(keyboard);
-    else
-        pose_keytop(keyboard);
-    pose_toolbar(keyboard);
-    WmLayout *active = keyboard->phone_layout ? keyboard->phone : keyboard->keytop;
-    position_layout(active, 0.0f);
-    position_layout(keyboard->toolbar, 0.0f);
-    wm_layout_set_pane_translation(keyboard->toolbar, "N_UP", 0, 0, 0);
-    wm_layout_set_pane_translation(keyboard->toolbar, "N_DOWN", 0, 0, 0);
+    static const struct {
+        WmBoardKeyboardControl control;
+        const char *pane;
+    } actions[] = {{WM_KEYBOARD_SYMBOL_CLOSE, "B_SGNkey_close"},
+                   {WM_KEYBOARD_SYMBOL_PREV, "B_SGNkey_prev"},
+                   {WM_KEYBOARD_SYMBOL_NEXT, "B_SGNkey_next"}};
+    for (size_t index = 0; index < sizeof(actions) / sizeof(actions[0]); index++) {
+        if (hit_pane(keyboard->symbols, actions[index].pane, x, y)) {
+            return actions[index].control;
+        }
+    }
+    for (unsigned index = 0; index < SYMBOLS_PER_PAGE; index++) {
+        if (hit_indexed_pane(keyboard->symbols, "B_SGNkey_%02u", index, x, y)) {
+            return (WmBoardKeyboardControl)(WM_KEYBOARD_SYMBOL_FIRST + index);
+        }
+    }
+    return WM_KEYBOARD_NONE;
+}
+
+static WmBoardKeyboardControl hit_toolbar_keys(WmBoardKeyboard *keyboard, int x,
+                                               int y) {
     if (hit_pane(keyboard->toolbar, "B_BT_cancel", x, y))
         return WM_KEYBOARD_BACK;
     if (hit_pane(keyboard->toolbar, "B_BT_confirm", x, y))
@@ -1178,58 +1174,58 @@ WmBoardKeyboardControl wm_board_keyboard_hit_unfiltered(WmBoardKeyboard *keyboar
         return WM_KEYBOARD_QWERTY;
     if (hit_pane(keyboard->toolbar, "B_kyChng_CP", x, y))
         return WM_KEYBOARD_PHONE;
-    if (keyboard->profile == WM_BOARD_KEYBOARD_MEMO) {
-        wm_board_keyboard_pose_prediction(keyboard);
-        position_layout(keyboard->prediction, 0.0f);
-        if (hit_pane(keyboard->prediction,
-                     keyboard->prediction_enabled ? "B_OnBtn" : "B_OffBtn", x, y))
-            return WM_KEYBOARD_PREDICTION;
-        if (keyboard->candidate_first > 0 &&
-            hit_pane(keyboard->prediction, "B_prdc_scrl_Left", x, y))
-            return WM_KEYBOARD_CANDIDATE_PREVIOUS;
-        if (wm_board_keyboard_candidate_next_index(keyboard) >
-                keyboard->candidate_first &&
-            hit_pane(keyboard->prediction, "B_prdc_scrl_Rght", x, y))
-            return WM_KEYBOARD_CANDIDATE_NEXT;
-        for (unsigned index = 0; index < CANDIDATE_PANE_COUNT; index++) {
-            if (keyboard->candidate_pane_indices[index] >= keyboard->candidate_count)
-                continue;
-            char pane[24];
-            snprintf(pane, sizeof(pane), "B_prdc_Text_%02u", index);
-            if (hit_pane(keyboard->prediction, pane, x, y))
-                return (WmBoardKeyboardControl)(WM_KEYBOARD_CANDIDATE_FIRST + index);
+    return WM_KEYBOARD_NONE;
+}
+
+static WmBoardKeyboardControl hit_prediction_keys(WmBoardKeyboard *keyboard, int x,
+                                                  int y) {
+    wm_board_keyboard_pose_prediction(keyboard);
+    position_layout(keyboard->prediction, 0.0f);
+    if (hit_pane(keyboard->prediction,
+                 keyboard->prediction_enabled ? "B_OnBtn" : "B_OffBtn", x, y))
+        return WM_KEYBOARD_PREDICTION;
+    if (keyboard->candidate_first > 0 &&
+        hit_pane(keyboard->prediction, "B_prdc_scrl_Left", x, y))
+        return WM_KEYBOARD_CANDIDATE_PREVIOUS;
+    if (wm_board_keyboard_candidate_next_index(keyboard) > keyboard->candidate_first &&
+        hit_pane(keyboard->prediction, "B_prdc_scrl_Rght", x, y))
+        return WM_KEYBOARD_CANDIDATE_NEXT;
+    for (unsigned index = 0; index < CANDIDATE_PANE_COUNT; index++) {
+        if (keyboard->candidate_pane_indices[index] >= keyboard->candidate_count)
+            continue;
+        if (hit_indexed_pane(keyboard->prediction, "B_prdc_Text_%02u", index, x, y))
+            return (WmBoardKeyboardControl)(WM_KEYBOARD_CANDIDATE_FIRST + index);
+    }
+    return WM_KEYBOARD_NONE;
+}
+
+static WmBoardKeyboardControl hit_phone_keys(WmBoardKeyboard *keyboard, int x, int y) {
+    if (keyboard->profile == WM_BOARD_KEYBOARD_MEMO && keyboard->phone_mode != 3 &&
+        hit_pane(keyboard->phone, "B_prdcModeBT_EU", x, y))
+        return WM_KEYBOARD_LANGUAGE;
+    if (keyboard->phone_mode != 3 && hit_pane(keyboard->phone, "B_othersBT_EU", x, y))
+        return WM_KEYBOARD_MORE;
+    if (hit_pane(keyboard->phone, "B_CPkey_DELETE", x, y))
+        return WM_KEYBOARD_DELETE;
+    if (hit_pane(keyboard->phone, "B_CPkey_LF", x, y))
+        return WM_KEYBOARD_RETURN;
+    for (unsigned index = 0; index < 4; index++) {
+        if (hit_indexed_pane(keyboard->phone, "B_ChngTag_%02u", index, x, y)) {
+            return (WmBoardKeyboardControl)(WM_KEYBOARD_PHONE_MODE_FIRST + index);
         }
     }
-    if (keyboard->phone_layout) {
-        if (keyboard->profile == WM_BOARD_KEYBOARD_MEMO && keyboard->phone_mode != 3 &&
-            hit_pane(keyboard->phone, "B_prdcModeBT_EU", x, y))
-            return WM_KEYBOARD_LANGUAGE;
-        if (keyboard->phone_mode != 3 &&
-            hit_pane(keyboard->phone, "B_othersBT_EU", x, y))
-            return WM_KEYBOARD_MORE;
-        if (hit_pane(keyboard->phone, "B_CPkey_DELETE", x, y))
-            return WM_KEYBOARD_DELETE;
-        if (hit_pane(keyboard->phone, "B_CPkey_LF", x, y))
-            return WM_KEYBOARD_RETURN;
-        for (unsigned index = 0; index < 4; index++) {
-            char pane[24];
-            snprintf(pane, sizeof(pane), "B_ChngTag_%02u", index);
-            if (hit_pane(keyboard->phone, pane, x, y)) {
-                return (WmBoardKeyboardControl)(WM_KEYBOARD_PHONE_MODE_FIRST + index);
-            }
+    for (unsigned index = 0; index < 12; index++) {
+        char label_buffer[16];
+        if (!wm_board_keyboard_phone_label(keyboard, index, label_buffer)[0])
+            continue;
+        if (hit_indexed_pane(keyboard->phone, "B_CPkey_%02u", index, x, y)) {
+            return (WmBoardKeyboardControl)(WM_KEYBOARD_PHONE_FIRST + index);
         }
-        for (unsigned index = 0; index < 12; index++) {
-            char pane[24];
-            char label_buffer[16];
-            if (!wm_board_keyboard_phone_label(keyboard, index, label_buffer)[0])
-                continue;
-            snprintf(pane, sizeof(pane), "B_CPkey_%02u", index);
-            if (hit_pane(keyboard->phone, pane, x, y)) {
-                return (WmBoardKeyboardControl)(WM_KEYBOARD_PHONE_FIRST + index);
-            }
-        }
-        return WM_KEYBOARD_NONE;
     }
+    return WM_KEYBOARD_NONE;
+}
+
+static WmBoardKeyboardControl hit_qwerty_keys(WmBoardKeyboard *keyboard, int x, int y) {
     if (keyboard->profile == WM_BOARD_KEYBOARD_MEMO &&
         hit_pane(keyboard->keytop, "B_USEU_prdc_lang", x, y))
         return WM_KEYBOARD_LANGUAGE;
@@ -1250,11 +1246,39 @@ WmBoardKeyboardControl wm_board_keyboard_hit_unfiltered(WmBoardKeyboard *keyboar
     for (unsigned index = 0; index < 50; index++) {
         if (!wm_board_keyboard_key_character(keyboard, index))
             continue;
-        char name[24];
-        snprintf(name, sizeof(name), "B_key_%02u", index);
-        if (hit_pane(keyboard->keytop, name, x, y)) {
+        if (hit_indexed_pane(keyboard->keytop, "B_key_%02u", index, x, y)) {
             return (WmBoardKeyboardControl)(WM_KEYBOARD_CHARACTER_FIRST + index);
         }
     }
     return WM_KEYBOARD_NONE;
+}
+
+WmBoardKeyboardControl wm_board_keyboard_hit_unfiltered(WmBoardKeyboard *keyboard,
+                                                        int x, int y) {
+    if (!keyboard)
+        return WM_KEYBOARD_NONE;
+    if (keyboard->language_phase != LANGUAGE_CLOSED)
+        return hit_language_keys(keyboard, x, y);
+    if (keyboard->symbol_phase != SYMBOL_CLOSED)
+        return hit_symbol_keys(keyboard, x, y);
+    if (keyboard->phone_layout)
+        pose_phone(keyboard);
+    else
+        pose_keytop(keyboard);
+    pose_toolbar(keyboard);
+    WmLayout *active = keyboard->phone_layout ? keyboard->phone : keyboard->keytop;
+    position_layout(active, 0.0f);
+    position_layout(keyboard->toolbar, 0.0f);
+    wm_layout_set_pane_translation(keyboard->toolbar, "N_UP", 0, 0, 0);
+    wm_layout_set_pane_translation(keyboard->toolbar, "N_DOWN", 0, 0, 0);
+    WmBoardKeyboardControl control = hit_toolbar_keys(keyboard, x, y);
+    if (control != WM_KEYBOARD_NONE)
+        return control;
+    if (keyboard->profile == WM_BOARD_KEYBOARD_MEMO) {
+        control = hit_prediction_keys(keyboard, x, y);
+        if (control != WM_KEYBOARD_NONE)
+            return control;
+    }
+    return keyboard->phone_layout ? hit_phone_keys(keyboard, x, y)
+                                  : hit_qwerty_keys(keyboard, x, y);
 }

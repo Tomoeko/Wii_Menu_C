@@ -1530,16 +1530,34 @@ WmBoardHit wm_board_scene_hit(WmBoardScene *board, int x, int y) {
     return none;
 }
 
+static WmBoardCalendarControl calendar_control(WmBoardControl control) {
+    switch (control) {
+        case WM_BOARD_CONTROL_CALENDAR_BACK:
+            return WM_CALENDAR_CONTROL_BACK;
+        case WM_BOARD_CONTROL_CALENDAR_PREVIOUS:
+            return WM_CALENDAR_CONTROL_PREVIOUS;
+        case WM_BOARD_CONTROL_CALENDAR_NEXT:
+            return WM_CALENDAR_CONTROL_NEXT;
+        case WM_BOARD_CONTROL_CALENDAR_DAY:
+            return WM_CALENDAR_CONTROL_DAY;
+        default:
+            return WM_CALENDAR_CONTROL_NONE;
+    }
+}
+
+static WmBoardEraseControl erase_control(WmBoardControl control) {
+    if (control == WM_BOARD_CONTROL_ERASE_QUIT)
+        return WM_ERASE_CONTROL_QUIT;
+    if (control == WM_BOARD_CONTROL_ERASE_OK)
+        return WM_ERASE_CONTROL_OK;
+    return WM_ERASE_CONTROL_NONE;
+}
+
 void wm_board_scene_hover(WmBoardScene *board, WmBoardHit hit) {
     if (board && board->dragging)
         return;
     if (board && wm_board_erase_phase(board->erase) != WM_ERASE_CLOSED) {
-        WmBoardEraseControl control = WM_ERASE_CONTROL_NONE;
-        if (hit.control == WM_BOARD_CONTROL_ERASE_QUIT) {
-            control = WM_ERASE_CONTROL_QUIT;
-        } else if (hit.control == WM_BOARD_CONTROL_ERASE_OK) {
-            control = WM_ERASE_CONTROL_OK;
-        }
+        WmBoardEraseControl control = erase_control(hit.control);
         wm_board_erase_hover(board->erase, control);
         return;
     }
@@ -1548,23 +1566,7 @@ void wm_board_scene_hover(WmBoardScene *board, WmBoardHit hit) {
         return;
     }
     if (board && wm_board_calendar_phase(board->calendar) != WM_CALENDAR_CLOSED) {
-        WmBoardCalendarControl control = WM_CALENDAR_CONTROL_NONE;
-        switch (hit.control) {
-            case WM_BOARD_CONTROL_CALENDAR_BACK:
-                control = WM_CALENDAR_CONTROL_BACK;
-                break;
-            case WM_BOARD_CONTROL_CALENDAR_PREVIOUS:
-                control = WM_CALENDAR_CONTROL_PREVIOUS;
-                break;
-            case WM_BOARD_CONTROL_CALENDAR_NEXT:
-                control = WM_CALENDAR_CONTROL_NEXT;
-                break;
-            case WM_BOARD_CONTROL_CALENDAR_DAY:
-                control = WM_CALENDAR_CONTROL_DAY;
-                break;
-            default:
-                break;
-        }
+        WmBoardCalendarControl control = calendar_control(hit.control);
         wm_board_calendar_hover(
             board->calendar, (WmBoardCalendarHit){control, (unsigned)hit.memo_index});
         return;
@@ -1636,35 +1638,14 @@ bool wm_board_scene_activate(WmBoardScene *board, WmBoardHit hit) {
     if (board->dragging)
         return false;
     if (wm_board_erase_phase(board->erase) != WM_ERASE_CLOSED) {
-        WmBoardEraseControl control = WM_ERASE_CONTROL_NONE;
-        if (hit.control == WM_BOARD_CONTROL_ERASE_QUIT) {
-            control = WM_ERASE_CONTROL_QUIT;
-        } else if (hit.control == WM_BOARD_CONTROL_ERASE_OK) {
-            control = WM_ERASE_CONTROL_OK;
-        }
+        WmBoardEraseControl control = erase_control(hit.control);
         return wm_board_erase_activate(board->erase, control);
     }
     if (wm_board_compose_phase(board->compose) != WM_COMPOSE_CLOSED) {
         return wm_board_compose_activate(board->compose, compose_control(hit.control));
     }
     if (wm_board_calendar_phase(board->calendar) != WM_CALENDAR_CLOSED) {
-        WmBoardCalendarControl control = WM_CALENDAR_CONTROL_NONE;
-        switch (hit.control) {
-            case WM_BOARD_CONTROL_CALENDAR_BACK:
-                control = WM_CALENDAR_CONTROL_BACK;
-                break;
-            case WM_BOARD_CONTROL_CALENDAR_PREVIOUS:
-                control = WM_CALENDAR_CONTROL_PREVIOUS;
-                break;
-            case WM_BOARD_CONTROL_CALENDAR_NEXT:
-                control = WM_CALENDAR_CONTROL_NEXT;
-                break;
-            case WM_BOARD_CONTROL_CALENDAR_DAY:
-                control = WM_CALENDAR_CONTROL_DAY;
-                break;
-            default:
-                break;
-        }
+        WmBoardCalendarControl control = calendar_control(hit.control);
         bool activated = wm_board_calendar_activate(
             board->calendar, (WmBoardCalendarHit){control, (unsigned)hit.memo_index});
         if (activated && control == WM_CALENDAR_CONTROL_DAY) {
