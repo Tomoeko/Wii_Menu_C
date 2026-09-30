@@ -736,68 +736,78 @@ static bool hit_rect(const WmLayout *layout, const char *name, const float paren
            (float)y < rect.y + rect.height;
 }
 
+static WmStorageHit dialog_hit(WmStorageScene *scene, int x, int y) {
+    wm_storage_pose_dialog(scene);
+    if (hit_rect(scene->dialog, "B_BtnA", NULL, x, y))
+        return (WmStorageHit){WM_STORAGE_CONTROL_YES, -1};
+    if (hit_rect(scene->dialog, "B_BtnB", NULL, x, y))
+        return (WmStorageHit){WM_STORAGE_CONTROL_NO, -1};
+    return (WmStorageHit){WM_STORAGE_CONTROL_NONE, -1};
+}
+
+static WmStorageHit detail_hit(WmStorageScene *scene, int x, int y) {
+    wm_storage_pose_detail(scene);
+    static const struct {
+        const char *pane;
+        WmStorageControl control;
+    } operations[] = {{"B_Move_00", WM_STORAGE_CONTROL_MOVE},
+                      {"B_Copy_00", WM_STORAGE_CONTROL_COPY},
+                      {"B_Del_00", WM_STORAGE_CONTROL_ERASE}};
+    for (size_t index = 0; index < sizeof(operations) / sizeof(operations[0]);
+         index++) {
+        if (hit_rect(scene->detail, operations[index].pane, NULL, x, y))
+            return (WmStorageHit){operations[index].control, -1};
+    }
+    return (WmStorageHit){WM_STORAGE_CONTROL_NONE, -1};
+}
+
+static WmStorageHit slot_hit(WmStorageScene *scene, int x, int y) {
+    if (!scene->boxes_visible)
+        return (WmStorageHit){WM_STORAGE_CONTROL_NONE, -1};
+    StorageAnchors anchors = wm_storage_base_anchors(scene);
+    for (int slot = STORAGE_PAGE_SIZE - 1; slot >= 0; slot--) {
+        if (!anchors.found[slot])
+            continue;
+        wm_storage_pose_box(scene, slot);
+        const char *pane =
+            scene->kind == WM_STORAGE_CHANNELS ? "B_Data_01" : "B_Data_00";
+        if (hit_rect(scene->boxes[slot], pane, anchors.matrices[slot], x, y))
+            return (WmStorageHit){WM_STORAGE_CONTROL_SLOT, slot};
+    }
+    return (WmStorageHit){WM_STORAGE_CONTROL_NONE, -1};
+}
+
+static WmStorageHit base_hit(WmStorageScene *scene, int x, int y) {
+    wm_storage_pose_base(scene);
+    WmStorageHit hit = slot_hit(scene, x, y);
+    if (hit.control != WM_STORAGE_CONTROL_NONE)
+        return hit;
+    if (scene->page > 0 && hit_rect(scene->base, "B_ArwL", NULL, x, y))
+        return (WmStorageHit){WM_STORAGE_CONTROL_PREVIOUS, -1};
+    if ((scene->page + 1) * STORAGE_PAGE_SIZE <
+            wm_storage_current_medium(scene)->count &&
+        hit_rect(scene->base, "B_ArwR", NULL, x, y))
+        return (WmStorageHit){WM_STORAGE_CONTROL_NEXT, -1};
+    if (hit_rect(scene->base, "B_SelectWii_00", NULL, x, y))
+        return (WmStorageHit){WM_STORAGE_CONTROL_WII_TAB, -1};
+    if (hit_rect(scene->base, "B_SelectSd_00", NULL, x, y))
+        return (WmStorageHit){WM_STORAGE_CONTROL_SD_TAB, -1};
+    return (WmStorageHit){WM_STORAGE_CONTROL_NONE, -1};
+}
+
 WmStorageHit wm_storage_scene_hit(WmStorageScene *scene, int x, int y) {
     WmStorageHit none = {WM_STORAGE_CONTROL_NONE, -1};
     if (!scene || scene->phase != WM_STORAGE_READY_PHASE || x < 0 || y < 0 ||
         x >= WM_FRAME_WIDTH || y >= WM_FRAME_HEIGHT)
         return none;
-    if (scene->view == WM_STORAGE_VIEW_DIALOG) {
-        wm_storage_pose_dialog(scene);
-        if (hit_rect(scene->dialog, "B_BtnA", NULL, x, y)) {
-            return (WmStorageHit){WM_STORAGE_CONTROL_YES, -1};
-        }
-        if (hit_rect(scene->dialog, "B_BtnB", NULL, x, y)) {
-            return (WmStorageHit){WM_STORAGE_CONTROL_NO, -1};
-        }
-        return none;
-    }
+    if (scene->view == WM_STORAGE_VIEW_DIALOG)
+        return dialog_hit(scene, x, y);
     wm_storage_pose_back(scene);
-    if (scene->view == WM_STORAGE_VIEW_DETAIL) {
-        wm_storage_pose_detail(scene);
-        static const struct {
-            const char *pane;
-            WmStorageControl control;
-        } operations[] = {{"B_Move_00", WM_STORAGE_CONTROL_MOVE},
-                          {"B_Copy_00", WM_STORAGE_CONTROL_COPY},
-                          {"B_Del_00", WM_STORAGE_CONTROL_ERASE}};
-        for (size_t index = 0; index < sizeof(operations) / sizeof(operations[0]);
-             index++) {
-            if (hit_rect(scene->detail, operations[index].pane, NULL, x, y)) {
-                return (WmStorageHit){operations[index].control, -1};
-            }
-        }
-    } else {
-        wm_storage_pose_base(scene);
-        if (scene->boxes_visible) {
-            StorageAnchors anchors = wm_storage_base_anchors(scene);
-            for (int slot = STORAGE_PAGE_SIZE - 1; slot >= 0; slot--) {
-                if (!anchors.found[slot])
-                    continue;
-                wm_storage_pose_box(scene, slot);
-                const char *pane =
-                    scene->kind == WM_STORAGE_CHANNELS ? "B_Data_01" : "B_Data_00";
-                if (hit_rect(scene->boxes[slot], pane, anchors.matrices[slot], x, y)) {
-                    return (WmStorageHit){WM_STORAGE_CONTROL_SLOT, slot};
-                }
-            }
-        }
-        if (scene->page > 0 && hit_rect(scene->base, "B_ArwL", NULL, x, y)) {
-            return (WmStorageHit){WM_STORAGE_CONTROL_PREVIOUS, -1};
-        }
-        if ((scene->page + 1) * STORAGE_PAGE_SIZE <
-                wm_storage_current_medium(scene)->count &&
-            hit_rect(scene->base, "B_ArwR", NULL, x, y)) {
-            return (WmStorageHit){WM_STORAGE_CONTROL_NEXT, -1};
-        }
-        if (hit_rect(scene->base, "B_SelectWii_00", NULL, x, y)) {
-            return (WmStorageHit){WM_STORAGE_CONTROL_WII_TAB, -1};
-        }
-        if (hit_rect(scene->base, "B_SelectSd_00", NULL, x, y)) {
-            return (WmStorageHit){WM_STORAGE_CONTROL_SD_TAB, -1};
-        }
-    }
-    if (hit_rect(scene->back, "B_Button_00", NULL, x, y)) {
+    WmStorageHit hit = scene->view == WM_STORAGE_VIEW_DETAIL ? detail_hit(scene, x, y)
+                                                             : base_hit(scene, x, y);
+    if (hit.control != WM_STORAGE_CONTROL_NONE)
+        return hit;
+    if (hit_rect(scene->back, "B_Button_00", NULL, x, y))
         return (WmStorageHit){WM_STORAGE_CONTROL_BACK, -1};
-    }
     return none;
 }

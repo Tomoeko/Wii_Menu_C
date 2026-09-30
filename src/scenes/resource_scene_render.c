@@ -586,6 +586,74 @@ static void draw_footer(WmResourceScene *scene, float elapsed_seconds,
     }
 }
 
+static const float *grid_zoom_camera(WmResourceScene *scene, const WmMenu *menu,
+                                     const WmGridPresentation *presentation,
+                                     WmChannelZoom *zoom) {
+    if (!presentation->zooming || presentation->zoom_slot < 0 ||
+        presentation->zoom_slot >= WM_SLOT_COUNT)
+        return NULL;
+    pose_layout(scene->grid, "my_IplTop_a", 0.0f);
+    GridTraversal anchor = {.page = presentation->page,
+                            .masks_only = true,
+                            .zoom_scale_x = 1.0f,
+                            .zoom_scale_y = 1.0f};
+    WmLayoutDrawOptions options = {.wide = true,
+                                   .mode = WM_LAYOUT_IPL,
+                                   .alpha = 1.0f,
+                                   .on_pane = grid_pane,
+                                   .context = &anchor};
+    wm_layout_draw(scene->grid, &options);
+    int index = presentation->zoom_slot % WM_CHANNELS_PER_PAGE;
+    if (anchor.has_tile[2][index] &&
+        wm_channel_zoom(wm_menu_transition_frame(menu), presentation->zoom_out,
+                        anchor.tiles[2][index].matrix[3],
+                        anchor.tiles[2][index].matrix[7], true, zoom)) {
+        return zoom->camera_matrix;
+    }
+    return NULL;
+}
+
+static void prepare_hover_capture(WmResourceScene *scene, const WmMenu *menu,
+                                  const WmResourceSceneFrame *frame,
+                                  const WmGridPresentation *presentation, bool has_date,
+                                  int capture_date) {
+    bool can_prepare =
+        !presentation->zooming && menu->screen == WM_SCREEN_GRID &&
+        menu->transition == WM_TRANSITION_NONE && !menu->home_open &&
+        !menu->notice[0] && !frame->suppress_balloons && has_date &&
+        frame->preview_scene &&
+        wm_channel_drag_state(frame->drag).phase == WM_CHANNEL_DRAG_NONE &&
+        frame->hover.type == WM_HIT_CHANNEL && frame->hover.slot >= 0 &&
+        frame->hover.slot < WM_SLOT_COUNT && menu->slots[frame->hover.slot].occupied;
+    if (!can_prepare) {
+        scene->capture_hover_slot = -1;
+        if (!presentation->zooming)
+            scene->capture_valid = false;
+        return;
+    }
+    int slot = frame->hover.slot;
+    float elapsed_seconds = frame->elapsed_seconds;
+    if (scene->capture_hover_slot != slot) {
+        scene->capture_hover_slot = slot;
+        scene->capture_hover_started = elapsed_seconds;
+    }
+    if (capture_matches(scene, menu, slot, capture_date))
+        return;
+    scene->capture_valid = false;
+    /* One stable pointer update moves the offscreen work out of the
+     * first SELECT frame without capturing every tile crossed. */
+    if (elapsed_seconds - scene->capture_hover_started >= 1.0f / 60.0f) {
+        WmMenu preview_menu = *menu;
+        preview_menu.screen = WM_SCREEN_PREVIEW;
+        preview_menu.selected = slot;
+        preview_menu.transition = WM_TRANSITION_SELECT;
+        if (wm_preview_scene_available(frame->preview_scene, &preview_menu)) {
+            capture_preview(scene, &preview_menu, frame->preview_scene, slot,
+                            capture_date, 0.0f);
+        }
+    }
+}
+
 static void draw_resource_scene(WmResourceScene *scene, const WmMenu *menu,
                                 const WmResourceSceneFrame *frame, bool owns_frame) {
     if (!scene || !menu || !frame)
@@ -596,28 +664,7 @@ static void draw_resource_scene(WmResourceScene *scene, const WmMenu *menu,
                                            frame->suppress_balloons);
     WmGridPresentation presentation = wm_menu_grid_presentation(menu);
     WmChannelZoom zoom = {0};
-    const float *camera = NULL;
-    if (presentation.zooming && presentation.zoom_slot >= 0 &&
-        presentation.zoom_slot < WM_SLOT_COUNT) {
-        pose_layout(scene->grid, "my_IplTop_a", 0.0f);
-        GridTraversal anchor = {.page = presentation.page,
-                                .masks_only = true,
-                                .zoom_scale_x = 1.0f,
-                                .zoom_scale_y = 1.0f};
-        WmLayoutDrawOptions options = {.wide = true,
-                                       .mode = WM_LAYOUT_IPL,
-                                       .alpha = 1.0f,
-                                       .on_pane = grid_pane,
-                                       .context = &anchor};
-        wm_layout_draw(scene->grid, &options);
-        int index = presentation.zoom_slot % WM_CHANNELS_PER_PAGE;
-        if (anchor.has_tile[2][index] &&
-            wm_channel_zoom(wm_menu_transition_frame(menu), presentation.zoom_out,
-                            anchor.tiles[2][index].matrix[3],
-                            anchor.tiles[2][index].matrix[7], true, &zoom)) {
-            camera = zoom.camera_matrix;
-        }
-    }
+    const float *camera = grid_zoom_camera(scene, menu, &presentation, &zoom);
     wm_texture_cache_begin_frame(scene->textures);
     wm_font_cache_begin_frame(scene->fonts);
 
@@ -626,40 +673,7 @@ static void draw_resource_scene(WmResourceScene *scene, const WmMenu *menu,
     bool has_date = clock_gettime(CLOCK_REALTIME, &wall_time) == 0 &&
                     localtime_r(&wall_time.tv_sec, &date) != NULL;
     int capture_date = has_date ? date.tm_year * 1000 + date.tm_yday : -1;
-    bool can_prepare =
-        !presentation.zooming && menu->screen == WM_SCREEN_GRID &&
-        menu->transition == WM_TRANSITION_NONE && !menu->home_open &&
-        !menu->notice[0] && !frame->suppress_balloons && has_date &&
-        frame->preview_scene &&
-        wm_channel_drag_state(frame->drag).phase == WM_CHANNEL_DRAG_NONE &&
-        frame->hover.type == WM_HIT_CHANNEL && frame->hover.slot >= 0 &&
-        frame->hover.slot < WM_SLOT_COUNT && menu->slots[frame->hover.slot].occupied;
-    if (can_prepare) {
-        int slot = frame->hover.slot;
-        if (scene->capture_hover_slot != slot) {
-            scene->capture_hover_slot = slot;
-            scene->capture_hover_started = elapsed_seconds;
-        }
-        if (!capture_matches(scene, menu, slot, capture_date)) {
-            scene->capture_valid = false;
-            /* One stable pointer update moves the offscreen work out of the
-             * first SELECT frame without capturing every tile crossed. */
-            if (elapsed_seconds - scene->capture_hover_started >= 1.0f / 60.0f) {
-                WmMenu preview_menu = *menu;
-                preview_menu.screen = WM_SCREEN_PREVIEW;
-                preview_menu.selected = slot;
-                preview_menu.transition = WM_TRANSITION_SELECT;
-                if (wm_preview_scene_available(frame->preview_scene, &preview_menu)) {
-                    capture_preview(scene, &preview_menu, frame->preview_scene, slot,
-                                    capture_date, 0.0f);
-                }
-            }
-        }
-    } else {
-        scene->capture_hover_slot = -1;
-        if (!presentation.zooming)
-            scene->capture_valid = false;
-    }
+    prepare_hover_capture(scene, menu, frame, &presentation, has_date, capture_date);
     bool captured = false;
     if (camera && frame->preview_scene) {
         if (presentation.zoom_out ||

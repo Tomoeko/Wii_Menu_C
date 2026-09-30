@@ -519,91 +519,81 @@ static void pose_toolbar(WmBoardKeyboard *keyboard) {
     raise_focused_key(keyboard, keyboard->toolbar, false);
 }
 
-void wm_board_keyboard_pose_prediction(WmBoardKeyboard *keyboard) {
-    if (!keyboard->prediction_dirty)
-        return;
+typedef struct PredictionPose {
     WmLayoutClip clips[KEYBOARD_CLIP_CAPACITY];
-    size_t count = 0;
-    append_clip(clips, &count, "fs_VK_predictInput_a_normal", NULL, 1.0f);
-    append_rebound_clip(
-        clips, &count,
-        keyboard->prediction_enabled ? "fs_VK_predictInput_a_predict_ON"
-                                     : "fs_VK_predictInput_a_Predict_OFF",
-        "W_predictWindow", "W_predictWindow",
-        keyboard->prediction_animating ? keyboard->prediction_frame : 12.0f);
-    KeyboardFocus focus = keyboard->focus[WM_KEYBOARD_PREDICTION];
-    const char *button = keyboard->prediction_enabled ? "P_OnBtn" : "P_OffBtn";
-    if (focus.active &&
-        !wm_board_keyboard_press_pose_active(keyboard, WM_KEYBOARD_PREDICTION))
-        append_rebound_clip(clips, &count,
-                            focus.resting    ? "fs_VK_predictInput_a_Roll_over"
-                            : focus.entering ? "fs_VK_predictInput_a_Foucus_IN"
-                                             : "fs_VK_predictInput_a_Focus_OUT",
-                            button, button, focus.frame);
-    if (wm_board_keyboard_press_pose_active(keyboard, WM_KEYBOARD_PREDICTION)) {
-        append_rebound_clip(clips, &count, "fs_VK_predictInput_a_OnOffButton_Pushed",
-                            button, button,
-                            keyboard->press[WM_KEYBOARD_PREDICTION].frame);
-        append_press_exit(clips, &count, keyboard, WM_KEYBOARD_PREDICTION,
-                          "fs_VK_predictInput_a_Focus_OUT", button, button);
-    }
-    /* Clip target names must remain alive until wm_layout_pose consumes them. */
+    size_t count;
     char candidate_names[CANDIDATE_PANE_COUNT][24];
+} PredictionPose;
+
+static void append_prediction_focus(const WmBoardKeyboard *keyboard,
+                                    PredictionPose *pose,
+                                    WmBoardKeyboardControl control,
+                                    const char *prototype, const char *destination) {
+    KeyboardFocus focus = keyboard->focus[control];
+    if (!focus.active || wm_board_keyboard_press_pose_active(keyboard, control))
+        return;
+    const char *animation = focus.resting    ? "fs_VK_predictInput_a_Roll_over"
+                            : focus.entering ? "fs_VK_predictInput_a_Foucus_IN"
+                                             : "fs_VK_predictInput_a_Focus_OUT";
+    append_rebound_clip(pose->clips, &pose->count, animation, prototype, destination,
+                        focus.frame);
+}
+
+static void append_prediction_press(const WmBoardKeyboard *keyboard,
+                                    PredictionPose *pose,
+                                    WmBoardKeyboardControl control,
+                                    const char *prototype, const char *destination) {
+    if (!wm_board_keyboard_press_pose_active(keyboard, control))
+        return;
+    const char *animation = control == WM_KEYBOARD_PREDICTION
+                                ? "fs_VK_predictInput_a_OnOffButton_Pushed"
+                                : "fs_VK_predictInput_a_Pushed";
+    append_rebound_clip(pose->clips, &pose->count, animation, prototype, destination,
+                        keyboard->press[control].frame);
+    append_press_exit(pose->clips, &pose->count, keyboard, control,
+                      "fs_VK_predictInput_a_Focus_OUT", prototype, destination);
+}
+
+static void append_prediction_candidates(const WmBoardKeyboard *keyboard,
+                                         PredictionPose *pose) {
+    /* Keep all focus clips before pressed clips, preserving their blend order. */
     for (unsigned index = 0; index < CANDIDATE_PANE_COUNT; index++) {
         WmBoardKeyboardControl control =
             (WmBoardKeyboardControl)(WM_KEYBOARD_CANDIDATE_FIRST + index);
-        KeyboardFocus candidate_focus = keyboard->focus[control];
-        if (!candidate_focus.active || keyboard->candidate_scrolling ||
+        if (!keyboard->focus[control].active || keyboard->candidate_scrolling ||
             wm_board_keyboard_press_pose_active(keyboard, control))
             continue;
-        snprintf(candidate_names[index], sizeof(candidate_names[index]),
+        snprintf(pose->candidate_names[index], sizeof(pose->candidate_names[index]),
                  "T_prdc_Text_%02u", index);
-        append_rebound_clip(
-            clips, &count,
-            candidate_focus.resting    ? "fs_VK_predictInput_a_Roll_over"
-            : candidate_focus.entering ? "fs_VK_predictInput_a_Foucus_IN"
-                                       : "fs_VK_predictInput_a_Focus_OUT",
-            "T_prdc_Text_00", candidate_names[index], candidate_focus.frame);
+        append_prediction_focus(keyboard, pose, control, "T_prdc_Text_00",
+                                pose->candidate_names[index]);
     }
     for (unsigned index = 0; index < CANDIDATE_PANE_COUNT; index++) {
-        unsigned control = WM_KEYBOARD_CANDIDATE_FIRST + index;
-        if (!wm_board_keyboard_press_pose_active(keyboard, control))
+        WmBoardKeyboardControl control =
+            (WmBoardKeyboardControl)(WM_KEYBOARD_CANDIDATE_FIRST + index);
+        if (!wm_board_keyboard_press_pose_active(keyboard, control) ||
+            keyboard->candidate_pane_indices[index] >= keyboard->candidate_count)
             continue;
-        if (keyboard->candidate_pane_indices[index] < keyboard->candidate_count) {
-            snprintf(candidate_names[index], sizeof(candidate_names[index]),
-                     "T_prdc_Text_%02u", index);
-            append_rebound_clip(clips, &count, "fs_VK_predictInput_a_Pushed",
-                                "T_prdc_Text_00", candidate_names[index],
-                                keyboard->press[control].frame);
-            append_press_exit(clips, &count, keyboard, (WmBoardKeyboardControl)control,
-                              "fs_VK_predictInput_a_Focus_OUT", "T_prdc_Text_00",
-                              candidate_names[index]);
-        }
+        snprintf(pose->candidate_names[index], sizeof(pose->candidate_names[index]),
+                 "T_prdc_Text_%02u", index);
+        append_prediction_press(keyboard, pose, control, "T_prdc_Text_00",
+                                pose->candidate_names[index]);
     }
+}
+
+static void append_prediction_arrows(const WmBoardKeyboard *keyboard,
+                                     PredictionPose *pose) {
     static const WmBoardKeyboardControl arrows[2] = {WM_KEYBOARD_CANDIDATE_PREVIOUS,
                                                      WM_KEYBOARD_CANDIDATE_NEXT};
     for (unsigned index = 0; index < 2; index++) {
         WmBoardKeyboardControl control = arrows[index];
         const char *picture = index == 0 ? "P_prdc_scrl_Left" : "P_prdc_scrl_Rght";
-        KeyboardFocus arrow_focus = keyboard->focus[control];
-        if (arrow_focus.active &&
-            !wm_board_keyboard_press_pose_active(keyboard, control))
-            append_rebound_clip(clips, &count,
-                                arrow_focus.resting ? "fs_VK_predictInput_a_Roll_over"
-                                : arrow_focus.entering
-                                    ? "fs_VK_predictInput_a_Foucus_IN"
-                                    : "fs_VK_predictInput_a_Focus_OUT",
-                                "P_prdc_scrl_Left", picture, arrow_focus.frame);
-        if (wm_board_keyboard_press_pose_active(keyboard, control)) {
-            append_rebound_clip(clips, &count, "fs_VK_predictInput_a_Pushed",
-                                "P_prdc_scrl_Left", picture,
-                                keyboard->press[control].frame);
-            append_press_exit(clips, &count, keyboard, control,
-                              "fs_VK_predictInput_a_Focus_OUT", "P_prdc_scrl_Left",
-                              picture);
-        }
+        append_prediction_focus(keyboard, pose, control, "P_prdc_scrl_Left", picture);
+        append_prediction_press(keyboard, pose, control, "P_prdc_scrl_Left", picture);
     }
-    wm_layout_pose(keyboard->prediction, clips, count);
+}
+
+static void set_prediction_visibility(const WmBoardKeyboard *keyboard) {
     static const char *const hidden[] = {"P_JPOffBtn", "P_CNOffBtn", "P_CNOnBtn"};
     for (size_t index = 0; index < sizeof(hidden) / sizeof(hidden[0]); index++)
         wm_layout_set_pane_visible(keyboard->prediction, hidden[index], false);
@@ -622,6 +612,9 @@ void wm_board_keyboard_pose_prediction(WmBoardKeyboard *keyboard) {
     wm_layout_set_pane_visible(keyboard->prediction, "P_prdc_scrl_Rght",
                                wm_board_keyboard_candidate_next_index(keyboard) >
                                    keyboard->candidate_first);
+}
+
+static void pose_candidate_text(WmBoardKeyboard *keyboard) {
     float offset = candidate_offset(keyboard);
     const float area_width = 390.0f;
     for (unsigned index = 0; index < CANDIDATE_PANE_COUNT; index++) {
@@ -658,6 +651,29 @@ void wm_board_keyboard_pose_prediction(WmBoardKeyboard *keyboard) {
         wm_layout_set_pane_translation(keyboard->prediction, bounds_name,
                                        -477.0f + (left + right) * 0.5f, 0.0f, 0.0f);
     }
+}
+
+void wm_board_keyboard_pose_prediction(WmBoardKeyboard *keyboard) {
+    if (!keyboard->prediction_dirty)
+        return;
+    /* Target names remain alive until wm_layout_pose has consumed every clip. */
+    PredictionPose pose;
+    pose.count = 0;
+    append_clip(pose.clips, &pose.count, "fs_VK_predictInput_a_normal", NULL, 1.0f);
+    append_rebound_clip(
+        pose.clips, &pose.count,
+        keyboard->prediction_enabled ? "fs_VK_predictInput_a_predict_ON"
+                                     : "fs_VK_predictInput_a_Predict_OFF",
+        "W_predictWindow", "W_predictWindow",
+        keyboard->prediction_animating ? keyboard->prediction_frame : 12.0f);
+    const char *button = keyboard->prediction_enabled ? "P_OnBtn" : "P_OffBtn";
+    append_prediction_focus(keyboard, &pose, WM_KEYBOARD_PREDICTION, button, button);
+    append_prediction_press(keyboard, &pose, WM_KEYBOARD_PREDICTION, button, button);
+    append_prediction_candidates(keyboard, &pose);
+    append_prediction_arrows(keyboard, &pose);
+    wm_layout_pose(keyboard->prediction, pose.clips, pose.count);
+    set_prediction_visibility(keyboard);
+    pose_candidate_text(keyboard);
     raise_focused_key(keyboard, keyboard->prediction, false);
     keyboard->prediction_dirty = false;
 }
