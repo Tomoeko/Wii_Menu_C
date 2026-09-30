@@ -396,6 +396,56 @@ static float dialog_duration(SdDialogPhase phase) {
     }
 }
 
+static void complete_dialog_selection(WmSdScene *scene) {
+    unsigned count = scene->welcome_active ? 4 : 3;
+    if (scene->dialog_destination < 0 || scene->dialog_destination >= (int)count) {
+        scene->dialog_phase = SD_DIALOG_EXIT;
+        return;
+    }
+    scene->dialog_phase = SD_DIALOG_TEXT_OUT;
+    /* Resume the selected button's hover entrance while the page text fades. */
+    if (scene->hover.control == scene->dialog_selected) {
+        scene->button_focus[scene->dialog_selected] =
+            (SdFocus){.active = true, .entering = true, .frame = scene->dialog_frame};
+    }
+    scene->dialog_selected = WM_SD_CONTROL_NONE;
+}
+
+static void close_dialog(WmSdScene *scene) {
+    scene->dialog_phase = SD_DIALOG_CLOSED;
+    scene->hover = (WmSdHit){WM_SD_CONTROL_NONE, 0};
+    scene->button_focus[WM_SD_CONTROL_HELP_BACK].active = false;
+    scene->button_focus[WM_SD_CONTROL_HELP_NEXT].active = false;
+    enqueue(scene, WM_SD_EVENT_HELP_CLOSE, 0);
+    if (scene->welcome_active) {
+        scene->help_seen = true;
+        scene->welcome_active = false;
+        start_loader(scene);
+    }
+}
+
+static void complete_dialog_phase(WmSdScene *scene) {
+    switch (scene->dialog_phase) {
+        case SD_DIALOG_ENTER:
+        case SD_DIALOG_TEXT_IN:
+            scene->dialog_phase = SD_DIALOG_IDLE;
+            break;
+        case SD_DIALOG_SELECT:
+            complete_dialog_selection(scene);
+            break;
+        case SD_DIALOG_TEXT_OUT:
+            scene->dialog_page = (unsigned)scene->dialog_destination;
+            scene->icon_age = 0.0f;
+            scene->dialog_phase = SD_DIALOG_TEXT_IN;
+            break;
+        case SD_DIALOG_EXIT:
+            close_dialog(scene);
+            break;
+        default:
+            break;
+    }
+}
+
 static void advance_dialog(WmSdScene *scene, float frames) {
     if (scene->dialog_phase == SD_DIALOG_CLOSED)
         return;
@@ -408,52 +458,7 @@ static void advance_dialog(WmSdScene *scene, float frames) {
            scene->dialog_phase != SD_DIALOG_IDLE &&
            scene->dialog_frame >= dialog_duration(scene->dialog_phase)) {
         scene->dialog_frame -= dialog_duration(scene->dialog_phase);
-        switch (scene->dialog_phase) {
-            case SD_DIALOG_ENTER:
-                scene->dialog_phase = SD_DIALOG_IDLE;
-                break;
-            case SD_DIALOG_SELECT: {
-                unsigned count = scene->welcome_active ? 4 : 3;
-                if (scene->dialog_destination < 0 ||
-                    scene->dialog_destination >= (int)count) {
-                    scene->dialog_phase = SD_DIALOG_EXIT;
-                } else {
-                    scene->dialog_phase = SD_DIALOG_TEXT_OUT;
-                    /* The selected button resumes its hover entrance while
-                     * the page text fades, as the source help controller does. */
-                    if (scene->hover.control == scene->dialog_selected) {
-                        scene->button_focus[scene->dialog_selected] =
-                            (SdFocus){.active = true,
-                                      .entering = true,
-                                      .frame = scene->dialog_frame};
-                    }
-                    scene->dialog_selected = WM_SD_CONTROL_NONE;
-                }
-                break;
-            }
-            case SD_DIALOG_TEXT_OUT:
-                scene->dialog_page = (unsigned)scene->dialog_destination;
-                scene->icon_age = 0.0f;
-                scene->dialog_phase = SD_DIALOG_TEXT_IN;
-                break;
-            case SD_DIALOG_TEXT_IN:
-                scene->dialog_phase = SD_DIALOG_IDLE;
-                break;
-            case SD_DIALOG_EXIT:
-                scene->dialog_phase = SD_DIALOG_CLOSED;
-                scene->hover = (WmSdHit){WM_SD_CONTROL_NONE, 0};
-                scene->button_focus[WM_SD_CONTROL_HELP_BACK].active = false;
-                scene->button_focus[WM_SD_CONTROL_HELP_NEXT].active = false;
-                enqueue(scene, WM_SD_EVENT_HELP_CLOSE, 0);
-                if (scene->welcome_active) {
-                    scene->help_seen = true;
-                    scene->welcome_active = false;
-                    start_loader(scene);
-                }
-                break;
-            default:
-                break;
-        }
+        complete_dialog_phase(scene);
     }
 }
 
@@ -463,6 +468,67 @@ static void advance_focus(SdFocus *focus, float frames, float end) {
     focus->frame = wm_sd_frame_clamp(focus->frame + frames, end);
     if (!focus->entering && focus->frame >= end)
         focus->active = false;
+}
+
+static void advance_tile_focus(WmSdScene *scene, float frames) {
+    for (size_t index = 0; index < WM_SD_SLOT_COUNT; index++) {
+        SdFocus *focus = &scene->tile_focus[index];
+        if (!focus->active)
+            continue;
+        focus->frame += frames;
+        if (focus->entering && focus->frame >= 5.0f && focus->pending_leave) {
+            focus->entering = false;
+            focus->frame = 0.0f;
+        }
+        if (!focus->entering && focus->frame >= 30.0f) {
+            focus->active = false;
+        } else if (focus->entering) {
+            focus->frame = wm_sd_frame_clamp(focus->frame, 5.0f);
+        }
+    }
+}
+
+static void advance_balloons(WmSdScene *scene, float frames) {
+    for (size_t index = 0; index < 2; index++) {
+        SdBalloon *balloon = &scene->balloons[index];
+        if (balloon->phase == SD_BALLOON_WAIT) {
+            balloon->wait += frames;
+            if (balloon->wait >= 17.0f) {
+                balloon->phase = SD_BALLOON_ENTER;
+                balloon->frame = fminf(6.0f, balloon->wait - 17.0f);
+                enqueue(scene, WM_SD_EVENT_BALLOON_SOUND, 0);
+            }
+        } else if (balloon->phase == SD_BALLOON_ENTER) {
+            balloon->frame = wm_sd_frame_clamp(balloon->frame + frames, 6.0f);
+        } else if (balloon->phase == SD_BALLOON_LEAVE) {
+            balloon->frame = fmaxf(0.0f, balloon->frame - frames);
+            if (balloon->frame == 0.0f)
+                balloon->phase = SD_BALLOON_CLOSED;
+        }
+    }
+}
+
+static void advance_scroll(WmSdScene *scene, float frames) {
+    if (scene->phase != WM_SD_SCROLL)
+        return;
+    scene->scroll_frame += frames;
+    if (scene->scroll_frame < 20.0f)
+        return;
+    scene->page = (unsigned)((int)scene->page + scene->scroll_direction);
+    scene->phase = WM_SD_ACTIVE;
+    scene->scroll_frame = 0.0f;
+    scene->scroll_direction = 0;
+    enqueue(scene, WM_SD_EVENT_PAGE_CHANGED, scene->page);
+    bool arrows[2] = {scene->media_status == WM_SD_MEDIA_READY && scene->page > 0,
+                      scene->media_status == WM_SD_MEDIA_READY &&
+                          scene->page + 1 < WM_SD_PAGE_COUNT};
+    for (size_t index = 0; index < 2; index++) {
+        WmSdControl control = index == 0 ? WM_SD_CONTROL_PREVIOUS : WM_SD_CONTROL_NEXT;
+        bool changed =
+            wm_arrow_interaction_set_visible(&scene->arrows, (int)index, arrows[index]);
+        if (changed && !arrows[index] && scene->hover.control == control)
+            wm_sd_scene_hover(scene, (WmSdHit){WM_SD_CONTROL_NONE, 0});
+    }
 }
 
 void wm_sd_scene_advance(WmSdScene *scene, float frames, bool revealing) {
@@ -482,68 +548,15 @@ void wm_sd_scene_advance(WmSdScene *scene, float frames, bool revealing) {
         scene->welcome_pending = false;
         start_help(scene, true);
     }
-    for (size_t index = 0; index < WM_SD_SLOT_COUNT; index++) {
-        SdFocus *focus = &scene->tile_focus[index];
-        if (!focus->active)
-            continue;
-        focus->frame += frames;
-        if (focus->entering && focus->frame >= 5.0f && focus->pending_leave) {
-            focus->entering = false;
-            focus->frame = 0.0f;
-        }
-        if (!focus->entering && focus->frame >= 30.0f) {
-            focus->active = false;
-        } else if (focus->entering) {
-            focus->frame = wm_sd_frame_clamp(focus->frame, 5.0f);
-        }
-    }
+    advance_tile_focus(scene, frames);
     if (scene->help_press >= 0.0f) {
         scene->help_press += frames;
         if (scene->help_press >= 21.0f)
             scene->help_press = -1.0f;
     }
     wm_arrow_interaction_advance(&scene->arrows, frames);
-    for (size_t index = 0; index < 2; index++) {
-        SdBalloon *balloon = &scene->balloons[index];
-        if (balloon->phase == SD_BALLOON_WAIT) {
-            balloon->wait += frames;
-            if (balloon->wait >= 17.0f) {
-                balloon->phase = SD_BALLOON_ENTER;
-                balloon->frame = fminf(6.0f, balloon->wait - 17.0f);
-                enqueue(scene, WM_SD_EVENT_BALLOON_SOUND, 0);
-            }
-        } else if (balloon->phase == SD_BALLOON_ENTER) {
-            balloon->frame = wm_sd_frame_clamp(balloon->frame + frames, 6.0f);
-        } else if (balloon->phase == SD_BALLOON_LEAVE) {
-            balloon->frame = fmaxf(0.0f, balloon->frame - frames);
-            if (balloon->frame == 0.0f)
-                balloon->phase = SD_BALLOON_CLOSED;
-        }
-    }
-    if (scene->phase == WM_SD_SCROLL) {
-        scene->scroll_frame += frames;
-        if (scene->scroll_frame >= 20.0f) {
-            scene->page = (unsigned)((int)scene->page + scene->scroll_direction);
-            scene->phase = WM_SD_ACTIVE;
-            scene->scroll_frame = 0.0f;
-            scene->scroll_direction = 0;
-            enqueue(scene, WM_SD_EVENT_PAGE_CHANGED, scene->page);
-            bool arrows[2] = {scene->media_status == WM_SD_MEDIA_READY &&
-                                  scene->page > 0,
-                              scene->media_status == WM_SD_MEDIA_READY &&
-                                  scene->page + 1 < WM_SD_PAGE_COUNT};
-            for (size_t index = 0; index < 2; index++) {
-                if (wm_arrow_interaction_set_visible(&scene->arrows, (int)index,
-                                                     arrows[index])) {
-                    if (!arrows[index] &&
-                        scene->hover.control == (index == 0 ? WM_SD_CONTROL_PREVIOUS
-                                                            : WM_SD_CONTROL_NEXT)) {
-                        wm_sd_scene_hover(scene, (WmSdHit){WM_SD_CONTROL_NONE, 0});
-                    }
-                }
-            }
-        }
-    }
+    advance_balloons(scene, frames);
+    advance_scroll(scene, frames);
 }
 
 static bool in_rectangle(WmSourceRect rectangle, int x, int y, float margin) {
