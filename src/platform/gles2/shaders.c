@@ -103,13 +103,20 @@ static const char *const wm_material_fragment_source =
     "    return vec2(wrapAxis(uv.x, mode.x), wrapAxis(uv.y, mode.y));\n"
     "}\n"
     "bool compareAlpha(float kind, float value, float reference) {\n"
-    "    if (kind < 0.5) return false;\n"
-    "    if (kind > 6.5) return true;\n"
-    "    if (kind < 1.5) return value < reference;\n"
-    "    if (kind < 2.5) return value == reference;\n"
-    "    if (kind < 3.5) return value <= reference;\n"
-    "    if (kind < 4.5) return value > reference;\n"
-    "    if (kind < 5.5) return value != reference;\n"
+    "    if (kind < 0.5)\n"
+    "        return false;\n"
+    "    if (kind > 6.5)\n"
+    "        return true;\n"
+    "    if (kind < 1.5)\n"
+    "        return value < reference;\n"
+    "    if (kind < 2.5)\n"
+    "        return value == reference;\n"
+    "    if (kind < 3.5)\n"
+    "        return value <= reference;\n"
+    "    if (kind < 4.5)\n"
+    "        return value > reference;\n"
+    "    if (kind < 5.5)\n"
+    "        return value != reference;\n"
     "    return value >= reference;\n"
     "}\n"
     "void main() {\n"
@@ -135,7 +142,8 @@ static const char *const wm_material_fragment_source =
     "                      u_alpha_compare.y < 1.5 ? (first || second) :\n"
     "                      u_alpha_compare.y < 2.5 ? (first != second) :\n"
     "                                                  (first == second);\n"
-    "        if (!passes) discard;\n"
+    "        if (!passes)\n"
+    "            discard;\n"
     "    }\n"
     "    gl_FragColor = pixel;\n"
     "}\n";
@@ -360,8 +368,10 @@ static char *wm_tev_fragment_source(const WmTevKey *key) {
                    "varying WM_UV_PRECISION vec2 texUV2;\n"
                    "varying WM_UV_PRECISION vec2 texUV3;\n"
                    "float wrapAxis(float coordinate, float mode) {\n"
-                   "    if (mode > 1.5) return 1.0 - abs(mod(coordinate, 2.0) - 1.0);\n"
-                   "    if (mode > 0.5) return fract(coordinate);\n"
+                   "    if (mode > 1.5)\n"
+                   "        return 1.0 - abs(mod(coordinate, 2.0) - 1.0);\n"
+                   "    if (mode > 0.5)\n"
+                   "        return fract(coordinate);\n"
                    "    return clamp(coordinate, 0.0, 1.0);\n"
                    "}\n"
                    "vec2 wrapUV(vec2 uv, vec2 mode) {\n"
@@ -393,8 +403,10 @@ static char *wm_tev_fragment_source(const WmTevKey *key) {
         wm_alpha_condition(second, key->alpha_compare[0] >> 4, key->alpha_compare[3]);
         static const char *const operators[4] = {"&&", "||", "!=", "=="};
         unsigned operation = key->alpha_compare[1] < 4 ? key->alpha_compare[1] : 0;
-        wm_emit(&text, "    if (!((%s) %s (%s))) discard;\n", first,
-                operators[operation], second);
+        wm_emit(&text,
+                "    if (!((%s) %s (%s)))\n"
+                "        discard;\n",
+                first, operators[operation], second);
     }
     wm_emit(&text, "    gl_FragColor = p;\n}\n");
     if (text.failed) {

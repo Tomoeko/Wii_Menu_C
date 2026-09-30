@@ -41,6 +41,7 @@ if(WM_CLANG_FORMAT)
         "${PROJECT_SOURCE_DIR}/include/*.h"
         "${PROJECT_SOURCE_DIR}/src/*.c"
         "${PROJECT_SOURCE_DIR}/src/*.h"
+        "${PROJECT_SOURCE_DIR}/src/*.m"
         "${PROJECT_SOURCE_DIR}/tests/*.c"
         "${PROJECT_SOURCE_DIR}/tests/*.h"
         "${PROJECT_SOURCE_DIR}/tools/*.c"
