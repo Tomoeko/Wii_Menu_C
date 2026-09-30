@@ -411,98 +411,41 @@ static bool reserve_pcm(int16_t **samples, size_t *capacity, size_t count) {
     return true;
 }
 
-bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
-                        const uint8_t *system_menu_dol, size_t dol_size,
-                        WmAudioPcm *output, char *error, size_t error_capacity) {
-    wm_error_set(error, error_capacity, "");
-    if (!output)
-        return false;
-    *output = (WmAudioPcm){0};
-    WmRsarSequence sequence;
-    WmSequenceTimeline timeline;
-    SequenceTables tables;
-    if (!wm_rsar_get_sequence(archive, sound, &sequence, error, error_capacity))
-        return false;
-    if (!wm_sequence_parse(&sequence, &timeline, error, error_capacity))
-        return false;
-    if (render_original_loop_wave(archive, &sequence, sound, &timeline, output, error,
-                                  error_capacity)) {
-        wm_sequence_timeline_free(&timeline);
+static bool sequence_loop_frames(const SequencePlayer *player, uint32_t *loop_frame,
+                                 uint32_t *final_frame, char *error,
+                                 size_t error_capacity) {
+    const WmSequenceTimeline *timeline = player->timeline;
+    if (!timeline->looping || timeline->voice_wait_loop)
         return true;
+    uint32_t span = timeline->loop_end_tick - timeline->loop_start_tick;
+    uint32_t target = timeline->loop_end_tick + span;
+    if (timeline->loop_start_tick == 0 && span == 24 && player->tempo == 120) {
+        /* Five repeats restore the 416-threshold clock phase for the
+         * original dry reader movement cue. */
+        target = 120;
     }
-    wm_error_set(error, error_capacity, "");
-    if (!wm_sequence_driver_load_tables(system_menu_dol, dol_size, &tables)) {
-        wm_sequence_timeline_free(&timeline);
+    if (target > WM_SEQUENCE_MAX_TICK ||
+        !tick_positions(timeline, timeline->loop_end_tick, target, loop_frame,
+                        final_frame) ||
+        !*final_frame) {
         wm_error_set(error, error_capacity,
-                     "Matching USA 4.3 System Menu audio tables are unavailable.");
+                     "Sequence loop exceeds the ten-minute render budget.");
         return false;
     }
-    if (timeline.looping && timeline.has_wait_for_end && !timeline.voice_wait_loop) {
-        wm_sequence_timeline_free(&timeline);
-        wm_error_set(error, error_capacity,
-                     "Looping sequence with voice-finish waits is unsupported.");
-        return false;
-    }
-    SequenceWave *waves = calloc(WM_SEQUENCE_MAX_WAVES, sizeof(*waves));
-    PreparedNote *prepared = NULL;
-    size_t wave_count = 0;
-    if (!waves || !prepare_notes(archive, sequence.bank_index, &timeline, &prepared,
-                                 waves, &wave_count, error, error_capacity)) {
-        free(waves);
-        wm_sequence_timeline_free(&timeline);
-        return false;
-    }
-    bool has_aux = false;
-    bool has_note = false;
-    for (size_t index = 0; index < timeline.count; index++) {
-        const WmSequenceEvent *event = &timeline.events[index];
-        if (event->kind == WM_SEQUENCE_NOTE)
-            has_note = true;
-        if (event->kind == WM_SEQUENCE_AUX_A && event->value)
-            has_aux = true;
-    }
-    if (!has_note) {
-        wm_error_set(error, error_capacity, "Sequence contains no notes.");
-        goto failed;
-    }
-    SequenceReverb reverb;
-    if (!wm_sequence_reverb_initialize(&reverb, &tables, has_aux)) {
-        wm_error_set(error, error_capacity,
-                     "Out of memory initializing sequence reverb.");
-        goto failed;
-    }
-    SequencePlayer *player = malloc(sizeof(*player));
-    if (!player) {
-        wm_sequence_reverb_free(&reverb);
-        wm_error_set(error, error_capacity, "Out of memory creating sequence player.");
-        goto failed;
-    }
-    initialize_player(player, &timeline, prepared, waves, &tables, sound);
+    if (target == 120 && timeline->loop_start_tick == 0)
+        *loop_frame = 0;
 
+    return true;
+}
+
+static bool render_sequence_pcm(SequencePlayer *player, SequenceReverb *reverb,
+                                WmAudioPcm *output, char *error,
+                                size_t error_capacity) {
+    const WmSequenceTimeline *timeline = player->timeline;
     uint32_t loop_frame = 0;
     uint32_t final_frame = 0;
-    if (timeline.looping && !timeline.voice_wait_loop) {
-        uint32_t span = timeline.loop_end_tick - timeline.loop_start_tick;
-        uint32_t target = timeline.loop_end_tick + span;
-        if (timeline.loop_start_tick == 0 && span == 24 && player->tempo == 120) {
-            /* Five repeats restore the 416-threshold clock phase for the
-             * original dry reader movement cue. */
-            target = 120;
-        }
-        if (target > WM_SEQUENCE_MAX_TICK ||
-            !tick_positions(&timeline, timeline.loop_end_tick, target, &loop_frame,
-                            &final_frame) ||
-            !final_frame) {
-            free(player);
-            wm_sequence_reverb_free(&reverb);
-            wm_error_set(error, error_capacity,
-                         "Sequence loop exceeds the ten-minute render budget.");
-            goto failed;
-        }
-        if (target == 120 && timeline.loop_start_tick == 0)
-            loop_frame = 0;
-    }
-
+    if (!sequence_loop_frames(player, &loop_frame, &final_frame, error, error_capacity))
+        return false;
     int16_t *samples = NULL;
     size_t capacity = 0;
     size_t frame_count = 0;
@@ -511,15 +454,16 @@ bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
     bool valid = true;
     for (size_t block = 0; block < WM_SEQUENCE_MAX_FRAMES / WM_SEQUENCE_BLOCK;
          block++) {
-        if (timeline.looping && !timeline.voice_wait_loop && frame_count >= final_frame)
+        if (timeline->looping && !timeline->voice_wait_loop &&
+            frame_count >= final_frame)
             break;
-        if ((!timeline.looping || timeline.voice_wait_loop) && finished(player)) {
-            if (!has_aux)
+        if ((!timeline->looping || timeline->voice_wait_loop) && finished(player)) {
+            if (!reverb->enabled)
                 break;
             if (!tail_remaining) {
-                tail_remaining =
-                    (size_t)ceilf(tables.reverb_preset[1] * 3.0f * WM_SEQUENCE_RATE) +
-                    WM_SEQUENCE_BLOCK * 2;
+                tail_remaining = (size_t)ceilf(player->tables->reverb_preset[1] * 3.0f *
+                                               WM_SEQUENCE_RATE) +
+                                 WM_SEQUENCE_BLOCK * 2;
             }
             if (tail_remaining == 0)
                 break;
@@ -529,7 +473,7 @@ bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
             valid = false;
             break;
         }
-        wm_sequence_reverb_apply(&reverb, player);
+        wm_sequence_reverb_apply(reverb, player);
         for (size_t frame = 0; frame < WM_SEQUENCE_BLOCK; frame++) {
             int16_t left = quantize_sample(player->block_left[frame]);
             int16_t right = quantize_sample(player->block_right[frame]);
@@ -549,24 +493,21 @@ bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
     }
     bool voice_loop_started = player->voice_loop_started;
     uint32_t voice_loop_start_frame = player->voice_loop_start_frame;
-    free(player);
-    wm_sequence_reverb_free(&reverb);
     if (!valid ||
-        (timeline.looping && !timeline.voice_wait_loop && frame_count != final_frame) ||
-        (!timeline.looping && frame_count >= WM_SEQUENCE_MAX_FRAMES)) {
-        free(samples);
+        (timeline->looping && !timeline->voice_wait_loop &&
+         frame_count != final_frame) ||
+        (!timeline->looping && frame_count >= WM_SEQUENCE_MAX_FRAMES)) {
         wm_error_set(error, error_capacity,
                      "Sequence voice or PCM allocation budget exceeded.");
-        goto failed;
+        goto release_samples;
     }
-    if (!timeline.looping)
+    if (!timeline->looping)
         frame_count = last_audible ? last_audible : 1;
-    if (timeline.voice_wait_loop) {
+    if (timeline->voice_wait_loop) {
         if (!voice_loop_started || voice_loop_start_frame >= frame_count) {
-            free(samples);
             wm_error_set(error, error_capacity,
                          "Sequence voice-finish loop has no repeatable region.");
-            goto failed;
+            goto release_samples;
         }
         loop_frame = voice_loop_start_frame;
     }
@@ -576,17 +517,91 @@ bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
                            .loop_start = loop_frame,
                            .loop_end = (uint32_t)frame_count,
                            .channels = 2,
-                           .looping = timeline.looping};
-    release_waves(waves, wave_count);
-    free(waves);
-    free(prepared);
-    wm_sequence_timeline_free(&timeline);
-    return true;
+                           .looping = timeline->looping};
+    return true; /* The caller owns the completed PCM buffer. */
 
-failed:
+release_samples:
+    free(samples);
+    return false;
+}
+
+bool wm_sequence_render(const WmRsar *archive, const WmRsarSound *sound,
+                        const uint8_t *system_menu_dol, size_t dol_size,
+                        WmAudioPcm *output, char *error, size_t error_capacity) {
+    wm_error_set(error, error_capacity, "");
+    if (!output)
+        return false;
+    *output = (WmAudioPcm){0};
+    WmRsarSequence sequence;
+    WmSequenceTimeline timeline;
+    SequenceTables tables;
+    if (!wm_rsar_get_sequence(archive, sound, &sequence, error, error_capacity))
+        return false;
+    if (!wm_sequence_parse(&sequence, &timeline, error, error_capacity))
+        return false;
+    if (render_original_loop_wave(archive, &sequence, sound, &timeline, output, error,
+                                  error_capacity)) {
+        wm_sequence_timeline_free(&timeline);
+        return true;
+    }
+    SequenceWave *waves = NULL;
+    PreparedNote *prepared = NULL;
+    size_t wave_count = 0;
+    SequenceReverb reverb;
+    SequencePlayer *player = NULL;
+    bool reverb_ready = false;
+    bool rendered = false;
+    wm_error_set(error, error_capacity, "");
+    if (!wm_sequence_driver_load_tables(system_menu_dol, dol_size, &tables)) {
+        wm_error_set(error, error_capacity,
+                     "Matching USA 4.3 System Menu audio tables are unavailable.");
+        goto release_render;
+    }
+    if (timeline.looping && timeline.has_wait_for_end && !timeline.voice_wait_loop) {
+        wm_error_set(error, error_capacity,
+                     "Looping sequence with voice-finish waits is unsupported.");
+        goto release_render;
+    }
+    waves = calloc(WM_SEQUENCE_MAX_WAVES, sizeof(*waves));
+    if (!waves || !prepare_notes(archive, sequence.bank_index, &timeline, &prepared,
+                                 waves, &wave_count, error, error_capacity)) {
+        goto release_render;
+    }
+    bool has_aux = false;
+    bool has_note = false;
+    for (size_t index = 0; index < timeline.count; index++) {
+        const WmSequenceEvent *event = &timeline.events[index];
+        if (event->kind == WM_SEQUENCE_NOTE)
+            has_note = true;
+        if (event->kind == WM_SEQUENCE_AUX_A && event->value)
+            has_aux = true;
+    }
+    if (!has_note) {
+        wm_error_set(error, error_capacity, "Sequence contains no notes.");
+        goto release_render;
+    }
+    if (!wm_sequence_reverb_initialize(&reverb, &tables, has_aux)) {
+        wm_error_set(error, error_capacity,
+                     "Out of memory initializing sequence reverb.");
+        goto release_render;
+    }
+    reverb_ready = true;
+    player = malloc(sizeof(*player));
+    if (!player) {
+        wm_error_set(error, error_capacity, "Out of memory creating sequence player.");
+        goto release_render;
+    }
+    initialize_player(player, &timeline, prepared, waves, &tables, sound);
+
+    rendered = render_sequence_pcm(player, &reverb, output, error, error_capacity);
+
+release_render:
+    free(player);
+    if (reverb_ready)
+        wm_sequence_reverb_free(&reverb);
     release_waves(waves, wave_count);
     free(waves);
     free(prepared);
     wm_sequence_timeline_free(&timeline);
-    return false;
+    return rendered;
 }
