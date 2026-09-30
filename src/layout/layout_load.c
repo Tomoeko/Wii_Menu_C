@@ -390,12 +390,7 @@ static bool count_panes(const WmJson *json, size_t token, size_t *count) {
     return true;
 }
 
-static bool parse_pane(WmLayout *layout, const WmJson *json, size_t token,
-                       int *result) {
-    if (layout->next_pane >= layout->pane_count)
-        return false;
-    int index = (int)layout->next_pane++;
-    LayoutPane *pane = &layout->base_panes[index];
+static void initialize_pane(LayoutPane *pane) {
     pane->first_child = -1;
     pane->next_sibling = -1;
     pane->material = -1;
@@ -411,6 +406,9 @@ static bool parse_pane(WmLayout *layout, const WmJson *json, size_t token,
             pane->text_colors[color][channel] = 255;
         }
     }
+}
+
+static bool parse_pane_attributes(LayoutPane *pane, const WmJson *json, size_t token) {
     if (!wm_json_copy(json, wm_json_member(json, token, "name"), pane->name,
                       sizeof(pane->name)) ||
         !wm_json_copy(json, wm_json_member(json, token, "type"), pane->type,
@@ -454,66 +452,74 @@ static bool parse_pane(WmLayout *layout, const WmJson *json, size_t token,
             return false;
         pane->has_text_colors = true;
     }
-    if (strcmp(pane->type, "txt1") == 0) {
-        if (json_integer_member(json, token, "font", &number)) {
-            if (number < 0 || number > 65535)
-                return false;
-            pane->font_index = number;
-        }
-        if (json_integer_member(json, token, "textPosition", &number)) {
-            if (number < 0 || number > 8)
-                return false;
-            pane->text_position = (unsigned)number;
-        }
-        size_t field = wm_json_member(json, token, "fontSize");
-        if (field != WM_JSON_INVALID && !json_numbers(json, field, pane->font_size, 2))
+    return true;
+}
+
+static bool parse_pane_text(LayoutPane *pane, const WmJson *json, size_t token) {
+    int number;
+    if (json_integer_member(json, token, "font", &number)) {
+        if (number < 0 || number > 65535)
             return false;
-        field = wm_json_member(json, token, "charSpace");
-        if (field != WM_JSON_INVALID && !json_float(json, field, &pane->char_space))
-            return false;
-        field = wm_json_member(json, token, "lineSpace");
-        if (field != WM_JSON_INVALID && !json_float(json, field, &pane->line_space))
-            return false;
-        field = wm_json_member(json, token, "noWrap");
-        if (field != WM_JSON_INVALID && !json_bool(json, field, &pane->no_wrap))
-            return false;
-        field = wm_json_member(json, token, "text");
-        size_t raw_length = field == WM_JSON_INVALID
-                                ? 0
-                                : json->tokens[field].end - json->tokens[field].start;
-        if (raw_length > WM_LAYOUT_MAX_TEXT_BYTES * 6)
-            return false;
-        pane->text = malloc(raw_length + 1);
-        if (!pane->text)
-            return false;
-        if (field == WM_JSON_INVALID)
-            pane->text[0] = '\0';
-        else if (!wm_json_copy(json, field, pane->text, raw_length + 1) ||
-                 strlen(pane->text) > WM_LAYOUT_MAX_TEXT_BYTES)
-            return false;
+        pane->font_index = number;
     }
+    if (json_integer_member(json, token, "textPosition", &number)) {
+        if (number < 0 || number > 8)
+            return false;
+        pane->text_position = (unsigned)number;
+    }
+    size_t field = wm_json_member(json, token, "fontSize");
+    if (field != WM_JSON_INVALID && !json_numbers(json, field, pane->font_size, 2))
+        return false;
+    field = wm_json_member(json, token, "charSpace");
+    if (field != WM_JSON_INVALID && !json_float(json, field, &pane->char_space))
+        return false;
+    field = wm_json_member(json, token, "lineSpace");
+    if (field != WM_JSON_INVALID && !json_float(json, field, &pane->line_space))
+        return false;
+    field = wm_json_member(json, token, "noWrap");
+    if (field != WM_JSON_INVALID && !json_bool(json, field, &pane->no_wrap))
+        return false;
+    field = wm_json_member(json, token, "text");
+    size_t raw_length = field == WM_JSON_INVALID
+                            ? 0
+                            : json->tokens[field].end - json->tokens[field].start;
+    if (raw_length > WM_LAYOUT_MAX_TEXT_BYTES * 6)
+        return false;
+    pane->text = malloc(raw_length + 1);
+    if (!pane->text)
+        return false;
+    if (field == WM_JSON_INVALID)
+        pane->text[0] = '\0';
+    else if (!wm_json_copy(json, field, pane->text, raw_length + 1) ||
+             strlen(pane->text) > WM_LAYOUT_MAX_TEXT_BYTES)
+        return false;
+    return true;
+}
+
+static bool parse_pane_tex_coords(LayoutPane *pane, const WmJson *json, size_t token) {
     size_t tex_coords = wm_json_member(json, token, "texCoords");
-    if (tex_coords < json->count && json->tokens[tex_coords].type == WM_JSON_ARRAY) {
-        size_t set = tex_coords + 1;
-        while (set < json->tokens[tex_coords].next) {
-            if (pane->tex_coord_count < 4) {
-                if (json->tokens[set].type != WM_JSON_ARRAY ||
-                    json->tokens[set].children < 4)
-                    return false;
-                size_t point = set + 1;
-                for (size_t vertex = 0; vertex < 4; vertex++) {
-                    if (!json_numbers(json, point,
-                                      pane->tex_coords[pane->tex_coord_count][vertex],
-                                      2)) {
-                        return false;
-                    }
-                    point = json->tokens[point].next;
-                }
-                pane->tex_coord_count++;
+    if (tex_coords >= json->count || json->tokens[tex_coords].type != WM_JSON_ARRAY)
+        return true;
+    size_t set = tex_coords + 1;
+    while (set < json->tokens[tex_coords].next && pane->tex_coord_count < 4) {
+        if (json->tokens[set].type != WM_JSON_ARRAY || json->tokens[set].children < 4)
+            return false;
+        size_t point = set + 1;
+        for (size_t vertex = 0; vertex < 4; vertex++) {
+            if (!json_numbers(json, point,
+                              pane->tex_coords[pane->tex_coord_count][vertex], 2)) {
+                return false;
             }
-            set = json->tokens[set].next;
+            point = json->tokens[point].next;
         }
+        pane->tex_coord_count++;
+        set = json->tokens[set].next;
     }
+    return true;
+}
+
+static bool parse_pane_frames(LayoutPane *pane, const WmJson *json, size_t token) {
+    int number;
     size_t frames = wm_json_member(json, token, "frames");
     if (frames < json->count && json->tokens[frames].type == WM_JSON_ARRAY) {
         if (json->tokens[frames].children > 8)
@@ -531,6 +537,13 @@ static bool parse_pane(WmLayout *layout, const WmJson *json, size_t token,
         }
     }
 
+    return true;
+}
+
+static bool parse_pane(WmLayout *layout, const WmJson *json, size_t token, int *result);
+
+static bool parse_pane_children(WmLayout *layout, LayoutPane *pane, const WmJson *json,
+                                size_t token) {
     size_t children = wm_json_member(json, token, "children");
     int previous = -1;
     if (children < json->count && json->tokens[children].type == WM_JSON_ARRAY) {
@@ -547,6 +560,24 @@ static bool parse_pane(WmLayout *layout, const WmJson *json, size_t token,
             cursor = json->tokens[cursor].next;
         }
     }
+    return true;
+}
+
+static bool parse_pane(WmLayout *layout, const WmJson *json, size_t token,
+                       int *result) {
+    if (layout->next_pane >= layout->pane_count)
+        return false;
+    int index = (int)layout->next_pane++;
+    LayoutPane *pane = &layout->base_panes[index];
+    initialize_pane(pane);
+    if (!parse_pane_attributes(pane, json, token))
+        return false;
+    if (strcmp(pane->type, "txt1") == 0 && !parse_pane_text(pane, json, token))
+        return false;
+    if (!parse_pane_tex_coords(pane, json, token) ||
+        !parse_pane_frames(pane, json, token) ||
+        !parse_pane_children(layout, pane, json, token))
+        return false;
     *result = index;
     return true;
 }
