@@ -73,7 +73,7 @@ static bool visible(const WmLayout *layout, const char *name) {
 }
 
 int main(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     int length =
         snprintf(path, sizeof(path), "%s/layouts/health/it_Has_a.json", assets);

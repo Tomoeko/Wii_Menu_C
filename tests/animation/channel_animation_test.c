@@ -438,15 +438,16 @@ static void test_native_banner_fades(void) {
         const char *title_id;
         const char *pane_name;
         float alpha[4];
-    } banners[] = {
-        {".local/native-assets/channel-layouts/0001000248415941/banner/banner.json",
-         "0001000248415941",
-         "belt_a",
-         {0, 0.15625f, 0.5f, 1}},
-        {".local/native-assets/channel-layouts/0001000248414241/banner/banner.json",
-         "0001000248414241",
-         "logo_03",
-         {0.5f, 2.0f / 3.0f, 5.0f / 6.0f, 1}}};
+    } banners[] = {{"Files/.local/native-assets/channel-layouts/0001000248415941/"
+                    "banner/banner.json",
+                    "0001000248415941",
+                    "belt_a",
+                    {0, 0.15625f, 0.5f, 1}},
+                   {"Files/.local/native-assets/channel-layouts/0001000248414241/"
+                    "banner/banner.json",
+                    "0001000248414241",
+                    "logo_03",
+                    {0.5f, 2.0f / 3.0f, 5.0f / 6.0f, 1}}};
     static const float frames[] = {0, 10, 20, 40};
     for (size_t index = 0; index < sizeof banners / sizeof banners[0]; index++) {
         FILE *file = fopen(banners[index].path, "rb");
@@ -547,7 +548,7 @@ static float measure_native_message(void *context, const WmLayout *layout,
 }
 
 static WmFont *load_native_message_font(void) {
-    FILE *file = fopen(".local/native-assets/fonts/wbf1.brfna", "rb");
+    FILE *file = fopen("Files/.local/native-assets/fonts/wbf1.brfna", "rb");
     if (!file)
         return NULL;
     if (fseek(file, 0, SEEK_END) != 0) {
@@ -588,7 +589,7 @@ static void test_native_message_window_geometry(void) {
     for (size_t index = 0; index < sizeof(channels) / sizeof(channels[0]); index++) {
         char path[256];
         snprintf(path, sizeof(path),
-                 ".local/native-assets/channel-layouts/%s/banner/banner.json",
+                 "Files/.local/native-assets/channel-layouts/%s/banner/banner.json",
                  channels[index]);
         FILE *file = fopen(path, "rb");
         if (!file)

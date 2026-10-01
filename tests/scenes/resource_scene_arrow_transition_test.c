@@ -201,7 +201,7 @@ static void check_board_return_arrows(WmPlatform *platform, const char *assets,
 }
 
 int main(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     WmPlatform *platform = (WmPlatform *)1;
     WmMenu menu;
     wm_menu_init(&menu);

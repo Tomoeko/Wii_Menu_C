@@ -875,7 +875,7 @@ static void test_gamecube_error_fade(const char *assets) {
 
 int main(int argc, char **argv) {
     test_manageable();
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     int length = snprintf(path, sizeof(path),
                           "%s/layouts/chanEdit/it_ObjChannelEdit_a.json", assets);

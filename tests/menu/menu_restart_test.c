@@ -97,7 +97,8 @@ static void count_visible_quad(void *context, const WmLayoutQuad *quad) {
 }
 
 static void test_embedded_layout(void) {
-    const char *path = ".local/native-assets/layouts/restart/my_BackToWiiMenu.json";
+    const char *path =
+        "Files/.local/native-assets/layouts/restart/my_BackToWiiMenu.json";
     FILE *file = fopen(path, "rb");
     if (!file)
         return;

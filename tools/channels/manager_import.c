@@ -96,7 +96,7 @@ static bool exported_channel(const char *stage, char id[65], char title[128]) {
 static bool arrange_extracted_title(const char *stage,
                                     char nand[PREPARE_PATH_CAPACITY]) {
     char extracted[PREPARE_PATH_CAPACITY];
-    if (!path_join(extracted, sizeof(extracted), stage, ".local/wad") ||
+    if (!path_join(extracted, sizeof(extracted), stage, "Files/.local/wad") ||
         !path_join(nand, PREPARE_PATH_CAPACITY, stage, "nand"))
         return false;
     DIR *listing = opendir(extracted);

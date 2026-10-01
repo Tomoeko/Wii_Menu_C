@@ -42,7 +42,7 @@ static int print_usage(const char *program) {
             "       %s --layout JSON --raw-root DIRECTORY [--animation NAME] "
             "[--hide-masks]\n",
             program);
-    fprintf(stderr, "Default assets: searches for .local/native-assets.\n");
+    fprintf(stderr, "Default assets: searches for Files/.local/native-assets.\n");
     fprintf(stderr, "--bypass skips prepared-asset integrity checks.\n");
     fprintf(stderr, "Controls: pointer, arrow keys, Enter, Escape, H for HOME.\n");
     return 0;
@@ -286,13 +286,13 @@ int main(int argc, char **argv) {
                                        sizeof(default_assets))) {
             assets = default_assets;
         } else {
-            fprintf(stderr, "Could not find .local/native-assets; "
+            fprintf(stderr, "Could not find Files/.local/native-assets; "
                             "use --assets DIRECTORY to select prepared assets.\n");
         }
     }
 
     if (!options.layout_path && !options.bypass) {
-        const char *root = assets ? assets : ".local/native-assets";
+        const char *root = assets ? assets : "Files/.local/native-assets";
         unsigned issues = 0;
         if (!wm_asset_manifest_verify(root, stderr, &issues)) {
             fprintf(stderr,

@@ -733,7 +733,7 @@ static void test_message_board_internet_route(WmOptionsScene *scene) {
 }
 
 int main(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char source[4096];
     int length = snprintf(source, sizeof(source),
                           "%s/layouts/setupSel/it_ObjSetUp_a.json", assets);

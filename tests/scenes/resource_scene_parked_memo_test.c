@@ -105,7 +105,7 @@ static float quad_width(const WmMaterialVertex vertices[4]) {
 }
 
 int main(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     struct stat assets_info;
     if (stat(assets, &assets_info) != 0) {
         assert(errno == ENOENT || errno == ENOTDIR);

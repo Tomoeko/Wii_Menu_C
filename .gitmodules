@@ -1,0 +1,4 @@
+[submodule "Common"]
+	url = https://github.com/Tomoeko/Console_Common.git
+	path = Common
+	branch = main

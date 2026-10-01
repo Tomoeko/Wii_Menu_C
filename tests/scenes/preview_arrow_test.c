@@ -1068,7 +1068,7 @@ static void check_preview_label_colors(const char *assets) {
 }
 
 int main(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[1024];
     int length =
         snprintf(path, sizeof(path), "%s/layouts/cmnBtn/my_IplTop_e.json", assets);

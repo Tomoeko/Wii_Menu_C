@@ -20,6 +20,7 @@ set_property(CACHE WM_BACKEND PROPERTY STRINGS metal gles2)
 option(WM_BUILD_APP "Build the menu application and selected platform backend" ON)
 
 include(cmake/WiiMenuBuild.cmake)
+add_subdirectory(Common)
 add_subdirectory(src)
 add_subdirectory(tools)
 

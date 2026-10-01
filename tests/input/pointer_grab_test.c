@@ -82,7 +82,7 @@ int main(int argc, char **argv) {
     assert(!wm_pointer_grabbed_for_state(WM_CHANNEL_DRAG_CANCEL, false));
     assert(wm_pointer_grabbed_for_state(WM_CHANNEL_DRAG_NONE, true));
 
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     WmPlatform *platform = (WmPlatform *)1;
     WmTextureCache *textures =
         wm_texture_cache_create(platform, assets, 8u * 1024u * 1024u);

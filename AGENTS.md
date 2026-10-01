@@ -67,6 +67,14 @@ contain original spelling errors. Keep the 4:3 and 16:9 logical projections,
 framebuffer size, and displayed aspect ratio distinct. Make unsupported
 resource variants and simulated console services visible in documentation.
 
+## Recovery priorities
+
+Code recovery, functional behavior, and validation are the priority. Markdown
+and other documentation are secondary; update them briefly when required and
+continue source recovery. Keep all ignored inputs, generated assets, captures,
+user state, logs, and build products under `Files/`. The shared renderer and
+generic resource support come from the first-party `Common` submodule.
+
 ## Privacy and documentation
 
 Before sharing or publishing, inspect source, logs, manifests, and generated

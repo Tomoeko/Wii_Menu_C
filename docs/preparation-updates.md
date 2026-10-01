@@ -6,21 +6,21 @@ extraction, conversion, and catalog validation succeed. For authored folders,
 channel WADs, removal, and deletion, use [wm-channels](../tools/channels/README.md).
 
 Commands below run from the repository root. On Linux, substitute
-`./build-gles2/wm-prepare` for `./build/wm-prepare`.
+`./Files/build-gles2/wm-prepare` for `./Files/build/wm-prepare`.
 
 ## Plan and publish
 
 ```sh
-./build/wm-prepare --plan \
-    --update-from .local/native-assets \
-    --nand .local/input/newer-nand.bin \
-    > .local/channel-update-plan.json
+./Files/build/wm-prepare --plan \
+    --update-from Files/.local/native-assets \
+    --nand Files/.local/input/newer-nand.bin \
+    > Files/.local/channel-update-plan.json
 
-./build/wm-prepare \
-    --update-from .local/native-assets \
-    --nand .local/input/newer-nand.bin \
-    --expect-plan .local/channel-update-plan.json \
-    --output .local/native-assets-next
+./Files/build/wm-prepare \
+    --update-from Files/.local/native-assets \
+    --nand Files/.local/input/newer-nand.bin \
+    --expect-plan Files/.local/channel-update-plan.json \
+    --output Files/.local/native-assets-next
 ```
 
 Review the generated plan before publishing. `--expect-plan` refuses the
@@ -31,7 +31,7 @@ Use `--nand-keys FILE` if the dump has no matching appended key footer. The
 output must not exist or be nested inside the source tree. Source trees with
 symlinks or special files are rejected. Keep inputs, plans, and outputs under
 ignored local storage. Select the result with the app's
-`--assets .local/native-assets-next` option.
+`--assets Files/.local/native-assets-next` option.
 
 ## Choose channels
 
@@ -59,10 +59,10 @@ marker, and OS-held lock. A subsequent run for the same output can clean a
 matching interrupted stage. To recover without repeating extraction:
 
 ```sh
-./build/wm-prepare --recover --output .local/native-assets-next
+./Files/build/wm-prepare --recover --output Files/.local/native-assets-next
 
 # For an interrupted plan, use the same source asset directory.
-./build/wm-prepare --recover --plan --update-from .local/native-assets
+./Files/build/wm-prepare --recover --plan --update-from Files/.local/native-assets
 ```
 
 Recovery preserves published outputs and the source. A different journal

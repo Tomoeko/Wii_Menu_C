@@ -221,7 +221,7 @@ static void test_disabled_network_rows(WmPlatform *platform, const char *assets,
 }
 
 int main(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     int length =
         snprintf(path, sizeof(path), "%s/layouts/board/th_Adress_a.json", assets);

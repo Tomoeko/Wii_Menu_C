@@ -198,7 +198,7 @@ static void test_page_arithmetic(void) {
 }
 
 static WmSdScene *load_scene(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     int length = snprintf(path, sizeof(path),
                           "%s/layouts/sdChanSel/mn_SdcardMenu_a.json", assets);
@@ -216,7 +216,7 @@ static WmSdScene *load_scene(int argc, char **argv) {
 }
 
 static void test_grid_sd_button_anchor(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     int length =
         snprintf(path, sizeof(path), "%s/layouts/cmnBtn/mn_Sdcard_Btn.json", assets);
@@ -331,7 +331,7 @@ static float displayed_alpha(WmLayout *layout, const char *name) {
 }
 
 static void test_dialog_alpha(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     int length = snprintf(path, sizeof(path),
                           "%s/layouts/dlgWdw/my_DialogWindow_a2.json", assets);
@@ -352,7 +352,7 @@ static void test_dialog_alpha(int argc, char **argv) {
 }
 
 static void test_arrow_source_intervals(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     int length = snprintf(path, sizeof(path),
                           "%s/layouts/sdButton/mn_SdcardMenu_b.json", assets);
@@ -555,7 +555,7 @@ static void test_unified_arrow_hover(WmSdScene *scene) {
 }
 
 static void test_source_draw_transitions(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     WmPlatform *platform = (WmPlatform *)1;
     capture_render = true;
     WmTextureCache *textures =
@@ -670,7 +670,7 @@ static void test_source_draw_transitions(int argc, char **argv) {
 }
 
 static void test_footer_balloon_handoff(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     WmPlatform *platform = (WmPlatform *)1;
     capture_render = true;
     WmTextureCache *textures =

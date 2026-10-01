@@ -10,7 +10,7 @@
 #include <unistd.h>
 
 static bool search_parents(char *directory, char *result, size_t result_size) {
-    static const char suffix[] = ".local/native-assets";
+    static const char suffix[] = "Files/.local/native-assets";
     for (;;) {
         char candidate[WM_APP_ASSET_PATH_CAPACITY];
         const char *separator = strcmp(directory, "/") == 0 ? "" : "/";

@@ -2848,7 +2848,7 @@ static void test_direct_internet_entry(const char *assets) {
 
 int main(int argc, char **argv) {
     test_source_hit_regions();
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     int length =
         snprintf(path, sizeof(path), "%s/layouts/setting/SceenChange_b.json", assets);

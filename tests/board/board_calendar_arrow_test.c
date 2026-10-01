@@ -175,7 +175,7 @@ static void test_day_hover_continuity(WmBoardCalendar *calendar) {
 
 int main(int argc, char **argv) {
     test_day_order_without_assets();
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[1024];
     int length =
         snprintf(path, sizeof(path), "%s/layouts/cmnBtn/my_IplTop_e.json", assets);

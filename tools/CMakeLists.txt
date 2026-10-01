@@ -1,35 +1,35 @@
 add_executable(wm-wad-extract
-    "${PROJECT_SOURCE_DIR}/src/support/sha1.c"
+    "${PROJECT_SOURCE_DIR}/Common/src/support/sha1.c"
     wad/crypto.c
     wad/extract.c
     wad/retail_keys.c
 )
-target_include_directories(wm-wad-extract PRIVATE "${PROJECT_SOURCE_DIR}/include")
+target_include_directories(wm-wad-extract PRIVATE "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/Common/include")
 wm_enable_warnings(wm-wad-extract ERROR)
 
 add_executable(wm-nand-extract
-    "${PROJECT_SOURCE_DIR}/src/support/sha1.c"
+    "${PROJECT_SOURCE_DIR}/Common/src/support/sha1.c"
     wad/crypto.c
     nand/reader.c
     nand/reader_discovery.c
     nand/reader_extract.c
     nand/extract.c
 )
-target_include_directories(wm-nand-extract PRIVATE "${PROJECT_SOURCE_DIR}/include")
+target_include_directories(wm-nand-extract PRIVATE "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/Common/include")
 wm_enable_warnings(wm-nand-extract ERROR)
 
 add_executable(wm-prepare
     "${PROJECT_SOURCE_DIR}/src/support/asset_manifest.c"
-    "${PROJECT_SOURCE_DIR}/src/support/sha1.c"
+    "${PROJECT_SOURCE_DIR}/Common/src/support/sha1.c"
     preparation/prepare.c
     preparation/prepare_fs.c
     preparation/prepare_recovery.c
     preparation/prepare_update.c
     wad/crypto.c
-    "${PROJECT_SOURCE_DIR}/src/support/json.c"
+    "${PROJECT_SOURCE_DIR}/Common/src/support/json.c"
 )
 target_include_directories(wm-prepare PRIVATE
-    "${PROJECT_SOURCE_DIR}/include"
+    "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/Common/include"
     "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 wm_enable_warnings(wm-prepare ERROR)
@@ -96,14 +96,14 @@ add_executable(wm-shared-font-export fonts/shared_font_export.c)
 target_link_libraries(wm-shared-font-export PRIVATE wii_menu_core m)
 
 add_executable(wm-channel-export
-    "${PROJECT_SOURCE_DIR}/src/support/sha1.c"
+    "${PROJECT_SOURCE_DIR}/Common/src/support/sha1.c"
     channels/export.c
     channels/export_resource.c
     channels/export_manifest.c
     channels/md5.c
     wad/crypto.c
 )
-target_include_directories(wm-channel-export PRIVATE "${PROJECT_SOURCE_DIR}/include")
+target_include_directories(wm-channel-export PRIVATE "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/Common/include")
 target_link_libraries(wm-channel-export PRIVATE wii_menu_core m)
 target_include_directories(wm-channel-export PRIVATE
     "${PROJECT_SOURCE_DIR}/src/support"

@@ -292,13 +292,13 @@ static bool stage_paths(PrepareStagePaths *paths, const char *temporary) {
            path_join(paths->incoming_assets, sizeof(paths->incoming_assets), temporary,
                      "incoming-assets") &&
            path_join(paths->resource10, sizeof(paths->resource10), temporary,
-                     ".local/wad/0000000100000002/content/0000000a.app") &&
+                     "Files/.local/wad/0000000100000002/content/0000000a.app") &&
            path_join(paths->resource97, sizeof(paths->resource97), temporary,
-                     ".local/wad/0000000100000002/content/00000097.app") &&
+                     "Files/.local/wad/0000000100000002/content/00000097.app") &&
            path_join(paths->resource98, sizeof(paths->resource98), temporary,
-                     ".local/wad/0000000100000002/content/00000098.app") &&
+                     "Files/.local/wad/0000000100000002/content/00000098.app") &&
            path_join(paths->content_directory, sizeof(paths->content_directory),
-                     temporary, ".local/wad/0000000100000002/content");
+                     temporary, "Files/.local/wad/0000000100000002/content");
 }
 
 static bool create_stage_assets(const PrepareStagePaths *paths, const char *base_path,

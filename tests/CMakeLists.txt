@@ -49,11 +49,11 @@ if(WM_BUILD_APP AND WM_BACKEND STREQUAL "gles2")
     find_package(X11 REQUIRED)
     wm_add_test(wii-menu-gles2-retained
         SOURCES render/gles2_retained_test.c
-            "${PROJECT_SOURCE_DIR}/src/platform/gles2/platform_gles2.c"
-            "${PROJECT_SOURCE_DIR}/src/platform/gles2/retained_frame.c"
-            "${PROJECT_SOURCE_DIR}/src/platform/gles2/host.c"
-            "${PROJECT_SOURCE_DIR}/src/platform/gles2/shaders.c"
-        LIBRARIES wii_menu_core X11::X11 ${EGL_LIBRARY} ${GLES2_LIBRARY} m
+            "${PROJECT_SOURCE_DIR}/Common/src/platform/gles2/platform_gles2.c"
+            "${PROJECT_SOURCE_DIR}/Common/src/platform/gles2/retained_frame.c"
+            "${PROJECT_SOURCE_DIR}/Common/src/platform/gles2/host.c"
+            "${PROJECT_SOURCE_DIR}/Common/src/platform/gles2/shaders.c"
+        LIBRARIES wii_menu_core X11::X11 ${CC_EGL_LIBRARY} ${CC_GLES2_LIBRARY} m
         INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/render"
     )
     target_link_options(wii-menu-gles2-retained-test PRIVATE "-Wl,--wrap=eglSwapBuffers")
@@ -394,23 +394,23 @@ wm_add_test(wii-menu-channel-manifest
     SOURCES
         tools/channel_manifest_test.c
         "${PROJECT_SOURCE_DIR}/tools/channels/export_manifest.c"
-        "${PROJECT_SOURCE_DIR}/src/support/json.c"
+        "${PROJECT_SOURCE_DIR}/Common/src/support/json.c"
     INCLUDE_DIRECTORIES
-        "${PROJECT_SOURCE_DIR}/include"
+        "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/Common/include"
         "${PROJECT_SOURCE_DIR}/tools/channels"
 )
 wm_add_test(wii-menu-prepare-update
     SOURCES
         tools/prepare_update_test.c
         "${PROJECT_SOURCE_DIR}/src/support/asset_manifest.c"
-        "${PROJECT_SOURCE_DIR}/src/support/sha1.c"
+        "${PROJECT_SOURCE_DIR}/Common/src/support/sha1.c"
         "${PROJECT_SOURCE_DIR}/tools/preparation/prepare_fs.c"
         "${PROJECT_SOURCE_DIR}/tools/preparation/prepare_recovery.c"
         "${PROJECT_SOURCE_DIR}/tools/preparation/prepare_update.c"
-        "${PROJECT_SOURCE_DIR}/src/support/json.c"
+        "${PROJECT_SOURCE_DIR}/Common/src/support/json.c"
         "${PROJECT_SOURCE_DIR}/tools/wad/crypto.c"
     INCLUDE_DIRECTORIES
-        "${PROJECT_SOURCE_DIR}/include"
+        "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/Common/include"
         "${PROJECT_SOURCE_DIR}/tools"
 )
 wm_add_test(wii-menu-settings-gif
@@ -427,22 +427,22 @@ wm_add_test(wii-menu-settings-png
 )
 wm_add_test(wii-menu-crypto
     SOURCES
-        "${PROJECT_SOURCE_DIR}/src/support/sha1.c"
+        "${PROJECT_SOURCE_DIR}/Common/src/support/sha1.c"
         "${PROJECT_SOURCE_DIR}/tools/wad/crypto.c"
         tools/wad_crypto_test.c
     INCLUDE_DIRECTORIES
         "${PROJECT_SOURCE_DIR}/tools/wad"
-        "${PROJECT_SOURCE_DIR}/include"
+        "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/Common/include"
 )
 wm_add_test(wii-menu-wad-extract
     SOURCES
-        "${PROJECT_SOURCE_DIR}/src/support/sha1.c"
+        "${PROJECT_SOURCE_DIR}/Common/src/support/sha1.c"
         tools/wad_extract_test.c
         "${PROJECT_SOURCE_DIR}/tools/wad/crypto.c"
         "${PROJECT_SOURCE_DIR}/tools/wad/retail_keys.c"
     INCLUDE_DIRECTORIES
         "${PROJECT_SOURCE_DIR}/tools/wad"
-        "${PROJECT_SOURCE_DIR}/include"
+        "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/Common/include"
 )
 wm_add_test(wii-menu-outline-font-export
     SOURCES tools/outline_font_export_test.c

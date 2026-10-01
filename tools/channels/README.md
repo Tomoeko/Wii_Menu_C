@@ -4,20 +4,20 @@ Use `wm-channels` to install and manage channels in the C app. Build and prepare
 assets first; see the [README](../../README.md). Close the menu before making
 changes and restart it afterward.
 
-Run from the repository root. On Linux, replace `./build/` with `./build-gles2/`.
+Run from the repository root. On Linux, replace `./Files/build/` with `./Files/build-gles2/`.
 For a different asset directory, add `--assets DIRECTORY` before the command:
 
 ```sh
-./build/wm-channels --assets .local/native-assets-next list
+./Files/build/wm-channels --assets Files/.local/native-assets-next list
 ```
 
 ## Install
 
 ```sh
-./build/wm-channels validate examples/custom-channels/custom-example
-./build/wm-channels add examples/custom-channels/custom-example
-./build/wm-channels add .local/input/channel.wad
-./build/wm-channels list
+./Files/build/wm-channels validate examples/custom-channels/custom-example
+./Files/build/wm-channels add examples/custom-channels/custom-example
+./Files/build/wm-channels add Files/.local/input/channel.wad
+./Files/build/wm-channels list
 ```
 
 `validate` checks a custom folder without installing it. It needs prepared
@@ -29,7 +29,7 @@ manager; the normal build includes them. Unsupported WAD key indices need
 ## Preview
 
 ```sh
-./build/wm-channels preview "Example Channel"
+./Files/build/wm-channels preview "Example Channel"
 ```
 
 This opens the banner in the app. The channel must be installed and visible,
@@ -41,9 +41,9 @@ and the app must be built beside the manager. Restore a removed channel first.
 same custom channel by ID, name, or source folder:
 
 ```sh
-./build/wm-channels remove custom-example
-./build/wm-channels remove "Example Channel"
-./build/wm-channels remove examples/custom-channels/custom-example
+./Files/build/wm-channels remove custom-example
+./Files/build/wm-channels remove "Example Channel"
+./Files/build/wm-channels remove examples/custom-channels/custom-example
 ```
 
 Quote names or paths with spaces. If a name matches several channels, use
@@ -53,14 +53,14 @@ name afterward. A folder needs its `channel.json` to identify the channel.
 To remove several channels at once:
 
 ```sh
-./build/wm-channels remove "Example Channel" "Studio Channel"
+./Files/build/wm-channels remove "Example Channel" "Studio Channel"
 ```
 
 All targets are checked before saving. Repeated IDs are rejected.
 To restore a channel using its installed files:
 
 ```sh
-./build/wm-channels restore custom-example
+./Files/build/wm-channels restore custom-example
 ```
 
 ## Permanently delete
@@ -68,8 +68,8 @@ To restore a channel using its installed files:
 Remove the channel first, then run purge with `--yes`:
 
 ```sh
-./build/wm-channels remove custom-example
-./build/wm-channels purge custom-example --yes
+./Files/build/wm-channels remove custom-example
+./Files/build/wm-channels purge custom-example --yes
 ```
 
 Purge deletes the installed layouts, textures, audio, and local catalog entry.
@@ -86,8 +86,8 @@ purge has no undo.
 Copy the vector example into local storage:
 
 ```sh
-mkdir -p .local/custom-channels
-cp -R examples/custom-channels/custom-example .local/custom-channels/my-channel
+mkdir -p Files/.local/custom-channels
+cp -R examples/custom-channels/custom-example Files/.local/custom-channels/my-channel
 ```
 
 Edit the copied `channel.json`, `icon.json`, and `banner.json`. Use a new ID
@@ -137,9 +137,9 @@ metadata. Add this member to `channel.json`:
 Validate the folder, install it, then preview it:
 
 ```sh
-./build/wm-channels validate .local/custom-channels/my-channel
-./build/wm-channels add .local/custom-channels/my-channel
-./build/wm-channels preview custom-my-channel
+./Files/build/wm-channels validate Files/.local/custom-channels/my-channel
+./Files/build/wm-channels add Files/.local/custom-channels/my-channel
+./Files/build/wm-channels preview custom-my-channel
 ```
 
 Custom channels provide artwork, animation, and sound; they do not run native
@@ -171,7 +171,7 @@ to 48 entries, including removed channels; purge old copies to free entries.
 `wm-prepare` for complete app assets. To make a separate export:
 
 ```sh
-./build/wm-channel-export .local/nand-extracted .local/channel-export ENG
+./Files/build/wm-channel-export Files/.local/nand-extracted Files/.local/channel-export ENG
 ```
 
 Input titles need `title/<8-hex>/<8-hex>/content/title.tmd` and the matching

@@ -132,7 +132,7 @@ static void test_override_and_output(void) {
     char *without_key[] = {"wm-wad-extract", "--wad", "fixture.wad"};
     assert(wm_wad_command_main(3, without_key) == 1);
     struct stat information;
-    assert(lstat(".local", &information) != 0 && errno == ENOENT);
+    assert(lstat("Files/.local", &information) != 0 && errno == ENOENT);
 
     uint8_t key[16];
     for (unsigned byte = 0; byte < 16; byte++)
@@ -165,35 +165,36 @@ static void test_override_and_output(void) {
     memset(key, 0, sizeof(key));
     write_fixture_file("override.key", key, sizeof(key));
     assert(wm_wad_command_main(6, binary_override) == 1);
-    assert(lstat(".local", &information) != 0 && errno == ENOENT);
+    assert(lstat("Files/.local", &information) != 0 && errno == ENOENT);
     static const char malformed_key[] = "not a hexadecimal key";
     write_fixture_file("override.key", malformed_key, sizeof(malformed_key));
     assert(wm_wad_command_main(6, binary_override) == 1);
-    assert(lstat(".local", &information) != 0 && errno == ENOENT);
+    assert(lstat("Files/.local", &information) != 0 && errno == ENOENT);
 
     fixture = make_fixture(0);
     fixture.bytes[FIXTURE_DATA_OFFSET] ^= 1;
     write_fixture_file("fixture.wad", fixture.bytes, fixture.size);
     free_fixture(&fixture);
     assert(wm_wad_command_main(3, without_key) == 1);
-    assert(lstat(".local", &information) != 0 && errno == ENOENT);
+    assert(lstat("Files/.local", &information) != 0 && errno == ENOENT);
     fixture = make_fixture(0);
     write_fixture_file("fixture.wad", fixture.bytes, 31);
     assert(wm_wad_command_main(3, without_key) == 1);
-    assert(lstat(".local", &information) != 0 && errno == ENOENT);
+    assert(lstat("Files/.local", &information) != 0 && errno == ENOENT);
     write_fixture_file("fixture.wad", fixture.bytes, fixture.size);
     free_fixture(&fixture);
     assert(wm_wad_command_main(3, without_key) == 0);
     assert(wm_wad_command_main(3, without_key) == 1);
     uint8_t *content = NULL;
     size_t content_size = 0;
-    assert(read_file(".local/wad/0000000100000002/content/00000001.app", &content,
+    assert(read_file("Files/.local/wad/0000000100000002/content/00000001.app", &content,
                      &content_size));
     assert(content_size == sizeof(fixture_text) - 1);
     assert(memcmp(content, fixture_text, content_size) == 0);
     free(content);
-    remove_stage(".local/wad/0000000100000002");
-    assert(rmdir(".local/wad") == 0 && rmdir(".local") == 0);
+    remove_stage("Files/.local/wad/0000000100000002");
+    assert(rmdir("Files/.local/wad") == 0 && rmdir("Files/.local") == 0);
+    assert(rmdir("Files") == 0);
     assert(unlink("override.key") == 0 && unlink("fixture.wad") == 0);
     assert(chdir(saved_directory) == 0 && rmdir(temporary) == 0);
 }

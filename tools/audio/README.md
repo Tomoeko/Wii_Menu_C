@@ -7,13 +7,13 @@ then renders RSEQ cues using the executable's audio tables. Prefer
 integrity metadata.
 
 For a separate export, run from the repository root. On Linux, replace
-`./build/` with `./build-gles2/`:
+`./Files/build/` with `./Files/build-gles2/`:
 
 ```sh
-./build/wm-audio-export \
-    .local/wad/0000000100000002/content/00000097.app \
-    .local/wad/0000000100000002/content/00000098.app \
-    .local/audio-export
+./Files/build/wm-audio-export \
+    Files/.local/wad/0000000100000002/content/00000097.app \
+    Files/.local/wad/0000000100000002/content/00000098.app \
+    Files/.local/audio-export
 ```
 
 The output contains WAVs and playback metadata. Drag cues use raw looping PCM,

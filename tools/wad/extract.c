@@ -522,7 +522,8 @@ static bool write_manifest(const WmWad *wad, const char *stage) {
 }
 
 static bool extract_contents(const WmWad *wad) {
-    if (!ensure_directory(".local") || !ensure_directory(".local/wad")) {
+    if (!ensure_directory("Files") || !ensure_directory("Files/.local") ||
+        !ensure_directory("Files/.local/wad")) {
         return false;
     }
     char title_name[17];
@@ -530,7 +531,7 @@ static bool extract_contents(const WmWad *wad) {
         snprintf(title_name + index * 2, 3, "%02x", wad->title_id[index]);
     }
     char destination[WM_PATH_SIZE];
-    if (!path_format(destination, ".local/wad", title_name)) {
+    if (!path_format(destination, "Files/.local/wad", title_name)) {
         return false;
     }
     struct stat existing;
@@ -543,7 +544,7 @@ static bool extract_contents(const WmWad *wad) {
         return false;
     }
 
-    char stage[] = ".local/wad/.extract-XXXXXX";
+    char stage[] = "Files/.local/wad/.extract-XXXXXX";
     if (!mkdtemp(stage)) {
         fputs("Cannot create private staging directory.\n", stderr);
         return false;
@@ -592,7 +593,7 @@ static bool extract_contents(const WmWad *wad) {
         return false;
     }
 
-    printf("Validated %u contents and extracted title %s under .local/wad/.\n",
+    printf("Validated %u contents and extracted title %s under Files/.local/wad/.\n",
            wad->content_count, title_name);
     return true;
 }
@@ -601,7 +602,8 @@ static void usage(FILE *output) {
     fputs("Usage: wad_extract --wad FILE [--common-key-file FILE] "
           "[--common-key-index N] [--verify-only]\n"
           "Retail ticket indices 0 and 1 select their built-in common key.\n"
-          "Extracted title contents stay under .local/wad/ in the current project.\n",
+          "Extracted title contents stay under Files/.local/wad/ in the current "
+          "project.\n",
           output);
 }
 

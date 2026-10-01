@@ -120,7 +120,7 @@ static void test_repeated_message_budget(void) {
 }
 
 static void test_local_export(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     int length = snprintf(path, sizeof(path), "%s/messages/eng/ipl_common.bmg", assets);
     assert(length > 0 && length < (int)sizeof(path));

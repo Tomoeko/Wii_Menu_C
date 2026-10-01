@@ -251,7 +251,7 @@ static void test_reconnect_timeout(WmHomeOverlay *home, CueLog *log) {
 }
 
 int main(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char source[4096];
     int length = snprintf(source, sizeof(source),
                           "%s/layouts/homeBtn1/th_HomeBtn_d.json", assets);

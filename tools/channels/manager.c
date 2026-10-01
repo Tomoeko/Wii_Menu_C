@@ -473,7 +473,7 @@ int main(int argc, char **argv) {
     }
     if (!assets || !wm_channels_directory(assets)) {
         fprintf(stderr, "Prepared asset directory is unavailable: %s\n",
-                assets ? assets : ".local/native-assets");
+                assets ? assets : "Files/.local/native-assets");
         return 1;
     }
     bool mutating = strcmp(command, "add") == 0 || strcmp(command, "remove") == 0 ||

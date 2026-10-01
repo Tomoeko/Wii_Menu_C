@@ -51,8 +51,9 @@ int main(void) {
     assert(root);
     make_directory(root, "launch");
     make_directory(root, "project");
-    make_directory(root, "project/.local");
-    make_directory(root, "project/.local/native-assets");
+    make_directory(root, "project/Files");
+    make_directory(root, "project/Files/.local");
+    make_directory(root, "project/Files/.local/native-assets");
     make_directory(root, "project/build");
 
     char launch[WM_APP_ASSET_PATH_CAPACITY];
@@ -61,7 +62,7 @@ int main(void) {
     char found[WM_APP_ASSET_PATH_CAPACITY];
     join_path(launch, root, "launch");
     join_path(executable, root, "project/build/wii-menu");
-    join_path(expected, root, "project/.local/native-assets");
+    join_path(expected, root, "project/Files/.local/native-assets");
     make_executable(executable);
 
     /* An unrelated launch directory still finds assets near the executable. */
@@ -103,10 +104,11 @@ int main(void) {
     assert(strcmp(found, expected) == 0);
 
     /* Current-directory assets win over the executable's tree. */
-    make_directory(root, "launch/.local");
-    make_directory(root, "launch/.local/native-assets");
+    make_directory(root, "launch/Files");
+    make_directory(root, "launch/Files/.local");
+    make_directory(root, "launch/Files/.local/native-assets");
     make_directory(root, "launch/child");
-    join_path(expected, root, "launch/.local/native-assets");
+    join_path(expected, root, "launch/Files/.local/native-assets");
     assert(wm_app_find_default_assets(executable, found, sizeof(found)));
     assert(strcmp(found, expected) == 0);
     char child[WM_APP_ASSET_PATH_CAPACITY];
@@ -117,10 +119,11 @@ int main(void) {
 
     assert(chdir(root) == 0);
     remove_directory(root, "launch/child");
-    remove_directory(root, "launch/.local/native-assets");
-    remove_directory(root, "launch/.local");
-    remove_directory(root, "project/.local/native-assets");
-    join_path(expected, root, "project/.local/native-assets");
+    remove_directory(root, "launch/Files/.local/native-assets");
+    remove_directory(root, "launch/Files/.local");
+    remove_directory(root, "launch/Files");
+    remove_directory(root, "project/Files/.local/native-assets");
+    join_path(expected, root, "project/Files/.local/native-assets");
     make_executable(expected);
     assert(chdir(launch) == 0);
     assert(!wm_app_find_default_assets(executable, found, sizeof(found)));
@@ -142,7 +145,8 @@ int main(void) {
     remove_directory(root, "project/build/wii-menu.app/Contents");
     remove_directory(root, "project/build/wii-menu.app");
     remove_directory(root, "project/build");
-    remove_directory(root, "project/.local");
+    remove_directory(root, "project/Files/.local");
+    remove_directory(root, "project/Files");
     remove_directory(root, "project");
     remove_directory(root, "launch/wii-menu");
     remove_directory(root, "launch");

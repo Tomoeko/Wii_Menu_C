@@ -64,14 +64,9 @@ add_library(wii_menu_core STATIC
     persistence/board_store.c
     persistence/saved_layout.c
 
-    render/frame_damage.c
-    render/image.c
-    render/material_blend.c
     render/material_prepare.c
     render/texture_cache.c
-    render/texture_source.c
     render/ui.c
-    render/viewport.c
 
     resources/resource_ash.c
     resources/resource_audio.c
@@ -82,7 +77,6 @@ add_library(wii_menu_core STATIC
     resources/resource_layout_brlan.c
     resources/resource_layout_brlyt.c
     resources/resource_rsar.c
-    resources/resource_tpl.c
     resources/resource_u8.c
 
     scenes/health_scene.c
@@ -106,15 +100,10 @@ add_library(wii_menu_core STATIC
     scenes/storage_scene.c
     scenes/storage_scene_presentation.c
 
-    support/atomic_file.c
-    support/error.c
     support/asset_manifest.c
-    support/json.c
-    support/regular_file.c
-    support/sha1.c
-    support/utf8.c
 )
 target_include_directories(wii_menu_core PUBLIC "${PROJECT_SOURCE_DIR}/include")
+target_link_libraries(wii_menu_core PUBLIC console_common)
 wm_enable_warnings(wii_menu_core CONVERSION)
 
 find_package(Threads REQUIRED)
@@ -144,7 +133,7 @@ if(WM_BUILD_APP)
     if(APPLE)
         add_executable(wii-menu MACOSX_BUNDLE ${WM_APP_SOURCES})
         set_target_properties(wii-menu PROPERTIES
-            MACOSX_BUNDLE_GUI_IDENTIFIER "org.tomoeko.wii-menu-c"
+            MACOSX_BUNDLE_GUI_IDENTIFIER "org.menu-recovery.wii-menu-c"
             MACOSX_BUNDLE_BUNDLE_NAME "Wii Menu in C"
         )
     else()

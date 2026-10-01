@@ -109,7 +109,7 @@ static void test_badge(void) {
 static WmFontCache *test_fonts;
 
 static WmBoardScene *load_board(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     int length =
         snprintf(path, sizeof(path), "%s/layouts/board/my_IplTop_c.json", assets);
@@ -306,7 +306,7 @@ static void test_state(WmBoardScene *board) {
 }
 
 static void test_calendar(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     WmBoardCalendar *calendar = wm_board_calendar_create(
         (WmPlatform *)1, assets, (WmTextureCache *)1, (WmFontCache *)1);
     assert(calendar);
@@ -369,7 +369,7 @@ static void test_calendar(int argc, char **argv) {
 }
 
 static void test_calendar_hover_order(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     WmBoardCalendar *calendar = wm_board_calendar_create(
         (WmPlatform *)1, assets, (WmTextureCache *)1, (WmFontCache *)1);
     assert(calendar);
@@ -435,7 +435,7 @@ static void test_calendar_hover_order(int argc, char **argv) {
 }
 
 static void test_calendar_same_tile_motion(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     WmBoardCalendar *calendar = wm_board_calendar_create(
         (WmPlatform *)1, assets, (WmTextureCache *)1, (WmFontCache *)1);
     assert(calendar);
@@ -461,7 +461,7 @@ static void test_calendar_same_tile_motion(int argc, char **argv) {
 }
 
 static void test_calendar_hover_boundary_stability(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     WmBoardCalendar *calendar = wm_board_calendar_create(
         (WmPlatform *)1, assets, (WmTextureCache *)1, (WmFontCache *)1);
     assert(calendar);
@@ -549,7 +549,7 @@ static void test_calendar_hover_boundary_stability(int argc, char **argv) {
 }
 
 static void test_compose(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     WmBoardCompose *compose = wm_board_compose_create((WmPlatform *)1, assets,
                                                       (WmTextureCache *)1, test_fonts);
     assert(compose);
@@ -580,7 +580,7 @@ static void test_compose(int argc, char **argv) {
 }
 
 static void test_compose_network_dialog(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     WmTextureCache *textures =
         wm_texture_cache_create((WmPlatform *)1, assets, 64u * 1024u * 1024u);
     assert(textures);
@@ -670,7 +670,7 @@ static void test_board_network_settings_action(int argc, char **argv) {
 }
 
 static void test_compose_mii_notice(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     int length =
         snprintf(path, sizeof(path), "%s/layouts/sofkeybd/my_Memo_a.json", assets);
@@ -706,7 +706,7 @@ static void test_compose_mii_notice(int argc, char **argv) {
 }
 
 static void test_compose_software_keyboard(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     int length = snprintf(path, sizeof(path),
                           "%s/layouts/sofkeybd/fs_VK_ascii_keytop_a.json", assets);
@@ -835,7 +835,7 @@ static WmBoardCompose *editing_compose(const char *assets) {
 }
 
 static void test_compose_physical_arrows(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     WmBoardCompose *compose = wm_board_compose_create((WmPlatform *)1, assets,
                                                       (WmTextureCache *)1, test_fonts);
     assert(compose);
@@ -884,7 +884,7 @@ static WmBoardComposeControl compose_key(WmBoardKeyboardControl key) {
 }
 
 static void test_compose_phone_keyboard(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     char error[160] = {0};
     int length = snprintf(path, sizeof(path),
@@ -989,7 +989,7 @@ static void test_compose_phone_keyboard(int argc, char **argv) {
 }
 
 static void test_compose_held_keytops(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     WmBoardComposeControl deletion =
         (WmBoardComposeControl)(WM_COMPOSE_CONTROL_KEY_FIRST + WM_KEYBOARD_DELETE - 1);
     WmBoardComposeControl space =
@@ -1044,7 +1044,7 @@ static void test_compose_held_keytops(int argc, char **argv) {
 }
 
 static void test_memo_caret_layout(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     int length =
         snprintf(path, sizeof(path), "%s/layouts/sofkeybd/my_Memo_a.json", assets);
@@ -1100,7 +1100,7 @@ static void test_memo_caret_layout(int argc, char **argv) {
 }
 
 static void test_compose_symbol_pages(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     int length = snprintf(path, sizeof(path),
                           "%s/layouts/sofkeybd/fs_signWindow_a.json", assets);
@@ -1254,7 +1254,7 @@ static void test_compose_symbol_pages(int argc, char **argv) {
 }
 
 static void test_compose_memo_scroll_transitions(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     int length =
         snprintf(path, sizeof(path), "%s/layouts/sofkeybd/my_Memo_a.json", assets);
@@ -1431,7 +1431,7 @@ static void test_child_return_retires_footer_focus(int argc, char **argv) {
 }
 
 static void test_erase_dialog(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     WmBoardErase *erase = wm_board_erase_create((WmPlatform *)1, assets,
                                                 (WmTextureCache *)1, (WmFontCache *)1);
     assert(erase);
@@ -1534,7 +1534,7 @@ static void test_memo_erase(int argc, char **argv) {
 }
 
 static void test_reader_text_draw(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     WmTextureCache *textures =
         wm_texture_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     assert(textures);
@@ -1742,7 +1742,7 @@ static void test_board_store(int argc, char **argv) {
 }
 
 static void test_calendar_marker_material(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     int length =
         snprintf(path, sizeof(path), "%s/layouts/calendar/my_IplTop_f.json", assets);
@@ -2030,7 +2030,7 @@ static bool find_board_control_point(WmBoardScene *board, WmBoardControl control
 }
 
 static void test_reader_back_hover_retired(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     WmTextureCache *textures =
         wm_texture_cache_create((WmPlatform *)1, assets, 16u * 1024u * 1024u);
     WmFontCache *fonts =
@@ -3412,7 +3412,7 @@ static bool capture_pin_alpha(void *context, const WmLayoutPaneView *pane) {
 }
 
 static void test_pin_source_tracks(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     int length =
         snprintf(path, sizeof(path), "%s/layouts/board/LetterS_a.json", assets);

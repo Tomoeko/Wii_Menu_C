@@ -286,7 +286,7 @@ void wm_platform_destroy_texture(WmPlatform *platform, uint32_t texture) {
 }
 
 int main(int argc, char **argv) {
-    const char *assets = argc > 1 ? argv[1] : ".local/native-assets";
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
     int length =
         snprintf(path, sizeof(path), "%s/layouts/sofkeybd/my_Memo_a.json", assets);
