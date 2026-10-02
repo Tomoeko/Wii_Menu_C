@@ -10,6 +10,7 @@ struct WmAudioDevice {
     AudioComponentInstance unit;
     WmAudioRender render;
     void *context;
+    bool running;
 };
 
 static OSStatus output_callback(void *reference, AudioUnitRenderActionFlags *flags,
@@ -65,19 +66,38 @@ WmAudioDevice *wm_audio_device_open(WmAudioRender render, void *context) {
         AudioUnitSetProperty(device->unit, kAudioUnitProperty_SetRenderCallback,
                              kAudioUnitScope_Input, 0, &callback,
                              sizeof(callback)) != noErr ||
-        AudioUnitInitialize(device->unit) != noErr ||
-        AudioOutputUnitStart(device->unit) != noErr) {
+        AudioUnitInitialize(device->unit) != noErr || !wm_audio_device_start(device)) {
         wm_audio_device_close(device);
         return NULL;
     }
     return device;
 }
 
+bool wm_audio_device_start(WmAudioDevice *device) {
+    if (!device || !device->unit)
+        return false;
+    if (!device->running) {
+        if (AudioOutputUnitStart(device->unit) != noErr)
+            return false;
+        device->running = true;
+    }
+    return true;
+}
+
+bool wm_audio_device_stop(WmAudioDevice *device) {
+    if (!device || !device->running)
+        return true;
+    if (AudioOutputUnitStop(device->unit) != noErr)
+        return false;
+    device->running = false;
+    return true;
+}
+
 void wm_audio_device_close(WmAudioDevice *device) {
     if (!device)
         return;
     if (device->unit) {
-        AudioOutputUnitStop(device->unit);
+        wm_audio_device_stop(device);
         AudioUnitUninitialize(device->unit);
         AudioComponentInstanceDispose(device->unit);
     }

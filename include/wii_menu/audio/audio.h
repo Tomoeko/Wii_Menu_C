@@ -4,6 +4,7 @@
 #include "wii_menu/menu/menu.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 
 typedef struct WmAudio WmAudio;
 
@@ -11,6 +12,19 @@ typedef struct WmAudio WmAudio;
  * are reported once to stderr; this never substitutes an unrelated sound. */
 WmAudio *wm_audio_create(const char *assets_directory);
 void wm_audio_destroy(WmAudio *audio);
+
+/* Stop joins the output callback without retiring queued voices. A failed
+ * device is released so recording storage can still be detached safely. */
+bool wm_audio_output_stop(WmAudio *audio);
+bool wm_audio_output_start(WmAudio *audio);
+bool wm_audio_output_available(const WmAudio *audio);
+
+/* Begin/end require stopped output. Read is the single consumer of exact
+ * post-volume, post-clipping stereo float words sent to the device. */
+bool wm_audio_capture_begin(WmAudio *audio, size_t capacity_frames);
+size_t wm_audio_capture_read(WmAudio *audio, float *stereo, size_t capacity_frames);
+bool wm_audio_capture_failed(const WmAudio *audio);
+void wm_audio_capture_end(WmAudio *audio);
 
 /* Event symbols resolve through the prepared local audio catalog. */
 bool wm_audio_play(WmAudio *audio, const char *name);

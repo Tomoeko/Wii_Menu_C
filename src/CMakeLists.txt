@@ -4,6 +4,7 @@ add_library(wii_menu_core STATIC
     animation/scene_fader.c
 
     audio/audio.c
+    audio/audio_capture.c
     audio/audio_assets.c
     audio/audio_control.c
     audio/audio_held.c
@@ -114,6 +115,8 @@ endif()
 
 if(WM_BUILD_APP)
     set(WM_APP_SOURCES
+        app/app_options.c
+        app/app_recording.c
         app/app_resources.c
         app/asset_path.c
         app/corruption_outline.c
@@ -140,7 +143,7 @@ if(WM_BUILD_APP)
         add_executable(wii-menu ${WM_APP_SOURCES})
     endif()
     target_include_directories(wii-menu PRIVATE audio render fonts)
-    target_link_libraries(wii-menu PRIVATE wii_menu_core)
+    target_link_libraries(wii-menu PRIVATE wii_menu_core console_common_capture)
     wm_enable_warnings(wii-menu)
     include("${PROJECT_SOURCE_DIR}/cmake/WiiMenuBackend.cmake")
 endif()

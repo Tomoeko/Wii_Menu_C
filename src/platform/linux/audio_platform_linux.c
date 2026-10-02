@@ -31,6 +31,8 @@ struct WmAudioDevice {
     bool thread_started;
     int (*pcm_open)(void **, const char *, int, int);
     int (*pcm_close)(void *);
+    int (*pcm_drop)(void *);
+    int (*pcm_prepare)(void *);
     int (*pcm_set_params)(void *, int, int, unsigned, unsigned, int, unsigned);
     long (*pcm_writei)(void *, const void *, unsigned long);
     int (*pcm_recover)(void *, int, int);
@@ -81,12 +83,17 @@ WmAudioDevice *wm_audio_device_open(WmAudioRender render, void *context) {
     WmAudioDevice *device = calloc(1, sizeof(*device));
     if (!device)
         return NULL;
+    atomic_init(&device->running, false);
     device->library = dlopen("libasound.so.2", RTLD_NOW | RTLD_LOCAL);
     if (!device->library ||
         !load_symbol(device->library, "snd_pcm_open", &device->pcm_open,
                      sizeof(device->pcm_open)) ||
         !load_symbol(device->library, "snd_pcm_close", &device->pcm_close,
                      sizeof(device->pcm_close)) ||
+        !load_symbol(device->library, "snd_pcm_drop", &device->pcm_drop,
+                     sizeof(device->pcm_drop)) ||
+        !load_symbol(device->library, "snd_pcm_prepare", &device->pcm_prepare,
+                     sizeof(device->pcm_prepare)) ||
         !load_symbol(device->library, "snd_pcm_set_params", &device->pcm_set_params,
                      sizeof(device->pcm_set_params)) ||
         !load_symbol(device->library, "snd_pcm_writei", &device->pcm_writei,
@@ -104,21 +111,50 @@ WmAudioDevice *wm_audio_device_open(WmAudioRender render, void *context) {
     }
     device->render = render;
     device->context = context;
-    atomic_store(&device->running, true);
-    if (pthread_create(&device->thread, NULL, output_thread, device) != 0) {
+    if (!wm_audio_device_start(device)) {
         wm_audio_device_close(device);
         return NULL;
     }
-    device->thread_started = true;
     return device;
+}
+
+bool wm_audio_device_start(WmAudioDevice *device) {
+    if (!device || !device->pcm)
+        return false;
+    if (device->thread_started) {
+        if (atomic_load(&device->running))
+            return true;
+        if (!wm_audio_device_stop(device))
+            return false;
+    }
+    if (device->pcm_prepare(device->pcm) < 0)
+        return false;
+    atomic_store(&device->running, true);
+    if (pthread_create(&device->thread, NULL, output_thread, device) != 0) {
+        atomic_store(&device->running, false);
+        return false;
+    }
+    device->thread_started = true;
+    return true;
+}
+
+bool wm_audio_device_stop(WmAudioDevice *device) {
+    if (!device)
+        return true;
+    atomic_store(&device->running, false);
+    if (!device->thread_started)
+        return true;
+    if (pthread_join(device->thread, NULL) != 0)
+        return false;
+    device->thread_started = false;
+    /* Retire buffered device frames before attaching or detaching a tap. */
+    return device->pcm_drop(device->pcm) >= 0;
 }
 
 void wm_audio_device_close(WmAudioDevice *device) {
     if (!device)
         return;
-    atomic_store(&device->running, false);
-    if (device->thread_started)
-        pthread_join(device->thread, NULL);
+    wm_audio_device_stop(device);
     if (device->pcm && device->pcm_close)
         device->pcm_close(device->pcm);
     if (device->library)

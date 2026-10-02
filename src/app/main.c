@@ -1,5 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "app_options.h"
+#include "app_recording.h"
 #include "app_resources.h"
 #include "app_runtime.h"
 #include "asset_path.h"
@@ -11,12 +13,51 @@
 #include "wii_menu/support/asset_manifest.h"
 
 #include <errno.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+typedef struct {
+    struct sigaction interrupt;
+    struct sigaction terminate;
+    bool installed;
+} RecordingSignals;
+
+/* Signal handlers only request the normal main-thread recording cleanup. */
+static volatile sig_atomic_t recording_exit_requested;
+
+static void request_recording_exit(int signal_number) {
+    (void)signal_number;
+    recording_exit_requested = 1;
+}
+
+static bool install_recording_signals(RecordingSignals *signals) {
+    struct sigaction action = {.sa_handler = request_recording_exit};
+    if (sigemptyset(&action.sa_mask) != 0 ||
+        sigaction(SIGINT, NULL, &signals->interrupt) != 0 ||
+        sigaction(SIGTERM, NULL, &signals->terminate) != 0)
+        return false;
+    recording_exit_requested = 0;
+    if (sigaction(SIGINT, &action, NULL) != 0)
+        return false;
+    if (sigaction(SIGTERM, &action, NULL) != 0) {
+        sigaction(SIGINT, &signals->interrupt, NULL);
+        return false;
+    }
+    signals->installed = true;
+    return true;
+}
+
+static void restore_recording_signals(const RecordingSignals *signals) {
+    if (!signals->installed)
+        return;
+    sigaction(SIGINT, &signals->interrupt, NULL);
+    sigaction(SIGTERM, &signals->terminate, NULL);
+}
 
 static uint64_t monotonic_nanoseconds(void) {
     struct timespec time;
@@ -36,62 +77,19 @@ static void sleep_nanoseconds(uint64_t duration) {
 static int print_usage(const char *program) {
     fprintf(stderr,
             "Usage: %s [--assets DIRECTORY] [--bypass] "
-            "[--preview-channel ID-OR-NAME]\n",
+            "[--preview-channel ID-OR-NAME] [--record [half]]\n",
             program);
     fprintf(stderr,
             "       %s --layout JSON --raw-root DIRECTORY [--animation NAME] "
-            "[--hide-masks]\n",
+            "[--hide-masks] [--record [half]]\n",
             program);
     fprintf(stderr, "Default assets: searches for Files/.local/native-assets.\n");
     fprintf(stderr, "--bypass skips prepared-asset integrity checks.\n");
+    fprintf(stderr,
+            "--record [half] saves video and audio to Movies until the window closes.\n"
+            "The half option halves video width/height and preserves audio.\n");
     fprintf(stderr, "Controls: pointer, arrow keys, Enter, Escape, H for HOME.\n");
     return 0;
-}
-
-typedef struct {
-    const char *assets;
-    const char *layout_path;
-    const char *raw_root;
-    const char *animation;
-    const char *preview_channel;
-    bool hide_masks;
-    bool bypass;
-} AppOptions;
-
-typedef enum {
-    APP_OPTIONS_READY,
-    APP_OPTIONS_HELP,
-    APP_OPTIONS_INVALID
-} AppOptionsResult;
-
-static AppOptionsResult parse_options(int argc, char **argv, AppOptions *options) {
-    *options = (AppOptions){0};
-    for (int index = 1; index < argc; index++) {
-        if (strcmp(argv[index], "--help") == 0 || strcmp(argv[index], "-h") == 0)
-            return APP_OPTIONS_HELP;
-        if (strcmp(argv[index], "--assets") == 0 && index + 1 < argc) {
-            options->assets = argv[++index];
-        } else if (strcmp(argv[index], "--layout") == 0 && index + 1 < argc) {
-            options->layout_path = argv[++index];
-        } else if (strcmp(argv[index], "--raw-root") == 0 && index + 1 < argc) {
-            options->raw_root = argv[++index];
-        } else if (strcmp(argv[index], "--animation") == 0 && index + 1 < argc) {
-            options->animation = argv[++index];
-        } else if (strcmp(argv[index], "--preview-channel") == 0 && index + 1 < argc) {
-            options->preview_channel = argv[++index];
-        } else if (strcmp(argv[index], "--hide-masks") == 0) {
-            options->hide_masks = true;
-        } else if (strcmp(argv[index], "--bypass") == 0) {
-            options->bypass = true;
-        } else {
-            return APP_OPTIONS_INVALID;
-        }
-    }
-    if ((options->layout_path && !options->raw_root) ||
-        ((options->animation || options->hide_masks) && !options->layout_path) ||
-        (options->preview_channel && options->layout_path))
-        return APP_OPTIONS_INVALID;
-    return APP_OPTIONS_READY;
 }
 
 static bool select_preview_channel(WmMenu *menu, WmAppResources *resources,
@@ -271,18 +269,12 @@ static void wait_for_next_frame(uint64_t *deadline, uint64_t period,
         *deadline += period;
 }
 
-int main(int argc, char **argv) {
-    AppOptions options;
-    AppOptionsResult parsed = parse_options(argc, argv, &options);
-    if (parsed != APP_OPTIONS_READY) {
-        print_usage(argv[0]);
-        return parsed == APP_OPTIONS_HELP ? 0 : 2;
-    }
-    const char *assets = options.assets;
+static int run_app(const WmAppOptions *options, const char *program) {
+    const char *assets = options->assets;
 
     char default_assets[WM_APP_ASSET_PATH_CAPACITY];
-    if (!assets && !options.layout_path) {
-        if (wm_app_find_default_assets(argv[0], default_assets,
+    if (!assets && !options->layout_path) {
+        if (wm_app_find_default_assets(program, default_assets,
                                        sizeof(default_assets))) {
             assets = default_assets;
         } else {
@@ -291,7 +283,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (!options.layout_path && !options.bypass) {
+    if (!options->layout_path && !options->bypass) {
         const char *root = assets ? assets : "Files/.local/native-assets";
         unsigned issues = 0;
         if (!wm_asset_manifest_verify(root, stderr, &issues)) {
@@ -299,23 +291,38 @@ int main(int argc, char **argv) {
                     "Prepared assets at %s have %u integrity issue(s).\n"
                     "Use --bypass only if these files were intentionally edited.\n",
                     root, issues);
-            return wm_app_show_corruption_screen(assets);
+            return wm_app_show_corruption_screen(assets, options->record,
+                                                 options->record_half,
+                                                 &recording_exit_requested);
         }
     }
 
     WmMenu menu;
     wm_menu_init(&menu);
     WmAppResources resources;
-    if (!wm_app_resources_create(&resources, &menu, assets, options.layout_path,
-                                 options.raw_root)) {
+    if (!wm_app_resources_create(&resources, &menu, assets, options->layout_path,
+                                 options->raw_root)) {
         return 1;
     }
-    if (options.preview_channel &&
-        !select_preview_channel(&menu, &resources, options.preview_channel)) {
+    if (options->preview_channel &&
+        !select_preview_channel(&menu, &resources, options->preview_channel)) {
         wm_app_resources_destroy(&resources);
         return 2;
     }
 
+    CcRecording *recording = NULL;
+    if (options->record) {
+        recording = wm_app_recording_open(resources.platform, resources.audio,
+                                          options->record_half);
+        if (!recording) {
+            fprintf(stderr, "Could not start recording in Movies.\n");
+            wm_app_resources_destroy(&resources);
+            return 1;
+        }
+        fprintf(stderr, "Recording: %s\n", cc_recording_path(recording));
+    }
+    bool recording_started = false;
+    int result = 0;
     bool running = true;
     uint64_t previous = monotonic_nanoseconds();
     WmAppInputState input = {
@@ -331,8 +338,8 @@ int main(int argc, char **argv) {
                               .scene_textures = resources.scene_textures,
                               .scene_fonts = resources.scene_fonts,
                               .layout = resources.layout,
-                              .animation = options.animation,
-                              .hide_masks = options.hide_masks,
+                              .animation = options->animation,
+                              .hide_masks = options->hide_masks,
                               .health_scene = resources.health_scene,
                               .restart_scene = resources.restart_scene,
                               .home = resources.home,
@@ -354,7 +361,7 @@ int main(int argc, char **argv) {
     const bool profile_frames = getenv("WM_PROFILE_FRAMES") != NULL;
     AppFrameProfile profile = {0};
 
-    while (running) {
+    while (running && !recording_exit_requested) {
         uint64_t frame_start = monotonic_nanoseconds();
         float elapsed = (float)(frame_start - previous) / 1000000000.0f;
         if (elapsed > 0.1f)
@@ -377,12 +384,52 @@ int main(int argc, char **argv) {
         wm_app_renderer_draw(&renderer, &render_frame);
 
         uint64_t frame_end = monotonic_nanoseconds();
+        if (recording) {
+            bool captured = cc_recording_frame(recording, (double)frame_end / 1e9);
+            if (captured && !recording_started) {
+                captured = wm_app_recording_start(
+                    recording, resources.audio, (double)monotonic_nanoseconds() / 1e9);
+                recording_started = captured;
+            }
+            if (captured)
+                captured =
+                    cc_recording_pump(recording, (double)monotonic_nanoseconds() / 1e9);
+            if (!captured) {
+                fprintf(stderr, "Recording failed: %s\n",
+                        cc_recording_error(recording));
+                result = 1;
+                break;
+            }
+            frame_end = monotonic_nanoseconds();
+        }
         if (profile_frames)
             record_frame_profile(&profile, &resources, &menu, frame_start, draw_start,
                                  frame_end);
         wait_for_next_frame(&next_frame_deadline, frame_period, frame_end);
     }
+    if (!wm_app_recording_close(recording, resources.audio,
+                                (double)monotonic_nanoseconds() / 1e9)) {
+        fprintf(stderr, "Recording could not be finalized completely.\n");
+        result = 1;
+    }
     wm_app_renderer_release_home_underlay(&renderer);
     wm_app_resources_destroy(&resources);
-    return 0;
+    return result;
+}
+
+int main(int argc, char **argv) {
+    WmAppOptions options;
+    WmAppOptionsResult parsed = wm_app_parse_options(argc, argv, &options);
+    if (parsed != WM_APP_OPTIONS_READY) {
+        print_usage(argv[0]);
+        return parsed == WM_APP_OPTIONS_HELP ? 0 : 2;
+    }
+    RecordingSignals signals = {0};
+    if (options.record && !install_recording_signals(&signals)) {
+        fprintf(stderr, "Could not prepare recording exit handlers.\n");
+        return 1;
+    }
+    int result = run_app(&options, argv[0]);
+    restore_recording_signals(&signals);
+    return result;
 }

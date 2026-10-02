@@ -69,6 +69,14 @@ WmAudioDevice *wm_audio_device_open(WmAudioRender render, void *context) {
     return opened;
 }
 
+bool wm_audio_device_start(WmAudioDevice *opened) {
+    return opened != NULL;
+}
+
+bool wm_audio_device_stop(WmAudioDevice *opened) {
+    return opened != NULL;
+}
+
 void wm_audio_device_close(WmAudioDevice *opened) {
     assert(opened == device);
     device = NULL;

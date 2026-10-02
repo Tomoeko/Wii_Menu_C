@@ -110,6 +110,7 @@ WmAudio *wm_audio_create(const char *assets_directory) {
         }
     }
     audio->device = wm_audio_device_open(wm_audio_mix, audio);
+    audio->output_running = audio->device != NULL;
     if (!audio->device) {
         fprintf(stderr, "System audio output unavailable.\n");
     }
@@ -120,6 +121,9 @@ void wm_audio_destroy(WmAudio *audio) {
     if (!audio)
         return;
     wm_audio_device_close(audio->device);
+    audio->device = NULL;
+    audio->output_running = false;
+    wm_audio_capture_end(audio);
     for (size_t index = 0; index < audio->clip_count; index++)
         wm_audio_pcm_free(&audio->clips[index].pcm);
     wm_json_free(&audio->direct_manifest);

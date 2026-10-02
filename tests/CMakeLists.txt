@@ -1,4 +1,13 @@
 # Application startup.
+wm_add_test(wii-menu-app-options
+    SOURCES app/app_options_test.c "${PROJECT_SOURCE_DIR}/src/app/app_options.c"
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/app"
+)
+wm_add_test(wii-menu-app-recording
+    SOURCES app/app_recording_test.c "${PROJECT_SOURCE_DIR}/src/app/app_recording.c"
+    LIBRARIES console_common
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/src/app"
+)
 wm_add_test(wii-menu-default-assets
     SOURCES app/asset_path_test.c "${PROJECT_SOURCE_DIR}/src/app/asset_path.c"
     INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/app"
@@ -61,6 +70,11 @@ if(WM_BUILD_APP AND WM_BACKEND STREQUAL "gles2")
 endif()
 
 # Audio.
+wm_add_test(wii-menu-audio-capture
+    SOURCES audio/audio_capture_test.c
+    LIBRARIES wii_menu_core m
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/audio"
+)
 wm_add_test(wii-menu-audio-held
     SOURCES audio/audio_held_test.c
     LIBRARIES wii_menu_core m

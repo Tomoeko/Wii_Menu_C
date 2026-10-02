@@ -7,6 +7,7 @@
 #include "wii_menu/support/json.h"
 
 #include "audio_platform.h"
+#include "console_common/capture/audio_buffer.h"
 
 #include <pthread.h>
 #include <stdbool.h>
@@ -81,6 +82,8 @@ struct WmAudio {
     WmAudioVoice voices[WM_AUDIO_MAX_VOICES];
     pthread_mutex_t mutex;
     WmAudioDevice *device;
+    CcAudioBuffer *capture;
+    bool output_running;
     WmJson direct_manifest;
     WmJson sequence_manifest;
     WmAudioHeldTables held_tables;

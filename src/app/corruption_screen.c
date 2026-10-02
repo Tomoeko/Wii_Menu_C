@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "corruption_screen.h"
+#include "app_recording.h"
 #include "corruption_outline.h"
 
 #include "wii_menu/fonts/font_cache.h"
@@ -170,7 +171,14 @@ static void draw_wad_text(ScreenFont *screen_font, const char *message) {
     }
 }
 
-int wm_app_show_corruption_screen(const char *assets_root) {
+static double monotonic_seconds(void) {
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    return (double)now.tv_sec + (double)now.tv_nsec / 1e9;
+}
+
+int wm_app_show_corruption_screen(const char *assets_root, bool record, bool half_size,
+                                  const volatile sig_atomic_t *exit_requested) {
     WmPlatform *platform = wm_platform_create("Wii Menu in C", 960, 540);
     if (!platform) {
         fprintf(stderr,
@@ -208,8 +216,14 @@ int wm_app_show_corruption_screen(const char *assets_root) {
                                   .v1 = 1.0f,
                                   .color = {1.0f, 1.0f, 1.0f, 1.0f},
                                   .texture = fallback};
-    bool running = true;
-    while (running) {
+    CcRecording *recording =
+        record ? wm_app_recording_open(platform, NULL, half_size) : NULL;
+    if (record && !recording)
+        fprintf(stderr, "Could not start recording in Movies.\n");
+    else if (recording)
+        fprintf(stderr, "Recording: %s\n", cc_recording_path(recording));
+    bool running = !record || recording != NULL;
+    while (running && (!exit_requested || !*exit_requested)) {
         WmEvent event;
         while (wm_platform_poll(platform, &event)) {
             if (event.type == WM_EVENT_QUIT ||
@@ -229,9 +243,16 @@ int wm_app_show_corruption_screen(const char *assets_root) {
             wm_platform_draw_quad(platform, &fallback_quad);
         }
         wm_platform_end(platform);
+        if (recording && (!cc_recording_frame(recording, monotonic_seconds()) ||
+                          !cc_recording_pump(recording, monotonic_seconds()))) {
+            fprintf(stderr, "Recording failed: %s\n", cc_recording_error(recording));
+            break;
+        }
         struct timespec pause = {.tv_sec = 0, .tv_nsec = 16000000};
         nanosleep(&pause, NULL);
     }
+    if (!wm_app_recording_close(recording, NULL, monotonic_seconds()))
+        fprintf(stderr, "Recording could not be finalized completely.\n");
     if (fallback)
         wm_platform_destroy_texture(platform, fallback);
     wm_font_cache_destroy(fonts);
