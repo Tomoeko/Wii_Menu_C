@@ -1,2 +1,3 @@
 # Keep private inputs, generated resources, captures, and builds together.
 /Files/
+/build
