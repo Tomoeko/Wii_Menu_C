@@ -24,8 +24,11 @@ static void apply_control(WmAudio *audio, size_t index) {
     const WmAudioClip *clip = &audio->clips[control->clip_index];
     bool starting = control->generation != voice->applied.generation;
     if (starting) {
+        CcAudioResampleState *resample_state = voice->resample_state;
+        cc_audio_resample_state_reset(resample_state);
         *voice = (WmAudioVoice){.clip_index = control->clip_index,
                                 .held_cursor = WM_AUDIO_HELD_BLOCK,
+                                .resample_state = resample_state,
                                 .active = true};
         if (clip->held_profile)
             wm_audio_held_start(&voice->held_state);

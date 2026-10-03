@@ -8,6 +8,7 @@
 
 #include "audio_platform.h"
 #include "console_common/capture/audio_buffer.h"
+#include "console_common/audio/resampler.h"
 
 #include <pthread.h>
 #include <stdbool.h>
@@ -62,12 +63,8 @@ typedef struct WmAudioVoice {
     float pitch;
     WmAudioHeldState held_state;
     float held_block[WM_AUDIO_HELD_BLOCK * 2];
-    float held_current[2];
-    float held_next[2];
     size_t held_cursor;
-    unsigned held_phase;
-    bool held_primed;
-    bool held_has_next;
+    CcAudioResampleState *resample_state;
     float fade_step;
     size_t fade_frames;
     bool active;
@@ -88,6 +85,7 @@ struct WmAudio {
     WmJson sequence_manifest;
     WmAudioHeldTables held_tables;
     WmAudioHeldProfile held_profiles[2];
+    CcAudioResampler *held_resampler;
     bool has_held_profiles;
     bool warned_held_profiles;
     uint64_t last_hover_ns;
@@ -114,5 +112,7 @@ void wm_audio_mix(void *context, float *interleaved, size_t frames);
  * update until a later callback while current playback continues. */
 void wm_audio_refresh_controls(WmAudio *audio);
 void wm_audio_retire_finished(WmAudio *audio);
+bool wm_audio_resampling_init(WmAudio *audio);
+void wm_audio_resampling_destroy(WmAudio *audio);
 
 #endif

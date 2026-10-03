@@ -77,6 +77,11 @@ WmAudio *wm_audio_create(const char *assets_directory) {
         free(audio);
         return NULL;
     }
+    if (!wm_audio_resampling_init(audio)) {
+        pthread_mutex_destroy(&audio->mutex);
+        free(audio);
+        return NULL;
+    }
     char path[4096];
     int length = snprintf(path, sizeof(path), "%s/audio-direct.json", audio->assets);
     if (length > 0 && length < (int)sizeof(path))
@@ -124,6 +129,7 @@ void wm_audio_destroy(WmAudio *audio) {
     audio->device = NULL;
     audio->output_running = false;
     wm_audio_capture_end(audio);
+    wm_audio_resampling_destroy(audio);
     for (size_t index = 0; index < audio->clip_count; index++)
         wm_audio_pcm_free(&audio->clips[index].pcm);
     wm_json_free(&audio->direct_manifest);

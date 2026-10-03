@@ -26,38 +26,30 @@ static bool held_native_sample(WmAudio *audio, WmAudioVoice *voice,
     return true;
 }
 
-static void mix_held_voice(WmAudio *audio, WmAudioVoice *voice, const WmAudioClip *clip,
-                           float *output, size_t frames) {
-    /* The held voice runs at native 32 kHz. Retain its 2:3 output phase and
-     * lookahead across arbitrary host callback sizes, without allocation. */
-    if (!voice->held_primed) {
-        if (!held_native_sample(audio, voice, clip, voice->held_current)) {
+typedef struct {
+    WmAudio *audio;
+    WmAudioVoice *voice;
+    const WmAudioClip *clip;
+} NativeSource;
+
+static bool held_source_frame(void *context, float stereo[2]) {
+    NativeSource *source = context;
+    return held_native_sample(source->audio, source->voice, source->clip, stereo);
+}
+
+static void mix_reconstructed_voice(WmAudio *audio, WmAudioVoice *voice,
+                                    const WmAudioClip *clip, float *output,
+                                    size_t frames) {
+    NativeSource source = {audio, voice, clip};
+    for (size_t frame = 0; frame < frames; ++frame) {
+        float stereo[2];
+        if (!cc_audio_resampler_frame(audio->held_resampler, voice->resample_state,
+                                      held_source_frame, &source, stereo)) {
             voice->active = false;
-            return;
+            break;
         }
-        voice->held_has_next = held_native_sample(audio, voice, clip, voice->held_next);
-        voice->held_primed = true;
-    }
-    for (size_t frame = 0; frame < frames; frame++) {
-        float fraction = (float)voice->held_phase / 3.0f;
-        for (size_t channel = 0; channel < 2; channel++) {
-            output[frame * 2 + channel] +=
-                voice->held_current[channel] +
-                (voice->held_next[channel] - voice->held_current[channel]) * fraction;
-        }
-        voice->held_phase += 2;
-        if (voice->held_phase >= 3) {
-            voice->held_phase -= 3;
-            if (!voice->held_has_next) {
-                voice->active = false;
-                break;
-            }
-            memcpy(voice->held_current, voice->held_next, sizeof(voice->held_current));
-            voice->held_has_next =
-                held_native_sample(audio, voice, clip, voice->held_next);
-            if (!voice->held_has_next)
-                memset(voice->held_next, 0, sizeof(voice->held_next));
-        }
+        for (size_t channel = 0; channel < 2; ++channel)
+            output[frame * 2 + channel] += stereo[channel];
     }
 }
 
@@ -74,7 +66,11 @@ void wm_audio_mix(void *context, float *interleaved, size_t frames) {
             continue;
         const WmAudioClip *clip = &audio->clips[voice->clip_index];
         if (clip->held_profile) {
-            mix_held_voice(audio, voice, clip, interleaved, frames);
+            /* Ordinary PCM retains its existing variable-pitch path.
+             * Reconstruct held native-rate DSP output with the shared causal
+             * filter, also used by live capture, then drain its finite tail.
+             */
+            mix_reconstructed_voice(audio, voice, clip, interleaved, frames);
             finished |= !voice->active;
             continue;
         }

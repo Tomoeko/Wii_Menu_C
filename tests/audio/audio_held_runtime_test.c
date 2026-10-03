@@ -309,6 +309,54 @@ static void test_legacy_fallback(const TestAssets *assets) {
     wm_audio_destroy(audio);
 }
 
+static void test_ordinary_loop_pitch_transition(const TestAssets *assets) {
+    WmAudio *audio = wm_audio_create(assets->root);
+    assert(wm_audio_hold_loop(audio, "WIPL_SE_BOARD_DRAG", 0.5f, 0.0f, 1.0f));
+    float samples[137 * 2];
+    render(samples, 137);
+    WmAudioVoice *voice = &audio->voices[0];
+    assert(!audio->clips[voice->clip_index].held_profile);
+    double position = voice->frame;
+    assert(fabs(position - 137.0 * 32000 / 48000) < 1e-10);
+    wm_audio_set_loop(audio, "WIPL_SE_BOARD_DRAG", 0.5f, 0.0f, 1.25f);
+    render(samples, 137);
+    for (size_t frame = 0; frame < 137; ++frame) {
+        uint32_t first = (uint32_t)position;
+        uint32_t next = (first + 1) % TEST_WAVE_FRAMES;
+        float fraction = (float)(position - first);
+        float first_sample = (float)(4096 + first * 32) / 32768;
+        float next_sample = (float)(4096 + next * 32) / 32768;
+        float expected =
+            (first_sample + (next_sample - first_sample) * fraction) * 0.5f;
+        assert(samples[frame * 2] == expected && samples[frame * 2 + 1] == expected);
+        position += 32000.0 * 1.25 / 48000;
+        if (position >= TEST_WAVE_FRAMES)
+            position = fmod(position, TEST_WAVE_FRAMES);
+    }
+    assert(voice->frame == position);
+    wm_audio_destroy(audio);
+}
+
+static void test_held_capture_and_restart(const TestAssets *assets) {
+    WmAudio *audio = wm_audio_create(assets->root);
+    assert(wm_audio_output_stop(audio));
+    assert(wm_audio_capture_begin(audio, 1024));
+    assert(wm_audio_output_start(audio));
+    assert(wm_audio_hold_loop(audio, "WIPL_SE_BOARD_DRAG", 0.75f, 0.25f, 1.0f));
+    float first[1024 * 2], replay[1024 * 2], captured[1024 * 2];
+    render(first, 1024);
+    assert(wm_audio_capture_read(audio, captured, 1024) == 1024);
+    assert(!memcmp(first, captured, sizeof(first)));
+    assert(fabsf(first[0]) < 0.00001f && !silent(first, 1024));
+    wm_audio_reset_all(audio);
+    assert(wm_audio_hold_loop(audio, "WIPL_SE_BOARD_DRAG", 0.75f, 0.25f, 1.0f));
+    render(replay, 1024);
+    assert(!memcmp(first, replay, sizeof(first)));
+    assert(wm_audio_capture_read(audio, captured, 1024) == 1024);
+    assert(!memcmp(replay, captured, sizeof(replay)));
+    wm_audio_destroy(audio);
+}
+
 static void test_repeated_voice_retirement(const TestAssets *assets) {
     WmAudio *audio = wm_audio_create(assets->root);
     float samples[64];
@@ -381,12 +429,14 @@ static void test_untrusted_manifest_numbers(const TestAssets *assets) {
 int main(void) {
     TestAssets assets = create_assets();
     test_legacy_fallback(&assets);
+    test_ordinary_loop_pitch_transition(&assets);
     write_text(assets.held_manifest,
                "{\n    \"schema\": 1,\n    \"tables\": {\"pan\": [1]}\n}\n");
     test_legacy_fallback(&assets);
     write_held_manifest(&assets);
     test_attack_controls_and_release(&assets);
     test_callback_partitioning(&assets);
+    test_held_capture_and_restart(&assets);
     test_applied_pitch(&assets);
     test_regrab_during_release(&assets);
     test_repeated_voice_retirement(&assets);

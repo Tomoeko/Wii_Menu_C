@@ -9,6 +9,7 @@ add_library(wii_menu_core STATIC
     audio/audio_control.c
     audio/audio_held.c
     audio/audio_mix.c
+    audio/audio_resampling.c
     audio/audio_sequence.c
     audio/audio_sequence_driver.c
     audio/audio_sequence_held.c
@@ -104,7 +105,7 @@ add_library(wii_menu_core STATIC
     support/asset_manifest.c
 )
 target_include_directories(wii_menu_core PUBLIC "${PROJECT_SOURCE_DIR}/include")
-target_link_libraries(wii_menu_core PUBLIC console_common)
+target_link_libraries(wii_menu_core PUBLIC console_common console_common_audio)
 wm_enable_warnings(wii_menu_core CONVERSION)
 
 find_package(Threads REQUIRED)
