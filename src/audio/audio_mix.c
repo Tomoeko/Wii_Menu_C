@@ -111,6 +111,8 @@ void wm_audio_mix(void *context, float *interleaved, size_t frames) {
                 }
             }
         }
+        if (!clip->pcm.looping && voice->frame >= end)
+            voice->active = false;
         finished |= !voice->active;
     }
     for (size_t frame = 0; frame < frames * 2; frame++) {

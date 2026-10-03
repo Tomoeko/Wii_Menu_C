@@ -70,6 +70,12 @@ if(WM_BUILD_APP AND WM_BACKEND STREQUAL "gles2")
 endif()
 
 # Audio.
+wm_add_test(wii-menu-audio-platform
+    SOURCES audio/audio_platform_test.c
+        "${PROJECT_SOURCE_DIR}/src/audio/audio_platform.c"
+    LIBRARIES console_common
+    INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/audio"
+)
 wm_add_test(wii-menu-audio-capture
     SOURCES audio/audio_capture_test.c
     LIBRARIES wii_menu_core m

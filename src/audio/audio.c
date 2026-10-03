@@ -303,19 +303,31 @@ static void set_paused(WmAudio *audio, WmVoiceKind kind, bool paused) {
 }
 
 static void update_background(WmAudio *audio, bool paused) {
+    WmAudioClip *background = NULL;
+    WmAudioClip *intro = NULL;
     if (!audio->background_started) {
-        WmAudioClip *background = wm_audio_load_clip(audio, "background", "audio");
-        WmAudioClip *intro = wm_audio_load_clip(audio, "backgroundIntro", "audio");
-        pthread_mutex_lock(&audio->mutex);
-        if (background)
-            new_voice(audio, background, WM_VOICE_BACKGROUND);
-        if (intro)
-            new_voice(audio, intro, WM_VOICE_INTRO);
-        audio->background_started = true;
-        pthread_mutex_unlock(&audio->mutex);
+        background = wm_audio_load_clip(audio, "background", "audio");
+        intro = wm_audio_load_clip(audio, "backgroundIntro", "audio");
     }
-    audio->background_paused = paused;
     pthread_mutex_lock(&audio->mutex);
+    audio->background_paused = paused;
+    if (!audio->background_started) {
+        size_t required = (background ? 1u : 0u) + (intro ? 1u : 0u);
+        size_t available = 0;
+        for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++) {
+            if (!audio->controls[index].active)
+                available++;
+        }
+        /* Both sources start together. A full effect pool postpones the
+         * start rather than permanently dropping part of the soundtrack. */
+        if (available >= required) {
+            if (background)
+                new_voice(audio, background, WM_VOICE_BACKGROUND);
+            if (intro)
+                new_voice(audio, intro, WM_VOICE_INTRO);
+            audio->background_started = true;
+        }
+    }
     set_paused(audio, WM_VOICE_BACKGROUND, paused || audio->menu_paused);
     set_paused(audio, WM_VOICE_INTRO, paused || audio->menu_paused);
     pthread_mutex_unlock(&audio->mutex);

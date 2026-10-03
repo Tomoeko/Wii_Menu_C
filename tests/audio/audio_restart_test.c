@@ -124,7 +124,7 @@ static float render_first_sample(void) {
 }
 
 static void test_manifest_audio_alias(void) {
-    char directory[] = "/tmp/wm-audio-alias-XXXXXX";
+    char directory[] = "wm-audio-alias-XXXXXX";
     int temporary = mkstemp(directory);
     assert(temporary >= 0);
     assert(close(temporary) == 0);
@@ -172,7 +172,7 @@ static void test_manifest_audio_alias(void) {
 }
 
 int main(void) {
-    char directory[] = "/tmp/wm-audio-restart-XXXXXX";
+    char directory[] = "wm-audio-restart-XXXXXX";
     int temporary = mkstemp(directory);
     assert(temporary >= 0);
     assert(close(temporary) == 0);
@@ -198,6 +198,44 @@ int main(void) {
     WmAudio *audio = wm_audio_create(directory);
     assert(audio && device);
     WmMenu menu;
+    wm_menu_init(&menu);
+
+    /* Exhaust the effect pool before the soundtrack's first request. Its
+     * two sources must retry together after the effects finish. */
+    for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++)
+        assert(wm_audio_play(audio, "click"));
+    wm_audio_sync(audio, &menu);
+    assert(!audio->background_started);
+    float drained_samples[512 * 2];
+    device->render(device->context, drained_samples, 512);
+    assert(drained_samples[0] == 1.0f);
+    assert(drained_samples[511 * 2] == 0.0f);
+    wm_audio_sync(audio, &menu);
+    assert(audio->background_started);
+    assert(fabsf(render_first_sample() - 3000.0f / 32768.0f) < 0.00001f);
+
+    /* A clip ending at the last callback frame releases its slot before
+     * the next UI request, including when every effect slot was occupied. */
+    wm_audio_reset_all(audio);
+    for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++)
+        assert(wm_audio_play(audio, "click"));
+    device->render(device->context, drained_samples, 480);
+    assert(drained_samples[479 * 2] == 1.0f);
+    assert(wm_audio_play(audio, "click"));
+    assert(fabsf(render_first_sample() - 4000.0f / 32768.0f) < 0.00001f);
+
+    /* Initializing during a preview publishes paused soundtrack controls
+     * before the callback can advance either source. */
+    wm_audio_reset_all(audio);
+    menu.screen = WM_SCREEN_PREVIEW;
+    menu.selected = -1;
+    wm_audio_sync(audio, &menu);
+    assert(audio->background_started);
+    assert(audio->controls[0].paused && audio->controls[1].paused);
+    assert(render_first_sample() == 0.0f);
+    assert(audio->voices[0].frame == 0.0 && audio->voices[1].frame == 0.0);
+
+    wm_audio_reset_all(audio);
     wm_menu_init(&menu);
     wm_audio_sync(audio, &menu);
     const float starting_sample = render_first_sample();

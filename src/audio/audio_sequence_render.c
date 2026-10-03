@@ -14,6 +14,13 @@ static void update_envelope(SequenceVoice *voice, const SequenceTables *tables) 
                 voice->envelope_state = 1;
             }
         }
+        /* Attack consumes the block's elapsed time. The native decay path
+         * still compares sustain at that boundary without advancing decay. */
+        if (voice->envelope_state == 1 &&
+            voice->envelope_level <= tables->sustain[envelope[2]]) {
+            voice->envelope_level = tables->sustain[envelope[2]];
+            voice->envelope_state = 2;
+        }
     } else if (voice->envelope_state == 1) {
         voice->envelope_level -= wm_sequence_release_rate(envelope[1]) * 3.0f;
         if (voice->envelope_level <= tables->sustain[envelope[2]]) {
@@ -62,6 +69,19 @@ static int multiply_pcm_volume(double sample, int coefficient) {
     return (int)floor(sample * coefficient / 32768.0);
 }
 
+static int pan_table_index(float pan) {
+    if (pan < -1)
+        pan = -1;
+    if (pan > 1)
+        pan = 1;
+    int index = (int)floorf((pan + 1.0f) * 128.0f + 0.5f);
+    if (index < 0)
+        index = 0;
+    if (index > 256)
+        index = 256;
+    return index;
+}
+
 void wm_sequence_voice_render(SequencePlayer *player, SequenceVoice *voice) {
     if (player->elapsed_ticks > 0 && player->elapsed_ticks - 1 >= voice->release_tick) {
         voice->envelope_state = 3;
@@ -83,22 +103,25 @@ void wm_sequence_voice_render(SequencePlayer *player, SequenceVoice *voice) {
 
     float pan =
         ((float)voice->instrument->pan - 64.0f + (float)track->pan - 64.0f) / 63.0f;
-    if (pan < -1)
-        pan = -1;
-    if (pan > 1)
-        pan = 1;
-    int pan_index = (int)floorf((pan + 1.0f) * 128.0f + 0.5f);
-    if (pan_index < 0)
-        pan_index = 0;
-    if (pan_index > 256)
-        pan_index = 256;
     float main_send = (float)track->main_send / 127.0f;
     float aux_send = (float)track->aux_a / 127.0f;
-    int main_left = send_coefficient(player->tables->pan[pan_index] * main_send);
-    int main_right = send_coefficient(player->tables->pan[256 - pan_index] * main_send);
-    int aux_left = send_coefficient(player->tables->pan[pan_index] * aux_send);
-    int aux_right = send_coefficient(player->tables->pan[256 - pan_index] * aux_send);
     const WmAudioPcm *wave = voice->wave;
+    int main_left[2], main_right[2], aux_left[2], aux_right[2];
+    size_t source_channels = wave->channels == 2 ? 2 : 1;
+    for (size_t channel = 0; channel < source_channels; channel++) {
+        /* Stereo sources begin at opposite pan endpoints. Apply the shared
+         * pan before clamping each source so panning can crossfeed it. */
+        float source_pan = pan;
+        if (source_channels == 2)
+            source_pan += channel == 0 ? -1.0f : 1.0f;
+        int index = pan_table_index(source_pan);
+        main_left[channel] = send_coefficient(player->tables->pan[index] * main_send);
+        main_right[channel] =
+            send_coefficient(player->tables->pan[256 - index] * main_send);
+        aux_left[channel] = send_coefficient(player->tables->pan[index] * aux_send);
+        aux_right[channel] =
+            send_coefficient(player->tables->pan[256 - index] * aux_send);
+    }
     for (size_t frame = 0; frame < WM_SEQUENCE_BLOCK; frame++) {
         if (voice->position >= wave->frame_count)
             break;
@@ -120,14 +143,20 @@ void wm_sequence_voice_render(SequencePlayer *player, SequenceVoice *voice) {
         int envelope = initial + (int)frame * delta;
         int left = multiply_pcm_volume(source_left, envelope);
         int right = multiply_pcm_volume(source_right, envelope);
-        player->block_left[frame] +=
-            (float)multiply_pcm_volume(left, main_left) / 32768.0f;
-        player->block_right[frame] +=
-            (float)multiply_pcm_volume(right, main_right) / 32768.0f;
-        player->aux_left[frame] +=
-            (float)multiply_pcm_volume(left, aux_left) / 32768.0f;
-        player->aux_right[frame] +=
-            (float)multiply_pcm_volume(right, aux_right) / 32768.0f;
+        int output_left = multiply_pcm_volume(left, main_left[0]);
+        int output_right = multiply_pcm_volume(left, main_right[0]);
+        int output_aux_left = multiply_pcm_volume(left, aux_left[0]);
+        int output_aux_right = multiply_pcm_volume(left, aux_right[0]);
+        if (source_channels == 2) {
+            output_left += multiply_pcm_volume(right, main_left[1]);
+            output_right += multiply_pcm_volume(right, main_right[1]);
+            output_aux_left += multiply_pcm_volume(right, aux_left[1]);
+            output_aux_right += multiply_pcm_volume(right, aux_right[1]);
+        }
+        player->block_left[frame] += (float)output_left / 32768.0f;
+        player->block_right[frame] += (float)output_right / 32768.0f;
+        player->aux_left[frame] += (float)output_aux_left / 32768.0f;
+        player->aux_right[frame] += (float)output_aux_right / 32768.0f;
         voice->position += voice->speed;
     }
 }

@@ -4,6 +4,7 @@
 #include "audio_sequence_render_internal.h"
 
 #include <assert.h>
+#include <float.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -161,7 +162,7 @@ static void synthetic_voice_pcm(void) {
     const int expected[] = {0, 16383, 32766, -1, -32767, -15767, 1233, 1233};
     wm_sequence_voice_render(&player, &voice);
     assert(voice.position == 4.0);
-    assert(voice.envelope_state == 1);
+    assert(voice.envelope_state == 2);
     for (size_t frame = 0; frame < sizeof(expected) / sizeof(expected[0]); frame++) {
         float sample = (float)expected[frame] / 32768.0f;
         assert(player.block_left[frame] == sample);
@@ -170,6 +171,74 @@ static void synthetic_voice_pcm(void) {
         assert(player.aux_right[frame] == sample);
     }
     assert(player.block_left[8] == 0.0f);
+
+    /* Instant attack reaches sustain in this block only when sustain is
+     * already at zero. A lower level begins decay in the following block. */
+    tables.sustain[0] = -100;
+    voice.position = 0.0;
+    voice.envelope_level = -904.0f;
+    voice.envelope_state = 0;
+    voice.has_previous_gain = false;
+    wm_sequence_voice_render(&player, &voice);
+    assert(voice.envelope_state == 1 && voice.envelope_level == 0.0f);
+    wm_sequence_voice_render(&player, &voice);
+    assert(voice.envelope_state == 1);
+    assert(voice.envelope_level < 0.0f && voice.envelope_level > -100.0f);
+}
+
+static void stereo_source_pan(void) {
+    /* Each stereo source has its own pan lookup and integer send stage.
+     * The synthetic midpoint makes crossfeed and negative rounding explicit. */
+    int16_t samples[] = {32767, -32768, -3, 7};
+    WmAudioPcm wave = {.samples = samples,
+                       .sample_rate = WM_SEQUENCE_RATE,
+                       .frame_count = 2,
+                       .channels = 2};
+    SequenceTables tables = {0};
+    tables.decibels[904] = 1.0f;
+    tables.pan[0] = 1.0f;
+    tables.pan[128] = 0.5f;
+    const struct {
+        uint8_t instrument_pan;
+        uint8_t track_pan;
+        bool main_enabled;
+        bool aux_enabled;
+        int expected[4];
+    } cases[] = {{64, 64, true, true, {32766, -32767, -3, 6}},
+                 {64, 127, true, true, {16383, -16384, -2, 4}},
+                 {64, 1, true, true, {16382, -16384, 0, 3}},
+                 {127, 127, true, true, {0, -1, 0, 3}},
+                 {1, 1, true, true, {-1, 0, 3, 0}},
+                 {64, 127, false, true, {16383, -16384, -2, 4}},
+                 {64, 127, true, false, {16383, -16384, -2, 4}}};
+    for (size_t index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
+        WmRsarInstrument instrument = {.pan = cases[index].instrument_pan};
+        SequencePlayer player = {.tables = &tables, .main_volume = 127, .gain = 1.0f};
+        player.tracks[0] =
+            (SequenceTrack){.volume = 127,
+                            .volume2 = 127,
+                            .pan = cases[index].track_pan,
+                            .main_send = cases[index].main_enabled ? 127 : 0,
+                            .aux_a = cases[index].aux_enabled ? 127 : 0};
+        SequenceVoice voice = {.instrument = &instrument,
+                               .wave = &wave,
+                               .release_tick = UINT32_MAX,
+                               .speed = 1.0,
+                               .initial_gain = 1.0f,
+                               .envelope_level = -904.0f};
+        wm_sequence_voice_render(&player, &voice);
+        assert(voice.position == 2.0);
+        for (size_t frame = 0; frame < 2; frame++) {
+            float left = (float)cases[index].expected[frame * 2] / 32768.0f;
+            float right = (float)cases[index].expected[frame * 2 + 1] / 32768.0f;
+            assert(player.block_left[frame] == (cases[index].main_enabled ? left : 0));
+            assert(player.block_right[frame] ==
+                   (cases[index].main_enabled ? right : 0));
+            assert(player.aux_left[frame] == (cases[index].aux_enabled ? left : 0));
+            assert(player.aux_right[frame] == (cases[index].aux_enabled ? right : 0));
+        }
+        assert(player.block_left[2] == 0.0f && player.block_right[2] == 0.0f);
+    }
 }
 
 static void synthetic_reverb_impulse(void) {
@@ -259,6 +328,25 @@ static void driver_table_loading(void) {
     assert(tables.pan[128] == 0.25f);
     assert(tables.reverb_frames[7] == 96);
     assert(tables.reverb_preset[1] == 2.0f);
+
+    /* Finite values alone cannot keep the delay network bounded. The native
+     * coloration, damping, and output gain controls admit only 0..1. */
+    const size_t bounded_parameters[] = {2, 3, 5};
+    const float invalid_parameters[] = {-0.1f, 1.1f, FLT_MAX};
+    for (size_t parameter = 0;
+         parameter < sizeof(bounded_parameters) / sizeof(bounded_parameters[0]);
+         parameter++) {
+        size_t offset = offsets[5] + bounded_parameters[parameter] * 4;
+        for (size_t value = 0;
+             value < sizeof(invalid_parameters) / sizeof(invalid_parameters[0]);
+             value++) {
+            put_big_float(dol + offset, invalid_parameters[value]);
+            assert(!wm_sequence_driver_load_tables(dol, sizeof(dol), &tables));
+        }
+        put_big_float(dol + offset, 1.0f);
+        assert(wm_sequence_driver_load_tables(dol, sizeof(dol), &tables));
+        put_big_float(dol + offset, 0.0f);
+    }
     assert(wm_sequence_release_rate(127) == 65535.0f);
     assert(wm_sequence_release_rate(126) == 24.0f);
 
@@ -278,6 +366,7 @@ int main(void) {
     subroutine_clocks();
     bounded_control_flow();
     synthetic_voice_pcm();
+    stereo_source_pan();
     synthetic_reverb_impulse();
     driver_table_loading();
     puts("Sequence parsing, driver tables, and synthetic PCM fixtures passed.");

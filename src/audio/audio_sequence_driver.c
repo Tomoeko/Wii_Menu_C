@@ -84,7 +84,10 @@ bool wm_sequence_driver_load_tables(const uint8_t *dol, size_t dol_size,
             return false;
     }
     return tables->reverb_preset[0] == 0 && tables->reverb_preset[1] > 0 &&
-           tables->reverb_preset[1] <= 10 && tables->reverb_preset[4] == 0;
+           tables->reverb_preset[1] <= 10 && tables->reverb_preset[2] >= 0 &&
+           tables->reverb_preset[2] <= 1 && tables->reverb_preset[3] >= 0 &&
+           tables->reverb_preset[3] <= 1 && tables->reverb_preset[4] == 0 &&
+           tables->reverb_preset[5] >= 0 && tables->reverb_preset[5] <= 1;
 }
 
 float wm_sequence_release_rate(uint8_t value) {

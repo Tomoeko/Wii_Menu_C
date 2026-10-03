@@ -86,7 +86,7 @@ static void write_wave(const char *path, bool ramp, bool looping) {
 
 static TestAssets create_assets(void) {
     TestAssets assets = {0};
-    strcpy(assets.root, "/tmp/wm-audio-held-runtime-XXXXXX");
+    strcpy(assets.root, "wm-audio-held-runtime-XXXXXX");
     int temporary = mkstemp(assets.root);
     assert(temporary >= 0);
     assert(close(temporary) == 0);
