@@ -2,6 +2,7 @@
 wm_add_test(wii-menu-app-options
     SOURCES app/app_options_test.c "${PROJECT_SOURCE_DIR}/src/app/app_options.c"
     INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/app"
+        "${PROJECT_SOURCE_DIR}/Common/include"
 )
 wm_add_test(wii-menu-app-recording
     SOURCES app/app_recording_test.c "${PROJECT_SOURCE_DIR}/src/app/app_recording.c"

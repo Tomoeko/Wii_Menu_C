@@ -2,6 +2,7 @@
 #define WM_APP_OPTIONS_H
 
 #include <stdbool.h>
+#include "console_common/capture/capture_writer.h"
 
 typedef struct {
     const char *assets;
@@ -13,6 +14,8 @@ typedef struct {
     bool bypass;
     bool record;
     bool record_half;
+    bool antialiasing;
+    CcCaptureAudioMode audio_mode;
 } WmAppOptions;
 
 typedef enum {

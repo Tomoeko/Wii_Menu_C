@@ -77,17 +77,21 @@ static void sleep_nanoseconds(uint64_t duration) {
 static int print_usage(const char *program) {
     fprintf(stderr,
             "Usage: %s [--assets DIRECTORY] [--bypass] "
-            "[--preview-channel ID-OR-NAME] [--record [half]]\n",
+            "[--preview-channel ID-OR-NAME] [--aa] "
+            "[--record [half] [--audio web]]\n",
             program);
     fprintf(stderr,
             "       %s --layout JSON --raw-root DIRECTORY [--animation NAME] "
-            "[--hide-masks] [--record [half]]\n",
+            "[--hide-masks] [--aa] [--record [half] [--audio web]]\n",
             program);
     fprintf(stderr, "Default assets: searches for Files/.local/native-assets.\n");
     fprintf(stderr, "--bypass skips prepared-asset integrity checks.\n");
     fprintf(stderr,
             "--record [half] saves video and audio to Movies until the window closes.\n"
             "The half option halves video width/height and preserves audio.\n");
+    fprintf(stderr,
+            "--audio web uses AAC for web previews on macOS; requires --record.\n");
+    fprintf(stderr, "--aa smooths edges. Uses extra GPU resources.\n");
     fprintf(stderr, "Controls: pointer, arrow keys, Enter, Escape, H for HOME.\n");
     return 0;
 }
@@ -270,6 +274,10 @@ static void wait_for_next_frame(uint64_t *deadline, uint64_t period,
 }
 
 static int run_app(const WmAppOptions *options, const char *program) {
+    if (options->record && !cc_capture_audio_mode_supported(options->audio_mode)) {
+        fprintf(stderr, "This recording audio mode is unavailable.\n");
+        return 1;
+    }
     const char *assets = options->assets;
 
     char default_assets[WM_APP_ASSET_PATH_CAPACITY];
@@ -291,9 +299,9 @@ static int run_app(const WmAppOptions *options, const char *program) {
                     "Prepared assets at %s have %u integrity issue(s).\n"
                     "Use --bypass only if these files were intentionally edited.\n",
                     root, issues);
-            return wm_app_show_corruption_screen(assets, options->record,
-                                                 options->record_half,
-                                                 &recording_exit_requested);
+            return wm_app_show_corruption_screen(
+                assets, options->record, options->record_half, options->audio_mode,
+                options->antialiasing, &recording_exit_requested);
         }
     }
 
@@ -301,7 +309,7 @@ static int run_app(const WmAppOptions *options, const char *program) {
     wm_menu_init(&menu);
     WmAppResources resources;
     if (!wm_app_resources_create(&resources, &menu, assets, options->layout_path,
-                                 options->raw_root)) {
+                                 options->raw_root, options->antialiasing)) {
         return 1;
     }
     if (options->preview_channel &&
@@ -313,7 +321,7 @@ static int run_app(const WmAppOptions *options, const char *program) {
     CcRecording *recording = NULL;
     if (options->record) {
         recording = wm_app_recording_open(resources.platform, resources.audio,
-                                          options->record_half);
+                                          options->record_half, options->audio_mode);
         if (!recording) {
             fprintf(stderr, "Could not start recording in Movies.\n");
             wm_app_resources_destroy(&resources);

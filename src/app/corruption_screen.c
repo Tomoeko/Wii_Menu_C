@@ -178,11 +178,17 @@ static double monotonic_seconds(void) {
 }
 
 int wm_app_show_corruption_screen(const char *assets_root, bool record, bool half_size,
+                                  CcCaptureAudioMode audio_mode, bool antialiasing,
                                   const volatile sig_atomic_t *exit_requested) {
     WmPlatform *platform = wm_platform_create("Wii Menu in C", 960, 540);
     if (!platform) {
         fprintf(stderr,
                 "Could not show the corruption screen: graphics backend failed.\n");
+        return 1;
+    }
+    if (antialiasing && !cc_platform_set_antialiasing(platform, true)) {
+        fprintf(stderr, "Could not enable antialiasing.\n");
+        wm_platform_destroy(platform);
         return 1;
     }
     char error[160];
@@ -217,7 +223,7 @@ int wm_app_show_corruption_screen(const char *assets_root, bool record, bool hal
                                   .color = {1.0f, 1.0f, 1.0f, 1.0f},
                                   .texture = fallback};
     CcRecording *recording =
-        record ? wm_app_recording_open(platform, NULL, half_size) : NULL;
+        record ? wm_app_recording_open(platform, NULL, half_size, audio_mode) : NULL;
     if (record && !recording)
         fprintf(stderr, "Could not start recording in Movies.\n");
     else if (recording)

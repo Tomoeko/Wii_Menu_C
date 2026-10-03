@@ -8,7 +8,8 @@ int main(void) {
     char *defaults[] = {"wii-menu"};
     assert(wm_app_parse_options(1, defaults, &options) == WM_APP_OPTIONS_READY);
     assert(!options.record && !options.record_half && !options.assets &&
-           !options.layout_path);
+           !options.layout_path && !options.antialiasing &&
+           options.audio_mode == CC_CAPTURE_AUDIO_NORMAL);
 
     char *record[] = {"wii-menu", "--record",          "--assets", "prepared",
                       "--bypass", "--preview-channel", "disc"};
@@ -16,6 +17,33 @@ int main(void) {
     assert(options.record && !options.record_half && options.bypass);
     assert(strcmp(options.assets, "prepared") == 0);
     assert(strcmp(options.preview_channel, "disc") == 0);
+    char *normal[] = {"wii-menu", "--record", "--audio", "normal"};
+    assert(wm_app_parse_options(4, normal, &options) == WM_APP_OPTIONS_INVALID);
+    char *web[] = {"wii-menu", "--aa", "--audio", "web", "--record", "half"};
+    assert(wm_app_parse_options(6, web, &options) == WM_APP_OPTIONS_READY);
+    assert(options.antialiasing && options.record && options.record_half &&
+           options.audio_mode == CC_CAPTURE_AUDIO_WEB);
+    char *web_after[] = {"wii-menu", "--record", "--audio", "web"};
+    assert(wm_app_parse_options(4, web_after, &options) == WM_APP_OPTIONS_READY);
+    assert(options.record && !options.record_half &&
+           options.audio_mode == CC_CAPTURE_AUDIO_WEB);
+    WmAppOptions previous = options;
+    char *wrong_audio[] = {"wii-menu", "--aa", "--record", "--audio", "lossless"};
+    assert(wm_app_parse_options(5, wrong_audio, &options) == WM_APP_OPTIONS_INVALID);
+    assert(memcmp(&options, &previous, sizeof(options)) == 0);
+    char *no_record[] = {"wii-menu", "--audio", "web"};
+    assert(wm_app_parse_options(3, no_record, &options) == WM_APP_OPTIONS_INVALID);
+    assert(memcmp(&options, &previous, sizeof(options)) == 0);
+    char *normal_no_record[] = {"wii-menu", "--audio", "normal"};
+    assert(wm_app_parse_options(3, normal_no_record, &options) ==
+           WM_APP_OPTIONS_INVALID);
+    char *missing_audio[] = {"wii-menu", "--record", "--audio"};
+    assert(wm_app_parse_options(3, missing_audio, &options) == WM_APP_OPTIONS_INVALID);
+    char *audio_flag[] = {"wii-menu", "--audio", "--record"};
+    assert(wm_app_parse_options(3, audio_flag, &options) == WM_APP_OPTIONS_INVALID);
+    char *aa[] = {"wii-menu", "--aa"};
+    assert(wm_app_parse_options(2, aa, &options) == WM_APP_OPTIONS_READY);
+    assert(options.antialiasing && !options.record);
 
     char *layout[] = {"wii-menu",    "--record",   "--layout",
                       "scene.json",  "--raw-root", "raw",
@@ -44,5 +72,8 @@ int main(void) {
     assert(wm_app_parse_options(8, conflict, &options) == WM_APP_OPTIONS_INVALID);
     char *help[] = {"wii-menu", "--record", "--help"};
     assert(wm_app_parse_options(3, help, &options) == WM_APP_OPTIONS_HELP);
+    assert(wm_app_parse_options(0, defaults, &options) == WM_APP_OPTIONS_INVALID);
+    assert(wm_app_parse_options(1, NULL, &options) == WM_APP_OPTIONS_INVALID);
+    assert(wm_app_parse_options(1, defaults, NULL) == WM_APP_OPTIONS_INVALID);
     return 0;
 }

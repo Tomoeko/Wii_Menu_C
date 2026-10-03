@@ -68,6 +68,19 @@ different location.
 Use the pointer, arrow keys, Enter, Escape, or H for HOME. Run with `--help`
 to see the command-line options.
 
+| Option | Action |
+| --- | --- |
+| `--aa` | Smooth edges. Uses extra GPU resources. |
+| `--record` | Save an MP4 in Movies until exit. |
+| `--record half` | Record at half width and height. |
+| `--audio web` | Use AAC audio for web previews on macOS. |
+
+`--audio web` requires `--record`. Recorded audio stays unchanged by default.
+
+```sh
+./Files/build/wii-menu.app/Contents/MacOS/wii-menu --aa --record half --audio web
+```
+
 ## Channels
 
 Close the menu before changing channels. Restart it afterward.

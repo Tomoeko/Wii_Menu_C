@@ -45,11 +45,11 @@ typedef struct WmAppResources {
     char *board_state_path;
 } WmAppResources;
 
-/* Returns false only when a requested layout or its required backend assets
+/* Returns false when requested graphics options, a layout, or its backend assets
  * cannot be initialized. Optional menu scenes continue to load independently. */
 bool wm_app_resources_create(WmAppResources *resources, WmMenu *menu,
                              const char *assets, const char *layout_path,
-                             const char *raw_root);
+                             const char *raw_root, bool antialiasing);
 void wm_app_resources_destroy(WmAppResources *resources);
 
 #endif

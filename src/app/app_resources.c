@@ -78,7 +78,7 @@ static void populate_channel_storage(WmAppResources *resources, const WmMenu *me
 
 bool wm_app_resources_create(WmAppResources *resources, WmMenu *menu,
                              const char *assets, const char *layout_path,
-                             const char *raw_root) {
+                             const char *raw_root, bool antialiasing) {
     if (!resources || !menu)
         return false;
     memset(resources, 0, sizeof(*resources));
@@ -96,6 +96,11 @@ bool wm_app_resources_create(WmAppResources *resources, WmMenu *menu,
     resources->platform = wm_platform_create("Wii Menu in C", 960, 540);
     if (!resources->platform) {
         fprintf(stderr, "Could not initialize the graphics backend.\n");
+        wm_app_resources_destroy(resources);
+        return false;
+    }
+    if (antialiasing && !cc_platform_set_antialiasing(resources->platform, true)) {
+        fprintf(stderr, "Could not enable antialiasing.\n");
         wm_app_resources_destroy(resources);
         return false;
     }

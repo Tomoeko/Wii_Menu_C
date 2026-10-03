@@ -16,14 +16,15 @@ static void end_audio(void *context) {
     wm_audio_capture_end(context);
 }
 
-CcRecording *wm_app_recording_open(WmPlatform *platform, WmAudio *audio,
-                                   bool half_size) {
-    if (!wm_audio_output_stop(audio))
+CcRecording *wm_app_recording_open(WmPlatform *platform, WmAudio *audio, bool half_size,
+                                   CcCaptureAudioMode audio_mode) {
+    if (!cc_capture_audio_mode_supported(audio_mode) || !wm_audio_output_stop(audio))
         return NULL;
     CcRecordingOptions options = {.platform = platform,
                                   .sample_rate = 48000,
                                   .video_rate = 60,
                                   .half_size = half_size,
+                                  .audio_mode = audio_mode,
                                   .filename_prefix = "Wii"};
     if (wm_audio_output_available(audio)) {
         options.audio = (CcRecordingAudioSource){.context = audio,
