@@ -58,5 +58,3 @@ if(WM_BUILD_TOOLS)
                 "${PROJECT_SOURCE_DIR}/tools/settings/${format}.c")
     endforeach()
 endif()
-
-add_subdirectory("${PROJECT_SOURCE_DIR}/Common/tests" common-tests)

@@ -62,5 +62,6 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_subdirectory(Common/tests common-tests)
     add_subdirectory(tests)
 endif()
