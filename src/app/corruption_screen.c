@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "console_common/support/host.h"
 #include "corruption_screen.h"
 #include "app_recording.h"
 #include "corruption_outline.h"
@@ -172,8 +173,8 @@ static void draw_wad_text(ScreenFont *screen_font, const char *message) {
 }
 
 static double monotonic_seconds(void) {
-    struct timespec now;
-    clock_gettime(CLOCK_MONOTONIC, &now);
+    struct timespec now = {0};
+    cc_host_time(&now);
     return (double)now.tv_sec + (double)now.tv_nsec / 1e9;
 }
 
@@ -254,8 +255,7 @@ int wm_app_show_corruption_screen(const char *assets_root, bool record, bool hal
             fprintf(stderr, "Recording failed: %s\n", cc_recording_error(recording));
             break;
         }
-        struct timespec pause = {.tv_sec = 0, .tv_nsec = 16000000};
-        nanosleep(&pause, NULL);
+        cc_host_sleep(16);
     }
     if (!wm_app_recording_close(recording, NULL, monotonic_seconds()))
         fprintf(stderr, "Recording could not be finalized completely.\n");

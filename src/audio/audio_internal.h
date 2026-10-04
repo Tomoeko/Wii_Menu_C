@@ -10,7 +10,7 @@
 #include "console_common/capture/audio_buffer.h"
 #include "console_common/audio/resampler.h"
 
-#include <pthread.h>
+#include "console_common/support/thread.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -77,7 +77,7 @@ struct WmAudio {
     size_t clip_count;
     WmAudioVoiceControl controls[WM_AUDIO_MAX_VOICES];
     WmAudioVoice voices[WM_AUDIO_MAX_VOICES];
-    pthread_mutex_t mutex;
+    CcMutex mutex;
     WmAudioDevice *device;
     CcAudioBuffer *capture;
     bool output_running;

@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "console_common/support/host.h"
 #include "board_scene_internal.h"
 
 #include "wii_menu/input/source_hit.h"
@@ -25,7 +26,7 @@ enum { BOARD_NEW_PIN_AGE_MS = 21600 * 1000 };
 static int64_t local_time_milliseconds(void *context) {
     (void)context;
     struct timespec clock = {0};
-    if (clock_gettime(CLOCK_REALTIME, &clock) != 0)
+    if (timespec_get(&clock, TIME_UTC) != TIME_UTC)
         return -1;
     return (int64_t)clock.tv_sec * INT64_C(1000) + clock.tv_nsec / 1000000;
 }
@@ -77,7 +78,7 @@ static void promote_card(WmBoardScene *board, size_t source_index);
 static WmBoardDate local_today(void) {
     time_t now = time(NULL);
     struct tm value;
-    if (now == (time_t)-1 || !localtime_r(&now, &value)) {
+    if (now == (time_t)-1 || !cc_host_localtime(&now, &value)) {
         return (WmBoardDate){2000, 1, 1};
     }
     WmBoardDate date = {
@@ -154,7 +155,7 @@ WmBoardScene *wm_board_scene_create(WmPlatform *platform, const char *assets_dir
     board->arrow_press[0] = -1.0f;
     board->arrow_press[1] = -1.0f;
     struct timespec seed;
-    if (clock_gettime(CLOCK_REALTIME, &seed) == 0) {
+    if (timespec_get(&seed, TIME_UTC) == TIME_UTC) {
         board->rng_state = ((uint64_t)seed.tv_sec << 32) ^ (uint64_t)seed.tv_nsec;
     }
     if (!board->rng_state)
@@ -892,7 +893,7 @@ static bool append_posted_memo(WmBoardScene *board, const char *text) {
         }
     }
     struct timespec clock = {0};
-    if (clock_gettime(CLOCK_REALTIME, &clock) != 0) {
+    if (timespec_get(&clock, TIME_UTC) != TIME_UTC) {
         free(records);
         free(pins);
         return false;

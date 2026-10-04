@@ -1,11 +1,11 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "console_common/support/tool_io.h"
 #include "export_internal.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 static void wm_json_string(FILE *stream, const char *value) {
     fputc('"', stream);

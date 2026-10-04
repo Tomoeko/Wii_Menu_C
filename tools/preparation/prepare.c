@@ -6,6 +6,9 @@
 #define _DARWIN_C_SOURCE 1
 #endif
 
+#include "console_common/support/tool_io.h"
+#include "console_common/support/process.h"
+#include "console_common/support/host.h"
 #include "preparation/prepare_fs.h"
 #include "preparation/prepare_recovery.h"
 #include "preparation/prepare_update.h"
@@ -16,10 +19,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
 static bool resolved_output(const char *requested, char *output, size_t capacity,
                             char *parent, size_t parent_capacity, bool create_parents) {
@@ -28,6 +27,12 @@ static bool resolved_output(const char *requested, char *output, size_t capacity
         return false;
     char path[PREPARE_PATH_CAPACITY];
     memcpy(path, requested, length + 1);
+#ifdef _WIN32
+    for (size_t index = 0; index < length; ++index) {
+        if (path[index] == '\\')
+            path[index] = '/';
+    }
+#endif
     while (length > 1 && path[length - 1] == '/')
         path[--length] = '\0';
     char *separator = strrchr(path, '/');
@@ -75,7 +80,12 @@ static bool base_parent_path(const char *base_path, char *parent, size_t capacit
 
 static bool tool_path(char *result, size_t capacity, const char *binary_directory,
                       const char *name) {
+#ifdef _WIN32
+    int length = snprintf(result, capacity, "%s/%s.exe", binary_directory, name);
+    return length > 0 && (size_t)length < capacity;
+#else
     return path_join(result, capacity, binary_directory, name);
+#endif
 }
 
 static bool run_tool(const char *binary_directory, const char *name,
@@ -86,24 +96,7 @@ static bool run_tool(const char *binary_directory, const char *name,
         return false;
     fprintf(plan_output ? stderr : stdout, "Preparing: %s\n", name);
     fflush(plan_output ? stderr : stdout);
-    pid_t child = fork();
-    if (child < 0)
-        return false;
-    if (child == 0) {
-        if (plan_output && dup2(STDERR_FILENO, STDOUT_FILENO) < 0)
-            _exit(127);
-        if (chdir(working_directory) != 0)
-            _exit(127);
-        execv(executable, arguments);
-        _exit(127);
-    }
-    int status;
-    while (waitpid(child, &status, 0) < 0) {
-        if (errno == EINTR)
-            continue;
-        return false;
-    }
-    return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    return cc_process_run(executable, working_directory, arguments, plan_output) == 0;
 }
 
 static int usage(const char *program, int result) {
@@ -430,7 +423,7 @@ int main(int argc, char **argv) {
     char *nand_path = nand ? realpath(nand, NULL) : NULL;
     char *nand_keys_path = nand_keys ? realpath(nand_keys, NULL) : NULL;
     char *base_path = update_from ? realpath(update_from, NULL) : NULL;
-    char *self = realpath(argv[0], NULL);
+    char *self = cc_host_executable_path();
     int result = 1;
     struct stat base_metadata;
     if ((wad && !wad_path) || (common_key && !common_key_path) ||

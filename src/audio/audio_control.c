@@ -55,19 +55,19 @@ static void apply_control(WmAudio *audio, size_t index) {
 }
 
 void wm_audio_refresh_controls(WmAudio *audio) {
-    if (pthread_mutex_trylock(&audio->mutex) != 0)
+    if (cc_mutex_trylock(&audio->mutex) != 0)
         return;
     retire_finished_locked(audio);
     for (size_t index = 0; index < WM_AUDIO_MAX_VOICES; index++)
         apply_control(audio, index);
     audio->mixer_volume = audio->master_volume;
     audio->mixer_muted = audio->muted;
-    pthread_mutex_unlock(&audio->mutex);
+    cc_mutex_unlock(&audio->mutex);
 }
 
 void wm_audio_retire_finished(WmAudio *audio) {
-    if (pthread_mutex_trylock(&audio->mutex) != 0)
+    if (cc_mutex_trylock(&audio->mutex) != 0)
         return;
     retire_finished_locked(audio);
-    pthread_mutex_unlock(&audio->mutex);
+    cc_mutex_unlock(&audio->mutex);
 }

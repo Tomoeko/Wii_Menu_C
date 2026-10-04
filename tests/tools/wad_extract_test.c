@@ -3,6 +3,11 @@
 #undef main
 
 #include <assert.h>
+#ifdef _WIN32
+#include <direct.h>
+#define getcwd _getcwd
+#define chdir _chdir
+#endif
 
 enum {
     FIXTURE_TICKET_OFFSET = 64,
@@ -124,7 +129,7 @@ static void test_retail_defaults(void) {
 static void test_override_and_output(void) {
     char saved_directory[WM_PATH_SIZE];
     assert(getcwd(saved_directory, sizeof(saved_directory)));
-    char temporary[] = "/tmp/wm-wad-default-test-XXXXXX";
+    char temporary[] = "wm-wad-default-test-XXXXXX";
     assert(mkdtemp(temporary) && chdir(temporary) == 0);
     WmWad fixture = make_fixture(9);
     write_fixture_file("fixture.wad", fixture.bytes, fixture.size);

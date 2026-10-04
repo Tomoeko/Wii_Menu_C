@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "console_common/support/host.h"
 #include "resource_scene_internal.h"
 
 #include "wii_menu/animation/channel_animation.h"
@@ -375,8 +376,8 @@ void wm_resource_scene_draw_grid_overlay(WmResourceScene *scene, const WmMenu *m
                                           WM_LAYOUT_IPL, NULL, grid_pane, &traversal);
     struct timespec wall_time = {0};
     struct tm date;
-    if (clock_gettime(CLOCK_REALTIME, &wall_time) == 0 &&
-        localtime_r(&wall_time.tv_sec, &date) != NULL) {
+    if (timespec_get(&wall_time, TIME_UTC) == TIME_UTC &&
+        cc_host_localtime(&wall_time.tv_sec, &date)) {
         draw_grid_clock(scene, &traversal, elapsed_seconds, NULL, &wall_time, &date);
     }
 }
@@ -670,8 +671,8 @@ static void draw_resource_scene(WmResourceScene *scene, const WmMenu *menu,
 
     struct timespec wall_time = {0};
     struct tm date;
-    bool has_date = clock_gettime(CLOCK_REALTIME, &wall_time) == 0 &&
-                    localtime_r(&wall_time.tv_sec, &date) != NULL;
+    bool has_date = timespec_get(&wall_time, TIME_UTC) == TIME_UTC &&
+                    cc_host_localtime(&wall_time.tv_sec, &date);
     int capture_date = has_date ? date.tm_year * 1000 + date.tm_yday : -1;
     prepare_hover_capture(scene, menu, frame, &presentation, has_date, capture_date);
     bool captured = false;

@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
+#define _XOPEN_SOURCE 700
 
 #include "wii_menu/audio/audio.h"
 #include "wii_menu/audio/audio_wave.h"
@@ -11,8 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
+#include "../support/test_directory.h"
 
 enum { TEST_WAVE_FRAMES = 256, TEST_RENDER_FRAMES = 8192 };
 
@@ -87,13 +87,9 @@ static void write_wave(const char *path, bool ramp, bool looping) {
 static TestAssets create_assets(void) {
     TestAssets assets = {0};
     strcpy(assets.root, "wm-audio-held-runtime-XXXXXX");
-    int temporary = mkstemp(assets.root);
-    assert(temporary >= 0);
-    assert(close(temporary) == 0);
-    assert(unlink(assets.root) == 0);
-    assert(mkdir(assets.root, 0700) == 0);
+    assert(wm_test_directory(assets.root, sizeof(assets.root)));
     asset_path(assets.audio, assets.root, "audio");
-    assert(mkdir(assets.audio, 0700) == 0);
+    assert(cc_directory_create(assets.audio));
     asset_path(assets.constant_wave, assets.audio, "drag.wav");
     asset_path(assets.ramp_wave, assets.audio, "WIPL_SE_BOARD_DRAG.wav");
     asset_path(assets.sequence_manifest, assets.root, "audio-sequence.json");
@@ -151,13 +147,13 @@ static void write_held_manifest(const TestAssets *assets) {
 }
 
 static void destroy_assets(const TestAssets *assets) {
-    assert(unlink(assets->constant_wave) == 0);
-    assert(unlink(assets->ramp_wave) == 0);
-    assert(unlink(assets->sequence_manifest) == 0);
-    if (access(assets->held_manifest, F_OK) == 0)
-        assert(unlink(assets->held_manifest) == 0);
-    assert(rmdir(assets->audio) == 0);
-    assert(rmdir(assets->root) == 0);
+    assert(remove(assets->constant_wave) == 0);
+    assert(remove(assets->ramp_wave) == 0);
+    assert(remove(assets->sequence_manifest) == 0);
+    if (cc_path_information(assets->held_manifest, false, NULL) == CC_PATH_FILE)
+        assert(remove(assets->held_manifest) == 0);
+    assert(wm_test_remove_directory(assets->audio) == 0);
+    assert(wm_test_remove_directory(assets->root) == 0);
 }
 
 static void render(float *samples, size_t frames) {

@@ -5,6 +5,7 @@ add_executable(wm-wad-extract
     wad/retail_keys.c
 )
 target_include_directories(wm-wad-extract PRIVATE "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/Common/include")
+target_link_libraries(wm-wad-extract PRIVATE console_common)
 wm_enable_warnings(wm-wad-extract ERROR)
 
 add_executable(wm-nand-extract
@@ -16,6 +17,7 @@ add_executable(wm-nand-extract
     nand/extract.c
 )
 target_include_directories(wm-nand-extract PRIVATE "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/Common/include")
+target_link_libraries(wm-nand-extract PRIVATE console_common)
 wm_enable_warnings(wm-nand-extract ERROR)
 
 add_executable(wm-prepare
@@ -32,12 +34,14 @@ target_include_directories(wm-prepare PRIVATE
     "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/Common/include"
     "${CMAKE_CURRENT_SOURCE_DIR}"
 )
+target_link_libraries(wm-prepare PRIVATE console_common)
 wm_enable_warnings(wm-prepare ERROR)
 
 add_library(wm-export-directory STATIC shared/export_directory.c)
 target_include_directories(wm-export-directory PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/shared"
 )
+target_link_libraries(wm-export-directory PUBLIC console_common)
 wm_enable_warnings(wm-export-directory CONVERSION ERROR)
 
 add_executable(wm-layout-export layout/export.c)
@@ -72,7 +76,7 @@ add_executable(wm-outline-font-export
 target_compile_definitions(wm-outline-font-export PRIVATE
     WM_OUTLINE_FONT_PARSE_ONLY)
 target_link_libraries(wm-outline-font-export PRIVATE
-    wii_menu_core wm-export-directory m
+    wii_menu_core wm-export-directory
 )
 
 add_executable(wm-restart-export restart/export.c)
@@ -85,7 +89,7 @@ target_include_directories(wm-restart-export PRIVATE
 
 add_executable(wm-audio-export audio/export.c)
 target_link_libraries(wm-audio-export PRIVATE
-    wii_menu_core wm-export-directory m
+    wii_menu_core wm-export-directory
 )
 target_include_directories(wm-audio-export PRIVATE
     "${PROJECT_SOURCE_DIR}/src/support"
@@ -93,7 +97,7 @@ target_include_directories(wm-audio-export PRIVATE
 wm_enable_warnings(wm-audio-export CONVERSION ERROR)
 
 add_executable(wm-shared-font-export fonts/shared_font_export.c)
-target_link_libraries(wm-shared-font-export PRIVATE wii_menu_core m)
+target_link_libraries(wm-shared-font-export PRIVATE wii_menu_core)
 
 add_executable(wm-channel-export
     "${PROJECT_SOURCE_DIR}/Common/src/support/sha1.c"
@@ -104,18 +108,24 @@ add_executable(wm-channel-export
     wad/crypto.c
 )
 target_include_directories(wm-channel-export PRIVATE "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/Common/include")
-target_link_libraries(wm-channel-export PRIVATE wii_menu_core m)
+target_link_libraries(wm-channel-export PRIVATE wii_menu_core)
 target_include_directories(wm-channel-export PRIVATE
     "${PROJECT_SOURCE_DIR}/src/support"
 )
 wm_enable_warnings(wm-channel-export ERROR)
+
+if(WIN32)
+    set(WM_TOOL_ASSET_PATH "${PROJECT_SOURCE_DIR}/src/app/asset_path_windows.c")
+else()
+    set(WM_TOOL_ASSET_PATH "${PROJECT_SOURCE_DIR}/src/app/asset_path.c")
+endif()
 
 add_executable(wm-channels
     channels/manager.c
     channels/manager_delete.c
     channels/manager_import.c
     channels/manager_package.c
-    "${PROJECT_SOURCE_DIR}/src/app/asset_path.c"
+    ${WM_TOOL_ASSET_PATH}
     preparation/prepare_fs.c
     settings/png.c
 )

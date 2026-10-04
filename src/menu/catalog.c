@@ -1,3 +1,4 @@
+#include "console_common/support/host.h"
 #include "wii_menu/menu/menu.h"
 #include "wii_menu/menu/local_catalog.h"
 #include "wii_menu/support/json.h"
@@ -42,7 +43,7 @@ static bool load_saved_slots(const char *assets_directory, const WmJson *json,
     int length = snprintf(path, sizeof(path), "%s/iplsave.bin", assets_directory);
     if (length < 0 || (size_t)length >= sizeof(path))
         return false;
-    FILE *file = fopen(path, "rb");
+    FILE *file = cc_host_fopen(path, "rb");
     if (!file)
         return false;
     uint8_t bytes[WM_SAVED_LAYOUT_BYTES];

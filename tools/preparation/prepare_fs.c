@@ -6,15 +6,12 @@
 #define _DARWIN_C_SOURCE 1
 #endif
 
+#include "console_common/support/tool_io.h"
 #include "prepare_fs.h"
 
-#include <dirent.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 #if defined(__APPLE__)
 #include <sys/stdio.h>
@@ -29,7 +26,9 @@ bool path_join(char *result, size_t capacity, const char *directory, const char 
 }
 
 bool publish_directory_no_replace(const char *source, const char *destination) {
-#if defined(__APPLE__)
+#if defined(_WIN32)
+    return cc_tool_publish(source, destination);
+#elif defined(__APPLE__)
     return renamex_np(source, destination, RENAME_EXCL) == 0;
 #elif defined(__linux__) && defined(SYS_renameat2) && defined(RENAME_NOREPLACE)
     return syscall(SYS_renameat2, AT_FDCWD, source, AT_FDCWD, destination,
@@ -48,7 +47,16 @@ bool validate_parents(const char *path, bool create_missing) {
         return false;
     char current[PREPARE_PATH_CAPACITY];
     memcpy(current, path, length + 1);
-    for (size_t index = 1; index <= length; index++) {
+#ifdef _WIN32
+    for (size_t index = 0; index < length; ++index) {
+        if (current[index] == '\\')
+            current[index] = '/';
+    }
+    size_t first_component = cc_tool_root_length(current);
+#else
+    size_t first_component = 1;
+#endif
+    for (size_t index = first_component; index <= length; index++) {
         if (current[index] != '/' && current[index] != '\0')
             continue;
         char saved = current[index];

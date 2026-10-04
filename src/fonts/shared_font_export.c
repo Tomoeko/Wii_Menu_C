@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
+#include "console_common/support/directory.h"
 
 enum {
     WM_SHARED_FONT_ARCHIVE_LIMIT = 128 * 1024 * 1024,
@@ -46,12 +46,7 @@ static bool ensure_directory(const char *path) {
         (strcmp(leaf, ".") == 0 && strcmp(normalized, ".") != 0))
         return false;
 
-    if (mkdir(normalized, 0700) == 0)
-        return true;
-    if (errno != EEXIST)
-        return false;
-    struct stat info;
-    return lstat(normalized, &info) == 0 && S_ISDIR(info.st_mode);
+    return cc_directory_create(normalized);
 }
 
 static bool output_path(char path[WM_SHARED_FONT_PATH_CAPACITY], const char *directory,

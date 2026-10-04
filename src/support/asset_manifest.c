@@ -3,14 +3,15 @@
 #include "wii_menu/support/asset_manifest.h"
 #include "wii_menu/support/sha1.h"
 
-#include <dirent.h>
+#include "console_common/support/directory.h"
+#include "console_common/support/host.h"
+#include "console_common/support/portable_path.h"
 #include <errno.h>
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
 enum { ASSET_PATH_LIMIT = 4096, MANIFEST_LINE_LIMIT = 8192 };
 
@@ -43,8 +44,17 @@ static bool valid_relative_path(const char *path) {
         size_t length = end ? (size_t)(end - part) : strlen(part);
         if (!length || part[0] == '.' || length > 255)
             return false;
+#ifdef _WIN32
+        if (part[length - 1] == '.' || part[length - 1] == ' ' ||
+            cc_path_reserved_component((const uint8_t *)part, length))
+            return false;
+#endif
         for (size_t index = 0; index < length; index++) {
             unsigned char ch = (unsigned char)part[index];
+#ifdef _WIN32
+            if (strchr("\":*?<>|", ch))
+                return false;
+#endif
             if (ch < 32 || ch == 127 || ch == '\\')
                 return false;
         }
@@ -72,9 +82,11 @@ static bool append_path(AssetPaths *paths, const char *relative) {
         paths->items = items;
         paths->capacity = next;
     }
-    paths->items[paths->count] = strdup(relative);
+    size_t length = strlen(relative) + 1;
+    paths->items[paths->count] = malloc(length);
     if (!paths->items[paths->count])
         return false;
+    memcpy(paths->items[paths->count], relative, length);
     paths->count++;
     return true;
 }
@@ -84,26 +96,27 @@ static bool collect_paths(const char *root, const char *directory, AssetPaths *p
     char location[ASSET_PATH_LIMIT];
     if (!join_path(location, root, directory))
         return false;
-    DIR *entries = opendir(location);
+    CcDirectory *entries = cc_directory_open(location);
     if (!entries) {
         fprintf(diagnostics, "Cannot read prepared directory: %s\n", directory);
         return false;
     }
     bool okay = true;
-    struct dirent *entry;
-    while ((entry = readdir(entries)) != NULL) {
-        if (entry->d_name[0] == '.')
+    char entry[1024];
+    int entry_status;
+    while ((entry_status = cc_directory_next(entries, entry, sizeof(entry))) > 0) {
+        if (entry[0] == '.')
             continue;
         char relative[ASSET_PATH_LIMIT];
         if (directory[0]) {
             int length =
-                snprintf(relative, sizeof(relative), "%s/%s", directory, entry->d_name);
+                snprintf(relative, sizeof(relative), "%s/%s", directory, entry);
             if (length < 0 || length >= (int)sizeof(relative)) {
                 okay = false;
                 break;
             }
         } else {
-            int length = snprintf(relative, sizeof(relative), "%s", entry->d_name);
+            int length = snprintf(relative, sizeof(relative), "%s", entry);
             if (length < 0 || length >= (int)sizeof(relative)) {
                 okay = false;
                 break;
@@ -115,17 +128,17 @@ static bool collect_paths(const char *root, const char *directory, AssetPaths *p
             okay = false;
             break;
         }
-        struct stat metadata;
-        if (lstat(location, &metadata) != 0) {
+        CcPathKind kind = cc_path_information(location, false, NULL);
+        if (kind == CC_PATH_ERROR || kind == CC_PATH_MISSING) {
             okay = false;
             break;
         }
-        if (S_ISDIR(metadata.st_mode)) {
+        if (kind == CC_PATH_DIRECTORY) {
             if (!collect_paths(root, relative, paths, diagnostics)) {
                 okay = false;
                 break;
             }
-        } else if (S_ISREG(metadata.st_mode)) {
+        } else if (kind == CC_PATH_FILE) {
             if (!append_path(paths, relative)) {
                 okay = false;
                 break;
@@ -136,7 +149,9 @@ static bool collect_paths(const char *root, const char *directory, AssetPaths *p
             break;
         }
     }
-    closedir(entries);
+    if (entry_status < 0)
+        okay = false;
+    cc_directory_close(entries);
     return okay;
 }
 
@@ -147,7 +162,7 @@ static int compare_paths(const void *left, const void *right) {
 }
 
 static bool hash_file(const char *path, char hexadecimal[41], uint64_t *size) {
-    FILE *file = fopen(path, "rb");
+    FILE *file = cc_host_fopen(path, "rb");
     if (!file)
         return false;
     WmSha1 sha1;
@@ -192,7 +207,7 @@ bool wm_asset_manifest_write(const char *assets_root, FILE *diagnostics) {
     char manifest_path[ASSET_PATH_LIMIT];
     if (okay)
         okay = join_path(manifest_path, assets_root, WM_ASSET_MANIFEST_NAME);
-    FILE *manifest = okay ? fopen(manifest_path, "wb") : NULL;
+    FILE *manifest = okay ? cc_host_fopen(manifest_path, "wb") : NULL;
     if (!manifest)
         okay = false;
     if (okay)
@@ -222,7 +237,7 @@ bool wm_asset_manifest_write(const char *assets_root, FILE *diagnostics) {
 }
 
 static AssetFileStatus file_status(const char *root, const char *relative,
-                                   char path[ASSET_PATH_LIMIT], struct stat *metadata) {
+                                   char path[ASSET_PATH_LIMIT], uint64_t *size) {
     if (!join_path(path, root, relative))
         return ASSET_FILE_UNREADABLE;
     size_t root_length = strlen(root);
@@ -230,19 +245,17 @@ static AssetFileStatus file_status(const char *root, const char *relative,
         if (*cursor != '/')
             continue;
         *cursor = '\0';
-        int result = lstat(path, metadata);
-        int reason = errno;
+        CcPathKind kind = cc_path_information(path, false, NULL);
         *cursor = '/';
-        if (result != 0) {
-            return reason == ENOENT ? ASSET_FILE_MISSING : ASSET_FILE_UNREADABLE;
-        }
-        if (!S_ISDIR(metadata->st_mode))
+        if (kind == CC_PATH_MISSING || kind == CC_PATH_ERROR)
+            return kind == CC_PATH_MISSING ? ASSET_FILE_MISSING : ASSET_FILE_UNREADABLE;
+        if (kind != CC_PATH_DIRECTORY)
             return ASSET_FILE_WRONG_TYPE;
     }
-    if (lstat(path, metadata) != 0) {
-        return errno == ENOENT ? ASSET_FILE_MISSING : ASSET_FILE_UNREADABLE;
-    }
-    return S_ISREG(metadata->st_mode) ? ASSET_FILE_FOUND : ASSET_FILE_WRONG_TYPE;
+    CcPathKind kind = cc_path_information(path, false, size);
+    if (kind == CC_PATH_MISSING || kind == CC_PATH_ERROR)
+        return kind == CC_PATH_MISSING ? ASSET_FILE_MISSING : ASSET_FILE_UNREADABLE;
+    return kind == CC_PATH_FILE ? ASSET_FILE_FOUND : ASSET_FILE_WRONG_TYPE;
 }
 
 static void issue(FILE *diagnostics, unsigned *count, const char *kind,
@@ -263,26 +276,28 @@ bool wm_asset_manifest_verify(const char *assets_root, FILE *diagnostics,
         issue(diagnostics, issue_count, "invalid path", WM_ASSET_MANIFEST_NAME);
         return false;
     }
-    struct stat metadata;
-    if (stat(assets_root, &metadata) != 0) {
+    uint64_t file_size;
+    CcPathKind kind = cc_path_information(assets_root, true, NULL);
+    if (kind == CC_PATH_MISSING || kind == CC_PATH_ERROR) {
         issue(diagnostics, issue_count,
-              errno == ENOENT ? "missing directory" : "unreadable directory",
+              kind == CC_PATH_MISSING ? "missing directory" : "unreadable directory",
               assets_root);
         return false;
     }
-    if (!S_ISDIR(metadata.st_mode)) {
+    if (kind != CC_PATH_DIRECTORY) {
         issue(diagnostics, issue_count, "wrong type for directory", assets_root);
         return false;
     }
-    if (lstat(manifest_path, &metadata) != 0) {
+    kind = cc_path_information(manifest_path, false, &file_size);
+    if (kind == CC_PATH_MISSING || kind == CC_PATH_ERROR) {
         issue(diagnostics, issue_count, "missing", WM_ASSET_MANIFEST_NAME);
         return false;
     }
-    if (!S_ISREG(metadata.st_mode) || metadata.st_size > 16 * 1024 * 1024) {
+    if (kind != CC_PATH_FILE || file_size > 16 * 1024 * 1024) {
         issue(diagnostics, issue_count, "invalid", WM_ASSET_MANIFEST_NAME);
         return false;
     }
-    FILE *manifest = fopen(manifest_path, "rb");
+    FILE *manifest = cc_host_fopen(manifest_path, "rb");
     if (!manifest) {
         issue(diagnostics, issue_count, "unreadable", WM_ASSET_MANIFEST_NAME);
         return false;
@@ -327,7 +342,7 @@ bool wm_asset_manifest_verify(const char *assets_root, FILE *diagnostics,
         strcpy(previous, relative);
         entries++;
         char path[ASSET_PATH_LIMIT];
-        AssetFileStatus status = file_status(assets_root, relative, path, &metadata);
+        AssetFileStatus status = file_status(assets_root, relative, path, &file_size);
         if (status != ASSET_FILE_FOUND) {
             const char *reason = status == ASSET_FILE_MISSING      ? "missing"
                                  : status == ASSET_FILE_WRONG_TYPE ? "wrong type"
@@ -335,11 +350,11 @@ bool wm_asset_manifest_verify(const char *assets_root, FILE *diagnostics,
             issue(diagnostics, issue_count, reason, relative);
             continue;
         }
-        if ((uint64_t)metadata.st_size != expected_size) {
+        if (file_size != expected_size) {
             fprintf(diagnostics,
                     "  size mismatch: %s (expected %" PRIu64 " bytes, found %" PRIu64
                     " bytes)\n",
-                    relative, expected_size, (uint64_t)metadata.st_size);
+                    relative, expected_size, file_size);
             if (*issue_count < UINT32_MAX)
                 (*issue_count)++;
             continue;

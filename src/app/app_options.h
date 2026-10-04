@@ -15,6 +15,7 @@ typedef struct {
     bool record;
     bool record_half;
     bool antialiasing;
+    bool antialiasing_override;
     CcCaptureAudioMode audio_mode;
 } WmAppOptions;
 

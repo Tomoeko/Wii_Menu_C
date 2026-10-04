@@ -1,11 +1,12 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "console_common/support/host.h"
+#include "console_common/support/tool_io.h"
 #include "export_internal.h"
 #include "atomic_file.h"
 #include "../wad/crypto.h"
 #include "wii_menu/support/regular_file.h"
 
-#include <dirent.h>
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
@@ -14,7 +15,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
 enum { WM_MAX_CHANNELS = 2048, WM_MAX_TMD_CONTENTS = 4096 };
 
@@ -75,7 +75,12 @@ static bool wm_make_directories(const char *path) {
         return false;
     char buffer[WM_PATH_CAP];
     memcpy(buffer, path, length + 1);
-    for (size_t index = 1; index <= length; ++index) {
+#ifdef _WIN32
+    size_t first_component = cc_tool_root_length(buffer);
+#else
+    size_t first_component = 1;
+#endif
+    for (size_t index = first_component; index <= length; ++index) {
         if (buffer[index] != '/' && buffer[index] != '\0')
             continue;
         char saved = buffer[index];
@@ -270,7 +275,7 @@ static bool wm_tmd_contents(const uint8_t *data, size_t size,
 static bool wm_has_imet(const char *path) {
     if (!wm_regular_file(path))
         return false;
-    FILE *stream = fopen(path, "rb");
+    FILE *stream = cc_host_fopen(path, "rb");
     if (!stream)
         return false;
     uint8_t header[0xa3];

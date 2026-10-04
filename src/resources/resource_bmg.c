@@ -1,3 +1,4 @@
+#include "console_common/support/host.h"
 #include "wii_menu/resources/resource_bmg.h"
 #include "wii_menu/support/error.h"
 
@@ -267,7 +268,7 @@ WmBmg *wm_bmg_load_file(const char *path, char *error, size_t error_capacity) {
         wm_error_set(error, error_capacity, "Missing BMG path.");
         return NULL;
     }
-    FILE *file = fopen(path, "rb");
+    FILE *file = cc_host_fopen(path, "rb");
     if (!file || fseek(file, 0, SEEK_END) != 0) {
         if (file)
             fclose(file);

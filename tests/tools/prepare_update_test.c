@@ -144,7 +144,7 @@ static void assert_catalog(const char *directory, const char *first_title,
 
 int main(int argc, char **argv) {
     (void)argc;
-    char *temporary_parent = realpath("/tmp", NULL);
+    char *temporary_parent = realpath(".", NULL);
     CHECK(temporary_parent);
     char root[PREPARE_PATH_CAPACITY];
     CHECK(snprintf(root, sizeof(root), "%s/wm-prepare-update-test-XXXXXX",
@@ -374,12 +374,14 @@ int main(int argc, char **argv) {
     CHECK(!prepare_update_channels(base, incoming, stage, &empty, &empty, false));
     assert_catalog(stage, "A old", 2);
 
+#ifndef _WIN32
     CHECK(path_join(path, sizeof(path), base, "linked"));
     CHECK(symlink("channels.json", path) == 0);
     CHECK(path_join(stage, sizeof(stage), root, "stage-symlink"));
     CHECK(!copy_tree(base, stage));
     CHECK(unlink(path) == 0);
 
+#endif
     CHECK(path_join(path, sizeof(path), root, "fake-nand.bin"));
     write_text(path, "not a NAND");
     char existing_output[PREPARE_PATH_CAPACITY];
@@ -396,6 +398,7 @@ int main(int argc, char **argv) {
     CHECK(wm_prepare_command_main(7, command) == 1);
     CHECK(lstat(nested_output, &metadata) != 0 && errno == ENOENT);
 
+#ifndef _WIN32
     char linked_parent[PREPARE_PATH_CAPACITY];
     CHECK(path_join(linked_parent, sizeof(linked_parent), root, "linked-parent"));
     CHECK(symlink(base, linked_parent) == 0);
@@ -406,6 +409,7 @@ int main(int argc, char **argv) {
     CHECK(wm_prepare_command_main(7, command) == 1);
     CHECK(lstat(linked_output, &metadata) != 0 && errno == ENOENT);
 
+#endif
     CHECK(remove_tree(root));
     puts("prepare update tests passed");
     return 0;

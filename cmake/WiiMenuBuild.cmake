@@ -31,6 +31,8 @@ function(wm_add_test name)
     # Tests use assert() for checks and some setup calls, including in Release.
     if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
         target_compile_options(${target} PRIVATE -UNDEBUG)
+    elseif(MSVC)
+        target_compile_options(${target} PRIVATE /UNDEBUG)
     endif()
 
     add_test(NAME ${name} COMMAND ${target} ${TEST_ARGUMENTS})

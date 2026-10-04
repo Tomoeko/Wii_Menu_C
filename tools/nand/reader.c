@@ -3,21 +3,18 @@
 #define _DARWIN_C_SOURCE
 #endif
 
+#include "console_common/support/host.h"
+#include "console_common/support/tool_io.h"
 #include "reader_internal.h"
 #include "../wad/crypto.h"
 #include "wii_menu/support/portable_path.h"
 #include "wii_menu/support/endian.h"
 
-#include <dirent.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
 
 static const uint64_t WM_NAND_DUMP_SIZE = UINT64_C(0x21000000);
 
@@ -44,7 +41,7 @@ static bool exact_file_size(FILE *stream, uint64_t *size) {
 }
 
 static bool read_keys_file(const char *path, uint8_t key_data[0x400]) {
-    FILE *stream = fopen(path, "rb");
+    FILE *stream = cc_host_fopen(path, "rb");
     if (stream == NULL)
         return false;
     uint64_t size = 0;
@@ -409,7 +406,7 @@ static bool parse_entries(WmNandReader *reader, char *error, size_t error_capaci
 
 bool wm_nand_open_reader(WmNandReader *reader, const char *source_path,
                          const char *keys_path, char *error, size_t error_capacity) {
-    reader->stream = fopen(source_path, "rb");
+    reader->stream = cc_host_fopen(source_path, "rb");
     if (reader->stream == NULL) {
         wm_nand_set_error(error, error_capacity, "Could not open the NAND dump.");
         return false;

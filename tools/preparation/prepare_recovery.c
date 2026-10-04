@@ -3,18 +3,15 @@
 #define _DARWIN_C_SOURCE 1
 #endif
 
+#include "console_common/support/tool_io.h"
 #include "prepare_recovery.h"
 #include "prepare_hash.h"
 #include "wad/crypto.h"
 
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
-#include <sys/file.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 /* The journal and marker formats are persistent and must remain compatible. */
 enum { PREPARE_STAGE_NAME_LENGTH = 44 };
@@ -210,21 +207,7 @@ bool recover_owned_stage(const char *parent, const char *identity) {
 bool create_owned_stage(const char *parent, const char *identity,
                         char stage[PREPARE_PATH_CAPACITY]) {
     uint8_t random_bytes[16];
-    int random_file = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
-    if (random_file < 0)
-        return false;
-    size_t received = 0;
-    while (received < sizeof(random_bytes)) {
-        ssize_t amount =
-            read(random_file, random_bytes + received, sizeof(random_bytes) - received);
-        if (amount < 0 && errno == EINTR)
-            continue;
-        if (amount <= 0)
-            break;
-        received += (size_t)amount;
-    }
-    bool okay = close(random_file) == 0 && received == sizeof(random_bytes);
-    if (!okay)
+    if (!cc_tool_random(random_bytes, sizeof(random_bytes)))
         return false;
     PrepareRecoveryRecord record = {0};
     memcpy(record.identity, identity, sizeof(record.identity));

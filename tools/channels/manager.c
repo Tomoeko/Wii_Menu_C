@@ -1,6 +1,8 @@
 #define _POSIX_C_SOURCE 200809L
 #define _DARWIN_C_SOURCE 1
 
+#include "console_common/support/tool_io.h"
+#include "console_common/support/process.h"
 #include "asset_path.h"
 #include "manager_delete.h"
 #include "manager_import.h"
@@ -10,13 +12,10 @@
 #include "wii_menu/support/json.h"
 
 #include <errno.h>
-#include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 static int usage(const char *program, int result) {
     fprintf(stderr,
@@ -337,6 +336,8 @@ static int command_preview(const char *program, const char *assets,
     char sibling[4096];
 #if defined(__APPLE__)
     const char *relative = "wii-menu.app/Contents/MacOS/wii-menu";
+#elif defined(_WIN32)
+    const char *relative = "wii-menu.exe";
 #else
     const char *relative = "wii-menu";
 #endif
@@ -346,7 +347,13 @@ static int command_preview(const char *program, const char *assets,
     }
     char *const arguments[] = {sibling, "--assets", (char *)assets, "--preview-channel",
                                id,      NULL};
+#ifdef _WIN32
+    int status = cc_process_run(sibling, NULL, arguments, false);
+    if (status >= 0)
+        return status;
+#else
     execv(sibling, arguments);
+#endif
     perror("Could not open channel preview");
     return 1;
 }
@@ -363,6 +370,12 @@ static int lock_catalog(const char *assets) {
             close(descriptor);
         return -1;
     }
+#ifdef _WIN32
+    if (cc_tool_lock(descriptor, true) != 0) {
+        close(descriptor);
+        return -1;
+    }
+#else
     struct flock lock = {0};
     lock.l_type = F_WRLCK;
     lock.l_whence = SEEK_SET;
@@ -372,6 +385,7 @@ static int lock_catalog(const char *assets) {
             return -1;
         }
     }
+#endif
     return descriptor;
 }
 

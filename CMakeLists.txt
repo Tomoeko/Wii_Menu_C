@@ -5,6 +5,10 @@ project(WiiMenuC VERSION 0.1.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
+if(MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    add_compile_options(/experimental:c11atomics /Zc:preprocessor /fp:strict)
+endif()
 
 # Keep the application and command-line tools at the documented build paths.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
@@ -22,7 +26,11 @@ option(WM_BUILD_APP "Build the menu application and selected platform backend" O
 include(cmake/WiiMenuBuild.cmake)
 add_subdirectory(Common)
 add_subdirectory(src)
-add_subdirectory(tools)
+set(WM_TOOLS_DEFAULT ON)
+option(WM_BUILD_TOOLS "Build asset preparation and import tools" ${WM_TOOLS_DEFAULT})
+if(WM_BUILD_TOOLS)
+    add_subdirectory(tools)
+endif()
 
 find_program(WM_CLANG_FORMAT NAMES clang-format clang-format-16)
 if(APPLE AND NOT WM_CLANG_FORMAT)

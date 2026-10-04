@@ -47,7 +47,7 @@ static void reset_voice(WmAudio *audio, const int16_t *samples, float volume,
 
 int main(void) {
     WmAudio *audio = calloc(1, sizeof(*audio));
-    assert(audio && pthread_mutex_init(&audio->mutex, NULL) == 0);
+    assert(audio && cc_mutex_init(&audio->mutex) == 0);
     WmAudioDevice device = {0};
     audio->device = &device;
     audio->output_running = true;
@@ -111,7 +111,7 @@ int main(void) {
     assert(!wm_audio_output_available(NULL));
     assert(!wm_audio_capture_failed(NULL));
     wm_audio_capture_end(NULL);
-    pthread_mutex_destroy(&audio->mutex);
+    cc_mutex_destroy(&audio->mutex);
     free(audio);
     return 0;
 }

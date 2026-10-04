@@ -1,18 +1,15 @@
 #define _POSIX_C_SOURCE 200809L
 #define _DARWIN_C_SOURCE 1
 
+#include "console_common/support/tool_io.h"
 #include "manager_delete.h"
 #include "manager_package.h"
 #include "preparation/prepare_fs.h"
 #include "wii_menu/support/json.h"
 
-#include <dirent.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 enum { WM_PURGE_MAX_OWNED_FILES = 35, WM_PURGE_FILENAME_CAPACITY = 128 };
 

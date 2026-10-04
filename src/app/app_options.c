@@ -9,7 +9,7 @@ WmAppOptionsResult wm_app_parse_options(int argc, char **argv, WmAppOptions *opt
         if (!argv[index])
             return WM_APP_OPTIONS_INVALID;
     }
-    WmAppOptions parsed = {0};
+    WmAppOptions parsed = {.antialiasing = true};
     bool has_audio_mode = false;
     for (int index = 1; index < argc; index++) {
         if (strcmp(argv[index], "--help") == 0 || strcmp(argv[index], "-h") == 0)
@@ -39,8 +39,10 @@ WmAppOptionsResult wm_app_parse_options(int argc, char **argv, WmAppOptions *opt
             else
                 return WM_APP_OPTIONS_INVALID;
             has_audio_mode = true;
-        } else if (strcmp(argv[index], "--aa") == 0) {
-            parsed.antialiasing = true;
+        } else if (strcmp(argv[index], "--aa") == 0 ||
+                   strcmp(argv[index], "--no-aa") == 0) {
+            parsed.antialiasing = strcmp(argv[index], "--aa") == 0;
+            parsed.antialiasing_override = true;
         } else if (strcmp(argv[index], "--bypass") == 0) {
             parsed.bypass = true;
         } else {

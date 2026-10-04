@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "console_common/support/tool_io.h"
 #include "atomic_file.h"
 #include "export_directory.h"
 
@@ -7,7 +8,6 @@
 #include "wii_menu/resources/resource_u8.h"
 #include "wii_menu/support/regular_file.h"
 
-#include <dirent.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>

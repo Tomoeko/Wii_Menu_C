@@ -1,14 +1,13 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "console_common/support/tool_io.h"
 #include "wii_menu/fonts/shared_font_export.h"
 #include "wii_menu/support/regular_file.h"
 
-#include <dirent.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
 enum {
     WM_SHARED_FONT_CLI_MAX_INPUT = 128 * 1024 * 1024,

@@ -11,8 +11,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include "console_common/support/tool_io.h"
+#include "platform/windows/junction.h"
+#else
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
 
 static bool join(char output[256], const char *directory, const char *name) {
     int length = snprintf(output, 256, "%s/%s", directory, name);
@@ -29,6 +34,7 @@ static bool publish_probe(const char *root, const char *relative) {
 int main(void) {
     char root[] = "export-directory-XXXXXX";
     assert(mkdtemp(root));
+    assert(wm_export_directory_root(".", 0700));
 
     char outside[256], linked[256], linked_slash[256], linked_dot[256];
     char sentinel[256];
@@ -39,7 +45,11 @@ int main(void) {
     assert(join(sentinel, outside, "probe.bin"));
     assert(mkdir(outside, 0700) == 0);
     assert(wm_atomic_file_replace(sentinel, "keep", 4));
+#ifdef _WIN32
+    assert(cc_test_junction(linked, outside));
+#else
     assert(symlink("outside", linked) == 0);
+#endif
 
     assert(!wm_export_directory_root(linked, 0700));
     assert(!wm_export_directory_root(linked_slash, 0700));
@@ -66,6 +76,7 @@ int main(void) {
     assert(wm_export_directory_child(root, "safe/nested", 0700));
     assert(!wm_export_directory_child(root, "missing/child", 0700));
 
+#ifndef _WIN32
     /* macOS routes /tmp through /private/tmp. This is a trusted ancestor
      * of the selected output root, not a symlink inside that root. */
     char system_root[] = "/tmp/wm-export-directory-XXXXXX";
@@ -77,9 +88,15 @@ int main(void) {
     assert(rmdir(system_child) == 0);
     assert(rmdir(system_root) == 0);
 
+#endif
+
     assert(rmdir(nested) == 0);
     assert(rmdir(safe) == 0);
+#ifdef _WIN32
+    assert(rmdir(linked) == 0);
+#else
     assert(unlink(linked) == 0);
+#endif
     assert(unlink(sentinel) == 0);
     assert(rmdir(outside) == 0);
     assert(rmdir(root) == 0);

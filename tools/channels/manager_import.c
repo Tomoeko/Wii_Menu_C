@@ -1,39 +1,22 @@
 #define _POSIX_C_SOURCE 200809L
 #define _DARWIN_C_SOURCE 1
 
+#include "console_common/support/tool_io.h"
+#include "console_common/support/process.h"
 #include "manager_import.h"
 #include "manager_package.h"
 
 #include "preparation/prepare_fs.h"
 #include "wii_menu/support/json.h"
 
-#include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
 static bool run_tool(const char *executable, const char *working_directory,
                      char *const arguments[]) {
-    pid_t child = fork();
-    if (child < 0)
-        return false;
-    if (child == 0) {
-        if (chdir(working_directory) != 0)
-            _exit(127);
-        execv(executable, arguments);
-        _exit(127);
-    }
-    int status;
-    while (waitpid(child, &status, 0) < 0) {
-        if (errno != EINTR)
-            return false;
-    }
-    return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    return cc_process_run(executable, working_directory, arguments, false) == 0;
 }
 
 static bool baseline_contains(const char *assets, const char *id) {

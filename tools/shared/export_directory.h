@@ -1,8 +1,8 @@
 #ifndef WII_MENU_EXPORT_DIRECTORY_H
 #define WII_MENU_EXPORT_DIRECTORY_H
 
+#include "console_common/support/tool_io.h"
 #include <stdbool.h>
-#include <sys/types.h>
 
 /* The caller chooses the output root. Its existing ancestors may contain
  * symlinks (for example, macOS /tmp), but the root itself must be a real

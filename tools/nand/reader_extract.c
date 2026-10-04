@@ -3,16 +3,13 @@
 #define _DARWIN_C_SOURCE
 #endif
 
+#include "console_common/support/tool_io.h"
 #include "reader_internal.h"
 
-#include <dirent.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 /* Extract only authenticated, selected entries into a private stage. */
 static bool ensure_directory(const char *path) {

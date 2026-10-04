@@ -1,5 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "console_common/support/host.h"
+#include "console_common/support/display_settings.h"
 #include "app_options.h"
 #include "app_recording.h"
 #include "app_resources.h"
@@ -22,8 +24,13 @@
 #include <time.h>
 
 typedef struct {
+#ifdef _WIN32
+    void (*interrupt)(int);
+    void (*terminate)(int);
+#else
     struct sigaction interrupt;
     struct sigaction terminate;
+#endif
     bool installed;
 } RecordingSignals;
 
@@ -36,6 +43,17 @@ static void request_recording_exit(int signal_number) {
 }
 
 static bool install_recording_signals(RecordingSignals *signals) {
+#ifdef _WIN32
+    recording_exit_requested = 0;
+    signals->interrupt = signal(SIGINT, request_recording_exit);
+    if (signals->interrupt == SIG_ERR)
+        return false;
+    signals->terminate = signal(SIGTERM, request_recording_exit);
+    if (signals->terminate == SIG_ERR) {
+        signal(SIGINT, signals->interrupt);
+        return false;
+    }
+#else
     struct sigaction action = {.sa_handler = request_recording_exit};
     if (sigemptyset(&action.sa_mask) != 0 ||
         sigaction(SIGINT, NULL, &signals->interrupt) != 0 ||
@@ -48,6 +66,7 @@ static bool install_recording_signals(RecordingSignals *signals) {
         sigaction(SIGINT, &signals->interrupt, NULL);
         return false;
     }
+#endif
     signals->installed = true;
     return true;
 }
@@ -55,34 +74,43 @@ static bool install_recording_signals(RecordingSignals *signals) {
 static void restore_recording_signals(const RecordingSignals *signals) {
     if (!signals->installed)
         return;
+#ifdef _WIN32
+    signal(SIGINT, signals->interrupt);
+    signal(SIGTERM, signals->terminate);
+#else
     sigaction(SIGINT, &signals->interrupt, NULL);
     sigaction(SIGTERM, &signals->terminate, NULL);
+#endif
 }
 
 static uint64_t monotonic_nanoseconds(void) {
-    struct timespec time;
-    clock_gettime(CLOCK_MONOTONIC, &time);
+    struct timespec time = {0};
+    cc_host_time(&time);
     return (uint64_t)time.tv_sec * 1000000000ULL + (uint64_t)time.tv_nsec;
 }
 
 static void sleep_nanoseconds(uint64_t duration) {
+#ifdef _WIN32
+    cc_host_sleep((unsigned)(duration / 1000000ULL + (duration % 1000000ULL != 0)));
+#else
     struct timespec delay = {.tv_sec = (time_t)(duration / 1000000000ULL),
                              .tv_nsec = (long)(duration % 1000000000ULL)};
     struct timespec remaining;
     while (nanosleep(&delay, &remaining) != 0 && errno == EINTR) {
         delay = remaining;
     }
+#endif
 }
 
 static int print_usage(const char *program) {
     fprintf(stderr,
             "Usage: %s [--assets DIRECTORY] [--bypass] "
-            "[--preview-channel ID-OR-NAME] [--aa] "
+            "[--preview-channel ID-OR-NAME] [--aa | --no-aa] "
             "[--record [half] [--audio web]]\n",
             program);
     fprintf(stderr,
             "       %s --layout JSON --raw-root DIRECTORY [--animation NAME] "
-            "[--hide-masks] [--aa] [--record [half] [--audio web]]\n",
+            "[--hide-masks] [--aa | --no-aa] [--record [half] [--audio web]]\n",
             program);
     fprintf(stderr, "Default assets: searches for Files/.local/native-assets.\n");
     fprintf(stderr, "--bypass skips prepared-asset integrity checks.\n");
@@ -91,7 +119,9 @@ static int print_usage(const char *program) {
             "The half option halves video width/height and preserves audio.\n");
     fprintf(stderr,
             "--audio web uses AAC for web previews on macOS; requires --record.\n");
-    fprintf(stderr, "--aa smooths edges. Uses extra GPU resources.\n");
+    fprintf(
+        stderr,
+        "Antialiasing defaults on in Files/display.json. --aa/--no-aa override it.\n");
     fprintf(stderr, "Controls: pointer, arrow keys, Enter, Escape, H for HOME.\n");
     return 0;
 }
@@ -432,6 +462,13 @@ int main(int argc, char **argv) {
         print_usage(argv[0]);
         return parsed == WM_APP_OPTIONS_HELP ? 0 : 2;
     }
+    CcDisplaySettings display = {.antialiasing = true};
+    if (!cc_display_settings_load_project(&display)) {
+        fprintf(stderr, "Could not read or create Files/display.json.\n");
+        return EXIT_FAILURE;
+    }
+    if (!options.antialiasing_override)
+        options.antialiasing = display.antialiasing;
     RecordingSignals signals = {0};
     if (options.record && !install_recording_signals(&signals)) {
         fprintf(stderr, "Could not prepare recording exit handlers.\n");

@@ -1,7 +1,8 @@
 # Wii Menu in C
 
-Wii Menu presentation and local interactions in C11, using Metal on macOS
-and OpenGL ES 2.0 on Linux. This project uses Codex/ChatGPT extensively.
+Wii Menu presentation and local interactions in C11. Metal runs on macOS.
+The shared GLES2 renderer runs on Linux and Windows. This project uses
+Codex/ChatGPT extensively.
 
 ## Build
 
@@ -29,6 +30,25 @@ ctest --test-dir Files/build-gles2 --output-on-failure
 
 Linux needs an X11 display and an ALSA-compatible audio output.
 Use `-DWM_BUILD_APP=OFF` to build only the core, tools, and tests.
+
+### Windows
+
+Install Visual Studio 2026 with **Desktop development with C++** and
+**C++ CMake tools for Windows**. Open its **x64 Native Tools Command Prompt**
+in this repository. Run:
+
+```bat
+git submodule update --init --recursive
+cmake -S . -B Files/build-windows -G "Visual Studio 18 2026" -A x64 -DBUILD_TESTING=OFF -DWM_BUILD_TOOLS=ON
+cmake --build Files/build-windows --config Release --parallel
+Files\build-windows\Release\wm-prepare.exe --wad Files/.local/input/menu.wad --output Files/.local/native-assets
+Files\build-windows\Release\wii-menu.exe
+```
+
+Place your System Menu WAD at `Files/.local/input/menu.wad` first.
+All preparation, export, and channel tools work on Windows.
+Use `Files\build-windows\Release\` and `.exe` for the tools below.
+Windows uses OpenGL 2.1. Install your GPU driver. No extra runtime libraries are needed.
 
 ## Prepare assets
 
@@ -70,12 +90,23 @@ to see the command-line options.
 
 | Option | Action |
 | --- | --- |
-| `--aa` | Smooth edges. Uses extra GPU resources. |
+| `--aa`, `--no-aa` | Override the saved antialiasing setting. |
 | `--record` | Save an MP4 in Movies until exit. |
 | `--record half` | Record at half width and height. |
 | `--audio web` | Use AAC audio for web previews on macOS. |
 
+Windows recordings go to Videos.
 `--audio web` requires `--record`. Recorded audio stays unchanged by default.
+
+Antialiasing defaults on. `Files/display.json` is created automatically:
+
+```json
+{
+    "antialiasing": true
+}
+```
+
+Set it to `false` to reduce GPU use.
 
 ```sh
 ./Files/build/wii-menu.app/Contents/MacOS/wii-menu --aa --record half --audio web

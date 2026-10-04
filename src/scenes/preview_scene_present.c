@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "console_common/support/host.h"
 #include "preview_scene_internal.h"
 
 #include "wii_menu/animation/channel_animation.h"
@@ -254,7 +255,7 @@ static float shop_banner_frame(WmPreviewScene *scene, const WmMenu *menu,
 static void update_background_date(WmPreviewScene *scene) {
     time_t now = time(NULL);
     struct tm date;
-    if (!localtime_r(&now, &date) || date.tm_wday < 0 || date.tm_wday >= 7)
+    if (!cc_host_localtime(&now, &date) || date.tm_wday < 0 || date.tm_wday >= 7)
         return;
     if (scene->date_year == date.tm_year && scene->date_month == date.tm_mon &&
         scene->date_day == date.tm_mday)

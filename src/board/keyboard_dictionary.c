@@ -1,3 +1,4 @@
+#include "console_common/support/host.h"
 #include "wii_menu/board/keyboard_dictionary.h"
 #include "wii_menu/support/endian.h"
 #include "wii_menu/support/error.h"
@@ -122,7 +123,7 @@ bool wm_keyboard_oem_load(const char *path, WmKeyboardWordList *words, char *err
     if (!path || !words)
         return fail(error, error_size, "Missing OEM path.");
     *words = (WmKeyboardWordList){0};
-    FILE *file = fopen(path, "rb");
+    FILE *file = cc_host_fopen(path, "rb");
     if (!file)
         return fail(error, error_size, "OEM dictionary is absent.");
     if (fseek(file, 0, SEEK_END) != 0) {

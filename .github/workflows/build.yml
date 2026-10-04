@@ -1,0 +1,67 @@
+name: Build and test
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.markdown'
+      - '**/*.rst'
+      - '**/*.adoc'
+      - 'docs/**'
+      - 'LICENSE'
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.markdown'
+      - '**/*.rst'
+      - '**/*.adoc'
+      - 'docs/**'
+      - 'LICENSE'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.check.outputs.build }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Check source changes
+        id: check
+        run: python3 Common/tools/build_changes.py
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Configure
+        run: cmake -S . -B Files/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+      - name: Build app and tools
+        run: cmake --build Files/build --config Release --parallel 4
+      - name: Test portable behavior
+        run: ctest --test-dir Files/build -C Release -j 1 --timeout 30 --output-on-failure -R "^(cc-|wii-menu-(app-options|audio-|hover-audio|export-directory|channel-manifest|prepare-update|settings-gif|settings-png|crypto|wad-extract))"

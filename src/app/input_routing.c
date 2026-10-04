@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "console_common/support/host.h"
 #include "input_routing.h"
 
 #include <string.h>
@@ -8,7 +9,7 @@
 WmBoardDate wm_app_today_date(void) {
     time_t now = time(NULL);
     struct tm date;
-    if (!localtime_r(&now, &date)) {
+    if (!cc_host_localtime(&now, &date)) {
         return (WmBoardDate){2000, 1, 1};
     }
     return (WmBoardDate){date.tm_year + 1900, date.tm_mon + 1, date.tm_mday};

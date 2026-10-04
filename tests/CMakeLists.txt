@@ -1,3 +1,8 @@
+if(WIN32)
+    add_subdirectory(windows)
+    return()
+endif()
+
 # Application startup.
 wm_add_test(wii-menu-app-options
     SOURCES app/app_options_test.c "${PROJECT_SOURCE_DIR}/src/app/app_options.c"
@@ -412,6 +417,7 @@ wm_add_test(wii-menu-export-directory
     INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/support"
 )
 wm_add_test(wii-menu-channel-manifest
+    LIBRARIES console_common
     SOURCES
         tools/channel_manifest_test.c
         "${PROJECT_SOURCE_DIR}/tools/channels/export_manifest.c"
@@ -421,6 +427,7 @@ wm_add_test(wii-menu-channel-manifest
         "${PROJECT_SOURCE_DIR}/tools/channels"
 )
 wm_add_test(wii-menu-prepare-update
+    LIBRARIES console_common
     SOURCES
         tools/prepare_update_test.c
         "${PROJECT_SOURCE_DIR}/src/support/asset_manifest.c"
@@ -456,6 +463,7 @@ wm_add_test(wii-menu-crypto
         "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/Common/include"
 )
 wm_add_test(wii-menu-wad-extract
+    LIBRARIES console_common
     SOURCES
         "${PROJECT_SOURCE_DIR}/Common/src/support/sha1.c"
         tools/wad_extract_test.c

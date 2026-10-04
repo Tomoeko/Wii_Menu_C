@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
+#define _XOPEN_SOURCE 700
 
 #include "wii_menu/audio/audio.h"
 #include "wii_menu/menu/menu_restart.h"
@@ -12,8 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
+#include "../support/test_directory.h"
 
 struct WmAudioDevice {
     WmAudioRender render;
@@ -125,11 +125,7 @@ static float render_first_sample(void) {
 
 static void test_manifest_audio_alias(void) {
     char directory[] = "wm-audio-alias-XXXXXX";
-    int temporary = mkstemp(directory);
-    assert(temporary >= 0);
-    assert(close(temporary) == 0);
-    assert(unlink(directory) == 0);
-    assert(mkdir(directory, 0700) == 0);
+    assert(wm_test_directory(directory, sizeof(directory)));
     char audio_directory[256], source_path[256], alias_path[256], manifest_path[256];
     assert(snprintf(audio_directory, sizeof(audio_directory), "%s/audio", directory) <
            (int)sizeof(audio_directory));
@@ -139,7 +135,7 @@ static void test_manifest_audio_alias(void) {
                     audio_directory) < (int)sizeof(alias_path));
     assert(snprintf(manifest_path, sizeof(manifest_path), "%s/audio-sequence.json",
                     directory) < (int)sizeof(manifest_path));
-    assert(mkdir(audio_directory, 0700) == 0);
+    assert(cc_directory_create(audio_directory));
     write_tone(source_path, 1000);
     FILE *manifest = fopen(manifest_path, "wb");
     assert(manifest);
@@ -164,27 +160,23 @@ static void test_manifest_audio_alias(void) {
     assert(clip && clip->pcm.samples[0] == 2000 && clip->gain == 0.25f);
     wm_audio_destroy(audio);
 
-    assert(unlink(alias_path) == 0);
-    assert(unlink(source_path) == 0);
-    assert(unlink(manifest_path) == 0);
-    assert(rmdir(audio_directory) == 0);
-    assert(rmdir(directory) == 0);
+    assert(remove(alias_path) == 0);
+    assert(remove(source_path) == 0);
+    assert(remove(manifest_path) == 0);
+    assert(wm_test_remove_directory(audio_directory) == 0);
+    assert(wm_test_remove_directory(directory) == 0);
 }
 
 int main(void) {
     char directory[] = "wm-audio-restart-XXXXXX";
-    int temporary = mkstemp(directory);
-    assert(temporary >= 0);
-    assert(close(temporary) == 0);
-    assert(unlink(directory) == 0);
-    assert(mkdir(directory, 0700) == 0);
+    assert(wm_test_directory(directory, sizeof(directory)));
     char audio_directory[256];
     char background_path[256];
     char intro_path[256];
     char click_path[256];
     assert(snprintf(audio_directory, sizeof(audio_directory), "%s/audio", directory) <
            (int)sizeof(audio_directory));
-    assert(mkdir(audio_directory, 0700) == 0);
+    assert(cc_directory_create(audio_directory));
     assert(snprintf(background_path, sizeof(background_path), "%s/background.wav",
                     audio_directory) < (int)sizeof(background_path));
     assert(snprintf(intro_path, sizeof(intro_path), "%s/backgroundIntro.wav",
@@ -255,8 +247,8 @@ int main(void) {
     assert(!wm_menu_restart_advance(&restart, 159.5f));
     assert(restart.phase == WM_MENU_RESTART_BLACK);
     assert(render_first_sample() == 0.0f);
-    assert(unlink(background_path) == 0);
-    assert(unlink(intro_path) == 0);
+    assert(remove(background_path) == 0);
+    assert(remove(intro_path) == 0);
     assert(wm_menu_restart_advance(&restart, 0.5f));
     assert(restart.phase == WM_MENU_RESTART_GRID);
     assert(wm_menu_return_to_menu(&menu));
@@ -303,36 +295,36 @@ int main(void) {
     assert(wm_audio_play(audio, "click"));
     assert(fabsf(render_first_sample() - click_sample) < 0.00001f);
     wm_audio_set_volume(audio, 0.5f);
-    assert(pthread_mutex_lock(&audio->mutex) == 0);
+    assert(cc_mutex_lock(&audio->mutex) == 0);
     assert(fabsf(render_first_sample() - click_sample) < 0.00001f);
-    assert(pthread_mutex_unlock(&audio->mutex) == 0);
+    assert(cc_mutex_unlock(&audio->mutex) == 0);
     assert(fabsf(render_first_sample() - click_sample * 0.5f) < 0.00001f);
 
     /* Completion of an old playback snapshot cannot retire a replacement
      * queued in the same slot while control synchronization is delayed. */
     wm_audio_reset_all(audio);
     assert(wm_audio_play(audio, "click"));
-    assert(pthread_mutex_lock(&audio->mutex) == 0);
+    assert(cc_mutex_lock(&audio->mutex) == 0);
     float completed_samples[512 * 2];
     device->render(device->context, completed_samples, 512);
     assert(completed_samples[0] > 0.0f);
     assert(completed_samples[511 * 2] == 0.0f);
-    assert(pthread_mutex_unlock(&audio->mutex) == 0);
+    assert(cc_mutex_unlock(&audio->mutex) == 0);
     assert(fabsf(render_first_sample() - click_sample * 0.5f) < 0.00001f);
 
     /* Reapplying an unchanged control snapshot preserves fade progress. */
-    assert(pthread_mutex_lock(&audio->mutex) == 0);
+    assert(cc_mutex_lock(&audio->mutex) == 0);
     audio->controls[0].releasing = true;
     audio->controls[0].fade_frames = 32;
-    assert(pthread_mutex_unlock(&audio->mutex) == 0);
+    assert(cc_mutex_unlock(&audio->mutex) == 0);
     assert(fabsf(render_first_sample() - click_sample * 0.5f) < 0.00001f);
     assert(fabsf(render_first_sample() - click_sample * 0.25f) < 0.00001f);
     assert(render_first_sample() == 0.0f);
 
     wm_audio_destroy(audio);
-    assert(unlink(click_path) == 0);
-    assert(rmdir(audio_directory) == 0);
-    assert(rmdir(directory) == 0);
+    assert(remove(click_path) == 0);
+    assert(wm_test_remove_directory(audio_directory) == 0);
+    assert(wm_test_remove_directory(directory) == 0);
     test_manifest_audio_alias();
     puts("audio restart tests passed");
     return 0;

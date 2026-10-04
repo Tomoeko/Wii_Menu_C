@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "console_common/support/tool_io.h"
 #include "export_directory.h"
 
 #include "wii_menu/fonts/outline_font.h"
@@ -7,11 +8,9 @@
 #include "wii_menu/support/regular_file.h"
 
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 enum {
     OUTLINE_EXPORT_PATH_CAPACITY = 4096,

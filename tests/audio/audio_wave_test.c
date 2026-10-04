@@ -1,15 +1,18 @@
 #define _POSIX_C_SOURCE 200809L
+#define _XOPEN_SOURCE 700
 
 #include "wii_menu/audio/audio_wave.h"
 #include "wii_menu/resources/resource_rsar.h"
+#include "../support/test_directory.h"
 
 #include <assert.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32
 #include <sys/resource.h>
-#include <unistd.h>
+#endif
 
 int main(void) {
     int16_t samples[] = {0,   32767, -32768, 1250,  -1250, 200,
@@ -21,10 +24,11 @@ int main(void) {
                          .loop_end = 5,
                          .channels = 2,
                          .looping = true};
-    char path[] = "wm-audio-wave-XXXXXX";
-    int descriptor = mkstemp(path);
-    assert(descriptor >= 0);
-    close(descriptor);
+    char directory[] = "wm-audio-wave-XXXXXX";
+    assert(wm_test_directory(directory, sizeof(directory)));
+    char path[256];
+    assert(snprintf(path, sizeof(path), "%s/sample.wav", directory) <
+           (int)sizeof(path));
     char error[128];
     assert(wm_audio_wav_write(path, &source, error, sizeof(error)));
     WmAudioPcm result = {0};
@@ -38,6 +42,7 @@ int main(void) {
     assert(memcmp(result.samples, samples, sizeof(samples)) == 0);
     wm_audio_pcm_free(&result);
 
+#ifndef _WIN32
     /* Force the temporary write to fail after opening. The previous WAV
      * must still be readable, even when the final flush fails. */
     struct sigaction ignored = {0};
@@ -54,12 +59,14 @@ int main(void) {
     assert(!wm_audio_wav_write(path, &source, error, sizeof(error)));
     assert(setrlimit(RLIMIT_FSIZE, &previous_limit) == 0);
     assert(sigaction(SIGXFSZ, &previous_signal, NULL) == 0);
+#endif
 
     assert(wm_audio_wav_read(path, &result, error, sizeof(error)));
     assert(result.frame_count == source.frame_count);
     assert(memcmp(result.samples, samples, sizeof(samples)) == 0);
     wm_audio_pcm_free(&result);
     assert(remove(path) == 0);
+    assert(wm_test_remove_directory(directory) == 0);
 
     uint8_t truncated[32] = {0};
     WmRsar archive;

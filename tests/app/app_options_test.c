@@ -8,7 +8,8 @@ int main(void) {
     char *defaults[] = {"wii-menu"};
     assert(wm_app_parse_options(1, defaults, &options) == WM_APP_OPTIONS_READY);
     assert(!options.record && !options.record_half && !options.assets &&
-           !options.layout_path && !options.antialiasing &&
+           !options.layout_path && options.antialiasing &&
+           !options.antialiasing_override &&
            options.audio_mode == CC_CAPTURE_AUDIO_NORMAL);
 
     char *record[] = {"wii-menu", "--record",          "--assets", "prepared",
@@ -43,7 +44,10 @@ int main(void) {
     assert(wm_app_parse_options(3, audio_flag, &options) == WM_APP_OPTIONS_INVALID);
     char *aa[] = {"wii-menu", "--aa"};
     assert(wm_app_parse_options(2, aa, &options) == WM_APP_OPTIONS_READY);
-    assert(options.antialiasing && !options.record);
+    assert(options.antialiasing && options.antialiasing_override && !options.record);
+    char *disabled[] = {"wii-menu", "--no-aa"};
+    assert(wm_app_parse_options(2, disabled, &options) == WM_APP_OPTIONS_READY);
+    assert(!options.antialiasing && options.antialiasing_override);
 
     char *layout[] = {"wii-menu",    "--record",   "--layout",
                       "scene.json",  "--raw-root", "raw",

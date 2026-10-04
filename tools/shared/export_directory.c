@@ -3,15 +3,13 @@
 #define _DARWIN_C_SOURCE 1
 #endif
 
+#include "console_common/support/tool_io.h"
 #include "export_directory.h"
 
 #include <errno.h>
-#include <fcntl.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 static int open_directory(int parent, const char *component, mode_t mode, bool create) {
     int directory =
@@ -46,11 +44,20 @@ bool wm_export_directory_root(const char *path, mode_t mode) {
         return false;
     memcpy(components, path, path_length + 1);
 
-    while (path_length > 1 && components[path_length - 1] == '/') {
+#ifdef _WIN32
+    for (size_t index = 0; index < path_length; ++index) {
+        if (components[index] == '\\')
+            components[index] = '/';
+    }
+    size_t root_length = cc_tool_root_length(components);
+#else
+    size_t root_length = components[0] == '/' ? 1 : 0;
+#endif
+    while (path_length > root_length && components[path_length - 1] == '/') {
         components[--path_length] = '\0';
     }
-    if (strcmp(components, "/") == 0) {
-        int directory = open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (strcmp(components, ".") == 0 || (root_length && path_length == root_length)) {
+        int directory = open(components, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
         free(components);
         return directory >= 0 && close(directory) == 0;
     }
@@ -86,7 +93,12 @@ bool wm_export_directory_child(const char *root, const char *relative, mode_t mo
     size_t path_length = strlen(relative);
     if (root_length == SIZE_MAX || path_length == SIZE_MAX)
         return false;
-    while (root_length > 1 && root[root_length - 1] == '/')
+#ifdef _WIN32
+    size_t minimum_root = cc_tool_root_length(root);
+#else
+    size_t minimum_root = 1;
+#endif
+    while (root_length > minimum_root && root[root_length - 1] == '/')
         root_length--;
     char *root_path = malloc(root_length + 1);
     char *components = malloc(path_length + 1);
@@ -97,6 +109,12 @@ bool wm_export_directory_child(const char *root, const char *relative, mode_t mo
     }
     memcpy(root_path, root, root_length);
     root_path[root_length] = '\0';
+#ifdef _WIN32
+    for (char *cursor = root_path; *cursor; ++cursor) {
+        if (*cursor == '\\')
+            *cursor = '/';
+    }
+#endif
     memcpy(components, relative, path_length + 1);
 
     if (!valid_root_leaf(root_path)) {

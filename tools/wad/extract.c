@@ -1,23 +1,19 @@
 #define _POSIX_C_SOURCE 200809L
 #define _DARWIN_C_SOURCE 1
 
+#include "console_common/support/tool_io.h"
 #include "crypto.h"
 #include "retail_keys.h"
 #include "wii_menu/support/endian.h"
 #include "wii_menu/support/bounds.h"
 
-#include <dirent.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
 
 #define WM_MAX_CONTENTS 4096
 #define WM_PATH_SIZE 4096

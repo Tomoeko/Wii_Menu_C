@@ -119,7 +119,6 @@ if(WM_BUILD_APP)
         app/app_options.c
         app/app_recording.c
         app/app_resources.c
-        app/asset_path.c
         app/corruption_outline.c
         app/corruption_screen.c
         app/corruption_vectors.c
@@ -134,6 +133,11 @@ if(WM_BUILD_APP)
         app/main.c
         app/input_routing.c
     )
+    if(WIN32)
+        list(APPEND WM_APP_SOURCES app/asset_path_windows.c)
+    else()
+        list(APPEND WM_APP_SOURCES app/asset_path.c)
+    endif()
     if(APPLE)
         add_executable(wii-menu MACOSX_BUNDLE ${WM_APP_SOURCES})
         set_target_properties(wii-menu PROPERTIES

@@ -10,7 +10,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
+#include "console_common/support/host.h"
+#include "console_common/support/directory.h"
 
 enum {
     WM_FONT_CACHE_MAX_FACES = 64,
@@ -88,10 +89,14 @@ static bool valid_font_name(const char *name) {
 }
 
 static bool path_within_root(const char *root, const char *path) {
+#ifdef _WIN32
+    return cc_host_path_inside(root, path);
+#else
     size_t length = strlen(root);
     if (length == 1 && root[0] == '/')
         return path[0] == '/' && path[1] != '\0';
     return strncmp(root, path, length) == 0 && path[length] == '/';
+#endif
 }
 
 static char *font_path(const WmFontCache *cache, const char *name) {
@@ -106,7 +111,7 @@ static char *font_path(const WmFontCache *cache, const char *name) {
         return NULL;
     snprintf(candidate, root_length + name_length + 8, "%s/fonts/%s",
              cache->assets_root, name);
-    char *canonical = realpath(candidate, NULL);
+    char *canonical = cc_host_resolved_path(candidate);
     free(candidate);
     if (!canonical)
         return NULL;
@@ -150,11 +155,10 @@ WmFontCache *wm_font_cache_create(WmPlatform *platform, const char *assets_root,
                                   size_t gpu_budget_bytes) {
     if (!platform || !assets_root || !assets_root[0] || !gpu_budget_bytes)
         return NULL;
-    char *canonical = realpath(assets_root, NULL);
+    char *canonical = cc_host_resolved_path(assets_root);
     if (!canonical)
         return NULL;
-    struct stat info;
-    if (stat(canonical, &info) != 0 || !S_ISDIR(info.st_mode)) {
+    if (cc_path_information(canonical, true, NULL) != CC_PATH_DIRECTORY) {
         free(canonical);
         return NULL;
     }

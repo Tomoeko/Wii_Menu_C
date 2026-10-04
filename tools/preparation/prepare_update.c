@@ -6,23 +6,20 @@
 #define _DARWIN_C_SOURCE 1
 #endif
 
+#include "console_common/support/host.h"
+#include "console_common/support/tool_io.h"
 #include "preparation/prepare_fs.h"
 #include "preparation/prepare_hash.h"
 #include "preparation/prepare_update.h"
 #include "wad/crypto.h"
 
 #include <ctype.h>
-#include <dirent.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
 
 static size_t find_channel(const PrepareManifest *manifest, const char *id);
 
@@ -567,7 +564,7 @@ static bool write_merged_manifest(const char *staged_assets,
     if (!path_join(temporary, sizeof(temporary), staged_assets, "channels.json.tmp") ||
         !path_join(destination, sizeof(destination), staged_assets, "channels.json"))
         return false;
-    FILE *stream = fopen(temporary, "wb");
+    FILE *stream = cc_host_fopen(temporary, "wb");
     if (!stream)
         return false;
     bool okay = fputs("{\n  \"schemaVersion\": 1,\n"

@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 #define _DARWIN_C_SOURCE 1
 
+#include "console_common/support/tool_io.h"
 #include "manager_package.h"
 #include "png.h"
 #include "asset_path.h"
@@ -15,12 +16,9 @@
 #include "wii_menu/support/regular_file.h"
 
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 bool wm_channels_join(char output[4096], const char *root, const char *leaf) {
     return path_join(output, 4096, root, leaf);
@@ -45,8 +43,14 @@ bool wm_channels_sibling_tool(const char *program, const char *relative,
     bool valid = false;
     if (separator) {
         *separator = '\0';
+#ifdef _WIN32
+        const char *suffix = strstr(relative, ".exe") ? "" : ".exe";
+        int length = snprintf(output, 4096, "%s/%s%s", executable, relative, suffix);
+        valid = length > 0 && length < 4096 && wm_channels_regular_file(output);
+#else
         valid = wm_channels_join(output, executable, relative) &&
                 wm_channels_regular_file(output);
+#endif
     }
     free(executable);
     return valid;
