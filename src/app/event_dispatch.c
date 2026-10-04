@@ -208,6 +208,16 @@ void wm_app_poll_events(WmAppRuntime *app, uint64_t frame_start, bool health_fra
 
     WmEvent event;
     while (wm_platform_poll(platform, &event)) {
+        bool text_input_active =
+            !health_frame && !layout && !menu->home_open && !menu->notice[0] &&
+            !wm_home_overlay_active(home) &&
+            ((menu->screen == WM_SCREEN_BOARD && board_scene &&
+              wm_board_scene_child(board_scene) == WM_BOARD_CHILD_COMPOSE) ||
+             (menu->screen == WM_SCREEN_SETTINGS && options_scene &&
+              wm_options_scene_nickname_keyboard_visible(options_scene)));
+        if (cc_window_controls_event(&input->window_controls, platform, &event,
+                                     text_input_active))
+            continue;
         bool memo_release_outside =
             event.outside_viewport && event.type == WM_EVENT_POINTER_UP &&
             menu->screen == WM_SCREEN_BOARD && wm_board_scene_dragging(board_scene);

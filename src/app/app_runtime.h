@@ -6,6 +6,7 @@
 #include "frame_render.h"
 #include "menu_pointer.h"
 #include "scene_input.h"
+#include "console_common/platform/window_controls.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -16,6 +17,7 @@ typedef struct WmAppInputState {
     WmAppMenuPointer menu_pointer;
     WmAppBoardInput board;
     WmAppSceneInput scene;
+    CcWindowControls window_controls;
     WmHomeControl home_hovered;
     WmHomeControl home_pressed;
     int pointer_x;
