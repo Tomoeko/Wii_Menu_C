@@ -65,3 +65,27 @@ jobs:
         run: cmake --build Files/build --config Release --parallel 4
       - name: Test portable behavior
         run: ctest --test-dir Files/build -C Release -j 1 --timeout 30 --output-on-failure -R "^(cc-|wii-menu-(app-options|audio-|hover-audio|export-directory|channel-manifest|prepare-update|settings-gif|settings-png|crypto|wad-extract))"
+      - name: Stage app and tools
+        run: cmake --install Files/build --config Release --prefix Files/package --component Runtime
+      - name: Archive macOS build with executable permissions
+        if: runner.os == 'macOS'
+        run: |
+          cmake -E make_directory Files/artifacts
+          cmake -E chdir Files/package cmake -E tar czf ../artifacts/wii-menu-macos-${{ runner.arch }}.tar.gz --format=gnutar Files LICENSE
+      - name: Upload macOS build
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: wii-menu-${{ runner.os }}-${{ runner.arch }}
+          path: Files/artifacts/*.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+      - name: Upload Windows build
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: wii-menu-${{ runner.os }}-${{ runner.arch }}
+          path: Files/package
+          if-no-files-found: error
+          retention-days: 30

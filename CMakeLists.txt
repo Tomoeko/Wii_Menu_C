@@ -32,6 +32,33 @@ if(WM_BUILD_TOOLS)
     add_subdirectory(tools)
 endif()
 
+set(WM_RUNTIME_DESTINATION "Files/build")
+if(WIN32)
+    set(WM_RUNTIME_DESTINATION "Files/build/Release")
+endif()
+if(WM_BUILD_APP)
+    install(TARGETS wii-menu
+        RUNTIME DESTINATION "${WM_RUNTIME_DESTINATION}" COMPONENT Runtime
+        BUNDLE DESTINATION "Files/build" COMPONENT Runtime)
+endif()
+if(WM_BUILD_TOOLS)
+    install(TARGETS
+        wm-wad-extract
+        wm-nand-extract
+        wm-prepare
+        wm-layout-export
+        wm-keyboard-dictionary-export
+        wm-settings-export
+        wm-outline-font-export
+        wm-restart-export
+        wm-audio-export
+        wm-shared-font-export
+        wm-channel-export
+        wm-channels
+        RUNTIME DESTINATION "${WM_RUNTIME_DESTINATION}" COMPONENT Runtime)
+endif()
+install(FILES LICENSE DESTINATION "." COMPONENT Runtime)
+
 find_program(WM_CLANG_FORMAT NAMES clang-format clang-format-16)
 if(APPLE AND NOT WM_CLANG_FORMAT)
     execute_process(
