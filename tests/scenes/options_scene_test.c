@@ -405,6 +405,7 @@ static void test_update_question_cue_context(WmOptionsScene *scene) {
     assert(wm_options_scene_activate(scene, WM_OPTIONS_CONTROL_SETTINGS_ITEM_3));
     wm_options_scene_advance(scene, 20.0f);
     assert(wm_options_scene_update_question(scene));
+    assert(strcmp(wm_options_scene_back_cue(scene), "WIPL_SE_CANCEL") == 0);
     assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK),
                   "WIPL_SE_DECIDE") == 0);
     assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),
@@ -429,6 +430,7 @@ static void test_user_agreements_click_cues(WmOptionsScene *scene) {
     wm_options_scene_advance(scene, 20.0f);
 
     /* The EULA's left Yes uses Decide; right No uses Cancel. */
+    assert(strcmp(wm_options_scene_back_cue(scene), "WIPL_SE_CANCEL") == 0);
     assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK),
                   "WIPL_SE_DECIDE") == 0);
     assert(strcmp(wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_SETTINGS_NEXT),

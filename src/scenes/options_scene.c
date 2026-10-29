@@ -478,6 +478,12 @@ unsigned wm_options_scene_take_settings_category(WmOptionsScene *scene) {
     return category;
 }
 
+const char *wm_options_scene_back_cue(const WmOptionsScene *scene) {
+    if (scene && scene->page == WM_OPTIONS_PAGE_SYSTEM_SETTINGS && scene->settings)
+        return wm_settings_scene_back_cue(scene->settings);
+    return wm_options_scene_click_cue(scene, WM_OPTIONS_CONTROL_BACK);
+}
+
 bool wm_options_scene_back(WmOptionsScene *scene) {
     if (!scene || scene->phase != WM_OPTIONS_READY || scene->settings_returning)
         return false;

@@ -109,6 +109,7 @@ unsigned wm_options_scene_take_settings_category(WmOptionsScene *scene);
 /* A leaf action hands rendering and interaction to its external scene. Call
  * back after that scene closes to restore the retained Options hierarchy. */
 bool wm_options_scene_back(WmOptionsScene *scene);
+const char *wm_options_scene_back_cue(const WmOptionsScene *scene);
 WmOptionsControl wm_options_scene_hit(WmOptionsScene *scene, int x, int y);
 bool wm_options_scene_hover(WmOptionsScene *scene, WmOptionsControl control);
 bool wm_options_scene_activate(WmOptionsScene *scene, WmOptionsControl control);

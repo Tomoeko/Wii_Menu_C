@@ -10,6 +10,18 @@ static bool left_decides_right_cancels(unsigned category, unsigned detail) {
            (category == SETTINGS_FORMAT && detail == 2);
 }
 
+const char *wm_settings_scene_back_cue(const WmSettingsScene *scene) {
+    if (!scene)
+        return NULL;
+    if (wm_settings_scene_nickname_keyboard_visible(scene))
+        return "WIPL_SE_CHAR_DECIDE";
+    WmSettingsControl control =
+        left_decides_right_cancels(scene->active_category, scene->detail)
+            ? WM_SETTINGS_CONTROL_NEXT
+            : WM_SETTINGS_CONTROL_BACK;
+    return wm_settings_scene_click_cue(scene, control);
+}
+
 const char *wm_settings_scene_click_cue(const WmSettingsScene *scene,
                                         WmSettingsControl control) {
     if (!scene || scene->phase != WM_SETTINGS_READY ||

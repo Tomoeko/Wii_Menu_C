@@ -183,8 +183,8 @@ static void handle_key_down(WmAppRuntime *app, const WmEvent *event,
         handle_nickname_key(options, audio, event->key);
         return;
     }
-    wm_app_handle_key(menu, audio, resources->resource_scene, board, options,
-                      &flow->fade, event->key, &input->focused_slot);
+    wm_app_handle_key(resources->platform, menu, audio, resources->resource_scene,
+                      board, options, &flow->fade, event, &input->focused_slot);
 }
 
 void wm_app_poll_events(WmAppRuntime *app, uint64_t frame_start, bool health_frame,

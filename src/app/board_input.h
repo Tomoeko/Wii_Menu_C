@@ -31,5 +31,6 @@ void wm_app_board_pointer_leave(WmAppBoardInput *input, WmBoardScene *board,
                                 bool cancel_capture);
 bool wm_app_board_compose_key(WmBoardScene *board, WmAudio *audio, WmKey key);
 void wm_app_board_play_hover(WmAudio *audio, WmBoardControl control);
+bool wm_app_board_back(WmBoardScene *board, WmAudio *audio);
 
 #endif

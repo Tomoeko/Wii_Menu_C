@@ -93,6 +93,8 @@ void wm_app_board_pointer_down(WmAppBoardInput *input, WmBoardScene *board,
 
 static const char *board_click_cue(WmBoardControl control) {
     switch (control) {
+        case WM_BOARD_CONTROL_NONE:
+            return NULL;
         case WM_BOARD_CONTROL_MEMO:
             return "WIPL_SE_BOARD_SELECT";
         case WM_BOARD_CONTROL_MEMO_BACK:
@@ -129,6 +131,33 @@ static const char *board_click_cue(WmBoardControl control) {
     }
 }
 
+static void play_board_activation(WmBoardScene *board, WmAudio *audio,
+                                  WmBoardControl control) {
+    const char *cue = board_click_cue(control);
+    if (!wm_app_play_board_compose_cues(audio, board) && cue)
+        wm_audio_play(audio, cue);
+    wm_app_play_board_sound_events(audio, board);
+}
+
+bool wm_app_board_back(WmBoardScene *board, WmAudio *audio) {
+    WmBoardPhase phase = wm_board_scene_phase(board);
+    WmBoardChild child = wm_board_scene_child(board);
+    bool silent = wm_board_scene_dragging(board) ||
+                  wm_board_scene_compose_keyboard_overlay_visible(board);
+    WmBoardControl control = phase == WM_BOARD_MEMO_READ ? WM_BOARD_CONTROL_MEMO_BACK
+                                                         : WM_BOARD_CONTROL_BACK;
+    if (child == WM_BOARD_CHILD_ERASE)
+        control = WM_BOARD_CONTROL_ERASE_QUIT;
+    else if (child == WM_BOARD_CHILD_CALENDAR)
+        control = WM_BOARD_CONTROL_CALENDAR_BACK;
+    else if (child == WM_BOARD_CHILD_COMPOSE)
+        control = WM_BOARD_CONTROL_COMPOSE_BACK;
+    if (!wm_board_scene_back(board))
+        return false;
+    play_board_activation(board, audio, silent ? WM_BOARD_CONTROL_NONE : control);
+    return true;
+}
+
 void wm_app_board_pointer_up(WmAppBoardInput *input, WmBoardScene *board,
                              WmResourceScene *resource_scene, WmPointer *pointer,
                              WmAudio *audio, WmPointerButton button, int x, int y,
@@ -157,10 +186,7 @@ void wm_app_board_pointer_up(WmAppBoardInput *input, WmBoardScene *board,
         wm_resource_scene_dismiss_balloon(resource_scene);
     }
     if (confirmed && wm_board_scene_activate(board, next)) {
-        const char *cue = board_click_cue(next.control);
-        if (!wm_app_play_board_compose_cues(audio, board) && cue)
-            wm_audio_play(audio, cue);
-        wm_app_play_board_sound_events(audio, board);
+        play_board_activation(board, audio, next.control);
     }
     input->pressed = (WmBoardHit){WM_BOARD_CONTROL_NONE, 0};
 }

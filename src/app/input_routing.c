@@ -2,6 +2,7 @@
 
 #include "console_common/support/host.h"
 #include "input_routing.h"
+#include "board_input.h"
 
 #include <string.h>
 #include <time.h>
@@ -126,9 +127,11 @@ void wm_app_activate_hit(WmMenu *menu, WmAudio *audio, WmResourceScene *resource
     }
 }
 
-void wm_app_handle_key(WmMenu *menu, WmAudio *audio, WmResourceScene *resource_scene,
-                       WmBoardScene *board_scene, WmOptionsScene *options_scene,
-                       WmAppSceneFade *fade, WmKey key, int *focused_slot) {
+void wm_app_handle_key(WmPlatform *platform, WmMenu *menu, WmAudio *audio,
+                       WmResourceScene *resource_scene, WmBoardScene *board_scene,
+                       WmOptionsScene *options_scene, WmAppSceneFade *fade,
+                       const WmEvent *event, int *focused_slot) {
+    WmKey key = event->key;
     if (menu->notice[0]) {
         if (key == WM_KEY_ENTER || key == WM_KEY_ESCAPE || key == WM_KEY_BACKSPACE) {
             wm_app_activate_hit(menu, audio, resource_scene, board_scene, options_scene,
@@ -136,26 +139,18 @@ void wm_app_handle_key(WmMenu *menu, WmAudio *audio, WmResourceScene *resource_s
         }
         return;
     }
+    if (key == WM_KEY_ESCAPE && menu->screen == WM_SCREEN_GRID) {
+        if (!event->key_repeat && !menu->home_open &&
+            menu->transition == WM_TRANSITION_NONE &&
+            cc_platform_is_fullscreen(platform))
+            cc_platform_set_fullscreen(platform, false);
+        return;
+    }
     if (key == WM_KEY_ESCAPE || key == WM_KEY_BACKSPACE) {
         if (menu->screen == WM_SCREEN_BOARD && board_scene) {
-            WmBoardPhase phase = wm_board_scene_phase(board_scene);
-            WmBoardChild child = wm_board_scene_child(board_scene);
-            bool silent_keyboard_overlay =
-                wm_board_scene_compose_keyboard_overlay_visible(board_scene);
-            if (wm_board_scene_back(board_scene)) {
-                if (!wm_app_play_board_compose_cues(audio, board_scene) &&
-                    !silent_keyboard_overlay) {
-                    const char *cue =
-                        phase == WM_BOARD_READY && child == WM_BOARD_CHILD_NONE
-                            ? "confirm"
-                        : phase == WM_BOARD_MEMO_READ ? "WIPL_SE_BOARD_UNSELECT"
-                                                      : "back";
-                    wm_audio_play(audio, cue);
-                }
-            }
+            wm_app_board_back(board_scene, audio);
         } else if (menu->screen == WM_SCREEN_SETTINGS && options_scene) {
-            const char *cue =
-                wm_options_scene_click_cue(options_scene, WM_OPTIONS_CONTROL_BACK);
+            const char *cue = wm_options_scene_back_cue(options_scene);
             if (wm_options_scene_back(options_scene) && cue) {
                 wm_audio_play(audio, cue);
             }

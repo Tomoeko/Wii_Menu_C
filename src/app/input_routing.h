@@ -22,8 +22,9 @@ void wm_app_play_board_sound_events(WmAudio *audio, WmBoardScene *board);
 void wm_app_activate_hit(WmMenu *menu, WmAudio *audio, WmResourceScene *resource_scene,
                          WmBoardScene *board_scene, WmOptionsScene *options_scene,
                          WmAppSceneFade *fade, WmHit hit);
-void wm_app_handle_key(WmMenu *menu, WmAudio *audio, WmResourceScene *resource_scene,
-                       WmBoardScene *board_scene, WmOptionsScene *options_scene,
-                       WmAppSceneFade *fade, WmKey key, int *focused_slot);
+void wm_app_handle_key(WmPlatform *platform, WmMenu *menu, WmAudio *audio,
+                       WmResourceScene *resource_scene, WmBoardScene *board_scene,
+                       WmOptionsScene *options_scene, WmAppSceneFade *fade,
+                       const WmEvent *event, int *focused_slot);
 
 #endif

@@ -9,6 +9,7 @@
 #include "wii_menu/layout/layout_runtime.h"
 #include "wii_menu/input/source_hit.h"
 #include "wii_menu/render/texture_cache.h"
+#include "board_update.h"
 
 #include <assert.h>
 #include <math.h>
@@ -23,6 +24,70 @@ static bool capture_text_draws;
 static size_t captured_text_quads;
 static size_t captured_light_text_quads;
 static uint32_t next_texture_handle = 1;
+static unsigned hover_cue_count;
+static const char *last_audio_cue;
+static unsigned audio_cue_count;
+static bool window_fullscreen;
+static unsigned fullscreen_requests;
+
+bool cc_platform_is_fullscreen(CcPlatform *platform) {
+    return platform && window_fullscreen;
+}
+
+bool cc_platform_set_fullscreen(CcPlatform *platform, bool fullscreen) {
+    assert(platform);
+    window_fullscreen = fullscreen;
+    fullscreen_requests++;
+    return true;
+}
+
+bool wm_audio_play(WmAudio *audio, const char *name) {
+    (void)audio;
+    last_audio_cue = name;
+    audio_cue_count++;
+    if (strcmp(name, "buttonHover") == 0)
+        hover_cue_count++;
+    return true;
+}
+
+bool wm_audio_play_panned(WmAudio *audio, const char *name, float pan) {
+    (void)pan;
+    return wm_audio_play(audio, name);
+}
+
+bool wm_audio_start_loop(WmAudio *audio, const char *name) {
+    (void)audio;
+    (void)name;
+    return true;
+}
+
+bool wm_audio_hold_loop(WmAudio *audio, const char *name, float gain, float pan,
+                        float pitch) {
+    (void)gain;
+    (void)pan;
+    (void)pitch;
+    return wm_audio_start_loop(audio, name);
+}
+
+void wm_audio_stop_loop(WmAudio *audio, const char *name) {
+    (void)audio;
+    (void)name;
+}
+
+uint32_t cc_platform_create_render_texture(CcPlatform *platform) {
+    (void)platform;
+    assert(false);
+    return 0;
+}
+
+bool cc_platform_begin_target(CcPlatform *platform, uint32_t texture,
+                              CcColor clear_color) {
+    (void)platform;
+    (void)texture;
+    (void)clear_color;
+    assert(false);
+    return false;
+}
 
 /* The draw test records submitted glyphs without a GPU or display server. */
 void wm_platform_begin(WmPlatform *platform, WmColor clear_color) {
@@ -1449,6 +1514,53 @@ static void test_erase_dialog(int argc, char **argv) {
     wm_board_erase_destroy(erase);
 }
 
+static void board_control_position(WmBoardScene *board, WmBoardControl control,
+                                   int *hit_x, int *hit_y) {
+    for (int y = 0; y < WM_FRAME_HEIGHT; y += 8) {
+        for (int x = 0; x < WM_FRAME_WIDTH; x += 8) {
+            if (wm_board_scene_hit(board, x, y).control == control) {
+                *hit_x = x + 8;
+                *hit_y = y + 8;
+                assert(wm_board_scene_hit(board, *hit_x, *hit_y).control == control);
+                return;
+            }
+        }
+    }
+    assert(false);
+}
+
+static void assert_erase_hover_continuity(WmBoardScene *board) {
+    WmMenu menu = {.screen = WM_SCREEN_BOARD};
+    WmAppBoardInput input = {0};
+    bool entry_hover_pending = false;
+    bool visited = false;
+    WmAppBoardUpdate update = {.menu = &menu,
+                               .board = board,
+                               .input = &input,
+                               .entry_hover_pending = &entry_hover_pending,
+                               .visited = &visited};
+    const WmBoardControl controls[] = {WM_BOARD_CONTROL_ERASE_QUIT,
+                                       WM_BOARD_CONTROL_ERASE_OK};
+    for (size_t index = 0; index < sizeof(controls) / sizeof(controls[0]); index++) {
+        unsigned cues_before = hover_cue_count;
+        int hit_x = -1;
+        int hit_y = -1;
+        board_control_position(board, controls[index], &hit_x, &hit_y);
+        for (int frame = 0; frame < 60; frame++) {
+            wm_app_board_pointer_move(&input, board, NULL, hit_x + frame % 3, hit_y);
+            assert(input.hovered.control == controls[index]);
+            wm_app_board_advance(&update, 1.0f, true, true, false);
+            assert(input.hovered.control == controls[index]);
+        }
+        assert(hover_cue_count == cues_before + 1);
+        wm_app_board_pointer_leave(&input, board, false);
+        assert(input.hovered.control == WM_BOARD_CONTROL_NONE);
+        wm_app_board_pointer_move(&input, board, NULL, hit_x, hit_y);
+        assert(hover_cue_count == cues_before + 2);
+        wm_app_board_pointer_leave(&input, board, false);
+    }
+}
+
 static void test_memo_erase(int argc, char **argv) {
     WmBoardScene *board = load_board(argc, argv);
     assert(board);
@@ -1493,8 +1605,17 @@ static void test_memo_erase(int argc, char **argv) {
     assert(strcmp(wm_board_scene_take_reader_cue(board), "WIPL_SE_INFO_WINDOW") == 0);
     assert(wm_board_scene_take_reader_cue(board) == NULL);
     wm_board_scene_advance(board, 26.0f);
-    assert(wm_board_scene_activate(
-        board, (WmBoardHit){WM_BOARD_CONTROL_ERASE_QUIT, SIZE_MAX}));
+    assert_erase_hover_continuity(board);
+    WmAppBoardInput input = {0};
+    int quit_x = 0;
+    int quit_y = 0;
+    board_control_position(board, WM_BOARD_CONTROL_ERASE_QUIT, &quit_x, &quit_y);
+    wm_app_board_pointer_down(&input, board, NULL, WM_POINTER_LEFT, quit_x, quit_y);
+    unsigned cues_before = audio_cue_count;
+    wm_app_board_pointer_up(&input, board, NULL, NULL, NULL, WM_POINTER_LEFT, quit_x,
+                            quit_y, false);
+    assert(audio_cue_count == cues_before + 1);
+    const char *cancel_cue = last_audio_cue;
     wm_board_scene_advance(board, 47.0f);
     assert(wm_board_scene_phase(board) == WM_BOARD_MEMO_TRASH_CANCEL);
     wm_board_scene_advance(board, 13.0f);
@@ -1513,6 +1634,21 @@ static void test_memo_erase(int argc, char **argv) {
         wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO_TRASH, 0}));
     wm_board_scene_advance(board, 59.0f);
     assert(wm_board_scene_child(board) == WM_BOARD_CHILD_ERASE);
+    WmMenu menu = {.screen = WM_SCREEN_BOARD};
+    WmAppSceneFade fade = {0};
+    int focused_slot = 0;
+    WmEvent escape = {.type = WM_EVENT_KEY_DOWN, .key = WM_KEY_ESCAPE};
+    cues_before = audio_cue_count;
+    wm_app_handle_key(NULL, &menu, NULL, NULL, board, NULL, &fade, &escape,
+                      &focused_slot);
+    assert(audio_cue_count == cues_before + 1);
+    assert(strcmp(last_audio_cue, cancel_cue) == 0);
+    wm_board_scene_advance(board, 47.0f);
+    wm_board_scene_advance(board, 13.0f);
+    assert(wm_board_scene_phase(board) == WM_BOARD_MEMO_READ);
+    assert(
+        wm_board_scene_activate(board, (WmBoardHit){WM_BOARD_CONTROL_MEMO_TRASH, 0}));
+    wm_board_scene_advance(board, 59.0f);
     assert(wm_board_scene_activate(board,
                                    (WmBoardHit){WM_BOARD_CONTROL_ERASE_OK, SIZE_MAX}));
     wm_board_scene_advance(board, 47.0f);
@@ -1531,6 +1667,43 @@ static void test_memo_erase(int argc, char **argv) {
            WM_BOARD_ACTION_ERASE_MEMO);
     assert(erased_index == 0);
     wm_board_scene_destroy(board);
+}
+
+static void test_grid_escape(void) {
+    WmMenu menu;
+    wm_menu_init(&menu);
+    WmAppSceneFade fade = {0};
+    int focused_slot = 0;
+    WmEvent escape = {.type = WM_EVENT_KEY_DOWN, .key = WM_KEY_ESCAPE};
+    WmPlatform *platform = (WmPlatform *)1;
+    window_fullscreen = true;
+    fullscreen_requests = 0;
+    wm_app_handle_key(platform, &menu, NULL, NULL, NULL, NULL, &fade, &escape,
+                      &focused_slot);
+    assert(!window_fullscreen && fullscreen_requests == 1);
+    wm_app_handle_key(platform, &menu, NULL, NULL, NULL, NULL, &fade, &escape,
+                      &focused_slot);
+    assert(fullscreen_requests == 1);
+    window_fullscreen = true;
+    escape.key_repeat = true;
+    wm_app_handle_key(platform, &menu, NULL, NULL, NULL, NULL, &fade, &escape,
+                      &focused_slot);
+    assert(window_fullscreen && fullscreen_requests == 1);
+    escape.key_repeat = false;
+    snprintf(menu.notice, sizeof(menu.notice), "Local test notice");
+    wm_app_handle_key(platform, &menu, NULL, NULL, NULL, NULL, &fade, &escape,
+                      &focused_slot);
+    assert(!menu.notice[0] && window_fullscreen && fullscreen_requests == 1);
+    menu.home_open = true;
+    wm_app_handle_key(platform, &menu, NULL, NULL, NULL, NULL, &fade, &escape,
+                      &focused_slot);
+    assert(window_fullscreen && fullscreen_requests == 1);
+    menu.home_open = false;
+    escape.key = WM_KEY_BACKSPACE;
+    wm_app_handle_key(platform, &menu, NULL, NULL, NULL, NULL, &fade, &escape,
+                      &focused_slot);
+    assert(window_fullscreen && fullscreen_requests == 1);
+    window_fullscreen = false;
 }
 
 static void test_reader_text_draw(int argc, char **argv) {
@@ -3480,6 +3653,7 @@ int main(int argc, char **argv) {
     test_child_return_retires_footer_focus(argc, argv);
     test_erase_dialog(argc, argv);
     test_memo_erase(argc, argv);
+    test_grid_escape();
     test_reader_text_draw(argc, argv);
     test_board_store(argc, argv);
     test_calendar_marker_material(argc, argv);

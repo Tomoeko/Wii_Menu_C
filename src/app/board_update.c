@@ -39,7 +39,8 @@ static void reconcile_hover(WmAppBoardUpdate *update) {
         }
     }
     if (phase != WM_BOARD_READY && phase != WM_BOARD_MEMO_READ &&
-        phase != WM_BOARD_DATE_SCROLL && phase != WM_BOARD_MEMO_PAGE) {
+        phase != WM_BOARD_MEMO_DIALOG && phase != WM_BOARD_DATE_SCROLL &&
+        phase != WM_BOARD_MEMO_PAGE) {
         input->hovered = (WmBoardHit){WM_BOARD_CONTROL_NONE, 0};
     }
 }

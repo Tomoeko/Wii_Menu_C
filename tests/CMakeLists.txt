@@ -133,8 +133,12 @@ wm_add_test(wii-menu-board-text
 )
 wm_add_test(wii-menu-board-scene
     SOURCES board/board_scene_test.c
+        "${PROJECT_SOURCE_DIR}/src/app/board_input.c"
+        "${PROJECT_SOURCE_DIR}/src/app/board_update.c"
+        "${PROJECT_SOURCE_DIR}/src/app/input_routing.c"
     LIBRARIES wii_menu_core m
     INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/board"
+        "${PROJECT_SOURCE_DIR}/src/app"
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
 )
 wm_add_test(wii-menu-board-address

@@ -88,6 +88,13 @@ different location.
 Use the pointer, arrow keys, Enter, Escape, or H for HOME. Run with `--help`
 to see the command-line options.
 
+F toggles fullscreen when text entry is inactive; the macOS fullscreen button
+uses the same window mode. Esc dismisses prompts using their on-screen cancel
+sound; at the main menu it exits fullscreen. Metal window rendering fits within
+2560 × 1440 pixels and scales to fill larger displays, with antialiasing still
+enabled. Recording retains the window's full backing resolution.
+See [macOS performance](docs/macos-performance.md).
+
 | Option | Action |
 | --- | --- |
 | `--aa`, `--no-aa` | Override the saved antialiasing setting. |
@@ -157,7 +164,8 @@ do not need this option.
 - [WAD extraction](tools/wad/README.md) and [audio export](tools/audio/README.md)
 - [Settings](docs/settings-rendering.md), [Memo keyboard](docs/board-keyboard.md),
   and [audio accuracy](docs/audio-accuracy.md)
-- [GLES2 performance](docs/ubuntu-gles2-performance.md)
+- [GLES2 performance](docs/ubuntu-gles2-performance.md) and
+  [macOS performance](docs/macos-performance.md)
 - [Architecture](docs/architecture.md), [C style](STYLE.md), and [development](AGENTS.md)
 
 Private WADs, NAND data, console keys, extracted resources, captures, and user

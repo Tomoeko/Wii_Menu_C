@@ -1,5 +1,20 @@
 # Audio accuracy investigation
 
+## Memo erase hover
+
+The app retains hover ownership while the Memo erase dialog is open. Moving
+within Quit or OK plays one hover cue on entry; leaving and re-entering plays
+another. The Board regression test exercises pointer motion across successive
+frame updates and counts cue requests for both buttons. This verifies C app
+behavior; native Wii hover timing remains independently unverified.
+
+Keyboard Esc/Backspace and pointer Back/Cancel share the Board activation cue
+path, including the Memo reader, calendar, and erase dialog. Settings chooses
+the declining button's cue even on prompts where the left footer accepts.
+Controller-owned HOME, SD, storage, and keyboard close cues retain their existing
+shared paths. C tests compare the erase dialog's pointer and Esc cue requests
+and check Settings update and agreement cancellation; native fidelity is unverified.
+
 ## Drag playback
 
 Both `WIPL_SE_CH_DRAG` and `WIPL_SE_BOARD_DRAG` select program 10, key 60,

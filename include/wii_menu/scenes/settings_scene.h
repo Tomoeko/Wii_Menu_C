@@ -93,6 +93,7 @@ bool wm_settings_scene_take_repeat_cue(WmSettingsScene *scene);
 WmSettingsSnapshot wm_settings_scene_snapshot(const WmSettingsScene *scene);
 bool wm_settings_scene_update_question(const WmSettingsScene *scene);
 bool wm_settings_scene_back(WmSettingsScene *scene);
+const char *wm_settings_scene_back_cue(const WmSettingsScene *scene);
 bool wm_settings_scene_take_exit(WmSettingsScene *scene);
 /* Reserved for a category unavailable in another resource variant. The
  * current US category screens all return zero through this function. */
