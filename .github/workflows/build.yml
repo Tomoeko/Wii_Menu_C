@@ -51,7 +51,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [macos-latest, windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -59,21 +59,32 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
+      - name: Install Linux graphics development packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libx11-dev libegl-dev libgles-dev xvfb xauth
       - name: Configure
         run: cmake -S . -B Files/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
       - name: Build app and tools
         run: cmake --build Files/build --config Release --parallel 4
       - name: Test portable behavior
+        if: runner.os != 'Linux'
         run: ctest --test-dir Files/build -C Release -j 1 --timeout 30 --output-on-failure -R "^(cc-|wii-menu-(app-options|audio-|hover-audio|export-directory|channel-layout-store|channel-manifest|prepare-update|settings-gif|settings-png|crypto|wad-extract))"
+      - name: Test portable behavior on GLES2
+        if: runner.os == 'Linux'
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: xvfb-run -a ctest --test-dir Files/build -C Release -j 1 --timeout 30 --output-on-failure -R "^(cc-|wii-menu-(app-options|audio-|hover-audio|export-directory|channel-layout-store|channel-manifest|prepare-update|settings-gif|settings-png|crypto|wad-extract))"
       - name: Stage app and tools
         run: cmake --install Files/build --config Release --prefix Files/package --component Runtime
-      - name: Archive macOS build with executable permissions
-        if: runner.os == 'macOS'
+      - name: Archive Unix build with executable permissions
+        if: runner.os != 'Windows'
         run: |
           cmake -E make_directory Files/artifacts
-          cmake -E chdir Files/package cmake -E tar czf ../artifacts/wii-menu-macos-${{ runner.arch }}.tar.gz --format=gnutar Files LICENSE
-      - name: Upload macOS build
-        if: runner.os == 'macOS'
+          cmake -E chdir Files/package cmake -E tar czf ../artifacts/wii-menu-${{ runner.os == 'macOS' && 'macos' || 'linux' }}-${{ runner.arch }}.tar.gz --format=gnutar Files LICENSE
+      - name: Upload Unix build
+        if: runner.os != 'Windows'
         uses: actions/upload-artifact@v7
         with:
           name: wii-menu-${{ runner.os }}-${{ runner.arch }}

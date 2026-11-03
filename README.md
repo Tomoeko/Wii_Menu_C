@@ -103,6 +103,10 @@ sound; at the main menu it exits fullscreen. Metal window rendering fits within
 enabled. Recording retains the window's full backing resolution.
 See [macOS performance](docs/macos-performance.md).
 
+Metal prepares channel-material shader variants at load time to reduce fullscreen
+GPU cost while keeping the same resolution, effects, and antialiasing. GitHub
+builds and tests macOS, Windows, and Linux/GLES2; Linux tests use a virtual display.
+
 | Option | Action |
 | --- | --- |
 | `--aa`, `--no-aa` | Override the saved antialiasing setting. |
