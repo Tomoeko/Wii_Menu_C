@@ -88,6 +88,14 @@ different location.
 Use the pointer, arrow keys, Enter, Escape, or H for HOME. Run with `--help`
 to see the command-line options.
 
+Drag channels with the right or middle mouse button. Changed positions are saved
+on exit in `Files/.local/native-assets/.channel-layout.json` (or beside your `--assets`
+catalog) and restored at startup. This local config is git ignored. You can edit
+its channel IDs, pages, and positions while the app is closed; overlapping or
+invalid entries reset the entire layout to catalog defaults with a terminal
+warning. No position change means no config write.
+See [channel placement](docs/channel-layout.md) for the format and validation rules.
+
 F toggles fullscreen when text entry is inactive; the macOS fullscreen button
 uses the same window mode. Esc dismisses prompts using their on-screen cancel
 sound; at the main menu it exits fullscreen. Metal window rendering fits within

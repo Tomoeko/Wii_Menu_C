@@ -64,6 +64,7 @@ add_library(wii_menu_core STATIC
     persistence/board_contact_store.c
     persistence/board_contact_format.c
     persistence/board_store.c
+    persistence/channel_layout_store.c
     persistence/saved_layout.c
 
     render/material_prepare.c

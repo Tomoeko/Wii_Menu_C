@@ -1,3 +1,10 @@
+file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/tests/channel-layout")
+wm_add_test(wii-menu-channel-layout-store
+    SOURCES persistence/channel_layout_store_test.c
+    LIBRARIES wii_menu_core
+    ARGUMENTS "${PROJECT_BINARY_DIR}/tests/channel-layout/.channel-layout.json"
+)
+
 if(WIN32)
     add_subdirectory(windows)
     return()

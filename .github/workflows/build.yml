@@ -64,7 +64,7 @@ jobs:
       - name: Build app and tools
         run: cmake --build Files/build --config Release --parallel 4
       - name: Test portable behavior
-        run: ctest --test-dir Files/build -C Release -j 1 --timeout 30 --output-on-failure -R "^(cc-|wii-menu-(app-options|audio-|hover-audio|export-directory|channel-manifest|prepare-update|settings-gif|settings-png|crypto|wad-extract))"
+        run: ctest --test-dir Files/build -C Release -j 1 --timeout 30 --output-on-failure -R "^(cc-|wii-menu-(app-options|audio-|hover-audio|export-directory|channel-layout-store|channel-manifest|prepare-update|settings-gif|settings-png|crypto|wad-extract))"
       - name: Stage app and tools
         run: cmake --install Files/build --config Release --prefix Files/package --component Runtime
       - name: Archive macOS build with executable permissions

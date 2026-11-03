@@ -9,6 +9,7 @@
 #include "wii_menu/layout/layout_runtime.h"
 #include "wii_menu/menu/menu.h"
 #include "wii_menu/menu/menu_restart.h"
+#include "wii_menu/persistence/channel_layout_store.h"
 #include "wii_menu/platform/platform.h"
 #include "wii_menu/render/texture_cache.h"
 #include "wii_menu/resources/resource_bmg.h"
@@ -42,6 +43,7 @@ typedef struct WmAppResources {
     WmAudio *audio;
     WmHomeOverlay *home;
     WmChannelDrag *drag;
+    WmChannelLayoutStore *channel_layout;
     char *board_state_path;
 } WmAppResources;
 

@@ -1,3 +1,4 @@
 # Keep private inputs, generated resources, captures, and builds together.
 /Files/
+.channel-layout.json
 /build

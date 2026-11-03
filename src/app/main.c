@@ -32,34 +32,34 @@ typedef struct {
     struct sigaction terminate;
 #endif
     bool installed;
-} RecordingSignals;
+} AppExitSignals;
 
-/* Signal handlers only request the normal main-thread recording cleanup. */
-static volatile sig_atomic_t recording_exit_requested;
+/* Signal handlers only request normal main-thread persistence and cleanup. */
+static volatile sig_atomic_t exit_requested;
 
-static void request_recording_exit(int signal_number) {
+static void request_app_exit(int signal_number) {
     (void)signal_number;
-    recording_exit_requested = 1;
+    exit_requested = 1;
 }
 
-static bool install_recording_signals(RecordingSignals *signals) {
+static bool install_exit_signals(AppExitSignals *signals) {
 #ifdef _WIN32
-    recording_exit_requested = 0;
-    signals->interrupt = signal(SIGINT, request_recording_exit);
+    exit_requested = 0;
+    signals->interrupt = signal(SIGINT, request_app_exit);
     if (signals->interrupt == SIG_ERR)
         return false;
-    signals->terminate = signal(SIGTERM, request_recording_exit);
+    signals->terminate = signal(SIGTERM, request_app_exit);
     if (signals->terminate == SIG_ERR) {
         signal(SIGINT, signals->interrupt);
         return false;
     }
 #else
-    struct sigaction action = {.sa_handler = request_recording_exit};
+    struct sigaction action = {.sa_handler = request_app_exit};
     if (sigemptyset(&action.sa_mask) != 0 ||
         sigaction(SIGINT, NULL, &signals->interrupt) != 0 ||
         sigaction(SIGTERM, NULL, &signals->terminate) != 0)
         return false;
-    recording_exit_requested = 0;
+    exit_requested = 0;
     if (sigaction(SIGINT, &action, NULL) != 0)
         return false;
     if (sigaction(SIGTERM, &action, NULL) != 0) {
@@ -71,7 +71,7 @@ static bool install_recording_signals(RecordingSignals *signals) {
     return true;
 }
 
-static void restore_recording_signals(const RecordingSignals *signals) {
+static void restore_exit_signals(const AppExitSignals *signals) {
     if (!signals->installed)
         return;
 #ifdef _WIN32
@@ -331,7 +331,7 @@ static int run_app(const WmAppOptions *options, const char *program) {
                     root, issues);
             return wm_app_show_corruption_screen(
                 assets, options->record, options->record_half, options->audio_mode,
-                options->antialiasing, &recording_exit_requested);
+                options->antialiasing, &exit_requested);
         }
     }
 
@@ -399,7 +399,7 @@ static int run_app(const WmAppOptions *options, const char *program) {
     const bool profile_frames = getenv("WM_PROFILE_FRAMES") != NULL;
     AppFrameProfile profile = {0};
 
-    while (running && !recording_exit_requested) {
+    while (running && !exit_requested) {
         uint64_t frame_start = monotonic_nanoseconds();
         float elapsed = (float)(frame_start - previous) / 1000000000.0f;
         if (elapsed > 0.1f)
@@ -450,6 +450,14 @@ static int run_app(const WmAppOptions *options, const char *program) {
         fprintf(stderr, "Recording could not be finalized completely.\n");
         result = 1;
     }
+    if (resources.channel_layout) {
+        char error[160];
+        if (!wm_channel_layout_store_save(resources.channel_layout, &menu, error,
+                                          sizeof(error))) {
+            fprintf(stderr, "Warning: %s.\n", error);
+            result = 1;
+        }
+    }
     wm_app_renderer_release_home_underlay(&renderer);
     wm_app_resources_destroy(&resources);
     return result;
@@ -469,12 +477,12 @@ int main(int argc, char **argv) {
     }
     if (!options.antialiasing_override)
         options.antialiasing = display.antialiasing;
-    RecordingSignals signals = {0};
-    if (options.record && !install_recording_signals(&signals)) {
-        fprintf(stderr, "Could not prepare recording exit handlers.\n");
+    AppExitSignals signals = {0};
+    if (!install_exit_signals(&signals)) {
+        fprintf(stderr, "Could not prepare application exit handlers.\n");
         return 1;
     }
     int result = run_app(&options, argv[0]);
-    restore_recording_signals(&signals);
+    restore_exit_signals(&signals);
     return result;
 }

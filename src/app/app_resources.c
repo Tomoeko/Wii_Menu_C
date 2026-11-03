@@ -17,6 +17,25 @@ static void home_remote_changed(void *context, const WmHomeRemoteState *state) {
     wm_audio_set_muted(audio, state->muted);
 }
 
+static void load_channel_layout(WmAppResources *resources, WmMenu *menu,
+                                const char *assets) {
+    char path[4096];
+    int length = snprintf(path, sizeof(path), "%s/.channel-layout.json", assets);
+    if (length < 0 || (size_t)length >= sizeof(path)) {
+        fprintf(stderr, "Warning: Channel layout config path is too long; "
+                        "using default positions.\n");
+        return;
+    }
+    char error[160];
+    WmChannelLayoutStatus status;
+    resources->channel_layout =
+        wm_channel_layout_store_open(path, menu, &status, error, sizeof(error));
+    if (status == WM_CHANNEL_LAYOUT_INVALID || status == WM_CHANNEL_LAYOUT_ERROR) {
+        fprintf(stderr, "Warning: %s; using default channel positions (%s).\n", error,
+                path);
+    }
+}
+
 static void load_board_state(WmAppResources *resources, const char *assets) {
     static const char memo_suffix[] = "/.board-memos.json";
     static const char contacts_suffix[] = "/.board-contacts.json";
@@ -84,6 +103,8 @@ bool wm_app_resources_create(WmAppResources *resources, WmMenu *menu,
     memset(resources, 0, sizeof(*resources));
 
     bool catalog_loaded = !layout_path && assets && wm_catalog_load(menu, assets);
+    if (catalog_loaded)
+        load_channel_layout(resources, menu, assets);
     if (layout_path) {
         char error[160];
         resources->layout = wm_layout_load_json(layout_path, error, sizeof(error));
@@ -198,6 +219,7 @@ void wm_app_resources_destroy(WmAppResources *resources) {
     wm_font_cache_destroy(resources->layout_fonts);
     wm_pointer_destroy(resources->pointer);
     wm_channel_drag_destroy(resources->drag);
+    wm_channel_layout_store_destroy(resources->channel_layout);
     wm_home_overlay_destroy(resources->home);
     wm_audio_destroy(resources->audio);
     wm_resource_scene_destroy(resources->resource_scene);
