@@ -68,16 +68,12 @@ wm_add_test(wii-menu-frame-damage
     INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/render"
 )
 if(WM_BUILD_APP AND WM_BACKEND STREQUAL "gles2")
-    find_package(X11 REQUIRED)
     wm_add_test(wii-menu-gles2-retained
         SOURCES render/gles2_retained_test.c
-            "${PROJECT_SOURCE_DIR}/Common/src/platform/gles2/platform_gles2.c"
-            "${PROJECT_SOURCE_DIR}/Common/src/platform/gles2/retained_frame.c"
-            "${PROJECT_SOURCE_DIR}/Common/src/platform/gles2/host.c"
-            "${PROJECT_SOURCE_DIR}/Common/src/platform/gles2/shaders.c"
-        LIBRARIES wii_menu_core X11::X11 ${CC_EGL_LIBRARY} ${CC_GLES2_LIBRARY} m
+        LIBRARIES wii_menu_core m
         INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/src/render"
     )
+    cc_add_platform(wii-menu-gles2-retained-test gles2)
     target_link_options(wii-menu-gles2-retained-test PRIVATE "-Wl,--wrap=eglSwapBuffers")
     set_tests_properties(wii-menu-gles2-retained PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 60)
 endif()
