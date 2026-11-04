@@ -6,6 +6,8 @@
 #include "wii_menu/platform/platform.h"
 #include "wii_menu/render/texture_cache.h"
 
+#include "wii_menu/menu/language.h"
+
 #include <stdbool.h>
 
 typedef struct WmOptionsScene WmOptionsScene;
@@ -85,6 +87,8 @@ bool wm_options_scene_open_internet(WmOptionsScene *scene);
 /* Enter WiiConnect24 directly from the Address Book's disabled-service prompt. */
 bool wm_options_scene_open_connect24(WmOptionsScene *scene);
 /* Close the retained Options hierarchy and Settings child on menu restart. */
+WmLanguage wm_options_scene_language(const WmOptionsScene *scene);
+void wm_options_scene_set_language(WmOptionsScene *scene, WmLanguage language);
 void wm_options_scene_reset(WmOptionsScene *scene);
 void wm_options_scene_advance(WmOptionsScene *scene, float frames);
 /* Calendar arrow holds can request another choice-change sound on repeat. */

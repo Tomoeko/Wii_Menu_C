@@ -461,3 +461,34 @@ WmFontCacheStats wm_font_cache_stats(const WmFontCache *cache) {
     stats.evictions = cache->evictions;
     return stats;
 }
+
+bool wm_font_cache_measure_rect(void *context, const WmLayout *layout,
+                                const WmLayoutPaneState *pane, float size[2]) {
+    if (!context || !layout || !pane || !pane->text || !size)
+        return false;
+    WmCachedFont *face = wm_font_cache_resolve(context, pane->font_name);
+    const WmFont *font = wm_cached_font_resource(face);
+    const WmFontMetrics *metrics = wm_font_metrics(font);
+    WmFontPane geometry;
+    const char *font_name;
+    if (!metrics || !metrics->height ||
+        !wm_layout_pane_font(layout, pane->name, &geometry, &font_name))
+        return false;
+    size[0] = 0;
+    size[1] = pane->font_size[1];
+    const char *line = pane->text;
+    for (const char *cursor = line;; cursor++) {
+        if (*cursor && *cursor != '\n')
+            continue;
+        float width = wm_font_text_width_n(font, line, (size_t)(cursor - line),
+                                           pane->font_size, pane->char_space);
+        if (width > size[0])
+            size[0] = width;
+        if (!*cursor)
+            break;
+        size[1] += (float)metrics->line_feed * pane->font_size[1] / metrics->height +
+                   geometry.line_space;
+        line = cursor + 1;
+    }
+    return true;
+}

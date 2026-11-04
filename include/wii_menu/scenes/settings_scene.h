@@ -6,6 +6,8 @@
 #include "wii_menu/platform/platform.h"
 #include "wii_menu/render/texture_cache.h"
 
+#include "wii_menu/menu/language.h"
+
 #include <stdbool.h>
 
 typedef struct WmSettingsScene WmSettingsScene;
@@ -86,6 +88,8 @@ bool wm_settings_scene_open_internet(WmSettingsScene *scene);
 /* The Address Book prompt enters WiiConnect24 with the same direct return. */
 bool wm_settings_scene_open_connect24(WmSettingsScene *scene);
 /* Discard transient navigation and input when HOME restarts the menu. */
+WmLanguage wm_settings_scene_language(const WmSettingsScene *scene);
+void wm_settings_scene_set_language(WmSettingsScene *scene, WmLanguage language);
 void wm_settings_scene_reset(WmSettingsScene *scene);
 void wm_settings_scene_advance(WmSettingsScene *scene, float frames);
 /* Coalesce Calendar hold repeats into one choice-change cue per update. */

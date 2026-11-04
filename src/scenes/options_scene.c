@@ -714,3 +714,12 @@ bool wm_options_scene_activate(WmOptionsScene *scene, WmOptionsControl control) 
     start_phase(scene, WM_OPTIONS_SELECT_FLASH);
     return true;
 }
+
+WmLanguage wm_options_scene_language(const WmOptionsScene *scene) {
+    return scene ? wm_settings_scene_language(scene->settings) : WM_LANGUAGE_ENGLISH;
+}
+
+void wm_options_scene_set_language(WmOptionsScene *scene, WmLanguage language) {
+    if (scene)
+        wm_settings_scene_set_language(scene->settings, language);
+}

@@ -113,4 +113,7 @@ bool wm_resource_scene_take_new_mail_sound(WmResourceScene *scene);
 /* Returning from HOME starts a fresh ChannelSelect animation lifetime. */
 void wm_resource_scene_restart(WmResourceScene *scene);
 
+/* Select channel text and language groups; English is the initial choice. */
+void wm_resource_scene_set_language(WmResourceScene *scene, WmLanguage language);
+
 #endif

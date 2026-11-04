@@ -1,3 +1,17 @@
+file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/tests/language")
+configure_file(fixtures/channel_animation_fixture.json
+    "${PROJECT_BINARY_DIR}/tests/language/layout.json" COPYONLY)
+wm_add_test(wii-menu-language-store
+    SOURCES persistence/language_store_test.c
+    LIBRARIES wii_menu_core
+    ARGUMENTS "${PROJECT_BINARY_DIR}/tests/language/.language.json"
+)
+wm_add_test(wii-menu-channel-language
+    SOURCES resources/resource_chans_test.c
+    LIBRARIES wii_menu_core
+    ARGUMENTS "${PROJECT_BINARY_DIR}/tests/language/layout.json"
+)
+
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/tests/channel-layout")
 wm_add_test(wii-menu-channel-layout-store
     SOURCES persistence/channel_layout_store_test.c

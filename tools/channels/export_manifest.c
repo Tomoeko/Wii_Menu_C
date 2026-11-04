@@ -121,9 +121,8 @@ static void wm_write_channel_json(FILE *stream, const WmChannelExport *channel) 
     if ((channel->flags & UINT32_C(0xffff0000)) != 0) {
         if (has_warning)
             fputs(", ", stream);
-        wm_json_string(
-            stream,
-            "Native module/channel-script behavior is not executed by layout export.");
+        wm_json_string(stream, "Channel language scripts are retained when supported; "
+                               "other native module/script services are not executed.");
     }
     fputs("]}", stream);
 }
@@ -195,7 +194,8 @@ bool wm_write_manifest(const char *output, const char *language,
           "  \"notes\": ["
           "\"Default order places core channels first; a checksum-validated "
           "iplsave.bin supplies installed slot placement when present.\", "
-          "\"Native module and channel-script programs are not executed.\"]\n}"
+          "\"Supported channel language setup is recovered from retained scripts; "
+          "other native module/script services are not executed.\"]\n}"
           "\n",
           stream);
     bool valid = !ferror(stream);

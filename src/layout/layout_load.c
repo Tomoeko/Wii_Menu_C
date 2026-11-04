@@ -1,6 +1,9 @@
 #include "layout_runtime_internal.h"
 #include "wii_menu/support/error.h"
 #include "wii_menu/support/json.h"
+#include "wii_menu/support/regular_file.h"
+
+#include <stdio.h>
 
 #include <math.h>
 #include <stdlib.h>
@@ -807,6 +810,27 @@ static bool parse_animations(WmLayout *layout, const WmJson *json) {
     return true;
 }
 
+static bool load_channel_languages(WmLayout *layout, const char *path) {
+    char companion[4096];
+    int written = snprintf(companion, sizeof(companion), "%s.cs", path);
+    if (written < 0 || (size_t)written >= sizeof(companion))
+        return false;
+    uint8_t *data = NULL;
+    size_t size = 0;
+    WmRegularFileStatus status =
+        wm_regular_file_read_bytes(companion, 0, 1024 * 1024, &data, &size);
+    if (status == WM_REGULAR_FILE_MISSING)
+        return true;
+    if (status != WM_REGULAR_FILE_OK)
+        return false;
+    layout->channel_languages = malloc(sizeof(*layout->channel_languages));
+    bool valid =
+        layout->channel_languages &&
+        wm_chans_languages_decode(data, size, layout->channel_languages, NULL, 0);
+    free(data);
+    return valid;
+}
+
 WmLayout *wm_layout_load_json(const char *path, char *error, size_t error_capacity) {
     wm_error_set(error, error_capacity, "");
     if (!path || !*path) {
@@ -826,7 +850,8 @@ WmLayout *wm_layout_load_json(const char *path, char *error, size_t error_capaci
     }
     bool success = parse_textures(layout, &json) && parse_fonts(layout, &json) &&
                    parse_materials(layout, &json) && parse_panes(layout, &json) &&
-                   parse_groups(layout, &json) && parse_animations(layout, &json);
+                   parse_groups(layout, &json) && parse_animations(layout, &json) &&
+                   load_channel_languages(layout, path);
     wm_json_free(&json);
     if (!success) {
         wm_error_set(error, error_capacity, "Invalid or unsupported layout JSON");

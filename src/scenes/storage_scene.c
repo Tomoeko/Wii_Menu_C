@@ -811,3 +811,9 @@ WmStorageHit wm_storage_scene_hit(WmStorageScene *scene, int x, int y) {
         return (WmStorageHit){WM_STORAGE_CONTROL_BACK, -1};
     return none;
 }
+
+void wm_storage_scene_set_language(WmStorageScene *scene, WmLanguage language) {
+    if (!scene || !wm_language_valid(language) || scene->language == language)
+        return;
+    scene->language = language;
+}

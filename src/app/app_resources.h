@@ -10,6 +10,7 @@
 #include "wii_menu/menu/menu.h"
 #include "wii_menu/menu/menu_restart.h"
 #include "wii_menu/persistence/channel_layout_store.h"
+#include "wii_menu/persistence/language_store.h"
 #include "wii_menu/platform/platform.h"
 #include "wii_menu/render/texture_cache.h"
 #include "wii_menu/resources/resource_bmg.h"
@@ -44,6 +45,8 @@ typedef struct WmAppResources {
     WmHomeOverlay *home;
     WmChannelDrag *drag;
     WmChannelLayoutStore *channel_layout;
+    WmLanguageStore *language_store;
+    WmLanguage language;
     char *board_state_path;
 } WmAppResources;
 
@@ -53,5 +56,8 @@ bool wm_app_resources_create(WmAppResources *resources, WmMenu *menu,
                              const char *assets, const char *layout_path,
                              const char *raw_root, bool antialiasing);
 void wm_app_resources_destroy(WmAppResources *resources);
+
+/* Propagate only confirmed Settings changes, saving once per changed choice. */
+void wm_app_resources_sync_language(WmAppResources *resources, WmMenu *menu);
 
 #endif

@@ -316,12 +316,13 @@ static bool draw_preview_layers(WmPreviewScene *scene, const WmMenu *menu,
         banner_frame = 0.0f;
         module_frame = presentation.frame;
     }
-    const WmChannelAnimationOptions banner_options = {.language = "ENG",
-                                                      .has_base_frame = true,
-                                                      .base_frame = banner_frame,
-                                                      .measure_text =
-                                                          wm_font_cache_measure_text,
-                                                      .measure_context = scene->fonts};
+    const WmChannelAnimationOptions banner_options = {
+        .language = wm_language_code(scene->language),
+        .has_base_frame = true,
+        .base_frame = banner_frame,
+        .measure_text = wm_font_cache_measure_text,
+        .measure_rect = wm_font_cache_measure_rect,
+        .measure_context = scene->fonts};
     /* Empty Disc is both the active channel and the banner. Native
      * ChannelTitle::calcCommon advances its Start animation twice per tick. */
     if (!(disc ? preview_scene_pose_frame(banner, "my_DiskCh_a_Start",

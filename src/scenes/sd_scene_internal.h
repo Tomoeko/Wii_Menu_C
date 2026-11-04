@@ -67,6 +67,7 @@ typedef enum SdLoaderPhase {
 } SdLoaderPhase;
 
 struct WmSdScene {
+    WmLanguage language;
     char assets_directory[WM_LAYOUT_ASSET_PATH_CAPACITY];
     WmPlatform *platform;
     WmTextureCache *textures;

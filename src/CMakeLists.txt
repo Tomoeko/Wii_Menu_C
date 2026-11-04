@@ -57,6 +57,7 @@ add_library(wii_menu_core STATIC
     layout/layout_runtime.c
 
     menu/catalog.c
+    menu/language.c
     menu/local_catalog.c
     menu/menu.c
     menu/menu_restart.c
@@ -65,6 +66,7 @@ add_library(wii_menu_core STATIC
     persistence/board_contact_format.c
     persistence/board_store.c
     persistence/channel_layout_store.c
+    persistence/language_store.c
     persistence/saved_layout.c
 
     render/material_prepare.c
@@ -74,6 +76,7 @@ add_library(wii_menu_core STATIC
     resources/resource_ash.c
     resources/resource_audio.c
     resources/resource_bmg.c
+    resources/resource_chans.c
     resources/resource_font.c
     resources/resource_font_text.c
     resources/resource_layout.c

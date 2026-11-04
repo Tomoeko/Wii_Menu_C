@@ -470,29 +470,29 @@ static bool apply_choices(WmLayout *layout, const char *id, WmChannelAnimationKi
         for (size_t index = 0; index < sizeof(shown) / sizeof(shown[0]); index++) {
             visible(layout, shown[index], true);
         }
-        if (strcmp(code, "E") == 0) {
-            static const struct {
-                const char *name;
-                const char *text;
-                float width;
-            } labels[] = {{"txt_green", "Get more\nchannels", 20},
-                          {"txt_purple", "Get new\nsoftware", 20},
-                          {"txt_yellow", "Get 100s\nof classic\ngames", 20},
-                          {"txt_orange", "Play with\nfriends near\nand far", 18},
-                          {"txt_3",
-                           "You can delete\nthis channel after\nwatching the video.",
-                           12}};
-            for (size_t index = 0; index < sizeof(labels) / sizeof(labels[0]);
-                 index++) {
-                WmLayoutPaneState pane;
-                if (!wm_layout_pane_state(layout, labels[index].name, &pane) ||
-                    strcmp(pane.type, "txt1") != 0)
-                    continue;
-                if (!wm_layout_set_pose_text(layout, labels[index].name,
-                                             labels[index].text))
-                    return false;
-                if (!wm_layout_set_text_style(layout, labels[index].name,
-                                              labels[index].width, 20, pane.char_space))
+        const WmChansLanguages *languages = wm_layout_channel_languages(layout);
+        const char *language = options && options->language ? options->language : "ENG";
+        if (strcmp(language, "FRA") && strcmp(language, "SPA"))
+            language = "ENG"; /* The source USA script's default branch. */
+        for (size_t index = 0; languages && index < languages->count; index++) {
+            const WmChansText *text = &languages->texts[index];
+            if (strcmp(text->language, language))
+                continue;
+            WmLayoutPaneState pane;
+            if (!wm_layout_pane_state(layout, text->pane, &pane) ||
+                strcmp(pane.type, "txt1"))
+                continue;
+            if (!wm_layout_set_pose_text(layout, text->pane, text->text) ||
+                !wm_layout_set_text_style(layout, text->pane, text->font_size[0],
+                                          text->font_size[1], pane.char_space) ||
+                !wm_layout_pane_state(layout, text->pane, &pane))
+                return false;
+            float size[2];
+            if (options && options->measure_rect &&
+                options->measure_rect(options->measure_context, layout, &pane, size) &&
+                isfinite(size[0]) && isfinite(size[1]) && size[0] >= 0 &&
+                size[1] >= 0) {
+                if (!wm_layout_set_pane_size(layout, text->pane, size[0], size[1]))
                     return false;
             }
         }

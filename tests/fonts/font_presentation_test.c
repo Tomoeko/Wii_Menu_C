@@ -157,6 +157,13 @@ int main(void) {
     WmLayout *layout = wm_layout_load_json("tests/fixtures/layout_text_fixture.json",
                                            error, sizeof(error));
     assert(layout);
+    WmLayoutPaneState measured_pane;
+    float measured_size[2];
+    assert(wm_layout_pane_state(layout, "Label", &measured_pane));
+    assert(wm_font_cache_measure_rect(fonts, layout, &measured_pane, measured_size));
+    assert(near(measured_size[0], 57.0f));
+    assert(near(measured_size[1], 58.5f));
+    assert(platform.uploads == 0 && platform.draws == 0);
     wm_font_cache_begin_frame(fonts);
     wm_layout_present_with_fonts(&platform, NULL, fonts, layout, false, WM_LAYOUT_LOCAL,
                                  NULL);

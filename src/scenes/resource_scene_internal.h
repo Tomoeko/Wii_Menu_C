@@ -43,6 +43,7 @@ enum {
 /* Opaque publicly. The controller, interaction clock, and renderer borrow
  * the same layout/cache objects; only create/destroy owns their lifetime. */
 struct WmResourceScene {
+    WmLanguage language;
     WmPlatform *platform;
     WmTextureCache *textures;
     WmFontCache *fonts;

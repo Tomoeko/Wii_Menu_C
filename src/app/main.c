@@ -217,6 +217,7 @@ static void advance_scenes_after_events(WmAppRuntime *app, float elapsed,
             .pointer_y = input->pointer_y};
         wm_app_settings_advance(&settings_update, elapsed * 60.0f);
     }
+    wm_app_resources_sync_language(resources, menu);
     if (scene_updates_active && resources->sd_scene && menu->screen == WM_SCREEN_SD) {
         WmAppSdUpdate sd_update = {.scene = resources->sd_scene,
                                    .audio = resources->audio,

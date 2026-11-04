@@ -5,6 +5,8 @@
 #include "wii_menu/platform/platform.h"
 #include "wii_menu/render/texture_cache.h"
 
+#include "wii_menu/menu/language.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -117,5 +119,8 @@ bool wm_sd_scene_back(WmSdScene *scene);
 /* Pure page helpers are also used by the fixture and persistence adapters. */
 bool wm_sd_page_can_move(unsigned page, int direction);
 float wm_sd_scroll_animation_frame(int direction, float elapsed_frames);
+
+/* Select channel text and language groups; English is the initial choice. */
+void wm_sd_scene_set_language(WmSdScene *scene, WmLanguage language);
 
 #endif

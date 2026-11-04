@@ -14,6 +14,7 @@ void wm_layout_destroy(WmLayout *layout) {
     for (size_t index = 0; index < layout->animation_count; index++) {
         free(layout->animations[index].textures);
     }
+    free(layout->channel_languages);
     free(layout->textures);
     free(layout->fonts);
     free(layout->base_materials);
@@ -648,4 +649,8 @@ bool wm_layout_pose(WmLayout *layout, const WmLayoutClip *clips, size_t clip_cou
         }
     }
     return true;
+}
+
+const WmChansLanguages *wm_layout_channel_languages(const WmLayout *layout) {
+    return layout ? layout->channel_languages : NULL;
 }

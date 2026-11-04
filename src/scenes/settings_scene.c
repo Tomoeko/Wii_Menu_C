@@ -686,3 +686,12 @@ bool wm_settings_scene_directional_control(const WmSettingsScene *scene,
     }
     return false;
 }
+
+WmLanguage wm_settings_scene_language(const WmSettingsScene *scene) {
+    return scene ? (WmLanguage)scene->language_choice : WM_LANGUAGE_ENGLISH;
+}
+
+void wm_settings_scene_set_language(WmSettingsScene *scene, WmLanguage language) {
+    if (scene && wm_language_valid(language))
+        scene->language_choice = (unsigned)language;
+}

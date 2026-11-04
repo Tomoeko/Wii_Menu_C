@@ -76,6 +76,14 @@ static bool channel_from_id(const WmJson *json, size_t channels, const char *id,
         size_t title = wm_json_member(json, entry, "title");
         if (!wm_json_copy(json, title, channel->title, sizeof(channel->title)))
             return false;
+        size_t titles = wm_json_member(json, entry, "titles");
+        for (int choice = 0; choice < WM_LANGUAGE_COUNT; choice++) {
+            if (!wm_json_copy_text(
+                    json,
+                    wm_json_member(json, titles, wm_language_code((WmLanguage)choice)),
+                    channel->localized_titles[choice], sizeof(channel->title)))
+                channel->localized_titles[choice][0] = '\0';
+        }
         if (strlen(id) >= sizeof(channel->id))
             return false;
         strcpy(channel->id, id);

@@ -67,6 +67,11 @@ typedef struct WmChannelList {
 
 extern const char *const wm_languages[10];
 
+bool wm_unwrap_resource(const uint8_t *data, size_t size, uint8_t **output,
+                        size_t *output_size);
+bool wm_export_language_script(const uint8_t *data, size_t size, const char *output,
+                               const char *channel_id, bool *found);
+
 bool wm_output_parent(const char *path);
 bool wm_output_target_safe(const char *path);
 bool wm_output_write_file(const char *path, const void *data, size_t size);

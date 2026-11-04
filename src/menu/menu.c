@@ -237,3 +237,16 @@ bool wm_menu_dismiss_notice(WmMenu *menu) {
     menu->notice[0] = '\0';
     return true;
 }
+
+void wm_menu_set_language(WmMenu *menu, WmLanguage language) {
+    if (!menu || !wm_language_valid(language))
+        return;
+    for (int slot = 1; slot < WM_SLOT_COUNT; slot++) {
+        WmChannel *channel = &menu->slots[slot];
+        const char *title = channel->localized_titles[language];
+        if (!title[0])
+            title = channel->localized_titles[WM_LANGUAGE_ENGLISH];
+        if (channel->occupied && title[0])
+            memcpy(channel->title, title, strlen(title) + 1);
+    }
+}

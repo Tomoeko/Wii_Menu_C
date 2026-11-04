@@ -261,3 +261,10 @@ void preview_scene_advance_focus(WmPreviewScene *scene, const WmMenu *menu, WmHi
             focus->active = false;
     }
 }
+
+void wm_preview_scene_set_language(WmPreviewScene *scene, WmLanguage language) {
+    if (!scene || !wm_language_valid(language) || scene->language == language)
+        return;
+    scene->language = language;
+    scene->prepared_slot = -1;
+}

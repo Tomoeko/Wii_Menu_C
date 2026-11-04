@@ -344,6 +344,51 @@ static void wm_short_title_id(char short_id[5], const char *low) {
     short_id[4] = '\0';
 }
 
+static bool export_title_languages(const char *root, const char *output,
+                                   const char *high, const char *low, const char *id,
+                                   const WmTmdContent *records, size_t count) {
+    bool found = false;
+    for (size_t index = 0; index < count; index++) {
+        const WmTmdContent *record = &records[index];
+        if ((record->type & 0x8000u) || record->size > WM_MAX_CONTENT)
+            continue;
+        char path[WM_PATH_CAP];
+        int length = snprintf(path, sizeof(path), "%s/title/%s/%s/content/%08x.app",
+                              root, high, low, record->id);
+        if (length < 0 || (size_t)length >= sizeof(path))
+            return false;
+        FILE *file = cc_host_fopen(path, "rb");
+        uint8_t magic[4];
+        bool archive = file && fread(magic, 1, sizeof(magic), file) == sizeof(magic) &&
+                       memcmp(magic, "\x55\xaa\x38\x2d", 4) == 0;
+        if (file)
+            fclose(file);
+        if (!archive)
+            continue;
+        size_t probe_size = 0;
+        uint8_t *probe = wm_read_file(path, WM_MAX_CONTENT, &probe_size);
+        WmU8Archive contents = {0};
+        bool has_script = probe && wm_u8_parse(probe, probe_size, &contents, NULL, 0) &&
+                          (wm_u8_find(&contents, "arc/icon.cs.lz7") ||
+                           wm_u8_find(&contents, "arc/icon.cs"));
+        wm_u8_free(&contents);
+        free(probe);
+        if (!has_script)
+            continue;
+        uint8_t *data = NULL;
+        size_t size = 0;
+        bool valid = wm_validated_content(path, record, &data, &size) &&
+                     wm_export_language_script(data, size, output, id, &found);
+        free(data);
+        if (!valid) {
+            fprintf(stderr, "Could not validate icon script content %08x for %s.\n",
+                    record->id, id);
+            return false;
+        }
+    }
+    return true;
+}
+
 static bool wm_export_title(const char *root, const char *output, const char *high,
                             const char *low, unsigned language,
                             WmChannelList *channels) {
@@ -476,6 +521,9 @@ static bool wm_export_title(const char *root, const char *output, const char *hi
                                    &channel.layouts[1], &channel.layout_count[1],
                                    channel.banner_layout, &channel.banner_textures,
                                    &channel.banner_animations);
+    if (valid)
+        valid =
+            export_title_languages(root, output, high, low, id, records, record_count);
     if (valid)
         valid = wm_export_channel_audio(sound, output, &channel);
     if (valid && channel.title[0] == '\0') {

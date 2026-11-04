@@ -28,6 +28,7 @@ typedef struct StorageAnchors {
 } StorageAnchors;
 
 struct WmStorageScene {
+    WmLanguage language;
     WmPlatform *platform;
     WmTextureCache *textures;
     WmFontCache *fonts;

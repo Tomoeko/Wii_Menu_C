@@ -105,8 +105,8 @@ fail:
     return false;
 }
 
-static bool wm_unwrap_resource(const uint8_t *data, size_t size, uint8_t **output,
-                               size_t *output_size) {
+bool wm_unwrap_resource(const uint8_t *data, size_t size, uint8_t **output,
+                        size_t *output_size) {
     uint8_t *current = malloc(size ? size : 1);
     if (!current)
         return false;

@@ -5,6 +5,7 @@
 #include "wii_menu/render/material_prepare.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -121,6 +122,12 @@ WmResourceScene *wm_resource_scene_create(WmPlatform *platform,
             if (!icon)
                 continue;
             scene->channel_icons[slot] = icon;
+            if (strcmp(menu->slots[slot].id, "0001000148434745") == 0 &&
+                !wm_layout_channel_languages(icon)) {
+                fprintf(stderr,
+                        "Warning: Get Connected language script is missing; "
+                        "prepare channel assets again from the original NAND.\n");
+            }
             const char *leaf = strrchr(path, '/');
             leaf = leaf ? leaf + 1 : path;
             size_t length = strlen(leaf);
@@ -289,4 +296,11 @@ void wm_resource_scene_restart(WmResourceScene *scene) {
     scene->new_mail_age = 0.0f;
     wm_layout_set_text(scene->footer, "T_BbsMark1", "");
     wm_layout_set_text(scene->clock, "T_WiiMenu", "Wii Menu");
+}
+
+void wm_resource_scene_set_language(WmResourceScene *scene, WmLanguage language) {
+    if (!scene || !wm_language_valid(language) || scene->language == language)
+        return;
+    scene->language = language;
+    scene->capture_valid = false;
 }

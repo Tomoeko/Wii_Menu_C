@@ -36,6 +36,21 @@ static void load_channel_layout(WmAppResources *resources, WmMenu *menu,
     }
 }
 
+static void load_language(WmAppResources *resources, const char *assets) {
+    char path[4096];
+    int length = snprintf(path, sizeof(path), "%s/.language.json", assets);
+    if (length < 0 || (size_t)length >= sizeof(path)) {
+        fprintf(stderr,
+                "Warning: Local language config path is too long; using English.\n");
+        return;
+    }
+    char error[160];
+    resources->language_store =
+        wm_language_store_open(path, &resources->language, error, sizeof(error));
+    if (error[0])
+        fprintf(stderr, "Warning: %s.\n", error);
+}
+
 static void load_board_state(WmAppResources *resources, const char *assets) {
     static const char memo_suffix[] = "/.board-memos.json";
     static const char contacts_suffix[] = "/.board-contacts.json";
@@ -105,6 +120,10 @@ bool wm_app_resources_create(WmAppResources *resources, WmMenu *menu,
     bool catalog_loaded = !layout_path && assets && wm_catalog_load(menu, assets);
     if (catalog_loaded)
         load_channel_layout(resources, menu, assets);
+    if (assets && !layout_path) {
+        load_language(resources, assets);
+        wm_menu_set_language(menu, resources->language);
+    }
     if (layout_path) {
         char error[160];
         resources->layout = wm_layout_load_json(layout_path, error, sizeof(error));
@@ -159,7 +178,10 @@ bool wm_app_resources_create(WmAppResources *resources, WmMenu *menu,
             resources->scene_fonts);
         resources->health_scene = wm_health_scene_create(
             resources->platform, assets, resources->scene_textures,
-            resources->scene_fonts, true, NULL);
+            resources->scene_fonts, true,
+            resources->language == WM_LANGUAGE_FRENCH    ? "US_FRA"
+            : resources->language == WM_LANGUAGE_SPANISH ? "US_SPA"
+                                                         : "US_ENG");
     }
     if (resources->board_scene)
         load_board_state(resources, assets);
@@ -172,6 +194,10 @@ bool wm_app_resources_create(WmAppResources *resources, WmMenu *menu,
             wm_sd_scene_create(resources->platform, assets, resources->scene_textures,
                                resources->scene_fonts);
     }
+    wm_options_scene_set_language(resources->options_scene, resources->language);
+    wm_resource_scene_set_language(resources->resource_scene, resources->language);
+    wm_preview_scene_set_language(resources->preview_scene, resources->language);
+    wm_sd_scene_set_language(resources->sd_scene, resources->language);
     char message_error[160] = {0};
     resources->messages =
         wm_bmg_load_assets(assets, "eng", message_error, sizeof(message_error));
@@ -185,6 +211,9 @@ bool wm_app_resources_create(WmAppResources *resources, WmMenu *menu,
                 resources->platform, assets, resources->scene_textures,
                 resources->scene_fonts, (WmStorageKind)kind);
         }
+        for (int kind = 0; kind < 3; kind++)
+            wm_storage_scene_set_language(resources->storage_scenes[kind],
+                                          resources->language);
         populate_channel_storage(resources, menu);
     }
     if (resources->scene_textures) {
@@ -220,6 +249,7 @@ void wm_app_resources_destroy(WmAppResources *resources) {
     wm_pointer_destroy(resources->pointer);
     wm_channel_drag_destroy(resources->drag);
     wm_channel_layout_store_destroy(resources->channel_layout);
+    wm_language_store_destroy(resources->language_store);
     wm_home_overlay_destroy(resources->home);
     wm_audio_destroy(resources->audio);
     wm_resource_scene_destroy(resources->resource_scene);
@@ -239,4 +269,24 @@ void wm_app_resources_destroy(WmAppResources *resources) {
     wm_layout_destroy(resources->layout);
     wm_platform_destroy(resources->platform);
     memset(resources, 0, sizeof(*resources));
+}
+
+void wm_app_resources_sync_language(WmAppResources *resources, WmMenu *menu) {
+    if (!resources || !resources->options_scene || !menu)
+        return;
+    WmLanguage language = wm_options_scene_language(resources->options_scene);
+    if (language == resources->language)
+        return;
+    resources->language = language;
+    wm_menu_set_language(menu, language);
+    wm_resource_scene_set_language(resources->resource_scene, language);
+    wm_preview_scene_set_language(resources->preview_scene, language);
+    wm_sd_scene_set_language(resources->sd_scene, language);
+    for (int kind = 0; kind < 3; kind++)
+        wm_storage_scene_set_language(resources->storage_scenes[kind], language);
+    populate_channel_storage(resources, menu);
+    char error[160];
+    if (!wm_language_store_save(resources->language_store, language, error,
+                                sizeof(error)))
+        fprintf(stderr, "Warning: %s.\n", error);
 }

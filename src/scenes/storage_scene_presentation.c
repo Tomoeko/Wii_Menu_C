@@ -1,4 +1,5 @@
 #include "storage_scene_internal.h"
+#include "wii_menu/animation/channel_animation.h"
 
 #include "wii_menu/layout/layout_present.h"
 #include "wii_menu/render/material_prepare.h"
@@ -453,27 +454,20 @@ static WmLayout *slot_icon(WmStorageScene *scene, int slot) {
     return scene->icons[slot];
 }
 
-static void pose_slot_icon(WmLayout *icon, float age) {
-    WmLayoutAnimationInfo animation;
-    const char *name = NULL;
-    if (wm_layout_animation_info(icon, "icon", &animation))
-        name = "icon";
-    else if (wm_layout_animation_info(icon, "icon_Whole", &animation)) {
-        name = "icon_Whole";
+static void pose_slot_icon(WmStorageScene *scene, WmLayout *icon, int slot, float age) {
+    const WmStorageRecord *record = wm_storage_record_at(scene, slot);
+    if (!record)
+        return;
+    const WmChannelAnimationOptions options = {
+        .language = wm_language_code(scene->language),
+        .measure_text = wm_font_cache_measure_text,
+        .measure_rect = wm_font_cache_measure_rect,
+        .measure_context = scene->fonts};
+    if (!wm_channel_animation_pose(icon, record->id, WM_CHANNEL_ICON, age, &options)) {
+        /* Custom local IDs have no native module; retain their base animation. */
+        wm_channel_animation_pose(icon, "0000000000000000", WM_CHANNEL_ICON, age,
+                                  &options);
     }
-    if (name) {
-        float frame = age;
-        if (animation.loop && animation.frames > 0.0f) {
-            frame = fmodf(frame, animation.frames);
-        } else {
-            frame = endpoint(frame, animation.frames);
-        }
-        WmLayoutClip clip = {.animation = name, .frame = frame, .loop_override = 0};
-        wm_layout_pose(icon, &clip, 1);
-    } else {
-        wm_layout_pose(icon, NULL, 0);
-    }
-    wm_layout_mask_language_groups(icon, "ENG");
 }
 
 static bool only_channel_cover(void *context, const WmLayoutPaneView *pane) {
@@ -504,7 +498,7 @@ static void draw_channel_icon(WmStorageScene *scene, int slot, const float ancho
     WmLayout *icon = slot_icon(scene, slot);
     if (!icon)
         return;
-    pose_slot_icon(icon, scene->age);
+    pose_slot_icon(scene, icon, slot, scene->age);
     WmLayoutPaneState hit_pane;
     WmLayoutPaneState data_pane;
     if (!wm_layout_pane_state(scene->boxes[slot], "N_Atari16x9", &hit_pane) ||
@@ -558,7 +552,7 @@ static void draw_detail_channel_icon(WmStorageScene *scene) {
     WmLayoutPaneState hit_pane;
     if (!wm_layout_pane_state(scene->detail, "N_Atari16x9", &hit_pane))
         return;
-    pose_slot_icon(icon, scene->detail_age);
+    pose_slot_icon(scene, icon, scene->selected_slot, scene->detail_age);
     wm_layout_set_pane_translation(icon, "RootPane", 0.0f, 0.0f, 0.0f);
     float x = hit_pane.translation[0];
     float y = hit_pane.translation[1];

@@ -1354,6 +1354,7 @@ static void test_language_selection_page(const char *assets) {
     WmSettingsScene *scene =
         wm_settings_scene_create((WmPlatform *)1, assets, textures, fonts);
     assert(scene);
+    assert(wm_settings_scene_language(scene) == WM_LANGUAGE_ENGLISH);
     assert(wm_settings_scene_open(scene));
     wm_settings_scene_advance(scene, 21.0f);
     for (unsigned page = 1; page < 3; page++) {
@@ -1396,6 +1397,7 @@ static void test_language_selection_page(const char *assets) {
 
     assert(wm_settings_scene_activate(scene, WM_SETTINGS_CONTROL_ITEM_2));
     assert(wm_settings_scene_snapshot(scene).selection == 1);
+    assert(wm_settings_scene_language(scene) == WM_LANGUAGE_ENGLISH);
     assert(wm_settings_scene_snapshot(scene).page_opacity == 0.0f);
     wm_settings_scene_advance(scene, 10.0f);
     drawn_quad_count = 0;
@@ -1447,6 +1449,13 @@ static void test_language_selection_page(const char *assets) {
     assert(count_drawn_texture(left, &selected_left) == 1);
     assert(selected_left.y == 264.0f);
 
+    assert(wm_settings_scene_language(scene) == WM_LANGUAGE_SPANISH);
+    wm_settings_scene_reset(scene);
+    assert(wm_settings_scene_language(scene) == WM_LANGUAGE_SPANISH);
+    wm_settings_scene_set_language(scene, WM_LANGUAGE_FRENCH);
+    assert(wm_settings_scene_language(scene) == WM_LANGUAGE_FRENCH);
+    wm_settings_scene_set_language(scene, WM_LANGUAGE_COUNT);
+    assert(wm_settings_scene_language(scene) == WM_LANGUAGE_FRENCH);
     wm_settings_scene_destroy(scene);
     wm_font_cache_destroy(fonts);
     wm_texture_cache_destroy(textures);

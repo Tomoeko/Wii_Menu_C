@@ -44,6 +44,8 @@ WmFontCacheStats wm_font_cache_stats(const WmFontCache *cache);
 
 /* Channel animation's source-font measurement callback. Length bounds one
  * line of a multi-line pane and need not end at a NUL terminator. */
+bool wm_font_cache_measure_rect(void *context, const WmLayout *layout,
+                                const WmLayoutPaneState *pane, float size[2]);
 float wm_font_cache_measure_text(void *context, const WmLayout *layout,
                                  const WmLayoutPaneState *pane, const char *utf8,
                                  size_t length);

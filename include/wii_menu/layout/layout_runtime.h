@@ -2,6 +2,7 @@
 #define WII_MENU_LAYOUT_RUNTIME_H
 
 #include "wii_menu/resources/resource_font.h"
+#include "wii_menu/resources/resource_chans.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -150,6 +151,8 @@ typedef struct WmLayoutDrawOptions {
  * returns NULL and writes a short diagnostic when error_capacity is nonzero. */
 WmLayout *wm_layout_load_json(const char *path, char *error, size_t error_capacity);
 void wm_layout_destroy(WmLayout *layout);
+/* Optional original RCHE companion, owned by this layout. */
+const WmChansLanguages *wm_layout_channel_languages(const WmLayout *layout);
 
 /* Each pose starts from the imported layout, then applies clips in order.
  * Group binding is nonrecursive unless the caller explicitly requests it. */

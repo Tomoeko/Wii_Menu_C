@@ -316,8 +316,8 @@ static void test_connection_video(WmLayout *layout) {
     assert(visible(layout, "bg170_96"));
     assert(visible(layout, "color"));
     assert(visible(layout, "wii"));
-    assert(strcmp(pane_state(layout, "txt_green").text, "Get more\nchannels") == 0);
-    assert(near(pane_state(layout, "txt_orange").font_size[0], 18));
+    /* Without an original script companion, preserve the authored text. */
+    assert(strcmp(pane_state(layout, "txt_green").text, "") == 0);
 
     WmChannelAnimationOptions japanese = {.language = "JPN"};
     assert(wm_channel_animation_pose(layout, CONNECTION_ID, WM_CHANNEL_ICON, 0,

@@ -96,6 +96,16 @@ invalid entries reset the entire layout to catalog defaults with a terminal
 warning. No position change means no config write.
 See [channel placement](docs/channel-layout.md) for the format and validation rules.
 
+English is the default channel language. Wii Options → Wii Settings → Language
+supports English, French, and Spanish from the recovered USA resources. Confirming
+a different choice applies it to channel icons, previews, SD/storage thumbnails,
+and available channel titles, then atomically saves `.language.json` beside the
+prepared catalog. Opening the page, cancelling, or confirming the current choice
+does not write a file. The local config is git ignored and restored on restart.
+Get Connected text and font sizes come from its original channel script; prepare
+channel assets again to recover that script in an older asset directory.
+See [channel language recovery](docs/channel-language.md).
+
 F toggles fullscreen when text entry is inactive; the macOS fullscreen button
 uses the same window mode. Esc dismisses prompts using their on-screen cancel
 sound; at the main menu it exits fullscreen. Metal window rendering fits within

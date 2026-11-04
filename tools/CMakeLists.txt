@@ -102,6 +102,7 @@ target_link_libraries(wm-shared-font-export PRIVATE wii_menu_core)
 add_executable(wm-channel-export
     "${PROJECT_SOURCE_DIR}/Common/src/support/sha1.c"
     channels/export.c
+    channels/export_language.c
     channels/export_resource.c
     channels/export_manifest.c
     channels/md5.c

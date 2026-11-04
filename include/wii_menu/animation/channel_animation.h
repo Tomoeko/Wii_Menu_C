@@ -17,6 +17,9 @@ typedef float (*WmChannelMeasureText)(void *context, const WmLayout *layout,
                                       const WmLayoutPaneState *pane, const char *utf8,
                                       size_t length);
 
+typedef bool (*WmChannelMeasureRect)(void *context, const WmLayout *layout,
+                                     const WmLayoutPaneState *pane, float size[2]);
+
 typedef struct WmChannelAnimationOptions {
     const char *language; /* JPN, ENG, GER, FRA, SPA, ITA, or NED; default ENG. */
     bool network_configured;
@@ -24,6 +27,7 @@ typedef struct WmChannelAnimationOptions {
     bool has_base_frame;
     float base_frame; /* Independent banner intro clock, when supplied. */
     WmChannelMeasureText measure_text;
+    WmChannelMeasureRect measure_rect;
     void *measure_context;
 } WmChannelAnimationOptions;
 

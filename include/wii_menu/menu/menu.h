@@ -1,6 +1,8 @@
 #ifndef WII_MENU_MENU_H
 #define WII_MENU_MENU_H
 
+#include "wii_menu/menu/language.h"
+
 #include <stdbool.h>
 
 #define WM_PAGE_COUNT 4
@@ -48,6 +50,7 @@ typedef struct WmPreviewPresentation {
 typedef struct WmChannel {
     char id[65];
     char title[128];
+    char localized_titles[WM_LANGUAGE_COUNT][128];
     char icon_layout[256];
     char banner_layout[256];
     bool occupied;
@@ -91,5 +94,7 @@ bool wm_menu_move_channel(WmMenu *menu, int from, int to);
 bool wm_menu_start_preview(WmMenu *menu);
 bool wm_menu_dismiss_notice(WmMenu *menu);
 bool wm_catalog_load(WmMenu *menu, const char *assets_directory);
+
+void wm_menu_set_language(WmMenu *menu, WmLanguage language);
 
 #endif

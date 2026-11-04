@@ -13,6 +13,7 @@ typedef struct PreviewFocus {
 /* Layouts belong to the scene. Platform, texture cache, and font cache are
  * borrowed; controller and presentation share them without taking ownership. */
 struct WmPreviewScene {
+    WmLanguage language;
     WmPlatform *platform;
     WmTextureCache *textures;
     WmFontCache *fonts;

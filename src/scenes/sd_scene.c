@@ -815,3 +815,9 @@ bool wm_sd_scene_back(WmSdScene *scene) {
     }
     return wm_sd_scene_activate(scene, (WmSdHit){WM_SD_CONTROL_BACK, 0});
 }
+
+void wm_sd_scene_set_language(WmSdScene *scene, WmLanguage language) {
+    if (!scene || !wm_language_valid(language) || scene->language == language)
+        return;
+    scene->language = language;
+}

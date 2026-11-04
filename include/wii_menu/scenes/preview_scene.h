@@ -9,6 +9,8 @@
 #include "wii_menu/render/texture_cache.h"
 #include "wii_menu/input/pointer.h"
 
+#include "wii_menu/menu/language.h"
+
 #include <stdbool.h>
 
 typedef struct WmPreviewScene WmPreviewScene;
@@ -61,5 +63,8 @@ WmHit wm_preview_scene_hit(const WmPreviewScene *scene, const WmMenu *menu, int 
  * tolerance. Click activation continues to use the exact hit region. */
 WmHit wm_preview_scene_hover_hit(const WmPreviewScene *scene, const WmMenu *menu, int x,
                                  int y, WmHit held);
+
+/* Select channel text and language groups; English is the initial choice. */
+void wm_preview_scene_set_language(WmPreviewScene *scene, WmLanguage language);
 
 #endif

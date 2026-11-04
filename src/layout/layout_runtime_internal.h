@@ -1,6 +1,8 @@
 #ifndef WM_LAYOUT_RUNTIME_INTERNAL_H
 #define WM_LAYOUT_RUNTIME_INTERNAL_H
 
+#include "wii_menu/resources/resource_chans.h"
+
 #include "wii_menu/layout/layout_runtime.h"
 
 #include <stdbool.h>
@@ -140,6 +142,7 @@ typedef struct LayoutAnimation {
 } LayoutAnimation;
 
 struct WmLayout {
+    WmChansLanguages *channel_languages;
     WmLayoutTexture *textures;
     size_t texture_count;
     char (*fonts)[128];

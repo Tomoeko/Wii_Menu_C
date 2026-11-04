@@ -5,6 +5,8 @@
 #include "wii_menu/platform/platform.h"
 #include "wii_menu/render/texture_cache.h"
 
+#include "wii_menu/menu/language.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -151,5 +153,8 @@ bool wm_storage_scene_draw_back(WmStorageScene *scene);
 bool wm_storage_scene_draw_content(WmStorageScene *scene);
 /* Complete draw for callers that do not need to interleave the heading. */
 bool wm_storage_scene_draw(WmStorageScene *scene);
+
+/* Select channel text and language groups; English is the initial choice. */
+void wm_storage_scene_set_language(WmStorageScene *scene, WmLanguage language);
 
 #endif

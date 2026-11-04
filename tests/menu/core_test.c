@@ -56,7 +56,29 @@ static void test_json_integer_bounds(void) {
     wm_json_free(&json);
 }
 
+static void test_channel_language_titles(void) {
+    WmMenu menu;
+    wm_menu_init(&menu);
+    menu.slots[1] =
+        (WmChannel){.id = "synthetic",
+                    .title = "Default",
+                    .localized_titles = {"English title", "French title", ""},
+                    .occupied = true};
+    menu.slots[2] = (WmChannel){.id = "local", .title = "User title", .occupied = true};
+    wm_menu_set_language(&menu, WM_LANGUAGE_FRENCH);
+    assert(strcmp(menu.slots[1].title, "French title") == 0);
+    assert(strcmp(menu.slots[2].title, "User title") == 0);
+    wm_menu_set_language(&menu, WM_LANGUAGE_SPANISH);
+    assert(strcmp(menu.slots[1].title, "English title") == 0);
+    assert(wm_menu_move_channel(&menu, 1, 3));
+    wm_menu_set_language(&menu, WM_LANGUAGE_FRENCH);
+    assert(strcmp(menu.slots[3].title, "French title") == 0);
+    wm_menu_set_language(&menu, WM_LANGUAGE_ENGLISH);
+    assert(strcmp(menu.slots[3].title, "English title") == 0);
+}
+
 int main(void) {
+    test_channel_language_titles();
     test_json_text();
     test_json_integer_bounds();
     WmJson json;

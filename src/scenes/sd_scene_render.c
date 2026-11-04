@@ -218,8 +218,9 @@ void wm_sd_pose_footer(WmSdScene *scene) {
 
 static void draw_tiles(WmSdScene *scene, const SdTraversal *traversal) {
     const WmChannelAnimationOptions animation_options = {
-        .language = "ENG",
+        .language = wm_language_code(scene->language),
         .measure_text = wm_font_cache_measure_text,
+        .measure_rect = wm_font_cache_measure_rect,
         .measure_context = scene->fonts};
     WmLayoutClip empty_animation = {.animation = "mn_SdcardMenu_d",
                                     .frame = fmodf(scene->age, 1999.0f),

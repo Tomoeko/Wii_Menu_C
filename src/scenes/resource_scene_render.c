@@ -265,8 +265,9 @@ static void draw_grid_thumbnails(WmResourceScene *scene, const WmMenu *menu,
                            (thumbnail == scene->empty_channel ? index * 83.0f : 0.0f);
         if (thumbnail == scene->channel_icons[absolute] && absolute > 0) {
             const WmChannelAnimationOptions icon_options = {
-                .language = "ENG",
+                .language = wm_language_code(scene->language),
                 .measure_text = wm_font_cache_measure_text,
+                .measure_rect = wm_font_cache_measure_rect,
                 .measure_context = scene->fonts};
             wm_channel_animation_pose(thumbnail, menu->slots[absolute].id,
                                       WM_CHANNEL_ICON, icon_frame, &icon_options);
