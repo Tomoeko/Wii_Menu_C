@@ -48,6 +48,9 @@ Use the same selection flags for planning and publishing.
 
 Updates preserve saved placement, retained channels, menu assets, and shared
 fonts. Selected replacements change their channel layout and audio exports.
+To recover missing global system fonts, perform initial preparation with both
+`--wad` and `--nand`, as shown in the [setup instructions](../README.md#prepare-assets).
+Channel updates retain the source directory's existing fonts.
 Catalog language is inherited from the source assets. The update path accepts
 one raw BootMii dump; extracted directories, channel WAD updates, removal,
 and in-place replacement are not supported here.

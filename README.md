@@ -41,28 +41,37 @@ in this repository. Run:
 git submodule update --init --recursive
 cmake -S . -B Files/build-windows -G "Visual Studio 18 2026" -A x64 -DBUILD_TESTING=OFF -DWM_BUILD_TOOLS=ON
 cmake --build Files/build-windows --config Release --parallel
-Files\build-windows\Release\wm-prepare.exe --wad Files/.local/input/menu.wad --output Files/.local/native-assets
+Files\build-windows\Release\wm-prepare.exe ^
+    --wad Files/.local/input/menu.wad ^
+    --nand Files/.local/input/nand.bin ^
+    --output Files/.local/native-assets
 Files\build-windows\Release\wii-menu.exe
 ```
 
-Place your System Menu WAD at `Files/.local/input/menu.wad` first.
+Place your System Menu WAD at `Files/.local/input/menu.wad` and your BootMii
+NAND dump at `Files/.local/input/nand.bin` first.
 All preparation, export, and channel tools work on Windows.
 Use `Files\build-windows\Release\` and `.exe` for the tools below.
 Windows uses OpenGL 2.1. Install your GPU driver. No extra runtime libraries are needed.
 
 ## Prepare assets
 
-Use your own USA 4.3 System Menu WAD. Keep inputs and assets in ignored
-`Files/.local/` storage. Run:
+Use your own USA 4.3 System Menu WAD and BootMii NAND dump. Keep inputs and
+assets in ignored `Files/.local/` storage. Run:
 
 ```sh
 ./Files/build/wm-prepare --wad Files/.local/input/menu.wad \
+    --nand Files/.local/input/nand.bin \
     --output Files/.local/native-assets
 ```
 
-The output directory must be new. Add `--nand Files/.local/input/nand.bin` to include
-installed channels and shared fonts. The NAND dump needs its matching BootMii
-key footer or `--nand-keys Files/.local/input/keys.bin`.
+**The `--nand` option is critical for recovering the global system font used by
+channel text.** The System Menu WAD alone does not contain the shared fonts
+(`wbf1.brfna` and `wbf2.brfna`), which provide the original glyphs and text metrics.
+The NAND dump also supplies installed channels.
+
+The output directory must be new. The NAND dump needs its matching BootMii key
+footer or `--nand-keys Files/.local/input/keys.bin`.
 
 Retail WAD common keys are selected automatically. Unsupported key indices
 need `--common-key-file FILE`; `--common-key-index N` requires a particular
