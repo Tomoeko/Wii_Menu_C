@@ -220,6 +220,8 @@ void wm_board_scene_reset(WmBoardScene *board) {
     board->pending_memo_index = SIZE_MAX;
     board->mask_direction = 0;
     board->mask_age = 0.0f;
+    board->mask_exiting = false;
+    board->mask_exit_age = 0.0f;
     board->scroll_offset_x = 0.0f;
     board->return_direction = 0;
     board->today = local_today();
@@ -291,6 +293,8 @@ bool wm_board_scene_open(WmBoardScene *board, WmBoardDate date) {
     board->pending_action = WM_BOARD_ACTION_NONE;
     board->mask_direction = 0;
     board->mask_age = 0.0f;
+    board->mask_exiting = false;
+    board->mask_exit_age = 0.0f;
     update_visible(board);
     for (size_t position = 0; position < board->visible_count; position++) {
         /* Today's existing cards are already present behind the Home Menu.
@@ -826,16 +830,41 @@ static bool at_last_day(const WmBoardScene *board) {
     return board_model_same_date(board->date, (WmBoardDate){2035, 12, 31});
 }
 
+static void start_child_background_exit(WmBoardScene *board, float elapsed) {
+    if (board->mask_exiting)
+        return;
+    if (wm_board_calendar_phase(board->calendar) != WM_CALENDAR_EXIT &&
+        wm_board_compose_phase(board->compose) != WM_COMPOSE_BACK_SELECTOR)
+        return;
+    /* Dolphin reference: the body leaves over twenty frames, then MaskOut
+     * runs while the footer returns. See docs/board-transitions.md. */
+    board->mask_exiting = true;
+    board->mask_exit_age = fminf(20.0f, elapsed - 20.0f);
+}
+
+static void finish_child_background_exit(WmBoardScene *board, float elapsed) {
+    /* Back exits have already returned the background and footer. Other
+     * outcomes, including posting, retain their existing return schedule. */
+    board->mask_direction = board->mask_exiting ? 0 : -1;
+    board->mask_age = elapsed;
+}
+
 bool wm_board_scene_back(WmBoardScene *board) {
     if (!board)
         return false;
     if (board->dragging)
         return wm_board_scene_cancel_pointer(board);
     if (wm_board_calendar_phase(board->calendar) != WM_CALENDAR_CLOSED) {
-        return wm_board_calendar_back(board->calendar);
+        bool accepted = wm_board_calendar_back(board->calendar);
+        if (accepted)
+            start_child_background_exit(board, 0.0f);
+        return accepted;
     }
     if (wm_board_compose_phase(board->compose) != WM_COMPOSE_CLOSED) {
-        return wm_board_compose_back(board->compose);
+        bool accepted = wm_board_compose_back(board->compose);
+        if (accepted)
+            start_child_background_exit(board, 0.0f);
+        return accepted;
     }
     if (wm_board_erase_phase(board->erase) != WM_ERASE_CLOSED) {
         return wm_board_erase_back(board->erase);
@@ -990,6 +1019,7 @@ static void advance_compose_child(WmBoardScene *board, float frames) {
             return;
         wm_board_compose_advance(board->compose, amount);
         remaining -= amount;
+        start_child_background_exit(board, remaining);
         WmBoardComposeOutcome outcome = wm_board_compose_take_outcome(board->compose);
         if (outcome == WM_COMPOSE_OUTCOME_POSTED) {
             append_posted_memo(board, wm_board_compose_text(board->compose));
@@ -997,8 +1027,7 @@ static void advance_compose_child(WmBoardScene *board, float frames) {
             /* Local delivery begins when its card can be seen. The native
              * transport's delivery time is not an authored composer clock. */
             reveal_posted_memo(board, remaining);
-            board->mask_direction = -1;
-            board->mask_age = remaining;
+            finish_child_background_exit(board, remaining);
         } else if (outcome == WM_COMPOSE_OUTCOME_OPEN_SETTINGS) {
             board->pending_action = WM_BOARD_ACTION_OPEN_SETTINGS;
         } else if (outcome == WM_COMPOSE_OUTCOME_OPEN_CONNECT24_SETTINGS) {
@@ -1007,7 +1036,7 @@ static void advance_compose_child(WmBoardScene *board, float frames) {
     }
 }
 
-static float advance_calendar_child(WmBoardScene *board, float frames) {
+static void advance_calendar_child(WmBoardScene *board, float frames) {
     float remaining = frames;
     while (remaining > 0.0f &&
            wm_board_calendar_phase(board->calendar) != WM_CALENDAR_CLOSED) {
@@ -1016,25 +1045,17 @@ static float advance_calendar_child(WmBoardScene *board, float frames) {
         if (boundary > 0.0f)
             amount = fminf(amount, boundary);
         if (amount <= 0.0f)
-            return 0.0f;
+            return;
         wm_board_calendar_advance(board->calendar, amount);
         remaining -= amount;
-        WmBoardDate selected_date;
+        start_child_background_exit(board, remaining);
         WmBoardCalendarOutcome outcome =
-            wm_board_calendar_take_outcome(board->calendar, &selected_date);
+            wm_board_calendar_take_outcome(board->calendar, NULL);
         if (outcome == WM_CALENDAR_OUTCOME_NONE)
             continue;
-        if (outcome == WM_CALENDAR_OUTCOME_SELECTED) {
-            /* Date selection already played its own source cue at the click.
-             * Use the same slide without also playing the arrow's cue. */
-            begin_date_transition(board, selected_date, WM_BOARD_DATE_SCROLL, false,
-                                  remaining);
-        }
-        board->mask_direction = -1;
-        board->mask_age = remaining;
-        return remaining;
+        finish_child_background_exit(board, remaining);
+        return;
     }
-    return remaining;
 }
 
 static void advance_drag_audio(WmBoardScene *board, float frames) {
@@ -1055,6 +1076,8 @@ static void advance_drag_audio(WmBoardScene *board, float frames) {
 }
 
 static void advance_board_mask(WmBoardScene *board, float frames) {
+    if (board->mask_exiting)
+        board->mask_exit_age = fminf(20.0f, board->mask_exit_age + frames);
     if (board->mask_direction != 0) {
         board->mask_age += frames;
         if (board->mask_direction < 0 && board->mask_age >= 20.0f)
@@ -1236,16 +1259,15 @@ void wm_board_scene_advance(WmBoardScene *board, float frames) {
     wm_board_reader_scroll_advance(&board->reader_scroll, frames);
     advance_drag_audio(board, frames);
     advance_board_mask(board, frames);
-    float phase_frames = frames;
     if (wm_board_calendar_phase(board->calendar) != WM_CALENDAR_CLOSED)
-        phase_frames = advance_calendar_child(board, frames);
+        advance_calendar_child(board, frames);
     if (wm_board_compose_phase(board->compose) != WM_COMPOSE_CLOSED) {
         advance_compose_child(board, frames);
     }
     if (advance_erase_child(board, frames))
         return;
     advance_board_focus(board, frames);
-    advance_board_phase(board, phase_frames);
+    advance_board_phase(board, frames);
 }
 
 static bool same_hit(WmBoardHit first, WmBoardHit second) {
@@ -1643,7 +1665,11 @@ bool wm_board_scene_activate(WmBoardScene *board, WmBoardHit hit) {
         return wm_board_erase_activate(board->erase, control);
     }
     if (wm_board_compose_phase(board->compose) != WM_COMPOSE_CLOSED) {
-        return wm_board_compose_activate(board->compose, compose_control(hit.control));
+        bool activated =
+            wm_board_compose_activate(board->compose, compose_control(hit.control));
+        if (activated)
+            start_child_background_exit(board, 0.0f);
+        return activated;
     }
     if (wm_board_calendar_phase(board->calendar) != WM_CALENDAR_CLOSED) {
         WmBoardCalendarControl control = calendar_control(hit.control);
@@ -1651,7 +1677,14 @@ bool wm_board_scene_activate(WmBoardScene *board, WmBoardHit hit) {
             board->calendar, (WmBoardCalendarHit){control, (unsigned)hit.memo_index});
         if (activated && control == WM_CALENDAR_CONTROL_DAY) {
             queue_sound_event(board, "dateSelect", 0.0f, SIZE_MAX);
+            /* Move the Board under the calendar while its selection and
+             * exit effects run, rather than revealing a delayed page turn. */
+            begin_date_transition(board,
+                                  wm_board_calendar_selected_date(board->calendar),
+                                  WM_BOARD_DATE_SCROLL, false, 0.0f);
         }
+        if (activated)
+            start_child_background_exit(board, 0.0f);
         return activated;
     }
     if (hit.control == WM_BOARD_CONTROL_MEMO_BACK && board->phase == WM_BOARD_MEMO_READ)
@@ -1686,6 +1719,8 @@ bool wm_board_scene_activate(WmBoardScene *board, WmBoardHit hit) {
                 return false;
             board->mask_direction = 1;
             board->mask_age = 0.0f;
+            board->mask_exiting = false;
+            board->mask_exit_age = 0.0f;
             /* The child owns input until it closes. Retire the Board's
              * completed hover pose so it cannot return with the footer. */
             retire_footer_focus(board);
@@ -1695,6 +1730,8 @@ bool wm_board_scene_activate(WmBoardScene *board, WmBoardHit hit) {
                 return false;
             board->mask_direction = 1;
             board->mask_age = 0.0f;
+            board->mask_exiting = false;
+            board->mask_exit_age = 0.0f;
             retire_footer_focus(board);
             return true;
         case WM_BOARD_CONTROL_PREVIOUS:

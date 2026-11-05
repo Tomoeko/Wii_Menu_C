@@ -38,6 +38,9 @@ struct WmBoardCompose {
     WmBoardComposePhase phase;
     float frame;
     float age;
+    float memo_footer_age;
+    float arrow_loop_frame;
+    bool has_arrow_loop_frame;
     float keyboard_age;
     float memo_vertical_x;
     bool memo_vertical_x_valid;

@@ -532,13 +532,16 @@ static void draw_reader(WmBoardScene *board) {
 }
 
 static void draw_child_mask(WmBoardScene *board) {
-    if (board->mask_direction == 0)
+    if (board->mask_direction == 0 ||
+        (board->mask_exiting && board->mask_exit_age >= 20.0f))
         return;
-    WmLayoutClip clip = {.animation = board->mask_direction > 0
-                                          ? "my_BbsMask_a_MaskIn"
-                                          : "my_BbsMask_a_MaskOut",
-                         .frame = board_scene_clamp_frame(board->mask_age, 20.0f),
-                         .loop_override = 0};
+    WmLayoutClip clip = {
+        .animation = board->mask_direction > 0 && !board->mask_exiting
+                         ? "my_BbsMask_a_MaskIn"
+                         : "my_BbsMask_a_MaskOut",
+        .frame = board_scene_clamp_frame(
+            board->mask_exiting ? board->mask_exit_age : board->mask_age, 20.0f),
+        .loop_override = 0};
     wm_layout_pose(board->mask, &clip, 1);
     present(board, board->mask, NULL);
 }
@@ -611,6 +614,14 @@ void wm_board_scene_set_menu_elapsed_seconds(WmBoardScene *board, float seconds)
         return;
     board->menu_elapsed_seconds = seconds;
     board->menu_arrow_clock_set = true;
+    float arrow_frame = fmodf(floorf(seconds * 60.0f), 55.0f);
+    size_t pages = wm_board_scene_memo_page_count(board);
+    bool previous = !board_model_same_date(board->date, (WmBoardDate){2000, 1, 1}) ||
+                    board->page + 1 < pages;
+    bool next = !board_model_same_date(board->date, (WmBoardDate){2035, 12, 31}) ||
+                board->page > 0;
+    wm_board_calendar_set_footer_arrows(board->calendar, arrow_frame, previous, next);
+    wm_board_compose_set_arrow_loop_frame(board->compose, arrow_frame);
 }
 
 static void append_footer_arrow_clips(const WmBoardScene *board,

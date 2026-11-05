@@ -105,6 +105,11 @@ invalid entries reset the entire layout to catalog defaults with a terminal
 warning. No position change means no config write.
 See [channel placement](docs/channel-layout.md) for the format and validation rules.
 
+Message Board calendar dates start the page turn immediately behind the calendar.
+Calendar and Create Message exits return the background and footer during the
+closing animation. Address Book uses its card morph, and Memo body transitions
+run independently of the footer button changes. See [Message Board transitions](docs/board-transitions.md).
+
 English is the default channel language. Wii Options → Wii Settings → Language
 supports English, French, and Spanish from the recovered USA resources. Confirming
 a different choice applies it to channel icons, previews, SD/storage thumbnails,
@@ -193,7 +198,8 @@ do not need this option.
 
 - [Channels](tools/channels/README.md) and [NAND updates](docs/preparation-updates.md)
 - [WAD extraction](tools/wad/README.md) and [audio export](tools/audio/README.md)
-- [Settings](docs/settings-rendering.md), [Memo keyboard](docs/board-keyboard.md),
+- [Settings](docs/settings-rendering.md), [Message Board transitions](docs/board-transitions.md),
+  [Memo keyboard](docs/board-keyboard.md),
   and [audio accuracy](docs/audio-accuracy.md)
 - [GLES2 performance](docs/ubuntu-gles2-performance.md) and
   [macOS performance](docs/macos-performance.md)

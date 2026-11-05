@@ -636,12 +636,17 @@ static void pose_book_clips(WmBoardAddress *address, const AddressGeometry *view
                            .group = "G_note_all",
                            .frame = frame,
                            .loop_override = 0};
-        clips[count++] =
-            (WmLayoutClip){.animation = leaving ? "th_Adress_a_note_trns_out"
-                                                : "th_Adress_a_note_trns_in",
-                           .group = "G_note_all",
-                           .frame = frame,
-                           .loop_override = 0};
+        /* The card morph already owns the book's translation. The separate
+         * sideways slide belongs to navigation inside the Address Book. */
+        if (address->phase != WM_BOARD_ADDRESS_ENTER &&
+            address->phase != WM_BOARD_ADDRESS_EXIT) {
+            clips[count++] =
+                (WmLayoutClip){.animation = leaving ? "th_Adress_a_note_trns_out"
+                                                    : "th_Adress_a_note_trns_in",
+                               .group = "G_note_all",
+                               .frame = frame,
+                               .loop_override = 0};
+        }
     }
     bool cover_turn = address->phase == WM_BOARD_ADDRESS_TURN &&
                       (view->cover_turn || view->wrap_turn);
@@ -763,9 +768,8 @@ void wm_board_address_draw(WmBoardAddress *address) {
                                      WM_LAYOUT_IPL, NULL);
         return;
     }
-    /* The authored translation has moved the entire book beyond the 640-pixel
-     * viewport by the end of note_trns_out. Keep the remaining parent/footer
-     * transition while avoiding repeated offscreen sheet submissions. */
+    /* Both card shrink and internal slide finish their fade at frame 16.
+     * The footer continues independently after the book becomes invisible. */
     if ((address->phase == WM_BOARD_ADDRESS_EXIT ||
          address->phase == WM_BOARD_ADDRESS_BOOK_TO_KIND ||
          address->phase == WM_BOARD_ADDRESS_BOOK_TO_CONTACT) &&

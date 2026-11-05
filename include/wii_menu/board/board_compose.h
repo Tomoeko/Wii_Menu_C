@@ -82,6 +82,8 @@ WmBoardContactStoreStatus wm_board_compose_load_contacts(WmBoardCompose *compose
 void wm_board_compose_reset(WmBoardCompose *compose);
 bool wm_board_compose_open(WmBoardCompose *compose);
 void wm_board_compose_advance(WmBoardCompose *compose, float frames);
+/* Share the common footer's loop phase across scene handoffs. */
+void wm_board_compose_set_arrow_loop_frame(WmBoardCompose *compose, float frame);
 WmBoardComposePhase wm_board_compose_phase(const WmBoardCompose *compose);
 float wm_board_compose_phase_frame(const WmBoardCompose *compose);
 /* Remaining frames in the current timed phase; zero for a stable phase. */

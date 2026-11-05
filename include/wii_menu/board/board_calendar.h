@@ -44,10 +44,16 @@ bool wm_board_calendar_open(WmBoardCalendar *calendar, WmBoardDate date,
 bool wm_board_calendar_set_message_dates(WmBoardCalendar *calendar,
                                          const WmBoardDate *dates, size_t count);
 void wm_board_calendar_advance(WmBoardCalendar *calendar, float frames);
+/* Share the loop phase and the Board arrows that slide out during entry. */
+void wm_board_calendar_set_footer_arrows(WmBoardCalendar *calendar, float frame,
+                                         bool previous_visible, bool next_visible);
 WmBoardCalendarPhase wm_board_calendar_phase(const WmBoardCalendar *calendar);
 /* Remaining frames in the current timed phase, or zero when stable. */
 float wm_board_calendar_frames_to_boundary(const WmBoardCalendar *calendar);
 WmBoardDate wm_board_calendar_month(const WmBoardCalendar *calendar);
+/* Available immediately after a day press, before the calendar closes.
+ * Returns a zero date when no day has been selected. */
+WmBoardDate wm_board_calendar_selected_date(const WmBoardCalendar *calendar);
 WmBoardCalendarOutcome wm_board_calendar_take_outcome(WmBoardCalendar *calendar,
                                                       WmBoardDate *selected_date);
 void wm_board_calendar_draw(WmBoardCalendar *calendar);

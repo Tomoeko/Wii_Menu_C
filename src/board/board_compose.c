@@ -260,6 +260,8 @@ void wm_board_compose_reset(WmBoardCompose *compose) {
     compose->phase = WM_COMPOSE_CLOSED;
     compose->frame = 0.0f;
     compose->age = 0.0f;
+    compose->memo_footer_age = 0.0f;
+    compose->has_arrow_loop_frame = false;
     compose->keyboard_age = 0.0f;
     compose->memo_vertical_x_valid = false;
     compose->address_keyboard_open = false;
@@ -289,6 +291,7 @@ bool wm_board_compose_open(WmBoardCompose *compose) {
     compose->phase = WM_COMPOSE_ENTER_SELECTOR;
     compose->frame = 0.0f;
     compose->age = 0.0f;
+    compose->memo_footer_age = 0.0f;
     compose->keyboard_age = 0.0f;
     compose->address_keyboard_open = false;
     compose->network_phase = COMPOSE_NETWORK_CLOSED;
@@ -314,6 +317,13 @@ bool wm_board_compose_open(WmBoardCompose *compose) {
 
 WmBoardComposePhase wm_board_compose_phase(const WmBoardCompose *compose) {
     return compose ? compose->phase : WM_COMPOSE_CLOSED;
+}
+
+void wm_board_compose_set_arrow_loop_frame(WmBoardCompose *compose, float frame) {
+    if (!compose || !isfinite(frame) || frame < 0.0f)
+        return;
+    compose->arrow_loop_frame = fmodf(frame, 55.0f);
+    compose->has_arrow_loop_frame = true;
 }
 
 float wm_board_compose_phase_frame(const WmBoardCompose *compose) {
@@ -386,7 +396,7 @@ static float phase_duration(WmBoardComposePhase phase) {
         case WM_COMPOSE_ENTER_SELECTOR:
             return 39.0f;
         case WM_COMPOSE_ENTER_MEMO:
-            return 26.0f;
+            return 17.0f;
         case WM_COMPOSE_ENTER_EDIT:
         case WM_COMPOSE_LEAVE_EDIT:
             return 30.0f;
@@ -397,7 +407,7 @@ static float phase_duration(WmBoardComposePhase phase) {
         case WM_COMPOSE_EXIT_AFTER_POST:
             return 21.0f;
         case WM_COMPOSE_BACK_MEMO:
-            return 63.0f;
+            return 46.0f;
         case WM_COMPOSE_BACK_SELECTOR:
             return 46.0f;
         case WM_COMPOSE_ADDRESS:
@@ -457,6 +467,7 @@ void wm_board_compose_advance(WmBoardCompose *compose, float frames) {
         frames <= 0.0f)
         return;
     compose->age += frames;
+    compose->memo_footer_age = fminf(compose->memo_footer_age + frames, 100000.0f);
     advance_network_dialog(compose, frames);
     if (compose->phase == WM_COMPOSE_ADDRESS) {
         WmBoardAddressPhase previous_address_phase =
@@ -1032,6 +1043,7 @@ static bool activate_selector_control(WmBoardCompose *compose,
         if (control == WM_COMPOSE_CONTROL_MEMO) {
             compose->phase = WM_COMPOSE_ENTER_MEMO;
             compose->frame = 0.0f;
+            compose->memo_footer_age = 0.0f;
             board_compose_scroll_refresh(&compose->scroll, compose->phase);
             return true;
         }

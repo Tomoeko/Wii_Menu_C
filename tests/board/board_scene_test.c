@@ -3,6 +3,9 @@
 #include "wii_menu/board/board_scene.h"
 #include "wii_menu/board/board_calendar.h"
 #include "board_calendar_internal.h"
+#include "board_scene_internal.h"
+#include "board_compose_internal.h"
+#include "board_compose_presentation.h"
 #include "wii_menu/board/board_compose.h"
 #include "wii_menu/board/board_erase.h"
 #include "wii_menu/persistence/board_store.h"
@@ -1413,46 +1416,202 @@ static void test_compose_memo_scroll_transitions(int argc, char **argv) {
     wm_layout_destroy(body);
 }
 
-static void test_board_arrow_return_from_create(int argc, char **argv) {
+static float pane_x(const WmLayout *layout, const char *name) {
+    WmLayoutPaneState pane;
+    assert(wm_layout_pane_state(layout, name, &pane));
+    return pane.translation[0];
+}
+
+static void assert_compose_track(WmBoardCompose *compose, WmLayout *layout,
+                                 const char *animation, const char *group, float frame,
+                                 const char *pane, void (*pose)(WmBoardCompose *)) {
+    WmLayoutClip clip = {.animation = animation, .group = group, .frame = frame};
+    WmLayoutPaneState expected, actual;
+    assert(wm_layout_pose(layout, &clip, 1));
+    assert(wm_layout_pane_state(layout, pane, &expected));
+    pose(compose);
+    assert(wm_layout_pane_state(layout, pane, &actual));
+    for (size_t axis = 0; axis < 2; axis++) {
+        assert(fabsf(actual.translation[axis] - expected.translation[axis]) < 0.001f);
+        assert(fabsf(actual.scale[axis] - expected.scale[axis]) < 0.001f);
+    }
+}
+
+static void assert_memo_footer(WmBoardCompose *compose, float frame) {
+    assert_compose_track(compose, compose->footer, "my_IplTop_e", "G_SeenChange", frame,
+                         "N_BtnL_a0", board_compose_pose_footer);
+    assert_compose_track(compose, compose->footer, "my_IplTop_e", "G_SeenChange", frame,
+                         "N_BtnR_a0", board_compose_pose_footer);
+}
+
+static void test_memo_transition_tracks(int argc, char **argv) {
+    const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
+    WmBoardCompose *compose = wm_board_compose_create((WmPlatform *)1, assets,
+                                                      (WmTextureCache *)1, test_fonts);
+    assert(compose && wm_board_compose_open(compose));
+    wm_board_compose_advance(compose, 39.0f);
+    assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_MEMO));
+    wm_board_compose_advance(compose, 8.0f);
+    assert_compose_track(compose, compose->body, "my_Memo_a_MailIn", NULL, 8.0f,
+                         "N_MemoRoot", board_compose_pose_body);
+    wm_board_compose_advance(compose, 9.0f);
+    assert(compose->phase == WM_COMPOSE_MEMO);
+    assert_memo_footer(compose, 3317.0f);
+    assert(wm_board_compose_back(compose));
+    assert_memo_footer(compose, 3317.0f);
+    wm_board_compose_advance(compose, 8.0f);
+    assert_compose_track(compose, compose->selector, "my_Mail_a_MailOut", NULL, 8.0f,
+                         "N_MailB", board_compose_pose_selector);
+    assert_compose_track(compose, compose->body, "my_Memo_a_MailOut", NULL, 8.0f,
+                         "N_MemoRoot", board_compose_pose_body);
+    assert_memo_footer(compose, 3325.0f);
+    wm_board_compose_advance(compose, 1.0f);
+    assert_memo_footer(compose, 3326.0f);
+    wm_board_compose_advance(compose, 37.0f);
+    assert(compose->phase == WM_COMPOSE_SELECTOR);
+    assert_memo_footer(compose, 3126.0f);
+
+    /* An edit accepted as soon as the body is ready must not snap the
+     * incoming footer to its completed pose before sliding it out. */
+    assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_MEMO));
+    wm_board_compose_advance(compose, 17.0f);
+    assert(wm_board_compose_activate(compose, WM_COMPOSE_CONTROL_EDIT));
+    assert_memo_footer(compose, 3317.0f);
+    wm_board_compose_advance(compose, 8.0f);
+    assert_memo_footer(compose, 3325.0f);
+    wm_board_compose_advance(compose, 1.0f);
+    assert_memo_footer(compose, 3413.0f);
+    wm_board_compose_advance(compose, 6.0f);
+    assert_memo_footer(compose, 3419.0f);
+    wm_board_compose_advance(compose, 15.0f);
+    assert(compose->phase == WM_COMPOSE_EDIT);
+    assert_memo_footer(compose, 3426.0f);
+    wm_board_compose_destroy(compose);
+}
+
+static WmLayout *pose_child_footer(WmBoardScene *board, bool calendar) {
+    if (calendar) {
+        board_calendar_pose_footer(board->calendar);
+        return board->calendar->footer;
+    }
+    board_compose_pose_footer(board->compose);
+    return board->compose->footer;
+}
+
+static void test_calendar_return_at_date_limits(int argc, char **argv) {
+    const WmBoardDate dates[] = {
+        {2000, 1, 1}, {2000, 1, 5}, {2035, 12, 5}, {2035, 12, 31}};
+    for (size_t index = 0; index < sizeof(dates) / sizeof(dates[0]); index++) {
+        WmBoardScene *board = load_board(argc, argv);
+        assert(board && wm_board_scene_open(board, dates[index]));
+        wm_board_scene_advance(board, 40.0f);
+        assert(wm_board_scene_activate(
+            board, (WmBoardHit){WM_BOARD_CONTROL_CALENDAR, SIZE_MAX}));
+        wm_board_scene_advance(board, 50.0f);
+        assert(wm_board_scene_back(board));
+        wm_board_scene_advance(board, 30.0f);
+        wm_board_scene_set_menu_elapsed_seconds(board, 3.0f);
+        for (size_t side = 0; side < 2; side++) {
+            bool hidden = side == 0 ? index == 0 : index == 3;
+            const char *group = side == 0 ? "G_ArwL_End" : "G_ArwR_End";
+            const char *pane = side == 0 ? "N_ArwL_End" : "N_ArwR__End";
+            WmLayoutClip clip = {.animation = "my_IplTop_e",
+                                 .group = group,
+                                 .frame = hidden ? 10110.0f : 10160.0f};
+            assert(wm_layout_pose(board->calendar->footer, &clip, 1));
+            float expected = pane_x(board->calendar->footer, pane);
+            board_calendar_pose_footer(board->calendar);
+            assert(pane_x(board->calendar->footer, pane) == expected);
+        }
+        wm_board_scene_destroy(board);
+    }
+}
+
+static void assert_shared_arrow_loop(WmBoardScene *board,
+                                     const WmLayout *child_footer) {
+    board_scene_pose_footer(board);
+    assert(pane_x(board->footer, "N_ArwL_Roop") == pane_x(child_footer, "N_ArwL_Roop"));
+    assert(pane_x(board->footer, "N_ArwR_Roop") == pane_x(child_footer, "N_ArwR_Roop"));
+}
+
+static void test_calendar_arrow_entry(int argc, char **argv) {
     WmBoardScene *board = load_board(argc, argv);
-    assert(board);
-    assert(wm_board_scene_open(board, (WmBoardDate){2026, 9, 25}));
+    assert(board && wm_board_scene_open(board, (WmBoardDate){2026, 9, 25}));
     wm_board_scene_advance(board, 40.0f);
     settle_initial_memos(board);
-    (void)wm_board_scene_hit(board, 320, 200);
-    float settled_left = 0.0f;
-    float settled_right = 0.0f;
-    float y = 0.0f;
-    assert(wm_board_scene_footer_button_anchor(board, WM_BOARD_CONTROL_PREVIOUS,
-                                               &settled_left, &y));
-    assert(wm_board_scene_footer_button_anchor(board, WM_BOARD_CONTROL_NEXT,
-                                               &settled_right, &y));
-
+    wm_board_scene_set_menu_elapsed_seconds(board, 1.2345f);
+    board_scene_pose_footer(board);
+    float visible_left = pane_x(board->footer, "N_ArwL_End");
+    float visible_right = pane_x(board->footer, "N_ArwR__End");
     assert(wm_board_scene_activate(board,
-                                   (WmBoardHit){WM_BOARD_CONTROL_CREATE, SIZE_MAX}));
-    wm_board_scene_advance(board, 39.0f);
-    assert(wm_board_scene_back(board));
-    wm_board_scene_advance(board, 46.0f);
-    assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
-
-    float left[3];
-    float right[3];
-    for (size_t sample = 0; sample < 3; sample++) {
-        if (sample)
-            wm_board_scene_advance(board, 5.0f);
-        (void)wm_board_scene_hit(board, 320, 200);
-        assert(wm_board_scene_footer_button_anchor(board, WM_BOARD_CONTROL_PREVIOUS,
-                                                   &left[sample], &y));
-        assert(wm_board_scene_footer_button_anchor(board, WM_BOARD_CONTROL_NEXT,
-                                                   &right[sample], &y));
-    }
-    /* Source my_IplTop_e 10150–10160 moves the arrows 200 world units
-     * inward; neither side should jump directly to its settled location. */
-    assert(left[0] < left[1] && left[1] < left[2]);
-    assert(right[0] > right[1] && right[1] > right[2]);
-    assert(fabsf(left[2] - settled_left) < 0.01f);
-    assert(fabsf(right[2] - settled_right) < 0.01f);
+                                   (WmBoardHit){WM_BOARD_CONTROL_CALENDAR, SIZE_MAX}));
+    board_calendar_pose_footer(board->calendar);
+    assert(pane_x(board->calendar->footer, "N_ArwL_End") == visible_left);
+    assert(pane_x(board->calendar->footer, "N_ArwR__End") == visible_right);
+    assert_shared_arrow_loop(board, board->calendar->footer);
+    wm_board_scene_advance(board, 5.0f);
+    wm_board_scene_set_menu_elapsed_seconds(board, 1.2345f + 5.0f / 60.0f);
+    board_calendar_pose_footer(board->calendar);
+    float moving_left = pane_x(board->calendar->footer, "N_ArwL_End");
+    float moving_right = pane_x(board->calendar->footer, "N_ArwR__End");
+    assert(moving_left < visible_left && moving_right > visible_right);
+    assert_shared_arrow_loop(board, board->calendar->footer);
+    wm_board_scene_advance(board, 5.0f);
+    wm_board_scene_set_menu_elapsed_seconds(board, 1.2345f + 10.0f / 60.0f);
+    board_calendar_pose_footer(board->calendar);
+    assert(pane_x(board->calendar->footer, "N_ArwL_End") < moving_left);
+    assert(pane_x(board->calendar->footer, "N_ArwR__End") > moving_right);
+    assert_shared_arrow_loop(board, board->calendar->footer);
     wm_board_scene_destroy(board);
+}
+
+static void test_board_arrow_return_from_create(int argc, char **argv) {
+    for (unsigned child = 0; child < 2; child++) {
+        bool calendar = child == 0;
+        WmBoardScene *board = load_board(argc, argv);
+        assert(board);
+        assert(wm_board_scene_open(board, (WmBoardDate){2026, 9, 25}));
+        wm_board_scene_advance(board, 40.0f);
+        settle_initial_memos(board);
+        WmBoardControl control =
+            calendar ? WM_BOARD_CONTROL_CALENDAR : WM_BOARD_CONTROL_CREATE;
+        assert(wm_board_scene_activate(board, (WmBoardHit){control, SIZE_MAX}));
+        wm_board_scene_advance(board, 50.0f);
+        assert(wm_board_scene_back(board));
+        float return_start = calendar ? 20.0f : 26.0f;
+        wm_board_scene_advance(board, return_start);
+        float left[3], right[3];
+        for (size_t sample = 0; sample < 3; sample++) {
+            if (sample)
+                wm_board_scene_advance(board, 5.0f);
+            wm_board_scene_set_menu_elapsed_seconds(board,
+                                                    3.2345f + (float)sample / 12.0f);
+            WmLayout *footer = pose_child_footer(board, calendar);
+            assert_shared_arrow_loop(board, footer);
+            left[sample] = pane_x(footer, "N_ArwL_End");
+            right[sample] = pane_x(footer, "N_ArwR__End");
+        }
+        assert(left[0] < left[1] && left[1] < left[2]);
+        assert(right[0] > right[1] && right[1] > right[2]);
+        float corner_finish = calendar ? 39.0f : 46.0f;
+        wm_board_scene_advance(board, corner_finish - return_start - 10.0f);
+        if (calendar) {
+            WmLayout *footer = pose_child_footer(board, true);
+            assert(pane_x(footer, "N_BtnL_a0") == 0);
+            assert(pane_x(footer, "N_BtnR_a0") == 0);
+            wm_board_scene_advance(board, 1.0f);
+        }
+        assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
+        for (unsigned frame = 0; frame < 3; frame++) {
+            board_scene_pose_footer(board);
+            assert(pane_x(board->footer, "N_ArwL_End") == left[2]);
+            assert(pane_x(board->footer, "N_ArwR__End") == right[2]);
+            assert(pane_x(board->footer, "N_BtnL_a0") == 0);
+            assert(pane_x(board->footer, "N_BtnR_a0") == 0);
+            wm_board_scene_advance(board, 1.0f);
+        }
+        wm_board_scene_destroy(board);
+    }
 }
 
 static void test_child_return_retires_footer_focus(int argc, char **argv) {
@@ -2616,73 +2775,68 @@ static void select_board_calendar_date(WmBoardScene *board, WmBoardDate target) 
     WmBoardSoundEvent event;
     assert(wm_board_scene_take_sound_event(board, &event) &&
            strcmp(event.cue, "dateSelect") == 0 && event.memo_index == SIZE_MAX);
-    assert(!wm_board_scene_take_sound_event(board, &event));
 }
 
 static void test_calendar_date_transition(int argc, char **argv) {
     const WmBoardDate current = {2026, 9, 25};
     const WmBoardDate targets[] = {{2027, 1, 17}, {2025, 8, 2}, current};
     for (size_t index = 0; index < sizeof(targets) / sizeof(targets[0]); index++) {
-        for (unsigned batched = 0; batched < 2; batched++) {
-            WmBoardScene *board = load_board(argc, argv);
-            WmBoardMemo memos[2] = {{.id = "current",
-                                     .text = "Current",
-                                     .date = current,
-                                     .has_position = true,
-                                     .x = -210.0f,
-                                     .y = -60.0f},
-                                    {.id = "target",
-                                     .text = "Target",
-                                     .date = targets[index],
-                                     .has_position = true,
-                                     .x = 210.0f,
-                                     .y = 170.0f}};
-            bool equal = board_dates_equal(current, targets[index]);
-            assert(board && wm_board_scene_set_memos(board, memos, equal ? 1 : 2));
-            assert(wm_board_scene_open(board, current));
-            wm_board_scene_advance(board, 40.0f);
-            settle_initial_memos(board);
-            select_board_calendar_date(board, targets[index]);
-            if (batched)
-                wm_board_scene_advance(board, 85.0f);
-            else {
-                wm_board_scene_advance(board, 30.0f);
-                wm_board_scene_advance(board, 50.0f);
-            }
-            assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
-            WmBoardSoundEvent event;
-            if (equal) {
-                assert(wm_board_scene_phase(board) == WM_BOARD_READY);
-                assert(!wm_board_scene_take_sound_event(board, &event));
-            } else {
-                assert(wm_board_scene_phase(board) == WM_BOARD_DATE_SCROLL);
-                assert(board_dates_equal(wm_board_scene_date(board), current));
-                assert(wm_board_scene_take_sound_event(board, &event));
-                assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
-                       event.memo_index == 1);
-                assert(!wm_board_scene_take_sound_event(board, &event));
-                WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
-                size_t count = wm_board_scene_memo_presentation(board, cards);
-                const WmBoardMemoPresentation *incoming =
-                    find_presented_memo(cards, count, 1);
-                assert(count == 2 && incoming && incoming->entering);
-                assert(incoming->paste_frame == (batched ? 5.0f : 0.0f) &&
-                       incoming->pin_frame == (batched ? 5.0f : 0.0f));
-                if (!batched) {
-                    float offset = index == 0 ? 832.0f : -832.0f;
-                    assert(fabsf(incoming->x -
-                                 (memos[1].x * 832.0f / 608.0f + offset)) < 0.01f);
-                }
-                wm_board_scene_advance(board, batched ? 15.0f : 20.0f);
-            }
+        WmBoardScene *board = load_board(argc, argv);
+        WmBoardMemo memos[2] = {{.id = "current",
+                                 .text = "Current",
+                                 .date = current,
+                                 .has_position = true,
+                                 .x = -210.0f,
+                                 .y = -60.0f},
+                                {.id = "target",
+                                 .text = "Target",
+                                 .date = targets[index],
+                                 .has_position = true,
+                                 .x = 210.0f,
+                                 .y = 170.0f}};
+        bool equal = board_dates_equal(current, targets[index]);
+        assert(board && wm_board_scene_set_memos(board, memos, equal ? 1 : 2));
+        assert(wm_board_scene_open(board, current));
+        wm_board_scene_advance(board, 40.0f);
+        settle_initial_memos(board);
+        select_board_calendar_date(board, targets[index]);
+        assert(wm_board_scene_child(board) == WM_BOARD_CHILD_CALENDAR);
+        WmBoardSoundEvent event;
+        if (equal) {
             assert(wm_board_scene_phase(board) == WM_BOARD_READY);
-            assert(board_dates_equal(wm_board_scene_date(board), targets[index]));
-            wm_board_scene_advance(board, 40.0f);
-            assert(wm_board_scene_phase(board) == WM_BOARD_READY &&
-                   board_dates_equal(wm_board_scene_date(board), targets[index]));
-            assert(!wm_board_scene_take_sound_event(board, &event));
-            wm_board_scene_destroy(board);
+        } else {
+            assert(wm_board_scene_phase(board) == WM_BOARD_DATE_SCROLL);
+            assert(wm_board_scene_take_sound_event(board, &event));
+            assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 && event.memo_index == 1);
+            WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
+            size_t count = wm_board_scene_memo_presentation(board, cards);
+            const WmBoardMemoPresentation *incoming =
+                find_presented_memo(cards, count, 1);
+            assert(count == 2 && incoming && incoming->entering);
+            assert(incoming->paste_frame == 0 && incoming->pin_frame == 0);
+            float offset = index == 0 ? 832.0f : -832.0f;
+            assert(fabsf(incoming->x - (memos[1].x * 832.0f / 608.0f + offset)) <
+                   0.01f);
         }
+        assert(!wm_board_scene_take_sound_event(board, &event));
+        wm_board_scene_advance(board, 5.0f);
+        if (!equal) {
+            WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
+            size_t count = wm_board_scene_memo_presentation(board, cards);
+            const WmBoardMemoPresentation *incoming =
+                find_presented_memo(cards, count, 1);
+            assert(incoming && incoming->paste_frame == 5 && incoming->pin_frame == 5);
+        }
+        wm_board_scene_advance(board, 15.0f);
+        assert(wm_board_scene_phase(board) == WM_BOARD_READY);
+        assert(board_dates_equal(wm_board_scene_date(board), targets[index]));
+        assert(wm_board_scene_child(board) == WM_BOARD_CHILD_CALENDAR);
+        wm_board_scene_advance(board, 60.0f);
+        assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
+        assert(wm_board_scene_phase(board) == WM_BOARD_READY);
+        assert(board_dates_equal(wm_board_scene_date(board), targets[index]));
+        assert(!wm_board_scene_take_sound_event(board, &event));
+        wm_board_scene_destroy(board);
     }
 }
 
@@ -2883,6 +3037,12 @@ static void test_today_arrivals_stop_on_home_exit(int argc, char **argv) {
             assert(!wm_board_scene_take_sound_event(board, &event));
             select_board_calendar_date(board, today);
             wm_board_scene_advance(board, 80.0f);
+            /* Calendar arrivals now finish behind its selection/exit effects. */
+            for (size_t index = 0; index < 10; index++) {
+                assert(wm_board_scene_take_sound_event(board, &event));
+                assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
+                       event.memo_index == index);
+            }
         } else {
             assert(wm_board_scene_activate(
                 board, (WmBoardHit){WM_BOARD_CONTROL_PREVIOUS, SIZE_MAX}));
@@ -2891,17 +3051,17 @@ static void test_today_arrivals_stop_on_home_exit(int argc, char **argv) {
                    strcmp(event.cue, "WIPL_SE_MSG_HOUSE") == 0);
         }
         size_t first_index = route >= 2 ? 10 : 0;
-        unsigned arrival_frames = route == 3 ? 0 : 20;
+        unsigned arrival_frames = route == 1 || route == 3 ? 0 : 20;
         for (unsigned frame = 0; frame <= arrival_frames; frame++) {
             WmBoardMemoPresentation cards[WM_BOARD_MAX_PRESENTED_MEMOS];
             size_t count = wm_board_scene_memo_presentation(board, cards);
-            assert(count == frame / 5 + 1);
+            assert(count == (route == 1 ? 10 : frame / 5 + 1));
             for (size_t position = 0; position < count; position++) {
-                float age = (float)frame - (float)position * 5.0f;
+                float age = route == 1 ? 11.0f : (float)frame - (float)position * 5.0f;
                 assert(cards[position].memo_index == first_index + position &&
                        cards[position].paste_frame == fminf(10.0f, age));
             }
-            if (frame % 5 == 0) {
+            if (route != 1 && frame % 5 == 0) {
                 assert(wm_board_scene_take_sound_event(board, &event) &&
                        strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
                        event.memo_index == first_index + frame / 5);
@@ -3626,9 +3786,197 @@ static void test_pin_source_tracks(int argc, char **argv) {
     wm_layout_destroy(layout);
 }
 
+/* Construct controller state without layouts so these timing regressions also
+ * run on CI hosts without private resources. Rendering stays in the WAD tests. */
+static WmBoardScene *timing_board(void) {
+    WmBoardScene *board = calloc(1, sizeof(*board));
+    assert(board);
+    board->calendar = calloc(1, sizeof(*board->calendar));
+    board->compose = calloc(1, sizeof(*board->compose));
+    assert(board->calendar && board->compose);
+    board->phase = WM_BOARD_READY;
+    board->date = board->today = (WmBoardDate){2026, 9, 25};
+    return board;
+}
+
+static void test_memo_timing_without_assets(void) {
+    for (unsigned batched = 0; batched < 2; batched++) {
+        WmBoardCompose compose = {.phase = WM_COMPOSE_SELECTOR};
+        assert(wm_board_compose_activate(&compose, WM_COMPOSE_CONTROL_MEMO));
+        wm_board_compose_advance(&compose, 16.0f);
+        assert(compose.phase == WM_COMPOSE_ENTER_MEMO);
+        wm_board_compose_advance(&compose, 1.0f);
+        assert(compose.phase == WM_COMPOSE_MEMO && compose.memo_footer_age == 17);
+        assert(wm_board_compose_back(&compose));
+        assert(compose.phase == WM_COMPOSE_BACK_MEMO && compose.frame == 0);
+        assert(strcmp(wm_board_compose_take_key_cue(&compose), "WIPL_SE_CANCEL") == 0);
+        if (batched) {
+            wm_board_compose_advance(&compose, 45.75f);
+        } else {
+            for (unsigned index = 0; index < 183; index++)
+                wm_board_compose_advance(&compose, 0.25f);
+        }
+        assert(compose.phase == WM_COMPOSE_BACK_MEMO && compose.frame == 45.75f);
+        wm_board_compose_advance(&compose, 0.25f);
+        assert(compose.phase == WM_COMPOSE_SELECTOR);
+        assert(wm_board_compose_take_key_cue(&compose) == NULL);
+        assert(wm_board_compose_activate(&compose, WM_COMPOSE_CONTROL_MEMO));
+        assert(compose.memo_footer_age == 0);
+        wm_board_compose_advance(&compose, 60.0f);
+        assert(compose.phase == WM_COMPOSE_MEMO && compose.memo_footer_age == 60);
+    }
+}
+
+static void test_calendar_timing_without_assets(void) {
+    for (int day = 1; day <= 30; day++) {
+        for (unsigned batched = 0; batched < 2; batched++) {
+            WmBoardScene *board = timing_board();
+            WmBoardDate target = {2026, 9, day};
+            bool equal = day == 25;
+            WmBoardMemo memos[2] = {
+                {.id = "today", .text = "Current", .date = board->date},
+                {.id = "target", .text = "Target", .date = target}};
+            assert(wm_board_scene_set_memos(board, memos, equal ? 1 : 2));
+            select_board_calendar_date(board, target);
+            assert(board_dates_equal(wm_board_calendar_selected_date(board->calendar),
+                                     target));
+            assert(board->phase == (equal ? WM_BOARD_READY : WM_BOARD_DATE_SCROLL));
+            assert(board->phase_frame == 0 && !board->mask_exiting);
+            WmBoardSoundEvent event;
+            if (!equal) {
+                assert(wm_board_scene_take_sound_event(board, &event));
+                assert(strcmp(event.cue, "WIPL_SE_MSG_DISP") == 0 &&
+                       event.memo_index == 1);
+            }
+            assert(!wm_board_scene_take_sound_event(board, &event));
+            if (batched) {
+                wm_board_scene_advance(board, 85.0f);
+            } else {
+                wm_board_scene_advance(board, 19.5f);
+                assert(board->phase == (equal ? WM_BOARD_READY : WM_BOARD_DATE_SCROLL));
+                wm_board_scene_advance(board, 0.5f);
+                assert(board->phase == WM_BOARD_READY &&
+                       board_dates_equal(board->date, target));
+                assert(wm_board_scene_child(board) == WM_BOARD_CHILD_CALENDAR);
+                wm_board_scene_advance(board, 10.0f);
+                assert(board->mask_exiting && board->mask_exit_age == -20);
+                wm_board_scene_advance(board, 20.0f);
+                assert(board->mask_exit_age == 0);
+                wm_board_scene_advance(board, 35.0f);
+            }
+            assert(board->phase == WM_BOARD_READY &&
+                   board_dates_equal(board->date, target));
+            assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
+            assert(board->mask_exiting && board->mask_exit_age == 20);
+            assert(board->mask_direction == 0 && board->mask_age == 15);
+            assert(!wm_board_scene_take_sound_event(board, &event));
+            wm_board_scene_destroy(board);
+        }
+    }
+}
+
+static void test_shared_arrow_clock_without_assets(void) {
+    WmBoardScene *board = timing_board();
+    wm_board_scene_set_menu_elapsed_seconds(board, 1.2345f);
+    assert(board->calendar->has_arrow_loop_frame &&
+           board->compose->has_arrow_loop_frame);
+    float phase = board->calendar->arrow_loop_frame;
+    assert(phase == board->compose->arrow_loop_frame);
+    assert(wm_board_scene_activate(board,
+                                   (WmBoardHit){WM_BOARD_CONTROL_CALENDAR, SIZE_MAX}));
+    wm_board_scene_advance(board, 5.0f);
+    assert(board->calendar->age == 5 && board->calendar->arrow_loop_frame == phase);
+    wm_board_scene_set_menu_elapsed_seconds(board, 1.5345f);
+    assert(board->calendar->arrow_loop_frame != phase);
+    assert(board->calendar->arrow_loop_frame == board->compose->arrow_loop_frame);
+    wm_board_scene_reset(board);
+    assert(!board->calendar->has_arrow_loop_frame &&
+           !board->compose->has_arrow_loop_frame);
+    wm_board_scene_destroy(board);
+}
+
+static void test_calendar_edge_dates_without_assets(void) {
+    const WmBoardDate adjacent[] = {{2026, 8, 30}, {2026, 10, 3}};
+    for (size_t target = 0; target < sizeof(adjacent) / sizeof(*adjacent); target++) {
+        WmBoardScene *board = timing_board();
+        assert(wm_board_scene_activate(
+            board, (WmBoardHit){WM_BOARD_CONTROL_CALENDAR, SIZE_MAX}));
+        wm_board_scene_advance(board, 50.0f);
+        unsigned cell = 0;
+        while (cell < board->calendar->cell_count &&
+               !board_dates_equal(board->calendar->cells[cell].date, adjacent[target]))
+            cell++;
+        assert(cell < board->calendar->cell_count);
+        assert(wm_board_scene_activate(
+            board, (WmBoardHit){WM_BOARD_CONTROL_CALENDAR_DAY, cell}));
+        assert(board->phase == WM_BOARD_DATE_SCROLL);
+        assert(board->direction == (target == 0 ? -1 : 1));
+        wm_board_scene_advance(board, 20.0f);
+        assert(board_dates_equal(board->date, adjacent[target]));
+        wm_board_scene_destroy(board);
+    }
+    WmBoardScene *board = timing_board();
+    board->date = board->today = (WmBoardDate){2000, 1, 1};
+    assert(wm_board_scene_activate(board,
+                                   (WmBoardHit){WM_BOARD_CONTROL_CALENDAR, SIZE_MAX}));
+    wm_board_scene_advance(board, 50.0f);
+    assert(board->calendar->cells[0].disabled);
+    assert(!wm_board_scene_activate(board,
+                                    (WmBoardHit){WM_BOARD_CONTROL_CALENDAR_DAY, 0}));
+    assert(!board->calendar->selected && board->phase == WM_BOARD_READY);
+    WmBoardSoundEvent event;
+    assert(!wm_board_scene_take_sound_event(board, &event));
+    wm_board_scene_destroy(board);
+}
+
+static void test_child_background_timing_without_assets(void) {
+    const WmBoardControl controls[] = {WM_BOARD_CONTROL_CALENDAR,
+                                       WM_BOARD_CONTROL_CREATE};
+    for (size_t index = 0; index < sizeof(controls) / sizeof(*controls); index++) {
+        for (unsigned pointer = 0; pointer < 2; pointer++) {
+            WmBoardScene *board = timing_board();
+            assert(wm_board_scene_activate(board,
+                                           (WmBoardHit){controls[index], SIZE_MAX}));
+            wm_board_scene_advance(board, 50.0f);
+            assert(!board->mask_exiting);
+            if (pointer) {
+                WmBoardControl back = index == 0 ? WM_BOARD_CONTROL_CALENDAR_BACK
+                                                 : WM_BOARD_CONTROL_COMPOSE_BACK;
+                assert(wm_board_scene_activate(board, (WmBoardHit){back, SIZE_MAX}));
+            } else {
+                assert(wm_board_scene_back(board));
+            }
+            assert(board->mask_exiting && board->mask_exit_age == -20);
+            assert(board->mask_direction == 1);
+            wm_board_scene_advance(board, 19.5f);
+            assert(board->mask_exit_age == -0.5f);
+            wm_board_scene_advance(board, 0.5f);
+            assert(board->mask_exit_age == 0);
+            assert(wm_board_scene_child(board) != WM_BOARD_CHILD_NONE);
+            wm_board_scene_advance(board, index == 0 ? 20.0f : 26.0f);
+            assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
+            assert(board->mask_direction == 0 && board->mask_age == 0);
+            assert(board->mask_exiting && board->mask_exit_age == 20);
+            wm_board_scene_advance(board, 20.0f);
+            assert(board->mask_direction == 0);
+            assert(wm_board_scene_activate(board,
+                                           (WmBoardHit){controls[index], SIZE_MAX}));
+            assert(!board->mask_exiting && board->mask_exit_age == 0);
+            wm_board_scene_destroy(board);
+        }
+    }
+}
+
 int main(int argc, char **argv) {
     test_date_arithmetic();
     test_badge();
+    test_calendar_timing_without_assets();
+    test_calendar_edge_dates_without_assets();
+    test_shared_arrow_clock_without_assets();
+    test_child_background_timing_without_assets();
+    test_memo_timing_without_assets();
+    puts("Calendar selection, background exit and footer clocks passed without private "
+         "assets.");
     WmBoardScene *board = load_board(argc, argv);
     if (!board)
         return 0;
@@ -3639,6 +3987,7 @@ int main(int argc, char **argv) {
     test_calendar_same_tile_motion(argc, argv);
     test_calendar_hover_boundary_stability(argc, argv);
     test_compose(argc, argv);
+    test_memo_transition_tracks(argc, argv);
     test_compose_network_dialog(argc, argv);
     test_board_network_settings_action(argc, argv);
     test_compose_mii_notice(argc, argv);
@@ -3649,6 +3998,8 @@ int main(int argc, char **argv) {
     test_memo_caret_layout(argc, argv);
     test_compose_symbol_pages(argc, argv);
     test_compose_memo_scroll_transitions(argc, argv);
+    test_calendar_arrow_entry(argc, argv);
+    test_calendar_return_at_date_limits(argc, argv);
     test_board_arrow_return_from_create(argc, argv);
     test_child_return_retires_footer_focus(argc, argv);
     test_erase_dialog(argc, argv);

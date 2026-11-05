@@ -193,7 +193,9 @@ void board_calendar_pose_footer(WmBoardCalendar *calendar) {
     append_clip(clips, &count, "my_IplTop_e", "G_SeenChange", NULL,
                 footer_frame(calendar));
     append_clip(clips, &count, "my_IplTop_e", "G_ArwRoop", NULL,
-                10000.0f + fmodf(calendar->age, 55.0f));
+                10000.0f + (calendar->has_arrow_loop_frame
+                                ? calendar->arrow_loop_frame
+                                : fmodf(calendar->age, 55.0f)));
     static const char *const end_groups[2] = {"G_ArwL_End", "G_ArwR_End"};
     static const char *const focus_groups[2] = {"G_ArwL_Focus", "G_ArwR_Focus"};
     static const char *const press_groups[2] = {"G_ArwL_Ac", "G_ArwR_Ac"};
@@ -201,11 +203,25 @@ void board_calendar_pose_footer(WmBoardCalendar *calendar) {
         bool previous = arrow == 0;
         bool hidden = board_calendar_month_at_limit(calendar, previous);
         float arrow_frame = hidden || calendar->age < 40.0f ? 10110.0f : 10160.0f;
+        if (calendar->phase == WM_CALENDAR_ENTER && calendar->age < 10.0f) {
+            arrow_frame = calendar->entering_arrow_visible[arrow]
+                              ? 10100.0f + calendar->age
+                              : 10110.0f;
+        }
         if (!hidden && calendar->age >= 40.0f && calendar->age < 50.0f) {
             arrow_frame = 10150.0f + calendar->age - 40.0f;
         }
-        if (calendar->phase == WM_CALENDAR_EXIT && !hidden) {
-            arrow_frame = 10100.0f + clamp_frame(calendar->phase_frame, 10.0f);
+        if (calendar->phase == WM_CALENDAR_EXIT) {
+            if (calendar->phase_frame < 20.0f) {
+                arrow_frame =
+                    hidden ? 10110.0f
+                           : 10100.0f + clamp_frame(calendar->phase_frame, 10.0f);
+            } else {
+                arrow_frame =
+                    calendar->entering_arrow_visible[arrow]
+                        ? 10150.0f + clamp_frame(calendar->phase_frame - 20.0f, 10.0f)
+                        : 10110.0f;
+            }
         }
         append_clip(clips, &count, "my_IplTop_e", end_groups[arrow], NULL, arrow_frame);
         CalendarFocus focus = calendar->arrow_focus[arrow];

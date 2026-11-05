@@ -72,6 +72,8 @@ struct WmBoardScene {
     size_t pending_posted_memo;
     float scroll_offset_x;
     float mask_age;
+    float mask_exit_age;
+    bool mask_exiting;
     int mask_direction;
     int direction;
     int return_direction;

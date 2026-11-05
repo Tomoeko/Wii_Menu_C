@@ -466,7 +466,6 @@ int main(int argc, char **argv) {
     assert(wm_board_compose_back(compose));
     assert(strcmp(wm_board_compose_take_key_cue(compose), "WIPL_SE_CANCEL") == 0);
     assert(wm_board_compose_take_key_cue(compose) == NULL);
-    wm_board_compose_advance(compose, 20.0f);
     WmLayoutClip exit_clip = {.animation = "my_Memo_a_MailOut", .frame = 0.0f};
     assert(wm_layout_pose(source, &exit_clip, 1));
     assert(wm_source_pane_rect(source, "Nigaoe", true, WM_LAYOUT_IPL, NULL,

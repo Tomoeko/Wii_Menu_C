@@ -55,6 +55,9 @@ struct WmBoardCalendar {
     WmBoardCalendarPhase phase;
     float phase_frame;
     float age;
+    float arrow_loop_frame;
+    bool has_arrow_loop_frame;
+    bool entering_arrow_visible[2];
     bool selected;
     WmBoardCalendarHit hover;
     CalendarFocus day_focus[CALENDAR_MAX_CELLS];

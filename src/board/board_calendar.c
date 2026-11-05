@@ -132,6 +132,7 @@ void wm_board_calendar_reset(WmBoardCalendar *calendar) {
     calendar->phase = WM_CALENDAR_CLOSED;
     calendar->phase_frame = 0.0f;
     calendar->age = 0.0f;
+    calendar->has_arrow_loop_frame = false;
     calendar->selected = false;
     calendar->hover =
         (WmBoardCalendarHit){WM_CALENDAR_CONTROL_NONE, CALENDAR_MAX_CELLS};
@@ -176,6 +177,10 @@ bool wm_board_calendar_open(WmBoardCalendar *calendar, WmBoardDate date,
     calendar->month = (WmBoardDate){date.year, date.month, 1};
     calendar->old_month = (WmBoardDate){0, 0, 0};
     calendar->today = today;
+    calendar->entering_arrow_visible[0] =
+        !board_calendar_same_date(date, (WmBoardDate){2000, 1, 1});
+    calendar->entering_arrow_visible[1] =
+        !board_calendar_same_date(date, (WmBoardDate){2035, 12, 31});
     calendar->selected = false;
     calendar->age = 0.0f;
     calendar->phase_frame = 0.0f;
@@ -196,12 +201,22 @@ WmBoardCalendarPhase wm_board_calendar_phase(const WmBoardCalendar *calendar) {
     return calendar ? calendar->phase : WM_CALENDAR_CLOSED;
 }
 
+void wm_board_calendar_set_footer_arrows(WmBoardCalendar *calendar, float frame,
+                                         bool previous_visible, bool next_visible) {
+    if (!calendar || !isfinite(frame) || frame < 0.0f)
+        return;
+    calendar->arrow_loop_frame = fmodf(frame, 55.0f);
+    calendar->has_arrow_loop_frame = true;
+    calendar->entering_arrow_visible[0] = previous_visible;
+    calendar->entering_arrow_visible[1] = next_visible;
+}
+
 static float phase_duration(WmBoardCalendarPhase phase) {
     switch (phase) {
         case WM_CALENDAR_ENTER:
             return 40.0f;
         case WM_CALENDAR_EXIT:
-            return 50.0f;
+            return 40.0f;
         case WM_CALENDAR_SELECT:
         case WM_CALENDAR_SCROLL_PREVIOUS:
         case WM_CALENDAR_SCROLL_NEXT:
@@ -221,6 +236,11 @@ float wm_board_calendar_frames_to_boundary(const WmBoardCalendar *calendar) {
 
 WmBoardDate wm_board_calendar_month(const WmBoardCalendar *calendar) {
     return calendar ? calendar->month : (WmBoardDate){0, 0, 0};
+}
+
+WmBoardDate wm_board_calendar_selected_date(const WmBoardCalendar *calendar) {
+    return calendar && calendar->selected ? calendar->selected_date
+                                          : (WmBoardDate){0, 0, 0};
 }
 
 WmBoardCalendarOutcome wm_board_calendar_take_outcome(WmBoardCalendar *calendar,

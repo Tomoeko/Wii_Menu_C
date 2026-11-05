@@ -72,12 +72,8 @@ void board_compose_pose_selector(WmBoardCompose *compose) {
                         ? clamp_frame(compose->frame, 16.0f)
                         : 16.0f);
     } else if (compose->phase == WM_COMPOSE_BACK_MEMO) {
-        if (compose->frame < 46.0f) {
-            append_clip(clips, &count, "my_Mail_a_MailIn", NULL, 16.0f);
-        } else {
-            append_clip(clips, &count, "my_Mail_a_MailOut", NULL,
-                        clamp_frame(compose->frame - 46.0f, 16.0f));
-        }
+        append_clip(clips, &count, "my_Mail_a_MailOut", NULL,
+                    clamp_frame(compose->frame, 16.0f));
     }
     static const struct {
         WmBoardComposeControl control;
@@ -117,7 +113,7 @@ static bool body_visible(const WmBoardCompose *compose) {
            compose->phase == WM_COMPOSE_LEAVE_EDIT ||
            compose->phase == WM_COMPOSE_POST_PRESS ||
            compose->phase == WM_COMPOSE_SEND ||
-           (compose->phase == WM_COMPOSE_BACK_MEMO && compose->frame < 46.0f);
+           (compose->phase == WM_COMPOSE_BACK_MEMO && compose->frame < 16.0f);
 }
 
 static const char *const body_editor_panes[COMPOSE_SCROLL_DIRECTIONS] = {
@@ -133,9 +129,9 @@ static void append_body_transition_clips(const WmBoardCompose *compose,
         append_clip(clips, count, "my_Memo_a_MailIn", NULL, 16.0f);
         append_clip(clips, count, "my_Memo_a_SendOut", NULL,
                     clamp_frame(compose->frame, 50.0f));
-    } else if (compose->phase == WM_COMPOSE_BACK_MEMO && compose->frame >= 20.0f) {
+    } else if (compose->phase == WM_COMPOSE_BACK_MEMO) {
         append_clip(clips, count, "my_Memo_a_MailOut", NULL,
-                    clamp_frame(compose->frame - 20.0f, 16.0f));
+                    clamp_frame(compose->frame, 16.0f));
     } else {
         append_clip(clips, count, "my_Memo_a_MailIn", NULL, 16.0f);
     }
@@ -167,8 +163,7 @@ static void append_body_scroll_clips(const WmBoardCompose *compose,
                 fmodf(compose->age, 55.0f));
     ComposeFocus mii_focus = compose->focus[WM_COMPOSE_CONTROL_MII];
     bool body_exiting =
-        compose->phase == WM_COMPOSE_SEND ||
-        (compose->phase == WM_COMPOSE_BACK_MEMO && compose->frame >= 20.0f);
+        compose->phase == WM_COMPOSE_SEND || compose->phase == WM_COMPOSE_BACK_MEMO;
     if (mii_focus.active && !body_exiting) {
         /* The focus clip has a constant 255-alpha track for Nigaoe. During
          * MailOut or SendOut it would override the source icon fade. */
@@ -550,6 +545,12 @@ static void draw_memo_line_feeds(WmBoardCompose *compose, const MemoCaretPane *p
     }
 }
 
+static float memo_entry_footer_frame(const WmBoardCompose *compose) {
+    return compose->memo_footer_age < 13.0f
+               ? 3213.0f + compose->memo_footer_age
+               : 3313.0f + clamp_frame(compose->memo_footer_age - 13.0f, 13.0f);
+}
+
 static float footer_scene_frame(const WmBoardCompose *compose) {
     switch (compose->phase) {
         case WM_COMPOSE_ENTER_SELECTOR:
@@ -559,14 +560,19 @@ static float footer_scene_frame(const WmBoardCompose *compose) {
         case WM_COMPOSE_SELECTOR:
             return 3126.0f;
         case WM_COMPOSE_ENTER_MEMO:
-            return compose->frame < 13.0f
-                       ? 3213.0f + compose->frame
-                       : 3313.0f + clamp_frame(compose->frame - 13.0f, 13.0f);
         case WM_COMPOSE_MEMO:
+            return memo_entry_footer_frame(compose);
         case WM_COMPOSE_POST_PRESS:
             return 3326.0f;
-        case WM_COMPOSE_ENTER_EDIT:
-            return 3413.0f + clamp_frame(compose->frame, 13.0f);
+        case WM_COMPOSE_ENTER_EDIT: {
+            /* Memo's body is ready before its footer. Finish the incoming
+             * buttons before playing their keyboard exit, even on early input. */
+            float entry_age = compose->memo_footer_age - compose->frame;
+            float delay = fmaxf(0.0f, 26.0f - entry_age);
+            if (compose->memo_footer_age < 26.0f)
+                return memo_entry_footer_frame(compose);
+            return 3413.0f + clamp_frame(compose->frame - delay, 13.0f);
+        }
         case WM_COMPOSE_EDIT:
             return 3426.0f;
         case WM_COMPOSE_LEAVE_EDIT:
@@ -577,7 +583,7 @@ static float footer_scene_frame(const WmBoardCompose *compose) {
             return 3426.0f + clamp_frame(compose->frame, 13.0f);
         case WM_COMPOSE_BACK_MEMO:
             if (compose->frame < 20.0f)
-                return 3326.0f;
+                return memo_entry_footer_frame(compose);
             if (compose->frame < 33.0f)
                 return 3413.0f + compose->frame - 20.0f;
             return 3113.0f + clamp_frame(compose->frame - 33.0f, 13.0f);
@@ -613,11 +619,17 @@ void board_compose_pose_footer(WmBoardCompose *compose) {
     append_clip(clips, &count, "my_IplTop_e", "G_SeenChange",
                 footer_scene_frame(compose));
     append_clip(clips, &count, "my_IplTop_e", "G_ArwRoop",
-                10000.0f + fmodf(compose->age, 55.0f));
+                10000.0f + (compose->has_arrow_loop_frame
+                                ? compose->arrow_loop_frame
+                                : fmodf(compose->age, 55.0f)));
     if (compose->phase == WM_COMPOSE_ENTER_SELECTOR) {
         float frame = clamp_frame(compose->frame, 10.0f);
         append_clip(clips, &count, "my_IplTop_e", "G_ArwL_End", 10100.0f + frame);
         append_clip(clips, &count, "my_IplTop_e", "G_ArwR_End", 10100.0f + frame);
+    } else if (compose->phase == WM_COMPOSE_BACK_SELECTOR) {
+        float frame = clamp_frame(compose->frame - 26.0f, 10.0f);
+        append_clip(clips, &count, "my_IplTop_e", "G_ArwL_End", 10150.0f + frame);
+        append_clip(clips, &count, "my_IplTop_e", "G_ArwR_End", 10150.0f + frame);
     } else if (compose->phase == WM_COMPOSE_ADDRESS) {
         WmBoardAddressPhase phase = wm_board_address_phase(compose->address);
         float frame = wm_board_address_phase_frame(compose->address);
@@ -686,10 +698,8 @@ void board_compose_pose_footer(WmBoardCompose *compose) {
     }
     if ((compose->phase == WM_COMPOSE_BACK_MEMO && compose->frame < 20.0f) ||
         compose->phase == WM_COMPOSE_BACK_SELECTOR) {
-        /* Memo Back commits its press when the 20-frame first stage ends.
-         * The following MailOut stage restores the neutral
-         * button pose while the selector returns. Holding frame 3020
-         * retains its 1.1-scale press track until the entire exit ends. */
+        /* The body morph starts immediately; the footer keeps its own press
+         * and button-change sequence without holding the pressed scale. */
         append_clip(clips, &count, "my_IplTop_e", "G_CalExit",
                     3000.0f + clamp_frame(compose->frame, 20.0f));
     }

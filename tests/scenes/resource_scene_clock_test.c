@@ -400,7 +400,7 @@ static void test_calendar_date_background(WmBoardScene *board,
             board, (WmBoardHit){select_day ? WM_BOARD_CONTROL_CALENDAR_DAY
                                            : WM_BOARD_CONTROL_CALENDAR_BACK,
                                 select_day ? today_cell : SIZE_MAX}));
-        unsigned exit_frames = select_day ? 80 : 50;
+        unsigned exit_frames = select_day ? 70 : 40;
         for (unsigned frame = 0; frame < exit_frames; frame++) {
             assert_compose_date_background(board, grid_date, true);
             assert(first_memo_sequence > last_date_sequence);
@@ -408,8 +408,7 @@ static void test_calendar_date_background(WmBoardScene *board,
         }
         assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
         for (unsigned frame = 0; frame < 20; frame++) {
-            assert_compose_date_background(board, grid_date, true);
-            assert(first_memo_sequence > last_date_sequence);
+            assert_board_date_matches(board, grid_date);
             wm_board_scene_advance(board, 1.0f);
         }
         assert_board_date_matches(board, grid_date);
@@ -633,10 +632,10 @@ int main(int argc, char **argv) {
         wm_board_scene_advance(board, 1.0f);
     }
     assert(wm_board_scene_child(board) == WM_BOARD_CHILD_NONE);
-    /* Child closure starts a separate 20-frame shade fade. The date must
-     * remain underneath it with the cards until the shade is gone. */
+    /* The shade has already left during child exit. Date ownership returns
+     * to the Board footer without a second fade or duplicate glyphs. */
     for (unsigned frame = 0; frame < 19; frame++) {
-        assert_compose_date_background(board, &grid_date, true);
+        assert_board_date_matches(board, &grid_date);
         wm_board_scene_advance(board, 1.0f);
     }
     wm_board_scene_advance(board, 1.0f);

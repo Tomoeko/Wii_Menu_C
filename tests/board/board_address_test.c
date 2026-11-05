@@ -7,6 +7,7 @@
 #include "wii_menu/input/source_hit.h"
 #include "wii_menu/render/texture_cache.h"
 #include "../../src/board/board_keyboard_internal.h"
+#include "../../src/board/board_address_internal.h"
 
 #include <assert.h>
 #include <math.h>
@@ -220,6 +221,36 @@ static void test_disabled_network_rows(WmPlatform *platform, const char *assets,
     wm_board_compose_destroy(compose);
 }
 
+static void test_card_morph(WmPlatform *platform, const char *assets,
+                            WmTextureCache *textures, WmFontCache *fonts) {
+    WmBoardAddress *book = wm_board_address_create(platform, assets, textures, fonts);
+    assert(book && wm_board_address_open(book));
+    for (unsigned leaving = 0; leaving < 2; leaving++) {
+        for (unsigned frame = 0; frame < 16; frame++) {
+            WmLayoutClip clip = {.animation = leaving ? "th_Adress_a_note_alp_out"
+                                                      : "th_Adress_a_note_alp_in",
+                                 .group = "G_note_all",
+                                 .frame = (float)frame};
+            WmLayoutPaneState expected, actual;
+            assert(wm_layout_pose(book->book, &clip, 1));
+            assert(wm_layout_pane_state(book->book, "N_note_all", &expected));
+            wm_board_address_draw(book);
+            assert(wm_layout_pane_state(book->book, "N_note_all", &actual));
+            for (size_t axis = 0; axis < 2; axis++) {
+                assert(fabsf(actual.translation[axis] - expected.translation[axis]) <
+                       0.001f);
+                assert(fabsf(actual.scale[axis] - expected.scale[axis]) < 0.001f);
+            }
+            wm_board_address_advance(book, 1.0f);
+        }
+        if (!leaving) {
+            wm_board_address_advance(book, 10.0f);
+            assert(wm_board_address_back(book));
+        }
+    }
+    wm_board_address_destroy(book);
+}
+
 int main(int argc, char **argv) {
     const char *assets = argc > 1 ? argv[1] : "Files/.local/native-assets";
     char path[4096];
@@ -238,6 +269,7 @@ int main(int argc, char **argv) {
         wm_texture_cache_create(platform, assets, 64u * 1024u * 1024u);
     WmFontCache *fonts = wm_font_cache_create(platform, assets, 8u * 1024u * 1024u);
     assert(textures && fonts);
+    test_card_morph(platform, assets, textures, fonts);
     WmBoardAddress *book = wm_board_address_create(platform, assets, textures, fonts);
     assert(book);
     char error[160] = {0};
@@ -264,9 +296,12 @@ int main(int argc, char **argv) {
     assert(!wm_board_address_turn(book, true));
     material_draws = 0;
     wm_board_address_draw(book);
+    assert(material_draws == 0);
+    wm_board_address_advance(book, 1.0f);
+    wm_board_address_draw(book);
     assert(material_draws > 0);
     unsigned cover_draws = material_draws;
-    wm_board_address_advance(book, 26.0f);
+    wm_board_address_advance(book, 25.0f);
     assert(wm_board_address_phase(book) == WM_BOARD_ADDRESS_READY);
     assert(wm_board_address_page(book) == 0);
 

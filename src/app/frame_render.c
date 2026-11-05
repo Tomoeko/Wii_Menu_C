@@ -44,6 +44,8 @@ static void draw_home_underlay(const WmAppRenderer *renderer,
     wm_texture_cache_begin_frame(renderer->scene_textures);
     wm_font_cache_begin_frame(renderer->scene_fonts);
     if (renderer->board_scene && menu->screen == WM_SCREEN_BOARD) {
+        wm_board_scene_set_menu_elapsed_seconds(renderer->board_scene,
+                                                frame->home_underlay_elapsed);
         wm_board_scene_draw_body(renderer->board_scene);
         float grid_frame = 0.0f;
         if (renderer->resource_scene &&
@@ -52,8 +54,6 @@ static void draw_home_underlay(const WmAppRenderer *renderer,
                                                 grid_frame,
                                                 frame->home_underlay_elapsed);
         }
-        wm_board_scene_set_menu_elapsed_seconds(renderer->board_scene,
-                                                frame->home_underlay_elapsed);
         wm_board_scene_draw_footer(renderer->board_scene);
         float sd_frame = 0.0f;
         if (renderer->resource_scene &&
@@ -165,15 +165,15 @@ static void draw_grid(WmAppRenderer *renderer, const WmAppRenderFrame *frame,
 
 static void draw_board(WmAppRenderer *renderer, const WmAppRenderFrame *frame) {
     begin_scene_frame(renderer, scene_clear);
+    float scene_seconds = (float)(frame->frame_start - frame->started) / 1000000000.0f;
+    wm_board_scene_set_menu_elapsed_seconds(renderer->board_scene, scene_seconds);
     wm_board_scene_draw_body(renderer->board_scene);
     float grid_frame = 0.0f;
-    float scene_seconds = (float)(frame->frame_start - frame->started) / 1000000000.0f;
     if (renderer->resource_scene &&
         wm_board_scene_grid_overlay(renderer->board_scene, &grid_frame)) {
         wm_resource_scene_draw_grid_overlay(renderer->resource_scene, frame->menu,
                                             grid_frame, scene_seconds);
     }
-    wm_board_scene_set_menu_elapsed_seconds(renderer->board_scene, scene_seconds);
     wm_board_scene_draw_footer(renderer->board_scene);
     float sd_frame = 0.0f;
     if (renderer->resource_scene &&
